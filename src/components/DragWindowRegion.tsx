@@ -19,7 +19,7 @@ export default function DragWindowRegion({ title }: DragWindowRegionProps) {
           </div>
         )}
       </div>
-      <WindowButtons />
+      {/* <WindowButtons /> */}
     </div>
   );
 }
