@@ -179,12 +179,15 @@ export function createOllamaService(
                 )));
             }
 
-            return Stream.suspend(() => response.stream).pipe(
-                stream => Stream.decodeText(stream),
-                stream => Stream.splitLines(stream),
+            // This is the stream from the HTTP client
+            const httpClientStream = response.stream;
+
+            return httpClientStream.pipe(
+                Stream.decodeText(),
+                Stream.splitLines(),
                 Stream.mapEffect(line => {
-                    const lineStr = String(line);
-                    if (lineStr.trim() === "" || lineStr === "data: [DONE]") {
+                    const lineStr = String(line).trim(); // Trim upfront
+                    if (lineStr === "" || lineStr === "data: [DONE]") {
                         return Effect.succeed(Option.none<OllamaOpenAIChatStreamChunk>());
                     }
                     if (lineStr.startsWith("data: ")) {
@@ -201,13 +204,19 @@ export function createOllamaService(
                             return Effect.fail(new OllamaParseError("JSON parse error in OpenAI stream chunk", { line: jsonData, error: e }));
                         }
                     }
+                    // If line is not empty, not [DONE], and not "data: ", it's unexpected.
                     return Effect.fail(new OllamaParseError("Unexpected line format in OpenAI stream", { line: lineStr }));
                 }),
-                stream => Stream.filterMap((chunk: unknown) => Option.isOption(chunk) && Option.isSome(chunk) ? Option.some(Option.getOrUndefined(chunk) as OllamaOpenAIChatStreamChunk) : Option.none())(stream),
-                Stream.mapError(err => {
+                Stream.compact(), // Use Stream.compact here to handle Option values
+                Stream.mapError(err => { // Consolidate error types
                     if (err instanceof OllamaParseError || err instanceof OllamaHttpError) return err;
+                    // This case should ideally not be hit if httpClient.stream errors are ResponseError
                     if (err instanceof HttpClientError.ResponseError) {
                          return new OllamaHttpError("OpenAI stream body processing error", httpRequest, err);
+                    }
+                    // This case handles ParseError from Schema.decodeUnknown if it's not wrapped
+                    if (Schema.isParseError && Schema.isParseError(err)) {
+                        return new OllamaParseError("Uncaught schema parse error in OpenAI stream chunk", err);
                     }
                     return new OllamaParseError("Unknown OpenAI stream error", err);
                 })
