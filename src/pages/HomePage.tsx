@@ -10,12 +10,15 @@ import {
   UiOllamaConfigLive 
 } from "@/services/ollama/OllamaService";
 import { OllamaServiceLive } from '@/services/ollama/OllamaServiceImpl';
-import { NodeHttpClient } from '@effect/platform-node';
+import { HttpClient } from "@effect/platform/HttpClient";
+
+// Define a browser-compatible HttpClient layer using the default fetch implementation
+const fetchHttpClientLayer = Layer.succeed(HttpClient, HttpClient.fetch);
 
 // Define a Layer for the UI that combines OllamaServiceLive with its dependencies
 const uiOllamaServiceLayer = Layer.provide(
   OllamaServiceLive,
-  Layer.merge(UiOllamaConfigLive, NodeHttpClient.layer)
+  Layer.merge(UiOllamaConfigLive, fetchHttpClientLayer)
 );
 
 export default function HomePage() {
