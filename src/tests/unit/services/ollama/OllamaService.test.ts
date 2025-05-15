@@ -485,29 +485,44 @@ describe('OllamaService (/v1/chat/completions)', () => {
         });
 
         it('should fail the stream with OllamaHttpError for API errors on initial request (e.g., 404)', async () => {
-            const mockErrorJsonBody = JSON.stringify({ error: { message: "Chat stream model not found", type: "invalid_request_error", code: "model_not_found" } });
-             Effect.runSync(
+            const mockErrorBody = { 
+                error: { 
+                    message: "Chat stream model not found" 
+                } 
+            };
+            
+            // Create a regular HTTP response for the error, not a streaming one
+            Effect.runSync(
                 setMockClientResponse(
                     { url: `${testConfig.baseURL}/chat/completions`, method: "POST" },
-                    Effect.succeed(mockOpenAIHttpStreamingResponse(404, [mockErrorJsonBody], 'application/json'))
+                    Effect.succeed(mockHttpClientResponse(404, mockErrorBody))
                 )
             );
 
             const request: OllamaChatCompletionRequest = {
-                model: 'nonexistent-chat-stream-model', messages: [{ role: 'user', content: 'Test stream 404' }],
+                model: 'nonexistent-chat-stream-model', 
+                messages: [{ role: 'user', content: 'Test stream 404' }],
             };
 
+            // Let's use a simpler approach with expectEffectFailure helper
             const program = Effect.gen(function* (_) {
                 const ollamaService = yield* _(OllamaService);
-                return ollamaService.generateChatCompletionStream(request);
+                // This should fail with an OllamaHttpError:
+                const stream = ollamaService.generateChatCompletionStream(request);
+                // If we try to collect from this stream, it will fail when the HTTP request returns 404
+                return yield* _(Stream.runCollect(stream));
             }).pipe(Effect.provide(ollamaTestLayer));
 
-            const stream = await Effect.runPromise(program);
-            const error = await Effect.runPromise(Stream.runCollect(stream).pipe(Effect.flip));
+            // Use our expectEffectFailure helper to verify the failure
+            const error = await expectEffectFailure(
+                program,
+                OllamaHttpError,
+                /Ollama API Error on stream initiation/
+            );
 
-            expect(error).toBeInstanceOf(OllamaHttpError);
-            expect((error as OllamaHttpError).message).toContain("Ollama API Error on stream initiation (chat/completions): 404");
-            const errorResponse = (error as OllamaHttpError).response as any;
+            // Additional verification
+            expect(error.message).toContain("404");
+            const errorResponse = error.response as any;
             expect(errorResponse?.body?.error?.message).toBe("Chat stream model not found");
         });
 

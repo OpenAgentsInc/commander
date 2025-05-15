@@ -13,18 +13,18 @@ export function ChatMessage({ content, role, timestamp }: ChatMessageProps) {
   return (
     <div 
       className={cn(
-        "py-2 px-3 rounded-md mb-2 max-w-[80%]",
+        "py-1 px-2 rounded-md mb-1 max-w-[80%] text-xs",
         role === "user" 
           ? "bg-primary/10 ml-auto text-right" 
           : role === "assistant" 
             ? "bg-secondary/10 mr-auto" 
-            : "bg-muted/50 w-full text-muted-foreground text-sm italic"
+            : "bg-muted/50 w-full text-muted-foreground text-[10px] italic"
       )}
     >
-      <div className="text-xs font-semibold mb-1">
+      <div className="text-[10px] font-semibold mb-0.5">
         {role === "user" ? "You" : role === "assistant" ? "Commander" : "System"}
         {timestamp && (
-          <span className="text-muted-foreground text-xs ml-2">
+          <span className="text-muted-foreground text-[10px] ml-1">
             {timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
         )}
