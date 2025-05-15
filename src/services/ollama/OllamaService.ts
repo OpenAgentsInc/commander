@@ -17,16 +17,16 @@ export type OllamaMessage = Schema.Schema.Type<typeof OllamaMessageSchema>;
 // OllamaServiceConfig schema
 export const OllamaServiceConfigSchema = Schema.Struct({
     baseURL: Schema.String,
-    defaultModel: Schema.String.pipe(Schema.withDefaults({ default: () => "llama2" }))
+    defaultModel: Schema.optionalWith(Schema.String, { default: () => "llama2" })
 });
 export type OllamaServiceConfig = Schema.Schema.Type<typeof OllamaServiceConfigSchema>;
-export const OllamaServiceConfigTag = Context.Tag<OllamaServiceConfig>();
+export const OllamaServiceConfigTag = Context.GenericTag<OllamaServiceConfig>("OllamaServiceConfig");
 
 // OllamaChatCompletionRequest schema
 export const OllamaChatCompletionRequestSchema = Schema.Struct({
     model: Schema.optional(Schema.String),
     messages: Schema.Array(OllamaMessageSchema),
-    stream: Schema.Boolean.pipe(Schema.withDefaults({ default: () => false }))
+    stream: Schema.optionalWith(Schema.Boolean, { default: () => false })
 });
 export type OllamaChatCompletionRequest = Schema.Schema.Type<typeof OllamaChatCompletionRequestSchema>;
 
@@ -114,4 +114,4 @@ export interface OllamaService {
 }
 
 // Define a Tag for the service that can be used in dependency injection
-export const OllamaService = Context.Tag<OllamaService>();
+export const OllamaService = Context.GenericTag<OllamaService>("OllamaService");
