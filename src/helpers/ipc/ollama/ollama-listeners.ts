@@ -112,16 +112,20 @@ export function addOllamaEventListeners() {
       console.log("Preparing streaming request for model:", streamingRequest.model);
       
       // Create a program that obtains the stream
+      // Note: We can't yield a Stream directly in an Effect.gen, 
+      // so we need a different approach to get the stream
+      console.log("[IPC Listener] Preparing to get stream from OllamaService");
+      
       const program = Effect.gen(function*(_) {
         const ollamaService = yield* _(OllamaService);
-        console.log("About to call generateChatCompletionStream");
-        const stream = yield* _(ollamaService.generateChatCompletionStream(streamingRequest));
-        console.log("Stream created successfully");
-        return stream;
+        console.log("[IPC Listener] About to call ollamaService.generateChatCompletionStream");
+        // Don't try to yield the stream directly - it's not an Effect
+        // Instead, we return it from the generator
+        return ollamaService.generateChatCompletionStream(streamingRequest);
       }).pipe(
         Effect.provide(ollamaServiceLayer),
         Effect.tapError(err => Effect.sync(() => {
-          console.error("Error in streaming program:", err);
+          console.error("[IPC Listener] Error in Effect program that was supposed to yield a Stream:", err);
         }))
       );
 
@@ -151,27 +155,23 @@ export function addOllamaEventListeners() {
 
         // We have a valid stream
         const stream = streamResult.value;
-        console.log("Stream obtained, starting processing...");
+        console.log("[IPC Listener] Successfully obtained stream from program. Type:", typeof stream);
 
-        // Set up stream processing effect
-        const streamProcessingEffect = Stream.runForEach(
-          (chunk) => {
-            if (!signal.aborted) {
-              // For debugging, log the chunk content
-              console.log(`Sending chunk for ${requestId}:`, JSON.stringify(chunk, null, 2).substring(0, 100) + "...");
-              // Send to renderer
-              event.sender.send(`${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL}:chunk`, requestId, chunk);
-            }
-            return Effect.void; // Correct for runForEach's callback
+        // Set up stream processing effect 
+        // Make sure to create the processing effect correctly
+        const streamProcessingEffect = Stream.runForEach(stream, (chunk) => {
+          if (!signal.aborted) {
+            // For debugging, log the chunk content
+            console.log(`[IPC Listener] Stream.runForEach received chunk:`, JSON.stringify(chunk, null, 2).substring(0, 100) + "...");
+            // Send to renderer
+            event.sender.send(`${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL}:chunk`, requestId, chunk);
           }
-        )(stream);
+          return Effect.void; // Correct for runForEach's callback
+        });
 
         // Run the stream processing with detailed exit handling
-        const finalExit = await Effect.runPromiseExit(
-          streamProcessingEffect.pipe(
-            Effect.provide(Layer.setRequestCache())
-          )
-        );
+        // Remove the Layer.setRequestCache() since it needs an argument we don't have
+        const finalExit = await Effect.runPromiseExit(streamProcessingEffect);
 
         if (Exit.isSuccess(finalExit)) {
           if (!signal.aborted) {

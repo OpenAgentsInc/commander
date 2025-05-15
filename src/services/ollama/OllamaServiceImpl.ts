@@ -154,74 +154,173 @@ export function createOllamaService(
             );
         }).pipe(Effect.mapError(e => e as OllamaParseError | OllamaHttpError));
 
-        return Stream.unwrap(Effect.gen(function*(_) {
-            const httpRequest = yield* _(prepareRequestEffect);
-            const response = yield* _(
-                httpClient.execute(httpRequest),
-                Effect.mapError(httpClientError =>
-                    new OllamaHttpError(
-                        `HTTP request failed for streaming chat: ${httpClientError._tag || "Unknown error"}`,
-                        httpRequest,
-                        httpClientError
+        console.log("[Service] generateChatCompletionStream: Preparing to unwrap effect for stream");
+        
+        // Here we create an effect that yields a stream of the correct type
+        type StreamResult = Stream.Stream<OllamaOpenAIChatStreamChunk, OllamaHttpError | OllamaParseError, never>;
+        
+        // Create an effect that will yield our stream
+        const streamEffect: Effect.Effect<StreamResult, OllamaHttpError | OllamaParseError, never> = 
+            Effect.gen(function*(_) {
+                // Get HTTP request
+                const httpRequest = yield* _(prepareRequestEffect);
+                console.log("[Service Stream] HTTP Request prepared:", JSON.stringify(httpRequest.urlParams));
+                
+                // Execute request and get response
+                const response = yield* _(
+                    httpClient.execute(httpRequest),
+                    Effect.mapError(httpClientError =>
+                        new OllamaHttpError(
+                            `HTTP request failed for streaming chat: ${httpClientError._tag || "Unknown error"}`,
+                            httpRequest,
+                            httpClientError
+                        )
                     )
-                )
-            );
-
-            if (response.status >= 400) {
-                const errorJson = yield* _(
-                    response.json,
-                    Effect.catchAll(() => Effect.succeed({ error: "Unknown API error structure during stream initiation" }))
                 );
-                return yield* _(Effect.fail(new OllamaHttpError(
-                    `Ollama API Error on stream initiation (chat/completions): ${response.status} - ${JSON.stringify(errorJson)}`,
-                    httpRequest,
-                    { status: response.status, headers: response.headers, body: errorJson }
-                )));
-            }
+                console.log("[Service Stream] HTTP Response status:", response.status);
 
-            // This is the stream from the HTTP client
-            const httpClientStream = response.stream;
+                // Handle error responses
+                if (response.status >= 400) {
+                    const errorJson = yield* _(
+                        response.json,
+                        Effect.catchAll(() => Effect.succeed({ error: "Unknown API error structure during stream initiation" }))
+                    );
+                    console.error("[Service Stream] HTTP Error for stream init:", response.status, JSON.stringify(errorJson));
+                    throw new OllamaHttpError(
+                        `Ollama API Error on stream initiation (chat/completions): ${response.status} - ${JSON.stringify(errorJson)}`,
+                        httpRequest,
+                        { status: response.status, headers: response.headers, body: errorJson }
+                    );
+                }
 
-            return httpClientStream.pipe(
-                Stream.decodeText(),
-                Stream.splitLines(),
-                Stream.mapEffect(line => {
-                    const lineStr = String(line).trim(); // Trim upfront
+                console.log("[Service Stream] Successfully got response, building stream processing pipeline");
+                
+                // STEP 1: Get the raw bytes stream
+                const rawStream = response.stream;
+                
+                // STEP 2: Decode bytes to text
+                console.log("[Service Stream] Applying decodeText");
+                const textStream = Stream.decodeText(rawStream);
+                
+                // STEP 3: Split text into lines
+                console.log("[Service Stream] Applying splitLines");
+                const lineStream = Stream.splitLines(textStream);
+                
+                // STEP 4: Process each line and convert to Option<OllamaOpenAIChatStreamChunk>
+                console.log("[Service Stream] Applying mapEffect for line processing");
+                
+                // Define a function for processing each line
+                const processLine = (line: string) => {
+                    const lineStr = String(line).trim();
+                    console.log("[Service Stream Pipe] Processing line:", lineStr.substring(0, Math.min(50, lineStr.length)) + "...");
+                    
+                    // Skip empty lines and [DONE] marker
                     if (lineStr === "" || lineStr === "data: [DONE]") {
                         return Effect.succeed(Option.none<OllamaOpenAIChatStreamChunk>());
                     }
+                    
+                    // Process SSE data lines
                     if (lineStr.startsWith("data: ")) {
                         const jsonData = lineStr.substring("data: ".length);
+                        
                         try {
+                            // Parse JSON
                             const parsedJson = JSON.parse(jsonData);
+                            console.log("[Service Stream Pipe] Parsed JSON:", 
+                                JSON.stringify(parsedJson).substring(0, Math.min(100, JSON.stringify(parsedJson).length)) + "...");
+                            
+                            // Validate against schema and convert to Option.some
                             return Schema.decodeUnknown(OllamaOpenAIChatStreamChunkSchema)(parsedJson).pipe(
-                                Effect.map(Option.some),
-                                Effect.catchTag("ParseError", pe =>
-                                    Effect.fail(new OllamaParseError("Schema parse error in OpenAI stream chunk", { line: jsonData, error: pe }))
+                                Effect.map(chunk => Option.some(chunk)),
+                                Effect.catchTag("ParseError", parseError =>
+                                    Effect.fail(new OllamaParseError(
+                                        "Schema parse error in OpenAI stream chunk", 
+                                        { line: jsonData, error: parseError }
+                                    ))
                                 )
                             );
-                        } catch (e) {
-                            return Effect.fail(new OllamaParseError("JSON parse error in OpenAI stream chunk", { line: jsonData, error: e }));
+                        } catch (error) {
+                            // Handle JSON parse errors
+                            const errorMessage = error instanceof Error ? error.message : String(error);
+                            console.error("[Service Stream Pipe] Error processing line:", errorMessage, 
+                                jsonData.substring(0, Math.min(100, jsonData.length)));
+                            
+                            return Effect.fail(new OllamaParseError(
+                                "JSON parse error in OpenAI stream chunk", 
+                                { line: jsonData, error }
+                            ));
                         }
                     }
-                    // If line is not empty, not [DONE], and not "data: ", it's unexpected.
-                    return Effect.fail(new OllamaParseError("Unexpected line format in OpenAI stream", { line: lineStr }));
-                }),
-                Stream.compact(), // Use Stream.compact here to handle Option values
-                Stream.mapError(err => { // Consolidate error types
-                    if (err instanceof OllamaParseError || err instanceof OllamaHttpError) return err;
-                    // This case should ideally not be hit if httpClient.stream errors are ResponseError
+                    
+                    // Any other format is unexpected
+                    console.error("[Service Stream Pipe] Unexpected line format:", lineStr);
+                    return Effect.fail(new OllamaParseError(
+                        "Unexpected line format in OpenAI stream", 
+                        { line: lineStr }
+                    ));
+                };
+                
+                // Apply processLine to each line
+                const parsedStream = Stream.mapEffect(processLine)(lineStream) as Stream.Stream<
+                    Option.Option<OllamaOpenAIChatStreamChunk>, 
+                    OllamaHttpError | OllamaParseError, 
+                    never
+                >;
+                
+                // STEP 5: Filter out None values and unwrap Some values
+                console.log("[Service Stream] Applying filterMap to handle Options");
+                
+                // Define a function to filter and unwrap Options
+                const extractOptionValue = (
+                    maybeChunk: Option.Option<OllamaOpenAIChatStreamChunk>
+                ): Option.Option<OllamaOpenAIChatStreamChunk> => {
+                    if (Option.isSome(maybeChunk)) {
+                        return Option.some(maybeChunk.value);
+                    }
+                    return Option.none();
+                };
+                
+                // Apply the filterMap with our extract function
+                const filteredStream = Stream.filterMap(parsedStream, extractOptionValue) as Stream.Stream<
+                    OllamaOpenAIChatStreamChunk, 
+                    OllamaHttpError | OllamaParseError, 
+                    never
+                >;
+                
+                // STEP 6: Do final error mapping to ensure consistent error types
+                console.log("[Service Stream] Applying error mapping");
+                
+                // Define a function to map errors to our custom error types
+                const mapStreamError = (err: unknown): OllamaHttpError | OllamaParseError => {
+                    // We already have our custom error types
+                    if (err instanceof OllamaParseError || err instanceof OllamaHttpError) {
+                        return err;
+                    }
+                    
+                    // HTTP client errors
                     if (err instanceof HttpClientError.ResponseError) {
-                         return new OllamaHttpError("OpenAI stream body processing error", httpRequest, err);
+                        return new OllamaHttpError("OpenAI stream body processing error", httpRequest, err);
                     }
-                    // This case handles ParseError from Schema.decodeUnknown if it's not wrapped
-                    if (Schema.isParseError && Schema.isParseError(err)) {
-                        return new OllamaParseError("Uncaught schema parse error in OpenAI stream chunk", err);
+                    
+                    // Schema.ParseError (via _tag)
+                    if (err && typeof err === 'object' && '_tag' in err && (err as any)._tag === 'ParseError') {
+                        return new OllamaParseError("Schema parse error in OpenAI stream chunk", err);
                     }
+                    
+                    // Any other error
                     return new OllamaParseError("Unknown OpenAI stream error", err);
-                })
-            );
-        }));
+                };
+                
+                // Apply error mapping
+                const finalStream = Stream.mapError(filteredStream, mapStreamError);
+                console.log("[Service Stream] Stream processing pipeline complete");
+                
+                // Return the fully processed stream
+                return finalStream as StreamResult;
+            });
+            
+        // Unwrap the effect to get the stream
+        return Stream.unwrap(streamEffect);
     };
 
     return {
