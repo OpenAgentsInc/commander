@@ -126,11 +126,16 @@ export default function HomePage() {
     try {
       // Set up streaming handlers
       const onChunk = (chunk: any) => {
+        console.log("Frontend received chunk:", chunk);
+        
         if (chunk.choices && chunk.choices.length > 0) {
           const choice = chunk.choices[0];
           
           // Check for content in delta
-          if (choice.delta.content) {
+          if (choice.delta && choice.delta.content) {
+            // Log the actual token received
+            console.log(`Token: "${choice.delta.content}"`);
+            
             // Append to our accumulated content
             streamedContentRef.current += choice.delta.content;
             
@@ -142,7 +147,11 @@ export default function HomePage() {
                   : msg
               )
             );
+          } else {
+            console.log("Received chunk without content:", JSON.stringify(choice));
           }
+        } else {
+          console.log("Received chunk without valid choices:", JSON.stringify(chunk));
         }
       };
       
