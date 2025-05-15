@@ -4,31 +4,41 @@ import { ChatWindow } from "@/components/chat/ChatWindow";
 import { ChatMessageProps } from "@/components/chat/ChatMessage";
 
 export default function HomePage() {
-  const [messages, setMessages] = useState<ChatMessageProps[]>([]);
+  const [messages, setMessages] = useState<ChatMessageProps[]>([
+    {
+      role: "system",
+      content: "You are an AI agent inside an app used by a human called Commander. You should identify yourself simply as 'Agent'. Respond helpfully but extremely concisely, in 1-2 sentences.",
+      timestamp: new Date()
+    }
+  ]);
   const [isLoading, setIsLoading] = useState(false);
   const [userInput, setUserInput] = useState<string>("");
 
   const handleSendMessage = async () => {
     if (!userInput.trim() || isLoading) return;
-    
+
     // Add user message to chat
     const userMessage: ChatMessageProps = {
       role: "user",
       content: userInput.trim(),
       timestamp: new Date()
     };
-    
+
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
-    
+
     // Clear input field
     setUserInput("");
 
+    // Get the system message from our messages state or use a default one
+    const systemMessage = messages.find(m => m.role === "system")?.content || 
+      "You are an AI agent inside an app used by a human called Commander. You should identify yourself simply as 'Agent'. Respond helpfully but extremely concisely, in 1-2 sentences.";
+    
     const requestPayload: OllamaChatCompletionRequest = {
       messages: [
-        { role: "system", content: "You are a helpful assistant." },
+        { role: "system", content: systemMessage },
         ...messages
-          .filter(m => m.role !== "system") // Filter out client-side system messages
+          .filter(m => m.role !== "system") // Filter out client-side system messages 
           .map(m => ({ role: m.role, content: m.content })),
         { role: "user", content: userMessage.content }
       ],
@@ -38,12 +48,12 @@ export default function HomePage() {
     try {
       // Call the Ollama service through IPC
       const result = await window.electronAPI.ollama.generateChatCompletion(requestPayload);
-      
+
       // Check if we received an error through IPC
       if (result && result.__error) {
         throw new Error(result.message || "Unknown error occurred");
       }
-      
+
       // Add assistant response to chat
       if (result.choices && result.choices.length > 0) {
         const assistantMessage: ChatMessageProps = {
@@ -63,7 +73,7 @@ export default function HomePage() {
       }
     } catch (error: any) {
       console.error("Ollama API call failed:", error);
-      
+
       // Add error message to chat
       const errorMessage: ChatMessageProps = {
         role: "system",
@@ -90,7 +100,7 @@ export default function HomePage() {
           </p>
         </div>
       </div>
-      
+
       {/* Chat window positioned at bottom-left */}
       <div className="absolute bottom-0 left-0 w-[28rem] h-64 p-1">
         <ChatWindow

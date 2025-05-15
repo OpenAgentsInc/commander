@@ -7,9 +7,10 @@ export interface ChatMessageProps {
   content: string;
   role: MessageRole;
   timestamp?: Date;
+  isStreaming?: boolean;
 }
 
-export function ChatMessage({ content, role, timestamp }: ChatMessageProps) {
+export function ChatMessage({ content, role, timestamp, isStreaming }: ChatMessageProps) {
   return (
     <div className={cn(
       "flex",
@@ -21,19 +22,23 @@ export function ChatMessage({ content, role, timestamp }: ChatMessageProps) {
           role === "user" 
             ? "bg-primary/10 text-right" 
             : role === "assistant" 
-              ? "bg-secondary/10" 
+              ? isStreaming ? "bg-secondary/5 border-secondary/20 border" : "bg-secondary/10"
               : "bg-muted/50 text-muted-foreground text-[10px] italic"
         )}
       >
         <div className="text-[10px] font-semibold mb-0.5">
-          {role === "user" ? "You" : role === "assistant" ? "Commander" : "System"}
+          {role === "user" ? "Commander" : role === "assistant" ? "Agent" : "System"}
           {timestamp && (
             <span className="text-muted-foreground text-[10px] ml-1">
               {timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {isStreaming && <span className="ml-1 animate-pulse">...</span>}
             </span>
           )}
         </div>
-        <div className="whitespace-pre-wrap max-w-full">{content}</div>
+        <div className="whitespace-pre-wrap max-w-full">
+          {content}
+          {isStreaming && !content && <span className="animate-pulse">▋</span>}
+        </div>
       </div>
     </div>
   );
