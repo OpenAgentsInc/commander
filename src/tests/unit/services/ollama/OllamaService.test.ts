@@ -13,11 +13,39 @@ import {
 import { createOllamaService, OllamaServiceLive } from '../../../../services/ollama/OllamaServiceImpl';
 import { server } from '../../../mocks/server';
 import { 
-    enableMockFetch, 
-    disableMockFetch, 
-    setMockResponse, 
-    clearMockResponses
+    TestHttpClientLive,
+    setMockClientResponse, 
+    clearMockClientResponses
 } from './TestHttpClient';
+import * as HttpClientResponse from "@effect/platform/HttpClientResponse";
+import * as HttpClientError from "@effect/platform/HttpClientError";
+import * as HttpClientRequest from "@effect/platform/HttpClientRequest";
+
+// Helper function to create a mock response
+function createMockResponse(status: number, body: string, headers: Record<string, string> = {}) {
+    return {
+        status,
+        headers,
+        body: body,
+        request: HttpClientRequest.get("http://mock-url"),
+        formData: Effect.fail(new Error("Not implemented")),
+        cookies: {},
+        json: Effect.try({
+            try: () => JSON.parse(body),
+            catch: err => new Error(`Invalid JSON: ${err}`)
+        }),
+        text: Effect.succeed(body),
+        arrayBuffer: Effect.fail(new Error("Not implemented")),
+        stream: Effect.succeed(null as any),
+        [HttpClientResponse.TypeId]: HttpClientResponse.TypeId as any,
+        pipe() {
+            return this;
+        },
+        toJSON() {
+            return { _id: "MockHttpClientResponse" };
+        }
+    };
+}
 
 // Helper function for testing error types from Effect failures
 function expectEffectFailure<E extends Error, T extends E>(
@@ -47,15 +75,17 @@ const testConfig: OllamaServiceConfig = {
 
 // Define the layers for effect-based testing
 const ConfigLive = Layer.succeed(OllamaServiceConfigTag, testConfig);
-const ollamaTestLayer = Layer.provide(OllamaServiceLive, ConfigLive);
+const ollamaTestLayer = Layer.provide(
+    OllamaServiceLive,
+    Layer.merge(TestHttpClientLive, ConfigLive)
+);
 
 // Set up MSW and Effect test environment
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
-beforeEach(() => Effect.runSync(enableMockFetch()));
+beforeEach(() => Effect.runSync(clearMockClientResponses()));
 afterEach(() => {
     server.resetHandlers();
-    Effect.runSync(clearMockResponses());
-    Effect.runSync(disableMockFetch());
+    Effect.runSync(clearMockClientResponses());
 });
 afterAll(() => server.close());
 
@@ -73,7 +103,7 @@ describe('OllamaService', () => {
                         index: 0,
                         message: {
                             role: "assistant",
-                            content: "Mocked Effect fetch response for model llama2 to query: Hello!",
+                            content: "Mocked Effect HttpClient response for model llama2 to query: Hello!",
                         },
                         finish_reason: "stop",
                     },
@@ -85,19 +115,18 @@ describe('OllamaService', () => {
                 }
             };
 
-            // Set up the mock response for fetch
+            // Set up the mock response for HttpClient
+            const mockResponseBody = JSON.stringify(mockOllamaResponse);
+            const mockHttpResponse = createMockResponse(
+                200, 
+                mockResponseBody, 
+                { 'Content-Type': 'application/json' }
+            );
+
             Effect.runSync(
-                setMockResponse(
+                setMockClientResponse(
                     { url: `${testConfig.baseURL}/chat/completions`, method: "POST" },
-                    Effect.succeed(
-                        new Response(
-                            JSON.stringify(mockOllamaResponse),
-                            { 
-                                status: 200, 
-                                headers: { 'Content-Type': 'application/json' } 
-                            }
-                        )
-                    )
+                    Effect.succeed(mockHttpResponse)
                 )
             );
                 
@@ -122,7 +151,7 @@ describe('OllamaService', () => {
             expect(result.model).toBe('llama2');
             expect(result.choices).toHaveLength(1);
             expect(result.choices[0].message.role).toBe('assistant');
-            expect(result.choices[0].message.content).toContain('Mocked Effect fetch response');
+            expect(result.choices[0].message.content).toContain('Mocked Effect HttpClient response');
         });
 
         it('should use the default model from config if not specified in request', async () => {
@@ -137,7 +166,7 @@ describe('OllamaService', () => {
                         index: 0,
                         message: {
                             role: "assistant",
-                            content: `Mocked Effect fetch response for model ${testConfig.defaultModel} to query: Hello default model!`,
+                            content: `Mocked Effect HttpClient response for model ${testConfig.defaultModel} to query: Hello default model!`,
                         },
                         finish_reason: "stop",
                     },
@@ -149,19 +178,18 @@ describe('OllamaService', () => {
                 }
             };
 
-            // Set up the mock response for fetch
+            // Set up the mock response for HttpClient
+            const mockResponseBody = JSON.stringify(mockOllamaResponse);
+            const mockHttpResponse = createMockResponse(
+                200, 
+                mockResponseBody, 
+                { 'Content-Type': 'application/json' }
+            );
+
             Effect.runSync(
-                setMockResponse(
+                setMockClientResponse(
                     { url: `${testConfig.baseURL}/chat/completions`, method: "POST" },
-                    Effect.succeed(
-                        new Response(
-                            JSON.stringify(mockOllamaResponse),
-                            { 
-                                status: 200, 
-                                headers: { 'Content-Type': 'application/json' } 
-                            }
-                        )
-                    )
+                    Effect.succeed(mockHttpResponse)
                 )
             );
             
@@ -181,23 +209,23 @@ describe('OllamaService', () => {
             const result = await Effect.runPromise(program);
                 
             expect(result.model).toBe(testConfig.defaultModel);
-            expect(result.choices[0].message.content).toContain(`Mocked Effect fetch response for model ${testConfig.defaultModel}`);
+            expect(result.choices[0].message.content).toContain(`Mocked Effect HttpClient response for model ${testConfig.defaultModel}`);
         });
 
         it('should fail with OllamaHttpError for API errors (e.g., model not found)', async () => {
             // Set up a mock response for a 404 error
+            const mockErrorJson = { error: "Model not found" };
+            const mockResponseBody = JSON.stringify(mockErrorJson);
+            const mockHttpResponse = createMockResponse(
+                404, 
+                mockResponseBody, 
+                { 'Content-Type': 'application/json' }
+            );
+
             Effect.runSync(
-                setMockResponse(
+                setMockClientResponse(
                     { url: `${testConfig.baseURL}/chat/completions`, method: "POST" },
-                    Effect.succeed(
-                        new Response(
-                            JSON.stringify({ error: "Model not found" }),
-                            { 
-                                status: 404, 
-                                headers: { 'Content-Type': 'application/json' } 
-                            }
-                        )
-                    )
+                    Effect.succeed(mockHttpResponse)
                 )
             );
             
@@ -227,18 +255,18 @@ describe('OllamaService', () => {
 
         it('should fail with OllamaHttpError for server errors (e.g., 500)', async () => {
             // Set up a mock response for a 500 error
+            const mockErrorJson = { error: "Internal server error" };
+            const mockResponseBody = JSON.stringify(mockErrorJson);
+            const mockHttpResponse = createMockResponse(
+                500, 
+                mockResponseBody, 
+                { 'Content-Type': 'application/json' }
+            );
+
             Effect.runSync(
-                setMockResponse(
+                setMockClientResponse(
                     { url: `${testConfig.baseURL}/chat/completions`, method: "POST" },
-                    Effect.succeed(
-                        new Response(
-                            JSON.stringify({ error: "Internal server error" }),
-                            { 
-                                status: 500, 
-                                headers: { 'Content-Type': 'application/json' } 
-                            }
-                        )
-                    )
+                    Effect.succeed(mockHttpResponse)
                 )
             );
             
@@ -268,18 +296,16 @@ describe('OllamaService', () => {
 
         it('should fail with OllamaParseError if the API returns a malformed JSON success response', async () => {
             // Set up a mock response with malformed JSON
+            const mockHttpResponse = createMockResponse(
+                200, 
+                "this is not json", 
+                { 'Content-Type': 'text/plain' }
+            );
+
             Effect.runSync(
-                setMockResponse(
+                setMockClientResponse(
                     { url: `${testConfig.baseURL}/chat/completions`, method: "POST" },
-                    Effect.succeed(
-                        new Response(
-                            "this is not json",
-                            { 
-                                status: 200, 
-                                headers: { 'Content-Type': 'text/plain' } 
-                            }
-                        )
-                    )
+                    Effect.succeed(mockHttpResponse)
                 )
             );
             
@@ -304,31 +330,32 @@ describe('OllamaService', () => {
         
         it('should fail with OllamaParseError if the API returns a structurally invalid response', async () => {
             // Set up a mock response with an invalid schema
+            const invalidResponse = {
+                id: `chatcmpl-${Date.now()}`,
+                // Missing required 'object', 'created', and 'model' fields
+                choices: [
+                    {
+                        // Missing required 'index' field
+                        message: {
+                            // Missing required 'role' field
+                            content: "This response is missing required schema fields"
+                        },
+                        // Missing required 'finish_reason' field
+                    }
+                ]
+            };
+            
+            const mockResponseBody = JSON.stringify(invalidResponse);
+            const mockHttpResponse = createMockResponse(
+                200, 
+                mockResponseBody, 
+                { 'Content-Type': 'application/json' }
+            );
+
             Effect.runSync(
-                setMockResponse(
+                setMockClientResponse(
                     { url: `${testConfig.baseURL}/chat/completions`, method: "POST" },
-                    Effect.succeed(
-                        new Response(
-                            JSON.stringify({
-                                id: `chatcmpl-${Date.now()}`,
-                                // Missing required 'object', 'created', and 'model' fields
-                                choices: [
-                                    {
-                                        // Missing required 'index' field
-                                        message: {
-                                            // Missing required 'role' field
-                                            content: "This response is missing required schema fields"
-                                        },
-                                        // Missing required 'finish_reason' field
-                                    }
-                                ]
-                            }),
-                            { 
-                                status: 200, 
-                                headers: { 'Content-Type': 'application/json' } 
-                            }
-                        )
-                    )
+                    Effect.succeed(mockHttpResponse)
                 )
             );
             
@@ -353,10 +380,15 @@ describe('OllamaService', () => {
 
         it('should fail with OllamaHttpError for network errors', async () => {
             // Set up a mock response that throws a network error
+            const mockRequest = HttpClientRequest.post(`${testConfig.baseURL}/chat/completions`);
             Effect.runSync(
-                setMockResponse(
+                setMockClientResponse(
                     { url: `${testConfig.baseURL}/chat/completions`, method: "POST" },
-                    Effect.fail(new Error("Network error"))
+                    Effect.fail(new HttpClientError.RequestError({
+                        request: mockRequest,
+                        reason: "Transport",
+                        error: new Error("Network error")
+                    }))
                 )
             );
             

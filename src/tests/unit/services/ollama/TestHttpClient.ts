@@ -1,4 +1,8 @@
 import { Effect, Layer } from "effect";
+import { HttpClient } from "@effect/platform/HttpClient";
+import * as HttpClientRequest from "@effect/platform/HttpClientRequest";
+import * as HttpClientResponse from "@effect/platform/HttpClientResponse";
+import * as HttpClientError from "@effect/platform/HttpClientError";
 
 /**
  * Type for the key used to identify HTTP requests in our mock client
@@ -12,7 +16,7 @@ export interface RequestKey {
  * Global storage for mocked responses
  * This needs to be module-level to persist between test runs
  */
-const mockResponses = new Map<string, Effect.Effect<Response, unknown, never>>();
+const mockResponses = new Map<string, Effect.Effect<HttpClientResponse.HttpClientResponse, any, never>>();
 
 /**
  * Creates a string key from a RequestKey object
@@ -22,56 +26,66 @@ function makeRequestKey(request: RequestKey): string {
 }
 
 /**
- * Mock implementation of global fetch for testing
+ * Implementation of the HttpClient interface for testing
  */
-async function mockFetch(
-  input: RequestInfo | URL,
-  init?: RequestInit
-): Promise<Response> {
-  const url = input.toString();
-  const method = init?.method || 'GET';
-  const key = makeRequestKey({ url, method });
-  
-  const mockResponse = mockResponses.get(key);
-  
-  if (!mockResponse) {
-    throw new Error(
-      `No mock response found for ${method} ${url}. ` +
-      `Make sure to set up a mock using setMockResponse().`
-    );
+const TestHttpClientImpl: HttpClient = {
+  execute: (request) => {
+    const url = request.url;
+    const method = request.method;
+    const key = makeRequestKey({ url, method });
+    
+    const mockResponse = mockResponses.get(key);
+    
+    if (!mockResponse) {
+      // Create a new request error when no mock response is found
+      return Effect.fail(new HttpClientError.RequestError({
+        request,
+        reason: "Other",
+        error: new Error(
+          `No mock response found for ${method} ${url}. ` +
+          `Make sure to set up a mock using setMockClientResponse().`
+        )
+      }));
+    }
+    
+    return mockResponse;
+  },
+  get: (url, options) => {
+    return HttpClient.execute(HttpClientRequest.get(url, options));
+  },
+  post: (url, options) => {
+    return HttpClient.execute(HttpClientRequest.post(url, options));
+  },
+  put: (url, options) => {
+    return HttpClient.execute(HttpClientRequest.put(url, options));
+  },
+  patch: (url, options) => {
+    return HttpClient.execute(HttpClientRequest.patch(url, options));
+  },
+  del: (url, options) => {
+    return HttpClient.execute(HttpClientRequest.del(url, options));
+  },
+  head: (url, options) => {
+    return HttpClient.execute(HttpClientRequest.head(url, options));
+  },
+  options: (url, options) => {
+    return HttpClient.execute(HttpClientRequest.options(url, options));
+  },
+  [HttpClient.TypeId]: HttpClient.TypeId as HttpClient.TypeId,
+  pipe() {
+    return this;
+  },
+  toJSON() {
+    return { _id: "TestHttpClient" };
   }
-  
-  // Run the Effect to get the Response
-  return await Effect.runPromise(mockResponse);
-}
-
-// Store the original fetch for restoration
-const originalFetch = globalThis.fetch;
-
-/**
- * Override the global fetch with our mock implementation
- */
-export const enableMockFetch = (): Effect.Effect<void, never, never> => {
-  return Effect.sync(() => {
-    globalThis.fetch = mockFetch;
-  });
-};
-
-/**
- * Restore the original fetch implementation
- */
-export const disableMockFetch = (): Effect.Effect<void, never, never> => {
-  return Effect.sync(() => {
-    globalThis.fetch = originalFetch;
-  });
 };
 
 /**
  * Set up a mock response for a specific request
  */
-export const setMockResponse = (
+export const setMockClientResponse = (
   request: RequestKey,
-  response: Effect.Effect<Response, unknown, never>
+  response: Effect.Effect<HttpClientResponse.HttpClientResponse, any, never>
 ): Effect.Effect<void, never, never> => {
   return Effect.sync(() => {
     mockResponses.set(makeRequestKey(request), response);
@@ -81,8 +95,16 @@ export const setMockResponse = (
 /**
  * Clear all mock responses - should be called between tests
  */
-export const clearMockResponses = (): Effect.Effect<void, never, never> => {
+export const clearMockClientResponses = (): Effect.Effect<void, never, never> => {
   return Effect.sync(() => {
     mockResponses.clear();
   });
 };
+
+/**
+ * The TestHttpClientLive layer provides the mock HttpClient implementation
+ */
+export const TestHttpClientLive = Layer.succeed(
+  HttpClient,
+  TestHttpClientImpl
+);
