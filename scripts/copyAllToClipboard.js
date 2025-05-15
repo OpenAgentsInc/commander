@@ -83,7 +83,8 @@ const copyToClipboard = (text) => {
 
 // Directories to exclude
 const dirsToExclude = [
-  'src/assets/fonts'
+  'src/assets/fonts',
+  'docs/logs/20250514',
 ];
 
 // Function to check if a path should be excluded
