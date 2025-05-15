@@ -36,9 +36,9 @@ export function ChatWindow({
   };
 
   return (
-    <div className="flex flex-col h-full max-h-full border rounded-md bg-background/70 backdrop-blur-sm">
+    <div className="flex flex-col h-full max-h-full border rounded-md bg-background/70 backdrop-blur-sm text-xs">
       {/* Chat messages area with scrolling */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+      <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
         {messages.map((message, index) => (
           <ChatMessage 
             key={index} 
@@ -51,22 +51,23 @@ export function ChatWindow({
       </div>
       
       {/* Input area */}
-      <div className="border-t p-3">
-        <div className="flex gap-2">
+      <div className="border-t p-1.5">
+        <div className="flex gap-1">
           <Textarea
             placeholder="Type your message..."
             value={userInput}
             onChange={(e) => onUserInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="min-h-[40px] max-h-[120px] resize-none"
+            className="min-h-[24px] max-h-[60px] resize-none text-xs py-1 px-2"
             disabled={isLoading}
           />
           <Button 
             onClick={onSendMessage}
             disabled={isLoading || !userInput.trim()} 
-            className="self-end"
+            className="self-end text-xs h-8 px-2"
+            size="sm"
           >
-            {isLoading ? "Sending..." : "Send"}
+            {isLoading ? "..." : "Send"}
           </Button>
         </div>
       </div>

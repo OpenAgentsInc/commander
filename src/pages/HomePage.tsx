@@ -98,7 +98,7 @@ export default function HomePage() {
       </div>
       
       {/* Chat window positioned at bottom-left */}
-      <div className="absolute bottom-4 left-4 w-96 h-80">
+      <div className="absolute bottom-0 left-0 w-80 h-64 p-1">
         <ChatWindow
           messages={messages}
           userInput={userInput}
