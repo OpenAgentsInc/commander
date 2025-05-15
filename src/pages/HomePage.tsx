@@ -1,28 +1,42 @@
 import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { type OllamaChatCompletionRequest, uiOllamaConfig } from "@/services/ollama/OllamaService";
+import { ChatWindow } from "@/components/chat/ChatWindow";
+import { ChatMessageProps } from "@/components/chat/ChatMessage";
 
 export default function HomePage() {
-  const [ollamaResponse, setOllamaResponse] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [userInput, setUserInput] = useState<string>("Hello world!");
-
-  const handleCallOllama = async () => {
-    if (!userInput.trim()) {
-      setError("Please enter a message.");
-      return;
+  const [messages, setMessages] = useState<ChatMessageProps[]>([
+    {
+      role: "system",
+      content: "Welcome to Commander. How can I assist you today?",
+      timestamp: new Date()
     }
+  ]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [userInput, setUserInput] = useState<string>("");
+
+  const handleSendMessage = async () => {
+    if (!userInput.trim() || isLoading) return;
     
+    // Add user message to chat
+    const userMessage: ChatMessageProps = {
+      role: "user",
+      content: userInput.trim(),
+      timestamp: new Date()
+    };
+    
+    setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
-    setError(null);
-    setOllamaResponse(null);
+    
+    // Clear input field
+    setUserInput("");
 
     const requestPayload: OllamaChatCompletionRequest = {
       messages: [
         { role: "system", content: "You are a helpful assistant." },
-        { role: "user", content: userInput }
+        ...messages
+          .filter(m => m.role !== "system") // Filter out client-side system messages
+          .map(m => ({ role: m.role, content: m.content })),
+        { role: "user", content: userMessage.content }
       ],
       stream: false
     };
@@ -36,58 +50,62 @@ export default function HomePage() {
         throw new Error(result.message || "Unknown error occurred");
       }
       
+      // Add assistant response to chat
       if (result.choices && result.choices.length > 0) {
-        setOllamaResponse(result.choices[0].message.content);
+        const assistantMessage: ChatMessageProps = {
+          role: "assistant",
+          content: result.choices[0].message.content,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, assistantMessage]);
       } else {
-        setOllamaResponse("No response choices found.");
+        // Handle empty response
+        const errorMessage: ChatMessageProps = {
+          role: "system",
+          content: "No response received from the assistant.",
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, errorMessage]);
       }
-    } catch (caughtError: any) {
-      console.error("Ollama API call failed from renderer:", caughtError);
-      setError(`Error: ${caughtError.message || "Unknown error occurred"}`);
+    } catch (error: any) {
+      console.error("Ollama API call failed:", error);
+      
+      // Add error message to chat
+      const errorMessage: ChatMessageProps = {
+        role: "system",
+        content: `Error: ${error.message || "Unknown error occurred"}`,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex flex-1 flex-col items-center justify-center gap-2">
-        <span>
+    <div className="flex h-full w-full relative">
+      {/* Main content area */}
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
           <h1 className="font-mono text-4xl font-bold">OpenAgents</h1>
-          <p className="text-center text-lg uppercase text-muted-foreground" data-testid="pageTitle">
+          <p className="text-lg uppercase text-muted-foreground" data-testid="pageTitle">
             Commander
           </p>
-        </span>
-        
-        <div className="mt-4 w-full max-w-md">
-          <Textarea
-            placeholder="Enter your message to Ollama..."
-            value={userInput}
-            onChange={(e) => setUserInput(e.target.value)}
-            className="min-h-[80px]"
-            disabled={isLoading}
-          />
+          <p className="mt-2 text-muted-foreground">
+            Model: {uiOllamaConfig.defaultModel}
+          </p>
         </div>
-
-        <div className="mt-2">
-          <Button onClick={handleCallOllama} disabled={isLoading || !userInput.trim()}>
-            {isLoading ? "Calling Ollama..." : `Call Ollama (${uiOllamaConfig.defaultModel})`}
-          </Button>
-        </div>
-
-        {ollamaResponse && (
-          <div className="mt-4 p-4 border rounded bg-zinc-50 dark:bg-zinc-800 w-full max-w-md">
-            <h3 className="font-semibold">Ollama Response:</h3>
-            <pre className="whitespace-pre-wrap">{ollamaResponse}</pre>
-          </div>
-        )}
-
-        {error && (
-          <div className="mt-4 p-4 border rounded bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200 w-full max-w-md">
-            <h3 className="font-semibold">Error:</h3>
-            <pre className="whitespace-pre-wrap">{error}</pre>
-          </div>
-        )}
+      </div>
+      
+      {/* Chat window positioned at bottom-left */}
+      <div className="absolute bottom-4 left-4 w-96 h-80">
+        <ChatWindow
+          messages={messages}
+          userInput={userInput}
+          onUserInputChange={setUserInput}
+          onSendMessage={handleSendMessage}
+          isLoading={isLoading}
+        />
       </div>
     </div>
   );
