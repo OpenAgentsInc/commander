@@ -13,7 +13,7 @@ export default defineConfig({
     dir: "./src/tests/unit",
     globals: true,
     environment: "jsdom",
-    setupFiles: "./src/tests/unit/setup.ts",
+    setupFiles: ["./src/tests/unit/setup.ts", "./src/tests/vitest.setup.ts"],
     css: true,
     reporters: ["verbose"],
     coverage: {
