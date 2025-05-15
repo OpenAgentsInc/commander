@@ -20,22 +20,22 @@ interface CubeProps {
 const colors = ['#ffffff']
 
 const shuffle = () => [
-  { color: colors[0], roughness: 0.1, metalness: 0.8 },
-  { color: colors[0], roughness: 0.1, metalness: 0.8 },
-  { color: colors[0], roughness: 0.1, metalness: 0.8 },
-  { color: colors[0], roughness: 0.1, metalness: 0.8 },
-  { color: colors[0], roughness: 0.1, metalness: 0.8 },
-  { color: colors[0], roughness: 0.1, metalness: 0.8 },
-  { color: colors[0], roughness: 0.1, metalness: 0.8 },
-  { color: colors[0], roughness: 0.1, metalness: 0.8 },
-  { color: colors[0], roughness: 0.1, metalness: 0.8 },
-  { color: colors[0], roughness: 0.1, metalness: 0.8 },
-  { color: colors[0], roughness: 0.1, metalness: 0.8 },
-  { color: colors[0], roughness: 0.1, metalness: 0.8 },
-  { color: colors[0], roughness: 0.1, metalness: 0.8 },
-  { color: colors[0], roughness: 0.1, metalness: 0.8 },
-  { color: colors[0], roughness: 0.1, metalness: 0.8 },
-  { color: colors[0], roughness: 0.1, metalness: 0.8 }
+  { color: colors[0], roughness: 0.1, metalness: 0.9 },
+  { color: colors[0], roughness: 0.1, metalness: 0.9 },
+  { color: colors[0], roughness: 0.1, metalness: 0.9 },
+  { color: colors[0], roughness: 0.1, metalness: 0.9 },
+  { color: colors[0], roughness: 0.1, metalness: 0.9 },
+  { color: colors[0], roughness: 0.1, metalness: 0.9 },
+  { color: colors[0], roughness: 0.1, metalness: 0.9 },
+  { color: colors[0], roughness: 0.1, metalness: 0.9 },
+  { color: colors[0], roughness: 0.1, metalness: 0.9 },
+  { color: colors[0], roughness: 0.1, metalness: 0.9 },
+  { color: colors[0], roughness: 0.1, metalness: 0.9 },
+  { color: colors[0], roughness: 0.1, metalness: 0.9 },
+  { color: colors[0], roughness: 0.1, metalness: 0.9 },
+  { color: colors[0], roughness: 0.1, metalness: 0.9 },
+  { color: colors[0], roughness: 0.1, metalness: 0.9 },
+  { color: colors[0], roughness: 0.1, metalness: 0.9 }
 ]
 
 function Cube({ position, children, vec = new THREE.Vector3(), scale, r = THREE.MathUtils.randFloatSpread, color = '#ffffff', ...props }: CubeProps) {
@@ -43,7 +43,7 @@ function Cube({ position, children, vec = new THREE.Vector3(), scale, r = THREE.
   const api = useRef<any>(null)
   const mesh = useRef<THREE.Mesh>(null)
   const pos = useMemo(() => position || [r(10), r(10), r(10)] as [number, number, number], [position, r])
-  
+
   useFrame((state, delta) => {
     delta = Math.min(0.1, delta)
     if (api.current) {
@@ -52,20 +52,20 @@ function Cube({ position, children, vec = new THREE.Vector3(), scale, r = THREE.
       api.current.applyImpulse(vec.copy(translation).negate().multiplyScalar(0.2))
     }
   })
-  
+
   // Use cubic shape instead of sphere
   return (
     <RigidBody linearDamping={4} angularDamping={1} friction={0.1} position={pos} ref={api} colliders={false}>
       <CuboidCollider args={[0.5, 0.5, 0.5]} />
       <mesh ref={mesh} castShadow receiveShadow>
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial 
-          color="#ffffff" 
+        <meshStandardMaterial
+          color="#ffffff"
           emissive="#ffffff"
-          emissiveIntensity={0.1} // Reduced emissive intensity
-          roughness={0.3} // Increased roughness for less sharp reflections
-          metalness={0.5} // Reduced metalness for less intense reflections
-          {...props} 
+          emissiveIntensity={0.01} // Reduced emissive intensity
+          roughness={0.1} // Increased roughness for less sharp reflections
+          metalness={0.2} // Reduced metalness for less intense reflections
+          {...props}
         />
         {children}
       </mesh>
@@ -91,12 +91,12 @@ function Pointer({ vec = new THREE.Vector3() }) {
 export default function PhysicsBallsScene() {
   const [, click] = useReducer((state) => (state + 1) % colors.length, 0)
   const connectors = useMemo(() => shuffle(), [])
-  
+
   return (
     <>
       {/* Pure black background */}
       <color attach="background" args={['#000000']} />
-      
+
       {/* Physics with proper config */}
       <Physics
         colliders={undefined}
@@ -110,22 +110,22 @@ export default function PhysicsBallsScene() {
           return <Cube {...props} key={i} />
         })}
       </Physics>
-      
+
       {/* Simplified lighting - just one soft ambient light */}
       <ambientLight intensity={0.1} color="#ffffff" />
-      
+
       {/* Single distant directional light */}
-      <directionalLight 
-        position={[10, 10, 10]} 
-        intensity={0.2} 
-        color="#ffffff" 
+      <directionalLight
+        position={[15, 105, 15]}
+        intensity={0.1}
+        color="#ffffff"
       />
-      
+
       {/* Add bloom effect with softer settings */}
       <EffectComposer>
-        <Bloom 
-          intensity={0.8}            // Reduced intensity
-          luminanceThreshold={0.2}   // Increased threshold to reduce over-bloom
+        <Bloom
+          intensity={0.2}            // Reduced intensity
+          luminanceThreshold={0.25}   // Increased threshold to reduce over-bloom
           luminanceSmoothing={0.9}   // Keep smooth edges
           mipmapBlur                 // Use mipmap blur for better performance
         />
