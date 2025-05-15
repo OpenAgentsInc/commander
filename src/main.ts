@@ -25,7 +25,9 @@ function createWindow() {
     },
     titleBarStyle: "hidden",
   });
+  console.log("[main.ts] Before registerListeners() call in createWindow()");
   registerListeners(mainWindow);
+  console.log("[main.ts] After registerListeners() call in createWindow()");
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
