@@ -188,7 +188,7 @@ export default function PhysicsBallsScene() {
       {/* Add bloom effect with softer settings */}
       <EffectComposer>
         <Bloom
-          intensity={0.2}            // Reduced intensity
+          intensity={0.1}            // Reduced intensity
           luminanceThreshold={0.25}   // Increased threshold to reduce over-bloom
           luminanceSmoothing={0.9}   // Keep smooth edges
           mipmapBlur                 // Use mipmap blur for better performance
