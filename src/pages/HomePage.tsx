@@ -105,6 +105,8 @@ export default function HomePage() {
   };
 
   const handleStreamingRequest = async (requestPayload: OllamaChatCompletionRequest) => {
+    // For tracking token count to reduce logging
+    let tokenCounter = 0;
     console.log("Starting streaming request");
     
     // Reset streaming state
@@ -137,13 +139,15 @@ export default function HomePage() {
           
           if (choice.delta && choice.delta.content) {
             const newToken = choice.delta.content;
-            console.log(`Token: "${newToken}"`);
+            // Only log first few tokens and every 10th token to reduce console noise
+            if (tokenCounter < 5 || tokenCounter % 10 === 0) {
+              console.log(`Token ${tokenCounter}: "${newToken}"`);
+            }
+            tokenCounter++;
             
             // Update our accumulated content
             streamedContentRef.current += newToken;
             const currentContent = streamedContentRef.current;
-            
-            console.log(`Updating streamed content in UI: "${currentContent}"`);
             
             // IMPORTANT: Create a completely new message object
             // Force a new object reference so React will re-render

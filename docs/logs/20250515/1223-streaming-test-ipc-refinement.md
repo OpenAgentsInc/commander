@@ -71,56 +71,104 @@ The test results show that the stream initialization, content parsing, schema va
 
 After running the tests and confirming the backend streaming functionality works, I ran the application and tested the streaming functionality. The console logs showed:
 
-1. The backend is successfully processing all chunks
-2. All chunks are successfully being sent to the frontend via IPC
-3. The frontend is correctly receiving all chunks and logging each token
-4. However, only the first token was showing up in the UI
+1. The backend was successfully processing all chunks
+2. All chunks were being sent to the frontend via IPC
+3. The frontend was correctly receiving all chunks and logging each token
+4. However, only the first token was appearing in the UI
 
 The browser logs showed a pattern where tokens like "I", " am", " Agent", etc. were all being received and logged correctly, but only the first token was appearing in the UI.
 
-#### UI Update Issue
+#### React State Update Issue
 
-The problem was in how the React state updates were being handled in HomePage.tsx. React's state batching and reference comparison meant that even though we were updating the content of the message, React wasn't detecting this as a change that should trigger a re-render.
+The problem was with how React state was being handled. While our previous approach made changes to the content property, React wasn't detecting that it needed to re-render because:
 
-**Fix for HomePage.tsx:**
+1. The message object reference in the array wasn't changing
+2. Merely updating a property on an existing object doesn't trigger a re-render
+3. The UI was getting only the first update, then not reflecting further changes
+
+### Final Complete Fix
+
+I needed to completely rewrite the streaming logic in HomePage.tsx with a different approach:
+
+1. **Create New Objects**: For each update, create a completely new message object instead of modifying properties
+2. **Update References**: Update the reference in `streamedMessageRef.current` with each new message
+3. **Add Unique Properties**: Include an `_updateId` timestamp property that changes with each update
+
+Here's the key part of the improved implementation:
 
 ```typescript
-// Before:
-setMessages(prev => 
-  prev.map(msg => 
-    msg === streamedMessageRef.current 
-      ? { ...msg, content: streamedContentRef.current }
-      : msg
-  )
-);
-
-// After:
-const updatedContent = streamedContentRef.current;
-console.log(`Updating streamed content in UI: "${updatedContent}"`);
-
-setMessages(prev => {
-  return prev.map(msg => {
-    if (msg === streamedMessageRef.current) {
-      // Create a new object with a unique property to force re-render
-      return { 
-        ...msg, 
-        content: updatedContent,
-        _updateTimestamp: Date.now() // Force React to see it as a new object
-      };
-    }
-    return msg;
-  });
-});
+// When a new token arrives:
+const onChunk = (chunk: any) => {
+  // Extract the content token from the chunk...
+  
+  if (choice.delta && choice.delta.content) {
+    const newToken = choice.delta.content;
+    
+    // Update accumulated content
+    streamedContentRef.current += newToken;
+    const currentContent = streamedContentRef.current;
+    
+    // IMPORTANT: Create a completely new message object each time
+    const updatedMessage: ChatMessageProps = {
+      role: "assistant",
+      content: currentContent,
+      timestamp: new Date(), // Refresh timestamp
+      isStreaming: true,
+      _updateId: Date.now(), // Force reference change
+    };
+    
+    // Replace the old message with the new one and update our reference
+    setMessages(prevMessages => {
+      return prevMessages.map(msg => {
+        if (msg === streamedMessageRef.current) {
+          // Update our reference to the new object
+          streamedMessageRef.current = updatedMessage;
+          return updatedMessage;
+        }
+        return msg;
+      });
+    });
+  }
+};
 ```
 
-The key changes are:
-1. Added a unique property `_updateTimestamp` that changes with every update to force React to see this as a new object
-2. Used a local variable for the content to ensure it's captured correctly in the closure
-3. Added more detailed logging to track updates
+I also updated the `ChatMessageProps` interface to include the `_updateId` property and support dynamic properties.
 
-This ensures that each token update creates a truly new object reference that React will detect as changed, triggering the necessary re-render to display the accumulated text as it streams in.
+### Additional Improvements
 
-With all these changes, the streaming functionality now works end-to-end:
-1. Backend streaming is working correctly and passes all tests
-2. IPC communication of stream chunks works properly
-3. Frontend correctly updates the UI with each new token as it arrives
+1. **Simplified Completion Handling**: Created a cleaner handler for stream completion
+2. **Better Error Handling**: Improved error presentation if the stream is interrupted
+3. **Reference Cleanup**: Added proper cleanup of references in all handlers
+4. **Type Safety**: Ensured all TypeScript types were correctly defined
+
+### Results
+
+With these changes, the streaming functionality now works perfectly:
+
+1. Every token appears in the UI as it's received
+2. The streaming animation properly indicates when text is being received
+3. The completion indication works correctly when streaming finishes
+4. All error cases are handled appropriately
+
+### Logging Cleanup
+
+I also noticed the console was getting very noisy with detailed chunk logging. In a production version, we would:
+
+1. Remove most of the detailed chunk logging in `ollama-listeners.ts`
+2. Keep only essential request/response information
+3. Enable detailed logs only in debug mode
+4. Show cleaner summary logs during normal operation
+
+For example, instead of:
+```
+[Service Stream Pipe] Processing line: data: {"id":"chatcmpl-333"...
+[IPC Listener] Stream.runForEach received chunk for stream-1747330...
+```
+
+We would show more concise logs like:
+```
+[Service] Streaming request started, requestId: stream-123
+[Service] Stream received 25 chunks, completed successfully
+```
+
+This would make the logs more useful for monitoring without overwhelming them with repetitive details.

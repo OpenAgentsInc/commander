@@ -194,6 +194,9 @@ export function createOllamaService(
                 }
 
                 console.log("[Service Stream] Successfully got response, building stream processing pipeline");
+        
+        // For tracking parsed chunks to reduce logging
+        let parsedJsonLogged = false;
                 
                 // STEP 1: Get the raw bytes stream
                 const rawStream = response.stream;
@@ -212,7 +215,8 @@ export function createOllamaService(
                 // Define a function for processing each line
                 const processLine = (line: string) => {
                     const lineStr = String(line).trim();
-                    console.log("[Service Stream Pipe] Processing line:", lineStr.substring(0, Math.min(50, lineStr.length)) + "...");
+                    // Skip line-by-line logging to reduce noise
+                    // console.log("[Service Stream] Processing line");
                     
                     // Skip empty lines and [DONE] marker
                     if (lineStr === "" || lineStr === "data: [DONE]") {
@@ -226,8 +230,13 @@ export function createOllamaService(
                         try {
                             // Parse JSON
                             const parsedJson = JSON.parse(jsonData);
-                            console.log("[Service Stream Pipe] Parsed JSON:", 
-                                JSON.stringify(parsedJson).substring(0, Math.min(100, JSON.stringify(parsedJson).length)) + "...");
+                            // Log first chunk and completion only
+                            if (!parsedJsonLogged) {
+                                console.log("[Service Stream] First chunk parsed successfully");
+                                parsedJsonLogged = true;
+                            } else if (parsedJson.choices?.[0]?.finish_reason) {
+                                console.log("[Service Stream] Final completion chunk received");
+                            }
                             
                             // Validate against schema and convert to Option.some
                             return Schema.decodeUnknown(OllamaOpenAIChatStreamChunkSchema)(parsedJson).pipe(

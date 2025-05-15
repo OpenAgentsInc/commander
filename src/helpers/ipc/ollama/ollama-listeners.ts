@@ -28,6 +28,9 @@ try {
 // Track active streams for cancellation
 const activeStreams = new Map<string, () => void>();
 
+// For tracking chunk counts to reduce logging
+const chunkCounter: Record<string, number> = {};
+
 // Helper function to extract error details suitable for IPC
 function extractErrorForIPC(error: any): object {
   // Helper for handling Effect Cause objects
@@ -124,12 +127,7 @@ export function addOllamaEventListeners() {
         stream: true
       };
 
-      console.log("Preparing streaming request for model:", streamingRequest.model);
-      
-      // Create a program that obtains the stream
-      // Note: We can't yield a Stream directly in an Effect.gen, 
-      // so we need a different approach to get the stream
-      console.log("[IPC Listener] Preparing to get stream from OllamaService");
+      console.log(`[IPC Listener] Starting streaming request ${requestId} for model: ${streamingRequest.model}`);
       
       const program = Effect.gen(function*(_) {
         const ollamaService = yield* _(OllamaService);
@@ -154,6 +152,7 @@ export function addOllamaEventListeners() {
       });
 
       try {
+        console.log(`[IPC Listener] Running program to get stream for ${requestId}`);
         // Run the program and get the stream result, with detailed error handling
         const streamResult = await Effect.runPromiseExit(program);
 
@@ -175,8 +174,16 @@ export function addOllamaEventListeners() {
         // Define the effect for processing each chunk
         const processChunkEffect = (chunk: any) => {
           if (!signal.aborted) {
-            console.log(`[IPC Listener] Stream.runForEach received chunk for ${requestId}:`, 
-              JSON.stringify(chunk).substring(0, 100) + "...");
+            // Only log first chunk and every 10th chunk to reduce noise
+            if (!chunkCounter[requestId]) {
+              chunkCounter[requestId] = 1;
+              console.log(`[IPC Listener] First chunk received for ${requestId}`);
+            } else {
+              chunkCounter[requestId]++;
+              if (chunkCounter[requestId] % 10 === 0) {
+                console.log(`[IPC Listener] Received ${chunkCounter[requestId]} chunks for ${requestId}`);
+              }
+            }
             
             // Send to renderer
             event.sender.send(`${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL}:chunk`, requestId, chunk);
