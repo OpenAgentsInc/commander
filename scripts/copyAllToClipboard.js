@@ -8,9 +8,9 @@
  *   --docs: Only copy files from the docs/ directory and its subdirectories
  */
 
-import fs from 'fs';
-import path from 'path';
-import { execSync } from 'child_process';
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
 
 // Directories to recursively scan
 const dirsToScan = [
@@ -82,7 +82,9 @@ const copyToClipboard = (text) => {
 };
 
 // Directories to exclude
-const dirsToExclude = [];
+const dirsToExclude = [
+  'src/assets/fonts'
+];
 
 // Function to check if a path should be excluded
 const shouldExclude = (filePath) => {
