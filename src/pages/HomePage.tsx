@@ -1,25 +1,6 @@
 import React, { useState } from "react";
-import { Effect, Layer, Cause } from "effect";
 import { Button } from "@/components/ui/button";
-import { 
-  OllamaService, 
-  type OllamaChatCompletionRequest, 
-  type OllamaChatCompletionResponse, 
-  OllamaHttpError, 
-  OllamaParseError,
-  UiOllamaConfigLive 
-} from "@/services/ollama/OllamaService";
-import { OllamaServiceLive } from '@/services/ollama/OllamaServiceImpl';
-import { HttpClient } from "@effect/platform/HttpClient";
-
-// Define a browser-compatible HttpClient layer using the default fetch implementation
-const fetchHttpClientLayer = Layer.succeed(HttpClient, HttpClient.fetch);
-
-// Define a Layer for the UI that combines OllamaServiceLive with its dependencies
-const uiOllamaServiceLayer = Layer.provide(
-  OllamaServiceLive,
-  Layer.merge(UiOllamaConfigLive, fetchHttpClientLayer)
-);
+import { type OllamaChatCompletionRequest } from "@/services/ollama/OllamaService";
 
 export default function HomePage() {
   const [ollamaResponse, setOllamaResponse] = useState<string | null>(null);
@@ -36,16 +17,18 @@ export default function HomePage() {
         { role: "system", content: "You are a helpful assistant." },
         { role: "user", content: "Hello world!" }
       ],
-      stream: false // Adding the required stream property
+      stream: false
     };
 
-    const program = Effect.gen(function*(_) {
-      const ollama = yield* _(OllamaService);
-      return yield* _(ollama.generateChatCompletion(requestPayload as unknown));
-    }).pipe(Effect.provide(uiOllamaServiceLayer));
-
     try {
-      const result = await Effect.runPromise(program);
+      // Call the Ollama service through IPC
+      const result = await window.electronAPI.ollama.generateChatCompletion(requestPayload);
+      
+      // Check if we received an error through IPC
+      if (result && result.__error) {
+        throw new Error(result.message || "Unknown error occurred");
+      }
+      
       if (result.choices && result.choices.length > 0) {
         setOllamaResponse(result.choices[0].message.content);
       } else {
@@ -53,14 +36,7 @@ export default function HomePage() {
       }
     } catch (caughtError: any) {
       console.error("Ollama API call failed", caughtError);
-      // Check if it's one of our custom errors directly
-      if (caughtError instanceof OllamaHttpError || caughtError instanceof OllamaParseError) {
-        setError(`Service Error (${caughtError._tag}): ${caughtError.message}`);
-      } else if (caughtError instanceof Error) {
-        setError(`Generic Error: ${caughtError.message}`);
-      } else {
-        setError("An unknown error occurred. Check console.");
-      }
+      setError(`Error: ${caughtError.message || "Unknown error occurred"}`);
     } finally {
       setIsLoading(false);
     }
