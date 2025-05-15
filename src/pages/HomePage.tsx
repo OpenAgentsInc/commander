@@ -4,6 +4,8 @@ import { ChatWindow } from "@/components/chat/ChatWindow";
 import { ChatMessageProps } from "@/components/chat/ChatMessage";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Canvas } from '@react-three/fiber';
+import BackgroundScene from '@/components/r3f/BackgroundScene';
 
 export default function HomePage() {
   const [messages, setMessages] = useState<ChatMessageProps[]>([
@@ -286,26 +288,45 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="flex h-full w-full relative">
-      {/* Empty main content area */}
-      <div className="flex-1"></div>
+    <>
+      {/* R3F Canvas for Background */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          zIndex: -1, // Send it to the very back
+        }}
+      >
+        <Canvas camera={{ position: [0, 0, 5], fov: 50 }}> {/* Adjust camera as needed */}
+          <BackgroundScene />
+        </Canvas>
+      </div>
 
-      {/* Chat window positioned at bottom-left */}
-      <div className="absolute bottom-0 left-0 w-[28rem] p-1">
-        {/* Empty space above chat window */}
-        <div className="mb-1"></div>
-        
-        {/* Chat window */}
-        <div className="h-64">
-          <ChatWindow
-            messages={messages}
-            userInput={userInput}
-            onUserInputChange={setUserInput}
-            onSendMessage={handleSendMessage}
-            isLoading={isLoading}
-          />
+      {/* Existing HomePage Layout */}
+      <div className="flex h-full w-full relative">
+        {/* Empty main content area */}
+        <div className="flex-1"></div>
+
+        {/* Chat window positioned at bottom-left */}
+        <div className="absolute bottom-0 left-0 w-[28rem] p-1 z-10"> {/* Added z-index to ensure it appears above the canvas */}
+          {/* Empty space above chat window */}
+          <div className="mb-1"></div>
+          
+          {/* Chat window */}
+          <div className="h-64">
+            <ChatWindow
+              messages={messages}
+              userInput={userInput}
+              onUserInputChange={setUserInput}
+              onSendMessage={handleSendMessage}
+              isLoading={isLoading}
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
