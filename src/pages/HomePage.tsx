@@ -15,7 +15,8 @@ export default function HomePage() {
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [userInput, setUserInput] = useState<string>("");
-  const [useStreaming, setUseStreaming] = useState(true);
+  // Always use streaming
+  const useStreaming = true;
   
   // For streaming cancellation
   const streamCancelRef = useRef<(() => void) | null>(null);
@@ -286,38 +287,24 @@ export default function HomePage() {
 
   return (
     <div className="flex h-full w-full relative">
-      {/* Main content area */}
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="font-mono text-4xl font-bold">OpenAgents</h1>
-          <p className="text-lg uppercase text-muted-foreground" data-testid="pageTitle">
-            Commander
-          </p>
-          <p className="mt-2 text-muted-foreground">
-            Model: {uiOllamaConfig.defaultModel}
-          </p>
-          <div className="mt-4 flex items-center justify-center gap-2">
-            <Switch
-              id="streaming-toggle"
-              checked={useStreaming}
-              onCheckedChange={setUseStreaming}
-            />
-            <Label htmlFor="streaming-toggle" className="text-sm">
-              {useStreaming ? "Streaming: On" : "Streaming: Off"}
-            </Label>
-          </div>
-        </div>
-      </div>
+      {/* Empty main content area */}
+      <div className="flex-1"></div>
 
       {/* Chat window positioned at bottom-left */}
-      <div className="absolute bottom-0 left-0 w-[28rem] h-64 p-1">
-        <ChatWindow
-          messages={messages}
-          userInput={userInput}
-          onUserInputChange={setUserInput}
-          onSendMessage={handleSendMessage}
-          isLoading={isLoading}
-        />
+      <div className="absolute bottom-0 left-0 w-[28rem] p-1">
+        {/* Empty space above chat window */}
+        <div className="mb-1"></div>
+        
+        {/* Chat window */}
+        <div className="h-64">
+          <ChatWindow
+            messages={messages}
+            userInput={userInput}
+            onUserInputChange={setUserInput}
+            onSendMessage={handleSendMessage}
+            isLoading={isLoading}
+          />
+        </div>
       </div>
     </div>
   );

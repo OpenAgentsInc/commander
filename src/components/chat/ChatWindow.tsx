@@ -48,7 +48,7 @@ export function ChatWindow({
   };
 
   return (
-    <div className="flex flex-col h-full border rounded-md bg-background/70 backdrop-blur-sm text-xs overflow-hidden">
+    <div className="flex flex-col h-full border border-border rounded-md bg-background text-foreground text-xs overflow-hidden">
       {/* Chat messages area with scrolling */}
       <div className="flex-1 min-h-0"> {/* min-h-0 is critical for flexbox children to scroll properly */}
         <ScrollArea className="h-full w-full">
@@ -58,7 +58,8 @@ export function ChatWindow({
                 key={index} 
                 content={message.content} 
                 role={message.role} 
-                timestamp={message.timestamp} 
+                timestamp={message.timestamp}
+                isStreaming={message.isStreaming}
               />
             ))}
             <div ref={messagesEndRef} />
@@ -67,7 +68,7 @@ export function ChatWindow({
       </div>
       
       {/* Input area */}
-      <div className="border-t p-1.5 flex-shrink-0">
+      <div className="border-t border-border p-1.5 flex-shrink-0">
         <div className="flex gap-1">
           <Textarea
             ref={inputRef}
@@ -75,14 +76,15 @@ export function ChatWindow({
             value={userInput}
             onChange={(e) => onUserInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="min-h-[24px] max-h-[60px] resize-none text-xs py-1 px-2"
+            className="min-h-[24px] max-h-[60px] resize-none text-xs py-1 px-2 bg-background text-foreground border-border focus:ring-ring focus:border-border focus:bg-background !bg-background !opacity-100"
+            style={{ backgroundColor: 'var(--background)' }}
             disabled={isLoading}
             autoFocus
           />
           <Button 
             onClick={onSendMessage}
             disabled={isLoading || !userInput.trim()} 
-            className="self-end text-xs h-8 px-2"
+            className="self-end text-xs h-8 px-2 bg-primary text-primary-foreground hover:bg-primary/80"
             size="sm"
           >
             {isLoading ? "..." : "Send"}

@@ -1,5 +1,6 @@
 import React from "react";
 import { cn } from "@/utils/tailwind";
+import { Loader2 } from "lucide-react";
 
 export type MessageRole = "user" | "assistant" | "system";
 
@@ -23,24 +24,28 @@ export function ChatMessage({ content, role, timestamp, isStreaming }: ChatMessa
         className={cn(
           "py-1 px-2 rounded-md mb-1 text-xs inline-block max-w-[85%]",
           role === "user" 
-            ? "bg-primary/10 text-right" 
+            ? "border border-border bg-background text-foreground text-right" 
             : role === "assistant" 
-              ? isStreaming ? "bg-secondary/5 border-secondary/20 border" : "bg-secondary/10"
-              : "bg-muted/50 text-muted-foreground text-[10px] italic"
+              ? isStreaming ? "border border-border bg-background text-foreground" : "border border-border bg-background text-foreground"
+              : "border border-border bg-background text-foreground text-[10px] italic"
         )}
       >
-        <div className="text-[10px] font-semibold mb-0.5">
+        <div className="text-[10px] font-semibold mb-0.5 text-foreground">
           {role === "user" ? "Commander" : role === "assistant" ? "Agent" : "System"}
           {timestamp && (
-            <span className="text-muted-foreground text-[10px] ml-1">
+            <span className="text-foreground text-[10px] ml-1">
               {timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              {isStreaming && <span className="ml-1 animate-pulse">...</span>}
+              {isStreaming && (
+                <span className="ml-1 inline-flex items-center">
+                  <Loader2 className="h-3 w-3 animate-spin text-foreground" />
+                </span>
+              )}
             </span>
           )}
         </div>
-        <div className="whitespace-pre-wrap max-w-full">
+        <div className="whitespace-pre-wrap max-w-full text-foreground">
           {content}
-          {isStreaming && !content && <span className="animate-pulse">▋</span>}
+          {isStreaming && <span className="ml-0.5 text-foreground animate-pulse">▋</span>}
         </div>
       </div>
     </div>
