@@ -12,11 +12,6 @@ import {
 } from './OllamaService';
 
 /**
- * Create an implementation of the OllamaService that uses fetch for HTTP requests
- * @param config The Ollama service configuration
- * @returns An implementation of the OllamaService interface
- */
-/**
  * Create a Layer providing the OllamaService implementation
  */
 export const OllamaServiceLive = Layer.effect(

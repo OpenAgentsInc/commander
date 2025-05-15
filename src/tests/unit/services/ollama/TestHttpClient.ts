@@ -37,7 +37,7 @@ async function mockFetch(
   if (!mockResponse) {
     throw new Error(
       `No mock response found for ${method} ${url}. ` +
-      `Make sure to set up a mock using setMockClientResponse().`
+      `Make sure to set up a mock using setMockResponse().`
     );
   }
   
