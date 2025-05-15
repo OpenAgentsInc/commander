@@ -113,12 +113,16 @@ export function ChatWindow({
                 // If focus is going to the body, it's probably being stolen
                 // Re-focus immediately
                 setTimeout(() => {
-                  if (e.currentTarget.getAttribute('data-focused') === 'true') {
+                  // Check if the element is still in the DOM before accessing properties
+                  if (e.currentTarget && e.currentTarget.getAttribute('data-focused') === 'true') {
                     e.currentTarget.focus();
                   }
                 }, 0);
               } else {
-                e.currentTarget.setAttribute('data-focused', 'false');
+                // Safely set attribute only if the element is still in the DOM
+                if (e.currentTarget) {
+                  e.currentTarget.setAttribute('data-focused', 'false');
+                }
               }
             }}
             disabled={isLoading}

@@ -7,14 +7,13 @@ export type MessageRole = "user" | "assistant" | "system";
 export interface ChatMessageProps {
   content: string;
   role: MessageRole;
-  timestamp?: Date;
   isStreaming?: boolean;
   // Allow dynamic update properties for streaming implementation
   _updateId?: number;
   [key: string]: any; // Allow any additional properties
 }
 
-export function ChatMessage({ content, role, timestamp, isStreaming }: ChatMessageProps) {
+export function ChatMessage({ content, role, isStreaming }: ChatMessageProps) {
   return (
     <div className={cn(
       "flex",
@@ -30,16 +29,11 @@ export function ChatMessage({ content, role, timestamp, isStreaming }: ChatMessa
               : "border border-border bg-background text-foreground text-[10px] italic"
         )}
       >
-        <div className="text-[10px] font-semibold mb-0.5 text-foreground">
-          {role === "user" ? "Commander" : role === "assistant" ? "Agent" : "System"}
-          {timestamp && (
-            <span className="text-foreground text-[10px] ml-1">
-              {timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              {isStreaming && (
-                <span className="ml-1 inline-flex items-center">
-                  <Loader2 className="h-3 w-3 animate-spin text-foreground" />
-                </span>
-              )}
+        <div className="text-[10px] font-semibold mb-0.5 text-foreground flex items-center">
+          <span>{role === "user" ? "Commander" : role === "assistant" ? "Agent" : "System"}</span>
+          {isStreaming && (
+            <span className="ml-1 inline-flex items-center">
+              <Loader2 className="h-3 w-3 animate-spin text-foreground" />
             </span>
           )}
         </div>
