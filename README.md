@@ -27,7 +27,7 @@ Our new flagship app, introduced in [episode 170](https://x.com/OpenAgentsInc/st
     pnpm start
     ```
 
-To chat, you must have [Ollama](https://ollama.com/) running. The current chat model used is `gemma3`, which you can preload in Ollama by running `ollama pull gemma3`.
+To chat, you must have [Ollama](https://ollama.com/) running. The current chat model used is `gemma3:1b`, which you can preload in Ollama by running `ollama pull gemma3:1b`.
 
 ## Tech Stack
 

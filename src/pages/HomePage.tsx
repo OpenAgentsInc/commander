@@ -10,15 +10,15 @@ import PhysicsBallsScene from '@/components/r3f/PhysicsBallsScene';
 // Memoized Canvas component to prevent unnecessary re-renders
 const R3FBackground = React.memo(() => {
   return (
-    <Canvas 
-      camera={{ position: [0, 0, 30], fov: 17.5, near: 10, far: 40 }} 
-      flat 
-      gl={{ antialias: false }} 
+    <Canvas
+      camera={{ position: [0, 0, 30], fov: 17.5, near: 10, far: 40 }}
+      flat
+      gl={{ antialias: false }}
       dpr={[1, 1.5]}
       frameloop="demand" // Only render when needed to reduce CPU usage
       // Performance optimization to reduce re-renders
       performance={{ min: 0.5 }}
-      // @ts-ignore - Working around type issues
+    // @ts-ignore - Working around type issues
     >
       <PhysicsBallsScene />
     </Canvas>
@@ -29,17 +29,17 @@ export default function HomePage() {
   const [messages, setMessages] = useState<ChatMessageProps[]>([
     {
       role: "system",
-      content: "You are an AI agent inside an app used by a human called Commander. You should identify yourself simply as 'Agent'. Respond helpfully but extremely concisely, in 1-2 sentences."
+      content: "You are an AI agent inside an app used by a human called Commander. When asked, identify yourself simply as 'Agent'. Respond helpfully but extremely concisely, in 1-2 sentences."
     }
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [userInput, setUserInput] = useState<string>("");
   // Always use streaming
   const useStreaming = true;
-  
+
   // For streaming cancellation
   const streamCancelRef = useRef<(() => void) | null>(null);
-  
+
   // For accumulating streamed content
   const streamedContentRef = useRef<string>("");
   const streamedMessageRef = useRef<ChatMessageProps | null>(null);
@@ -60,14 +60,15 @@ export default function HomePage() {
     setUserInput("");
 
     // Get the system message from our messages state or use a default one
-    const systemMessage = messages.find(m => m.role === "system")?.content || 
-      "You are an AI agent inside an app used by a human called Commander. You should identify yourself simply as 'Agent'. Respond helpfully but extremely concisely, in 1-2 sentences.";
-    
+    const systemMessage = messages.find(m => m.role === "system")?.content ||
+      "You are an AI agent inside an app used by a human called Commander. When asked, identify yourself simply as 'Agent'. Respond helpfully but extremely concisely, in 1-2 sentences.";
+
     const requestPayload: OllamaChatCompletionRequest = {
+      model: "gemma3:1b",
       messages: [
         { role: "system", content: systemMessage },
         ...messages
-          .filter(m => m.role !== "system") // Filter out client-side system messages 
+          .filter(m => m.role !== "system") // Filter out client-side system messages
           .map(m => ({ role: m.role, content: m.content })),
         { role: "user", content: userMessage.content }
       ],
@@ -121,17 +122,17 @@ export default function HomePage() {
   const handleStreamingRequest = async (requestPayload: OllamaChatCompletionRequest) => {
     // For tracking token count to reduce logging
     let tokenCounter = 0;
-    
+
     // Reset streaming state
     streamedContentRef.current = "";
-    
+
     // Create a new message object for streaming
     const newAssistantMessage: ChatMessageProps = {
       role: "assistant",
       content: "", // Start with empty content
       isStreaming: true,
     };
-    
+
     // Add to messages state and store reference
     setMessages(prevMessages => {
       const updatedMessages = [...prevMessages, newAssistantMessage];
@@ -139,22 +140,22 @@ export default function HomePage() {
       streamedMessageRef.current = newAssistantMessage;
       return updatedMessages;
     });
-    
+
     try {
       // Handler for each incoming chunk
       const onChunk = (chunk: any) => {
         // Extract content from the chunk if available
         if (chunk.choices && chunk.choices.length > 0) {
           const choice = chunk.choices[0];
-          
+
           if (choice.delta && choice.delta.content) {
             const newToken = choice.delta.content;
             tokenCounter++;
-            
+
             // Update our accumulated content
             streamedContentRef.current += newToken;
             const currentContent = streamedContentRef.current;
-            
+
             // IMPORTANT: Create a completely new message object
             // Force a new object reference so React will re-render
             const updatedMessage: ChatMessageProps = {
@@ -163,7 +164,7 @@ export default function HomePage() {
               isStreaming: true,
               _updateId: Date.now(), // Force reference change
             };
-            
+
             // Update the messages array, replacing the streaming message
             setMessages(prevMessages => {
               return prevMessages.map(msg => {
@@ -179,7 +180,7 @@ export default function HomePage() {
           }
         }
       };
-      
+
       // Handler for stream completion
       const onDone = () => {
         // Create final message without streaming indicators
@@ -188,47 +189,47 @@ export default function HomePage() {
           content: streamedContentRef.current,
           // No isStreaming flag
         };
-        
+
         // Replace the streaming message with the final version
-        setMessages(prevMessages => 
-          prevMessages.map(msg => 
+        setMessages(prevMessages =>
+          prevMessages.map(msg =>
             msg === streamedMessageRef.current ? finalMessage : msg
           )
         );
-        
+
         // Clean up
         streamedMessageRef.current = null;
         streamedContentRef.current = "";
         streamCancelRef.current = null;
         setIsLoading(false);
       };
-      
+
       // Handler for errors
       const onError = (error: any) => {
         const errorContent = streamedContentRef.current
           ? `${streamedContentRef.current}\n\n[Error: Stream interrupted - ${error.message || "Unknown error"}]`
           : `Error: ${error.message || "Unknown error occurred"}`;
-        
+
         // Create error message
         const errorMessage: ChatMessageProps = {
           role: streamedContentRef.current ? "assistant" : "system",
           content: errorContent
         };
-        
+
         // Replace streaming message with error message
-        setMessages(prevMessages => 
-          prevMessages.map(msg => 
+        setMessages(prevMessages =>
+          prevMessages.map(msg =>
             msg === streamedMessageRef.current ? errorMessage : msg
           )
         );
-        
+
         // Clean up
         streamedMessageRef.current = null;
         streamedContentRef.current = "";
         streamCancelRef.current = null;
         setIsLoading(false);
       };
-      
+
       // Start streaming request
       const cancelFn = window.electronAPI.ollama.generateChatCompletionStream(
         requestPayload,
@@ -236,31 +237,31 @@ export default function HomePage() {
         onDone,
         onError
       );
-      
+
       // Save cancel function for cleanup
       streamCancelRef.current = cancelFn;
-      
+
     } catch (error: any) {
       // Add error message to chat
       const errorMessage: ChatMessageProps = {
         role: "system",
         content: `Error: ${error.message || "Unknown error occurred"}`
       };
-      
+
       // Replace the streaming message with error or append
       if (streamedMessageRef.current) {
-        setMessages(prev => 
+        setMessages(prev =>
           prev.map(msg => msg === streamedMessageRef.current ? errorMessage : msg)
         );
       } else {
         setMessages(prev => [...prev, errorMessage]);
       }
-      
+
       // Reset references
       streamedMessageRef.current = null;
       streamedContentRef.current = "";
       streamCancelRef.current = null;
-      
+
       // Done loading
       setIsLoading(false);
     }
@@ -290,13 +291,13 @@ export default function HomePage() {
         <div className="flex-1"></div>
 
         {/* Chat window positioned at bottom-left */}
-        <div 
-          className="absolute bottom-0 left-0 w-[32rem] p-1" 
+        <div
+          className="absolute bottom-0 left-0 w-[32rem] p-1"
           style={{ pointerEvents: 'auto' }} // This restores pointer events for the chat window
         >
           {/* Empty space above chat window */}
           <div className="mb-1"></div>
-          
+
           {/* Chat window */}
           <div className="h-80">
             <ChatWindow
