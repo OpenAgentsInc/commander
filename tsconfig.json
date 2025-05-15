@@ -2,7 +2,7 @@
   "compilerOptions": {
     "jsx": "react",
     "target": "ESNext",
-    "module": "CommonJS",
+    "module": "NodeNext",
     "lib": ["dom", "ESNext"],
     "experimentalDecorators": true,
     "composite": true,
@@ -18,8 +18,10 @@
       "@/*": ["./src/*"]
     },
     "outDir": "dist",
-    "moduleResolution": "node",
-    "resolveJsonModule": true
+    "moduleResolution": "NodeNext",
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "types": ["vitest/globals", "node"]
   },
   "include": ["src/**/*", "./package.json", "./forge.config.ts"]
 }
