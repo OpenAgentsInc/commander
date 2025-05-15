@@ -68,12 +68,12 @@ function Cube({ position, children, vec = new THREE.Vector3(), scale, r = THREE.
       <mesh ref={mesh} castShadow receiveShadow>
         <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial
-          color="#ffffff"
+          color="#111111"
           emissive="#ffffff"
-          emissiveIntensity={0.05}
-          roughness={0.2}
-          metalness={0.8}
-          envMapIntensity={1.5}
+          emissiveIntensity={0.0001}
+          roughness={0.95}
+          metalness={0.05}
+          envMapIntensity={0.05}
           {...props}
         />
         {children}
@@ -154,7 +154,7 @@ export default function PhysicsBallsScene() {
       {/* Physics with proper config */}
       <Physics
         colliders={undefined}
-        gravity={[0, 0, 0]}
+        gravity={[6.4, 6.4, 4.4]}
       >
         <Pointer />
         {connectors.map((props, i) => {
@@ -163,12 +163,12 @@ export default function PhysicsBallsScene() {
       </Physics>
 
       {/* Enhanced lighting setup */}
-      <ambientLight intensity={0.2} />
+      <ambientLight intensity={0.11} />
 
       {/* Main directional light with shadows */}
       <directionalLight
         position={[5, 5, 5]}
-        intensity={1}
+        intensity={0.1}
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0001}
@@ -179,21 +179,21 @@ export default function PhysicsBallsScene() {
       {/* Fill light from opposite direction */}
       <directionalLight
         position={[-5, -5, -5]}
-        intensity={0.3}
+        intensity={0.2}
       />
 
-      {/* Add some rim lighting */}
-      <pointLight position={[0, 5, -5]} intensity={0.5} />
+      {/* Environment for reflections */}
+      <Environment preset="studio" />
 
       {/* Add bloom effect with softer settings */}
-      {/* <EffectComposer>
+      <EffectComposer>
         <Bloom
           intensity={0.2}            // Reduced intensity
           luminanceThreshold={0.25}   // Increased threshold to reduce over-bloom
           luminanceSmoothing={0.9}   // Keep smooth edges
           mipmapBlur                 // Use mipmap blur for better performance
         />
-      </EffectComposer> */}
+      </EffectComposer>
     </>
   )
 }
