@@ -1,8 +1,8 @@
 {
   "name": "commander",
-  "productName": "electron-shadcn Template",
-  "version": "1.0.0",
-  "description": "Electron Forge with shadcn-ui (Vite + Typescript)",
+  "productName": "Commander",
+  "version": "0.0.1",
+  "description": "Command agents, earn bitcoin.",
   "main": ".vite/build/main.js",
   "private": true,
   "scripts": {
@@ -17,10 +17,11 @@
     "test:watch": "vitest watch",
     "test:unit": "vitest",
     "test:e2e": "playwright test",
-    "test:all": "vitest run && playwright test"
+    "test:all": "vitest run && playwright test",
+    "copy": "node scripts/copyAllToClipboard.js"
   },
-  "author": "ROG <luan.roger.2003@gmail.com>",
-  "license": "MIT",
+  "author": "Christopher David <chris@openagents.com>",
+  "license": "AGPL-3.0-or-later",
   "devDependencies": {
     "@electron-forge/cli": "^7.8.0",
     "@electron-forge/maker-deb": "^7.8.0",
