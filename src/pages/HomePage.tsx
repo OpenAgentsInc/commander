@@ -5,7 +5,7 @@ import { ChatMessageProps } from "@/components/chat/ChatMessage";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Canvas } from '@react-three/fiber';
-import BackgroundScene from '@/components/r3f/BackgroundScene';
+import PhysicsBallsScene from '@/components/r3f/PhysicsBallsScene';
 
 export default function HomePage() {
   const [messages, setMessages] = useState<ChatMessageProps[]>([
@@ -288,30 +288,31 @@ export default function HomePage() {
   }, []);
 
   return (
-    <>
-      {/* R3F Canvas for Background */}
-      <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          zIndex: -1, // Send it to the very back
-        }}
-      >
-        <Canvas camera={{ position: [0, 0, 5], fov: 50 }}> {/* Adjust camera as needed */}
-          <BackgroundScene />
+    <div className="flex flex-col h-full w-full relative">
+      {/* Disable TypeScript checking for this Canvas to work around library type issues */}
+      <div className="fixed inset-0" style={{ pointerEvents: 'auto' }}>
+        <Canvas 
+          camera={{ position: [0, 0, 30], fov: 17.5, near: 10, far: 40 }} 
+          flat 
+          gl={{ antialias: false }} 
+          dpr={[1, 1.5]}
+          // @ts-ignore - Working around type issues
+        >
+          <PhysicsBallsScene />
         </Canvas>
       </div>
 
-      {/* Existing HomePage Layout */}
-      <div className="flex h-full w-full relative">
-        {/* Empty main content area */}
+      {/* UI Overlay - use pointer-events: none to let clicks pass through to the canvas
+           except for specific UI elements that need interaction */}
+      <div className="relative w-full h-full flex" style={{ pointerEvents: 'none' }}>
+        {/* Empty main content area - no interaction needed */}
         <div className="flex-1"></div>
 
         {/* Chat window positioned at bottom-left */}
-        <div className="absolute bottom-0 left-0 w-[28rem] p-1 z-10"> {/* Added z-index to ensure it appears above the canvas */}
+        <div 
+          className="absolute bottom-0 left-0 w-[28rem] p-1" 
+          style={{ pointerEvents: 'auto' }} // This restores pointer events for the chat window
+        >
           {/* Empty space above chat window */}
           <div className="mb-1"></div>
           
@@ -327,6 +328,6 @@ export default function HomePage() {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
