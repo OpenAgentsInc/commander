@@ -1,4 +1,4 @@
-import { Effect, Schema, Context, Layer } from "effect";
+import { Effect, Schema, Context, Layer, Stream, Option } from "effect";
 import { HttpClient } from "@effect/platform/HttpClient"; // This is the Tag
 import type { HttpClient as HttpClientService } from "@effect/platform/HttpClient"; // Import the service type alias
 import * as HttpClientRequest from "@effect/platform/HttpClientRequest";
@@ -11,7 +11,10 @@ import {
     OllamaServiceConfigTag,
     OllamaChatCompletionRequestSchema,
     OllamaChatCompletionResponseSchema,
+    type OllamaChatCompletionRequest,
     type OllamaChatCompletionResponse,
+    type OllamaOpenAIChatStreamChunk,
+    OllamaOpenAIChatStreamChunkSchema,
     OllamaHttpError,
     OllamaParseError
 } from './OllamaService';
@@ -34,7 +37,7 @@ export function createOllamaService(
 ): OllamaService {
     const makeUrl = (path: string) => `${config.baseURL}${path}`;
 
-    const generateChatCompletion = (requestBody: unknown): Effect.Effect<OllamaChatCompletionResponse, OllamaHttpError | OllamaParseError, never> => {
+    const generateChatCompletion = (requestBody: OllamaChatCompletionRequest): Effect.Effect<OllamaChatCompletionResponse, OllamaHttpError | OllamaParseError, never> => {
         return Effect.gen(function* (_) {
             const url = makeUrl("/chat/completions");
 
@@ -114,7 +117,106 @@ export function createOllamaService(
         });
     };
 
+    const generateChatCompletionStream = (
+        requestBody: OllamaChatCompletionRequest
+    ): Stream.Stream<OllamaOpenAIChatStreamChunk, OllamaHttpError | OllamaParseError, never> => {
+        const prepareRequestEffect = Effect.gen(function*(_) {
+            const url = makeUrl("/chat/completions");
+
+            // Validate request body using Schema
+            const validatedRequestBody = yield* _(
+                Schema.decodeUnknown(OllamaChatCompletionRequestSchema)(requestBody),
+                Effect.mapError(parseError => new OllamaParseError(
+                    "Invalid request format for streaming chat completion",
+                    parseError
+                ))
+            );
+
+            const finalRequestBody = {
+                ...validatedRequestBody,
+                model: validatedRequestBody.model || config.defaultModel,
+                stream: true // Explicitly set stream to true for this method
+            };
+
+            const httpBody = yield* _(
+                HttpBody.json(finalRequestBody),
+                Effect.mapError(bodyError =>
+                    new OllamaParseError(
+                        `Failed to create streaming request body: ${bodyError.reason._tag === "JsonError" ? "JSON encoding" : "Schema encoding"}`,
+                        bodyError
+                    )
+                )
+            );
+
+            return HttpClientRequest.post(url).pipe(
+                HttpClientRequest.setHeader("Content-Type", "application/json"),
+                HttpClientRequest.setBody(httpBody)
+            );
+        }).pipe(Effect.mapError(e => e as OllamaParseError | OllamaHttpError));
+
+        return Stream.unwrap(Effect.gen(function*(_) {
+            const httpRequest = yield* _(prepareRequestEffect);
+            const response = yield* _(
+                httpClient.execute(httpRequest),
+                Effect.mapError(httpClientError =>
+                    new OllamaHttpError(
+                        `HTTP request failed for streaming chat: ${httpClientError._tag || "Unknown error"}`,
+                        httpRequest,
+                        httpClientError
+                    )
+                )
+            );
+
+            if (response.status >= 400) {
+                const errorJson = yield* _(
+                    response.json,
+                    Effect.catchAll(() => Effect.succeed({ error: "Unknown API error structure during stream initiation" }))
+                );
+                return yield* _(Effect.fail(new OllamaHttpError(
+                    `Ollama API Error on stream initiation (chat/completions): ${response.status} - ${JSON.stringify(errorJson)}`,
+                    httpRequest,
+                    { status: response.status, headers: response.headers, body: errorJson }
+                )));
+            }
+
+            return Stream.suspend(() => response.stream).pipe(
+                stream => Stream.decodeText(stream),
+                stream => Stream.splitLines(stream),
+                Stream.mapEffect(line => {
+                    const lineStr = String(line);
+                    if (lineStr.trim() === "" || lineStr === "data: [DONE]") {
+                        return Effect.succeed(Option.none<OllamaOpenAIChatStreamChunk>());
+                    }
+                    if (lineStr.startsWith("data: ")) {
+                        const jsonData = lineStr.substring("data: ".length);
+                        try {
+                            const parsedJson = JSON.parse(jsonData);
+                            return Schema.decodeUnknown(OllamaOpenAIChatStreamChunkSchema)(parsedJson).pipe(
+                                Effect.map(Option.some),
+                                Effect.catchTag("ParseError", pe =>
+                                    Effect.fail(new OllamaParseError("Schema parse error in OpenAI stream chunk", { line: jsonData, error: pe }))
+                                )
+                            );
+                        } catch (e) {
+                            return Effect.fail(new OllamaParseError("JSON parse error in OpenAI stream chunk", { line: jsonData, error: e }));
+                        }
+                    }
+                    return Effect.fail(new OllamaParseError("Unexpected line format in OpenAI stream", { line: lineStr }));
+                }),
+                stream => Stream.filterMap((chunk: unknown) => Option.isOption(chunk) && Option.isSome(chunk) ? Option.some(Option.getOrUndefined(chunk) as OllamaOpenAIChatStreamChunk) : Option.none())(stream),
+                Stream.mapError(err => {
+                    if (err instanceof OllamaParseError || err instanceof OllamaHttpError) return err;
+                    if (err instanceof HttpClientError.ResponseError) {
+                         return new OllamaHttpError("OpenAI stream body processing error", httpRequest, err);
+                    }
+                    return new OllamaParseError("Unknown OpenAI stream error", err);
+                })
+            );
+        }));
+    };
+
     return {
-        generateChatCompletion
+        generateChatCompletion,
+        generateChatCompletionStream
     };
 }

@@ -1,4 +1,4 @@
-import { Effect, Context, Schema, Layer } from "effect";
+import { Effect, Context, Schema, Layer, Stream } from "effect";
 import { HttpClient } from "@effect/platform/HttpClient";
 
 // --- Schema Definitions ---
@@ -26,7 +26,7 @@ export const OllamaServiceConfigTag = Context.GenericTag<OllamaServiceConfig>("O
 export const OllamaChatCompletionRequestSchema = Schema.Struct({
     model: Schema.optional(Schema.String),
     messages: Schema.Array(OllamaMessageSchema),
-    stream: Schema.optionalWith(Schema.Boolean, { default: () => false })
+    stream: Schema.optional(Schema.Boolean)
 });
 export type OllamaChatCompletionRequest = Schema.Schema.Type<typeof OllamaChatCompletionRequestSchema>;
 
@@ -106,11 +106,44 @@ export class OllamaParseError extends Error {
     }
 }
 
+// --- OpenAI-Compatible Streaming Schema Definitions ---
+
+// Delta for a choice in a stream chunk
+export const OllamaOpenAIChatStreamDeltaSchema = Schema.Struct({
+    role: Schema.optional(Schema.Union(Schema.Literal("system"), Schema.Literal("user"), Schema.Literal("assistant"))),
+    content: Schema.optional(Schema.String),
+    // tool_calls: Schema.optional(Schema.Array(Schema.Any)) // If supporting tool calls
+});
+export type OllamaOpenAIChatStreamDelta = Schema.Schema.Type<typeof OllamaOpenAIChatStreamDeltaSchema>;
+
+// A choice in a stream chunk
+export const OllamaOpenAIChatStreamChoiceSchema = Schema.Struct({
+    index: Schema.Number,
+    delta: OllamaOpenAIChatStreamDeltaSchema,
+    finish_reason: Schema.optional(Schema.NullishOr(Schema.String))
+});
+export type OllamaOpenAIChatStreamChoice = Schema.Schema.Type<typeof OllamaOpenAIChatStreamChoiceSchema>;
+
+// A single stream chunk (the `data:` part of an SSE event)
+export const OllamaOpenAIChatStreamChunkSchema = Schema.Struct({
+    id: Schema.String,
+    object: Schema.String, // e.g., "chat.completion.chunk"
+    created: Schema.Number,
+    model: Schema.String,
+    choices: Schema.Array(OllamaOpenAIChatStreamChoiceSchema),
+    usage: Schema.optional(Schema.NullishOr(OllamaChatCompletionUsageSchema))
+});
+export type OllamaOpenAIChatStreamChunk = Schema.Schema.Type<typeof OllamaOpenAIChatStreamChunkSchema>;
+
 // --- Service Interface ---
 export interface OllamaService {
     generateChatCompletion(
-        request: unknown
+        request: OllamaChatCompletionRequest
     ): Effect.Effect<OllamaChatCompletionResponse, OllamaHttpError | OllamaParseError, never>;
+
+    generateChatCompletionStream(
+        request: OllamaChatCompletionRequest
+    ): Stream.Stream<OllamaOpenAIChatStreamChunk, OllamaHttpError | OllamaParseError, never>;
 }
 
 // Define a Tag for the service that can be used in dependency injection

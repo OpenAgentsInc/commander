@@ -6,6 +6,8 @@ Let's rewind and redo the instructions for adding streaming to the existing `Oll
 
 **Log your work in a new file (or overwrite the previous one if you prefer): `docs/logs/20250515/0725-ollama-streaming-openai-compat.md`**
 
+Edit: Log your work in 0726-streaming-openai-log.md.
+
 **Testing SOON:** After defining the new schemas for OpenAI-compatible stream chunks and updating the service interface, write the basic structure of the unit tests for the streaming method. Then, proceed to implement the method and fill in the tests.
 
 ---

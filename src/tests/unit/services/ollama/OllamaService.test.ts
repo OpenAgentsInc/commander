@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll, beforeEach } from 'vitest';
-import { Effect, Cause, Schema, Layer } from 'effect';
+import { Effect, Schema, Layer, Stream, Option } from 'effect';
 import {
     OllamaService,
     OllamaServiceConfig,
     OllamaServiceConfigTag,
     type OllamaChatCompletionRequest,
     type OllamaChatCompletionResponse,
+    type OllamaOpenAIChatStreamChunk,
     OllamaMessageSchema,
     OllamaHttpError,
     OllamaParseError
@@ -20,6 +21,7 @@ import {
 import * as HttpClientResponse from "@effect/platform/HttpClientResponse";
 import * as HttpClientError from "@effect/platform/HttpClientError";
 import * as HttpClientRequest from "@effect/platform/HttpClientRequest";
+import type * as Cookies from '@effect/platform/Cookies';
 
 // Helper function for testing error types from Effect failures
 function expectEffectFailure<E extends Error, T extends E>(
@@ -31,7 +33,7 @@ function expectEffectFailure<E extends Error, T extends E>(
         Effect.flip(effect).pipe(
             Effect.filterOrFail(
                 (cause): cause is T => cause instanceof ErrorClass,
-                cause => new Error(`Expected error of type ${ErrorClass.name} but got ${cause}`)
+                cause => new Error(`Expected error of type ${ErrorClass.name} but got ${String(cause?.constructor.name)}: ${String(cause)}`)
             ),
             Effect.tap(error => {
                 if (messagePattern) {
@@ -43,7 +45,7 @@ function expectEffectFailure<E extends Error, T extends E>(
 }
 
 const testConfig: OllamaServiceConfig = {
-    baseURL: "http://localhost:11434/v1",
+    baseURL: "http://localhost:11434/v1", // OpenAI compatible endpoint
     defaultModel: "test-llama",
 };
 
@@ -85,8 +87,56 @@ function mockHttpClientResponse(
     return HttpClientResponse.fromWeb(mockRequest, response);
 }
 
-describe('OllamaService', () => {
-    describe('generateChatCompletion', () => {
+/**
+ * Helper to create a mock HTTP streaming response
+ */
+function mockOpenAIHttpStreamingResponse(
+    status: number,
+    sseEvents: string[] | null,
+    contentType: string = 'text/event-stream'
+): HttpClientResponse.HttpClientResponse {
+    const mockRequest = HttpClientRequest.get("http://mock-openai-stream-url");
+
+    let streamOfBytes: Stream.Stream<Uint8Array, HttpClientError.ResponseError> = Stream.empty;
+
+    if (status < 400 && sseEvents) {
+        streamOfBytes = Stream.fromIterable(sseEvents).pipe(
+            // SSE events are separated by one or more newlines
+            stream => Stream.map((eventLine: string) => eventLine + "\n")(stream), // Ensure each event is treated as a distinct line for splitLines
+            stream => Stream.encodeText(stream),
+            Stream.mapError(e => new HttpClientError.ResponseError({ request: mockRequest, reason: "Decode", cause: e, response: null as any }))
+        );
+    }
+
+    // Create a new Response object with the status and content type
+    const webResponse = new Response("", {
+        status,
+        headers: { 'Content-Type': contentType }
+    });
+    
+    // Convert it to an HttpClientResponse
+    const baseResponse = HttpClientResponse.fromWeb(mockRequest, webResponse);
+
+    return {
+        ...baseResponse,
+        stream: streamOfBytes,
+        json: Effect.tryPromise({
+            try: async () => {
+                if (status >= 400 && sseEvents && sseEvents.length > 0 && !sseEvents[0].startsWith("data:")) {
+                    return JSON.parse(sseEvents[0]);
+                }
+                return { error: "Mock error JSON not provided or not applicable for OpenAI stream init" };
+            },
+            catch: (e) => new HttpClientError.ResponseError({ request: mockRequest, reason: "Decode", cause: e, response: null as any})
+        }),
+        text: Effect.succeed("mock text body if needed for OpenAI stream init errors"),
+        formData: Effect.dieMessage("formData not mocked for OpenAI stream response"),
+        urlParamsBody: Effect.dieMessage("urlParamsBody not mocked for OpenAI stream response"),
+    } as HttpClientResponse.HttpClientResponse;
+}
+
+describe('OllamaService (/v1/chat/completions)', () => {
+    describe('generateChatCompletion (non-streaming)', () => {
         it('should return a successful chat completion for valid input', async () => {
             // Create a mock response for our test
             const mockOllamaResponse: OllamaChatCompletionResponse = {
@@ -392,6 +442,137 @@ describe('OllamaService', () => {
                 OllamaParseError,
                 /Invalid request format/
             );
+        });
+    });
+
+    describe('generateChatCompletionStream (OpenAI-compatible)', () => {
+        it('should return a stream of chat completion chunks for valid input', async () => {
+            const mockSseEvents = [
+                `data: ${JSON.stringify({ id: "chatcmpl-test1", object: "chat.completion.chunk", created: 123, model: "test-llama", choices: [{ index: 0, delta: { role: "assistant" }, finish_reason: null }] })}`,
+                `data: ${JSON.stringify({ id: "chatcmpl-test1", object: "chat.completion.chunk", created: 123, model: "test-llama", choices: [{ index: 0, delta: { content: "Hello" }, finish_reason: null }] })}`,
+                `data: ${JSON.stringify({ id: "chatcmpl-test1", object: "chat.completion.chunk", created: 123, model: "test-llama", choices: [{ index: 0, delta: { content: " world" }, finish_reason: null }] })}`,
+                `data: ${JSON.stringify({ id: "chatcmpl-test1", object: "chat.completion.chunk", created: 123, model: "test-llama", choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7} })}`,
+                "data: [DONE]"
+            ];
+
+            Effect.runSync(
+                setMockClientResponse(
+                    { url: `${testConfig.baseURL}/chat/completions`, method: "POST" },
+                    Effect.succeed(mockOpenAIHttpStreamingResponse(200, mockSseEvents))
+                )
+            );
+
+            const request: OllamaChatCompletionRequest = {
+                model: 'test-llama-stream',
+                messages: [{ role: 'user', content: 'Stream Hello!' }],
+            };
+
+            const program = Effect.gen(function* (_) {
+                const ollamaService = yield* _(OllamaService);
+                return ollamaService.generateChatCompletionStream(request);
+            }).pipe(Effect.provide(ollamaTestLayer));
+
+            const stream = await Effect.runPromise(program);
+            const resultChunks = await Effect.runPromise(Stream.runCollect(stream));
+
+            const resultArray = [...resultChunks];
+            expect(resultArray.length).toBe(4); // [DONE] is filtered out
+            expect(resultArray[0].choices[0].delta.role).toBe("assistant");
+            expect(resultArray[1].choices[0].delta.content).toBe("Hello");
+            expect(resultArray[2].choices[0].delta.content).toBe(" world");
+            expect(resultArray[3].choices[0].finish_reason).toBe("stop");
+            expect(resultArray[3].usage?.total_tokens).toBe(7);
+        });
+
+        it('should fail the stream with OllamaHttpError for API errors on initial request (e.g., 404)', async () => {
+            const mockErrorJsonBody = JSON.stringify({ error: { message: "Chat stream model not found", type: "invalid_request_error", code: "model_not_found" } });
+             Effect.runSync(
+                setMockClientResponse(
+                    { url: `${testConfig.baseURL}/chat/completions`, method: "POST" },
+                    Effect.succeed(mockOpenAIHttpStreamingResponse(404, [mockErrorJsonBody], 'application/json'))
+                )
+            );
+
+            const request: OllamaChatCompletionRequest = {
+                model: 'nonexistent-chat-stream-model', messages: [{ role: 'user', content: 'Test stream 404' }],
+            };
+
+            const program = Effect.gen(function* (_) {
+                const ollamaService = yield* _(OllamaService);
+                return ollamaService.generateChatCompletionStream(request);
+            }).pipe(Effect.provide(ollamaTestLayer));
+
+            const stream = await Effect.runPromise(program);
+            const error = await Effect.runPromise(Stream.runCollect(stream).pipe(Effect.flip));
+
+            expect(error).toBeInstanceOf(OllamaHttpError);
+            expect((error as OllamaHttpError).message).toContain("Ollama API Error on stream initiation (chat/completions): 404");
+            const errorResponse = (error as OllamaHttpError).response as any;
+            expect(errorResponse?.body?.error?.message).toBe("Chat stream model not found");
+        });
+
+        it('should fail the stream with OllamaParseError if a chunk contains malformed JSON', async () => {
+            const mockSseEvents = [ "data: this is not valid JSON" ];
+            Effect.runSync(
+                setMockClientResponse(
+                    { url: `${testConfig.baseURL}/chat/completions`, method: "POST" },
+                    Effect.succeed(mockOpenAIHttpStreamingResponse(200, mockSseEvents))
+                )
+            );
+            const request: OllamaChatCompletionRequest = { model: 'malformed-json-chat-stream', messages: [{ role: 'user', content: 'Test malformed' }] };
+            const program = Effect.gen(function* (_) {
+                const ollamaService = yield* _(OllamaService);
+                return ollamaService.generateChatCompletionStream(request);
+            }).pipe(Effect.provide(ollamaTestLayer));
+            const stream = await Effect.runPromise(program);
+            const error = await Effect.runPromise(Stream.runCollect(stream).pipe(Effect.flip));
+            expect(error).toBeInstanceOf(OllamaParseError);
+            expect((error as OllamaParseError).message).toContain("JSON parse error in OpenAI stream chunk");
+        });
+
+        it('should fail the stream with OllamaParseError if a chunk JSON does not match OpenAI schema', async () => {
+            const mockSseEvents = [ `data: ${JSON.stringify({ idz: "chatcmpl-invalid" })}` ]; // idz is wrong
+            Effect.runSync(
+                setMockClientResponse(
+                    { url: `${testConfig.baseURL}/chat/completions`, method: "POST" },
+                    Effect.succeed(mockOpenAIHttpStreamingResponse(200, mockSseEvents))
+                )
+            );
+            const request: OllamaChatCompletionRequest = { model: 'invalid-schema-chat-stream', messages: [{ role: 'user', content: 'Test invalid schema' }] };
+            const program = Effect.gen(function* (_) {
+                const ollamaService = yield* _(OllamaService);
+                return ollamaService.generateChatCompletionStream(request);
+            }).pipe(Effect.provide(ollamaTestLayer));
+            const stream = await Effect.runPromise(program);
+            const error = await Effect.runPromise(Stream.runCollect(stream).pipe(Effect.flip));
+            expect(error).toBeInstanceOf(OllamaParseError);
+            expect((error as OllamaParseError).message).toContain("Schema parse error in OpenAI stream chunk");
+            const errorData = (error as OllamaParseError).data as any;
+            expect(errorData.error).toBeDefined();
+        });
+
+        it('should handle empty lines in stream gracefully', async () => {
+            const mockSseEvents = [
+                "",
+                `data: ${JSON.stringify({ id: "c1", object: "c.c", created: 1, model: "m", choices: [{ index: 0, delta: { content: "Hi" }, finish_reason: null }] })}`,
+                ""
+            ];
+            Effect.runSync(
+                setMockClientResponse(
+                    { url: `${testConfig.baseURL}/chat/completions`, method: "POST" },
+                    Effect.succeed(mockOpenAIHttpStreamingResponse(200, mockSseEvents))
+                )
+            );
+            const request: OllamaChatCompletionRequest = { model: 'empty-lines', messages: [{ role: 'user', content: 'T' }]};
+            const program = Effect.gen(function* (_) {
+                const ollamaService = yield* _(OllamaService);
+                return ollamaService.generateChatCompletionStream(request);
+            }).pipe(Effect.provide(ollamaTestLayer));
+            const stream = await Effect.runPromise(program);
+            const resultChunks = await Effect.runPromise(Stream.runCollect(stream));
+            const resultArray = [...resultChunks];
+            expect(resultArray.length).toBe(1);
+            expect(resultArray[0].choices[0].delta.content).toBe("Hi");
         });
     });
 });
