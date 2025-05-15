@@ -2,15 +2,6 @@
 
 Our new flagship app, introduced in [episode 170](https://x.com/OpenAgentsInc/status/1919797578452869267).
 
-My apologies for the mistake! I understand now. You want to add the "Tech Stack" section to the main `README.md` for the "OpenAgents Commander" project.
-
-Here's the updated `README.md` with the new "Tech Stack" section:
-
-```markdown
-# OpenAgents Commander
-
-Our new flagship app, introduced in [episode 170](https://x.com/OpenAgentsInc/status/1919797578452869267).
-
 ## Tech Stack
 
 *   **Application Framework:** [Electron](https://www.electronjs.org) (~v35)
@@ -29,5 +20,3 @@ Our new flagship app, introduced in [episode 170](https://x.com/OpenAgentsInc/st
 *   **Package Manager:** [pnpm](https://pnpm.io/)
 
 For a more comprehensive overview of the project architecture, specific configurations, and development guidelines, please refer to our [Developer Onboarding Guide](./docs/AGENTS.md).
-
-```
