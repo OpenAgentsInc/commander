@@ -45,14 +45,14 @@ function Cube({ position, children, vec = new THREE.Vector3(), scale, r = THREE.
   const pos = useMemo(() => position || [r(10), r(10), r(10)] as [number, number, number], [position, r])
 
   const { invalidate } = useThree()
-  
+
   useFrame((state, delta) => {
     delta = Math.min(0.1, delta)
     if (api.current) {
       // Handle physics API safely
       const translation = api.current.translation()
       api.current.applyImpulse(vec.copy(translation).negate().multiplyScalar(0.2))
-      
+
       // Request another frame if there's movement
       const velocity = api.current.linvel();
       if (Math.abs(velocity.x) > 0.01 || Math.abs(velocity.y) > 0.01 || Math.abs(velocity.z) > 0.01) {
@@ -70,9 +70,10 @@ function Cube({ position, children, vec = new THREE.Vector3(), scale, r = THREE.
         <meshStandardMaterial
           color="#ffffff"
           emissive="#ffffff"
-          emissiveIntensity={0.01} // Reduced emissive intensity
-          roughness={0.1} // Increased roughness for less sharp reflections
-          metalness={0.2} // Reduced metalness for less intense reflections
+          emissiveIntensity={0.05}
+          roughness={0.2}
+          metalness={0.8}
+          envMapIntensity={1.5}
           {...props}
         />
         {children}
@@ -86,16 +87,16 @@ function Pointer({ vec = new THREE.Vector3() }) {
   const ref = useRef<any>(null)
   const prevPos = useRef<THREE.Vector3>(new THREE.Vector3())
   const { invalidate } = useThree()
-  
+
   useFrame(({ mouse, viewport }) => {
     if (ref.current) {
       // Calculate new position
       const newPos = vec.set(
-        (mouse.x * viewport.width) / 2, 
-        (mouse.y * viewport.height) / 2, 
+        (mouse.x * viewport.width) / 2,
+        (mouse.y * viewport.height) / 2,
         0
       )
-      
+
       // Check if position has changed significantly
       if (newPos.distanceTo(prevPos.current) > 0.01) {
         ref.current.setNextKinematicTranslation(newPos)
@@ -104,7 +105,7 @@ function Pointer({ vec = new THREE.Vector3() }) {
       }
     }
   })
-  
+
   return (
     <RigidBody position={[0, 0, 0]} type="kinematicPosition" colliders={false} ref={ref}>
       <CuboidCollider args={[0.5, 0.5, 0.5]} />
@@ -115,16 +116,16 @@ function Pointer({ vec = new THREE.Vector3() }) {
 // Frame requester component that ensures animations continue
 function FrameRequester() {
   const { invalidate } = useThree()
-  
+
   useEffect(() => {
     // Set up a timer to request frames at a lower rate when not interacting
     const interval = setInterval(() => {
       invalidate(); // Request a new frame
     }, 1000 / 30); // 30 fps when idle
-    
+
     return () => clearInterval(interval);
   }, [invalidate]);
-  
+
   return null;
 }
 
@@ -138,25 +139,22 @@ export default function PhysicsBallsScene() {
     const handleMouseMove = () => {
       invalidate();
     };
-    
+
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, [invalidate]);
-  
+
   return (
     <>
       <FrameRequester />
-      
+
       {/* Pure black background */}
       <color attach="background" args={['#000000']} />
 
       {/* Physics with proper config */}
       <Physics
         colliders={undefined}
-        config={{
-          gravity: [0, 0, 0],
-          timeStep: "vary"
-        }}
+        gravity={[0, 0, 0]}
       >
         <Pointer />
         {connectors.map((props, i) => {
@@ -164,25 +162,38 @@ export default function PhysicsBallsScene() {
         })}
       </Physics>
 
-      {/* Simplified lighting - just one soft ambient light */}
-      <ambientLight intensity={0.1} color="#ffffff" />
+      {/* Enhanced lighting setup */}
+      <ambientLight intensity={0.2} />
 
-      {/* Single distant directional light */}
+      {/* Main directional light with shadows */}
       <directionalLight
-        position={[15, 105, 15]}
-        intensity={0.1}
-        color="#ffffff"
+        position={[5, 5, 5]}
+        intensity={1}
+        castShadow
+        shadow-mapSize={[2048, 2048]}
+        shadow-bias={-0.0001}
+      >
+        <orthographicCamera attach="shadow-camera" args={[-10, 10, 10, -10, 0.1, 50]} />
+      </directionalLight>
+
+      {/* Fill light from opposite direction */}
+      <directionalLight
+        position={[-5, -5, -5]}
+        intensity={0.3}
       />
 
+      {/* Add some rim lighting */}
+      <pointLight position={[0, 5, -5]} intensity={0.5} />
+
       {/* Add bloom effect with softer settings */}
-      <EffectComposer>
+      {/* <EffectComposer>
         <Bloom
           intensity={0.2}            // Reduced intensity
           luminanceThreshold={0.25}   // Increased threshold to reduce over-bloom
           luminanceSmoothing={0.9}   // Keep smooth edges
           mipmapBlur                 // Use mipmap blur for better performance
         />
-      </EffectComposer>
+      </EffectComposer> */}
     </>
   )
 }
