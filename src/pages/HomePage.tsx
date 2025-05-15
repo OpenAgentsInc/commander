@@ -105,48 +105,68 @@ export default function HomePage() {
   };
 
   const handleStreamingRequest = async (requestPayload: OllamaChatCompletionRequest) => {
+    console.log("Starting streaming request");
+    
     // Reset streaming state
     streamedContentRef.current = "";
     
-    // Initialize placeholder message for streaming
-    const initialAssistantMessage: ChatMessageProps = {
+    // Create a new message object for streaming
+    const newAssistantMessage: ChatMessageProps = {
       role: "assistant",
-      content: "", // Empty content initially
+      content: "", // Start with empty content
       timestamp: new Date(),
-      isStreaming: true
+      isStreaming: true,
     };
     
-    // Add initial message and store reference
-    setMessages(prev => {
-      const newMessages = [...prev, initialAssistantMessage];
-      streamedMessageRef.current = initialAssistantMessage;
-      return newMessages;
+    // Add to messages state and store reference
+    setMessages(prevMessages => {
+      const updatedMessages = [...prevMessages, newAssistantMessage];
+      // Store a reference to the message for updates
+      streamedMessageRef.current = newAssistantMessage;
+      return updatedMessages;
     });
     
     try {
-      // Set up streaming handlers
+      // Handler for each incoming chunk
       const onChunk = (chunk: any) => {
         console.log("Frontend received chunk:", chunk);
         
+        // Extract content from the chunk if available
         if (chunk.choices && chunk.choices.length > 0) {
           const choice = chunk.choices[0];
           
-          // Check for content in delta
           if (choice.delta && choice.delta.content) {
-            // Log the actual token received
-            console.log(`Token: "${choice.delta.content}"`);
+            const newToken = choice.delta.content;
+            console.log(`Token: "${newToken}"`);
             
-            // Append to our accumulated content
-            streamedContentRef.current += choice.delta.content;
+            // Update our accumulated content
+            streamedContentRef.current += newToken;
+            const currentContent = streamedContentRef.current;
             
-            // Update the message in state
-            setMessages(prev => 
-              prev.map(msg => 
-                msg === streamedMessageRef.current 
-                  ? { ...msg, content: streamedContentRef.current }
-                  : msg
-              )
-            );
+            console.log(`Updating streamed content in UI: "${currentContent}"`);
+            
+            // IMPORTANT: Create a completely new message object
+            // Force a new object reference so React will re-render
+            const updatedMessage: ChatMessageProps = {
+              role: "assistant",
+              content: currentContent,
+              timestamp: new Date(), // Refresh timestamp
+              isStreaming: true,
+              _updateId: Date.now(), // Force reference change
+            };
+            
+            // Update the messages array, replacing the streaming message
+            setMessages(prevMessages => {
+              return prevMessages.map(msg => {
+                // Match by reference to find the streaming message
+                if (msg === streamedMessageRef.current) {
+                  // Replace with our updated message
+                  streamedMessageRef.current = updatedMessage; // Update our reference
+                  return updatedMessage;
+                }
+                return msg;
+              });
+            });
           } else {
             console.log("Received chunk without content:", JSON.stringify(choice));
           }
@@ -155,56 +175,58 @@ export default function HomePage() {
         }
       };
       
+      // Handler for stream completion
       const onDone = () => {
-        // Mark as complete by removing isStreaming flag
-        setMessages(prev => 
-          prev.map(msg => {
-            if (msg === streamedMessageRef.current) {
-              const { isStreaming, ...msgWithoutStreaming } = msg;
-              return msgWithoutStreaming;
-            }
-            return msg;
-          })
+        console.log("Stream completed. Final content:", streamedContentRef.current);
+        
+        // Create final message without streaming indicators
+        const finalMessage: ChatMessageProps = {
+          role: "assistant",
+          content: streamedContentRef.current,
+          timestamp: new Date(),
+          // No isStreaming flag
+        };
+        
+        // Replace the streaming message with the final version
+        setMessages(prevMessages => 
+          prevMessages.map(msg => 
+            msg === streamedMessageRef.current ? finalMessage : msg
+          )
         );
         
-        // Reset references
+        // Clean up
         streamedMessageRef.current = null;
         streamedContentRef.current = "";
         streamCancelRef.current = null;
-        
-        // Done loading
         setIsLoading(false);
       };
       
+      // Handler for errors
       const onError = (error: any) => {
         console.error("Ollama streaming error:", error);
         
-        // Update the partial message with error notification
-        setMessages(prev => {
-          return prev.map(msg => {
-            if (msg === streamedMessageRef.current) {
-              // If we got some content, keep it and add error
-              const content = streamedContentRef.current
-                ? `${streamedContentRef.current}\n\n[Error: Stream interrupted - ${error.message || "Unknown error"}]`
-                : `Error: ${error.message || "Unknown error occurred"}`;
-                
-              // Convert to system message if empty content
-              return {
-                role: streamedContentRef.current ? "assistant" : "system",
-                content,
-                timestamp: msg.timestamp
-              };
-            }
-            return msg;
-          });
-        });
+        const errorContent = streamedContentRef.current
+          ? `${streamedContentRef.current}\n\n[Error: Stream interrupted - ${error.message || "Unknown error"}]`
+          : `Error: ${error.message || "Unknown error occurred"}`;
         
-        // Reset references
+        // Create error message
+        const errorMessage: ChatMessageProps = {
+          role: streamedContentRef.current ? "assistant" : "system",
+          content: errorContent,
+          timestamp: new Date(),
+        };
+        
+        // Replace streaming message with error message
+        setMessages(prevMessages => 
+          prevMessages.map(msg => 
+            msg === streamedMessageRef.current ? errorMessage : msg
+          )
+        );
+        
+        // Clean up
         streamedMessageRef.current = null;
         streamedContentRef.current = "";
         streamCancelRef.current = null;
-        
-        // Done loading
         setIsLoading(false);
       };
       

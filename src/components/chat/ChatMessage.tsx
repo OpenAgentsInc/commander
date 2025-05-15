@@ -8,6 +8,9 @@ export interface ChatMessageProps {
   role: MessageRole;
   timestamp?: Date;
   isStreaming?: boolean;
+  // Allow dynamic update properties for streaming implementation
+  _updateId?: number;
+  [key: string]: any; // Allow any additional properties
 }
 
 export function ChatMessage({ content, role, timestamp, isStreaming }: ChatMessageProps) {
