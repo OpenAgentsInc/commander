@@ -50,6 +50,7 @@ describe('OllamaService', () => {
             const request: OllamaChatCompletionRequest = {
                 model: 'llama2',
                 messages: [{ role: 'user', content: 'Hello!' }],
+                stream: false
             };
 
             const result = await Effect.runPromise(ollamaService.generateChatCompletion(request));
@@ -67,6 +68,7 @@ describe('OllamaService', () => {
             // Request without a model specified
             const request: OllamaChatCompletionRequest = {
                 messages: [{ role: 'user', content: 'Hello default model!' }],
+                stream: false
             };
 
             const result = await Effect.runPromise(ollamaService.generateChatCompletion(request));
@@ -81,6 +83,7 @@ describe('OllamaService', () => {
             const request: OllamaChatCompletionRequest = {
                 model: 'nonexistent-model', // This will trigger a 404 in our MSW mock
                 messages: [{ role: 'user', content: 'Test 404' }],
+                stream: false
             };
 
             const error = await expectEffectFailure(
@@ -100,6 +103,7 @@ describe('OllamaService', () => {
             const request: OllamaChatCompletionRequest = {
                 model: 'server-error-model', // This will trigger a 500 in our MSW mock
                 messages: [{ role: 'user', content: 'Test 500' }],
+                stream: false
             };
 
             const error = await expectEffectFailure(
@@ -119,6 +123,7 @@ describe('OllamaService', () => {
             const request: OllamaChatCompletionRequest = {
                 model: 'malformed-response-model', // Triggers malformed JSON in MSW
                 messages: [{ role: 'user', content: 'Test malformed' }],
+                stream: false
             };
 
             await expectEffectFailure(
@@ -134,6 +139,7 @@ describe('OllamaService', () => {
             const request: OllamaChatCompletionRequest = {
                 model: 'invalid-schema-model', // Triggers invalid schema response in MSW
                 messages: [{ role: 'user', content: 'Test invalid schema' }],
+                stream: false
             };
 
             await expectEffectFailure(
@@ -149,6 +155,7 @@ describe('OllamaService', () => {
             const request: OllamaChatCompletionRequest = {
                 model: 'network-error-model',
                 messages: [{ role: 'user', content: 'Test network error' }],
+                stream: false
             };
 
             await expectEffectFailure(
@@ -165,9 +172,10 @@ describe('OllamaService', () => {
             const request = {
                 model: 'llama2',
                 messages: [{ 
-                    role: 'invalid-role', // Invalid role not in the schema
+                    role: 'invalid-role' as any, // Invalid role not in the schema
                     content: 'This should fail schema validation'
-                }]
+                }],
+                stream: false
             };
             
             await expectEffectFailure(

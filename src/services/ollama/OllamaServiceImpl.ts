@@ -30,13 +30,13 @@ export const OllamaServiceLive = Layer.effect(
 export function createOllamaService(config: OllamaServiceConfig): OllamaService {
     const makeUrl = (path: string) => `${config.baseURL}${path}`;
 
-    const generateChatCompletion = (requestBody: OllamaChatCompletionRequest) => {
+    const generateChatCompletion = (requestBody: unknown) => {
         return Effect.gen(function* (_) {
             const url = makeUrl("/chat/completions");
 
             // Validate request body using Schema
             const decodedRequest = yield* _(
-                Schema.decode(OllamaChatCompletionRequestSchema)(requestBody),
+                Schema.decodeUnknown(OllamaChatCompletionRequestSchema)(requestBody),
                 Effect.mapError(parseError => new OllamaParseError(
                     "Invalid request format", 
                     parseError
@@ -44,7 +44,7 @@ export function createOllamaService(config: OllamaServiceConfig): OllamaService 
             );
 
             const finalRequestBody = {
-                ...decodedRequest as OllamaChatCompletionRequest,
+                ...decodedRequest,
                 model: decodedRequest.model || config.defaultModel,
             };
 
@@ -92,7 +92,7 @@ export function createOllamaService(config: OllamaServiceConfig): OllamaService 
 
             // Validate the response shape using Schema
             return yield* _(
-                Schema.decode(OllamaChatCompletionResponseSchema)(json as unknown),
+                Schema.decodeUnknown(OllamaChatCompletionResponseSchema)(json),
                 Effect.mapError(parseError => new OllamaParseError(
                     "Invalid Ollama response format",
                     parseError

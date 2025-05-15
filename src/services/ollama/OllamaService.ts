@@ -109,7 +109,7 @@ export class OllamaParseError extends Error {
 // --- Service Interface ---
 export interface OllamaService {
     generateChatCompletion(
-        request: OllamaChatCompletionRequest
+        request: unknown
     ): Effect.Effect<OllamaChatCompletionResponse, OllamaHttpError | OllamaParseError, never>;
 }
 
