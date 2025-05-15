@@ -36,6 +36,27 @@ export function ChatWindow({
       inputRef.current?.focus();
     }
   }, [isLoading]);
+  
+  // Add a more aggressive focus management strategy
+  // This will run on every render to ensure focus is maintained
+  useEffect(() => {
+    // Store the active element before focus attempt
+    const activeElement = document.activeElement;
+    
+    // Only refocus if we've lost focus to the body or the window
+    if (activeElement === document.body || activeElement === null) {
+      inputRef.current?.focus();
+    }
+    
+    // Set up an interval to check and restore focus
+    const focusInterval = setInterval(() => {
+      if (document.activeElement === document.body || document.activeElement === null) {
+        inputRef.current?.focus();
+      }
+    }, 200); // Check every 200ms
+    
+    return () => clearInterval(focusInterval);
+  }, []);
 
   // Handle Enter key to send message (Shift+Enter for new line)
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -77,7 +98,29 @@ export function ChatWindow({
             onChange={(e) => onUserInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
             className="min-h-[24px] max-h-[60px] resize-none text-xs py-1 px-2 bg-background text-foreground border-border focus:ring-ring focus:border-border focus:bg-background !bg-background !opacity-100"
-            style={{ backgroundColor: 'var(--background)' }}
+            style={{ 
+              backgroundColor: 'var(--background)',
+              // Add higher specificity to prevent style overrides during re-renders
+              zIndex: 20 
+            }}
+            onFocus={(e) => {
+              // Prevent focus from being stolen
+              e.currentTarget.setAttribute('data-focused', 'true');
+            }}
+            onBlur={(e) => {
+              // Only allow intentional blur
+              if (document.activeElement === document.body) {
+                // If focus is going to the body, it's probably being stolen
+                // Re-focus immediately
+                setTimeout(() => {
+                  if (e.currentTarget.getAttribute('data-focused') === 'true') {
+                    e.currentTarget.focus();
+                  }
+                }, 0);
+              } else {
+                e.currentTarget.setAttribute('data-focused', 'false');
+              }
+            }}
             disabled={isLoading}
             autoFocus
           />

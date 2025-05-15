@@ -1,6 +1,6 @@
 import * as THREE from 'three'
-import React, { useRef, useReducer, useMemo } from 'react'
-import { useFrame } from '@react-three/fiber'
+import React, { useRef, useReducer, useMemo, useEffect } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
 import { Environment } from '@react-three/drei'
 import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
@@ -44,12 +44,20 @@ function Cube({ position, children, vec = new THREE.Vector3(), scale, r = THREE.
   const mesh = useRef<THREE.Mesh>(null)
   const pos = useMemo(() => position || [r(10), r(10), r(10)] as [number, number, number], [position, r])
 
+  const { invalidate } = useThree()
+  
   useFrame((state, delta) => {
     delta = Math.min(0.1, delta)
     if (api.current) {
       // Handle physics API safely
       const translation = api.current.translation()
       api.current.applyImpulse(vec.copy(translation).negate().multiplyScalar(0.2))
+      
+      // Request another frame if there's movement
+      const velocity = api.current.linvel();
+      if (Math.abs(velocity.x) > 0.01 || Math.abs(velocity.y) > 0.01 || Math.abs(velocity.z) > 0.01) {
+        invalidate();
+      }
     }
   })
 
@@ -76,11 +84,27 @@ function Cube({ position, children, vec = new THREE.Vector3(), scale, r = THREE.
 function Pointer({ vec = new THREE.Vector3() }) {
   // Using any type to work around Rapier typing issues
   const ref = useRef<any>(null)
+  const prevPos = useRef<THREE.Vector3>(new THREE.Vector3())
+  const { invalidate } = useThree()
+  
   useFrame(({ mouse, viewport }) => {
     if (ref.current) {
-      ref.current.setNextKinematicTranslation(vec.set((mouse.x * viewport.width) / 2, (mouse.y * viewport.height) / 2, 0))
+      // Calculate new position
+      const newPos = vec.set(
+        (mouse.x * viewport.width) / 2, 
+        (mouse.y * viewport.height) / 2, 
+        0
+      )
+      
+      // Check if position has changed significantly
+      if (newPos.distanceTo(prevPos.current) > 0.01) {
+        ref.current.setNextKinematicTranslation(newPos)
+        prevPos.current.copy(newPos)
+        invalidate() // Request a new frame when the pointer moves
+      }
     }
   })
+  
   return (
     <RigidBody position={[0, 0, 0]} type="kinematicPosition" colliders={false} ref={ref}>
       <CuboidCollider args={[0.5, 0.5, 0.5]} />
@@ -88,12 +112,41 @@ function Pointer({ vec = new THREE.Vector3() }) {
   )
 }
 
+// Frame requester component that ensures animations continue
+function FrameRequester() {
+  const { invalidate } = useThree()
+  
+  useEffect(() => {
+    // Set up a timer to request frames at a lower rate when not interacting
+    const interval = setInterval(() => {
+      invalidate(); // Request a new frame
+    }, 1000 / 30); // 30 fps when idle
+    
+    return () => clearInterval(interval);
+  }, [invalidate]);
+  
+  return null;
+}
+
 export default function PhysicsBallsScene() {
   const [, click] = useReducer((state) => (state + 1) % colors.length, 0)
   const connectors = useMemo(() => shuffle(), [])
+  const { invalidate } = useThree()
 
+  // Request a frame whenever mouse moves
+  useEffect(() => {
+    const handleMouseMove = () => {
+      invalidate();
+    };
+    
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, [invalidate]);
+  
   return (
     <>
+      <FrameRequester />
+      
       {/* Pure black background */}
       <color attach="background" args={['#000000']} />
 

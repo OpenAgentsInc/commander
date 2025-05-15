@@ -7,6 +7,24 @@ import { Label } from "@/components/ui/label";
 import { Canvas } from '@react-three/fiber';
 import PhysicsBallsScene from '@/components/r3f/PhysicsBallsScene';
 
+// Memoized Canvas component to prevent unnecessary re-renders
+const R3FBackground = React.memo(() => {
+  return (
+    <Canvas 
+      camera={{ position: [0, 0, 30], fov: 17.5, near: 10, far: 40 }} 
+      flat 
+      gl={{ antialias: false }} 
+      dpr={[1, 1.5]}
+      frameloop="demand" // Only render when needed to reduce CPU usage
+      // Performance optimization to reduce re-renders
+      performance={{ min: 0.5 }}
+      // @ts-ignore - Working around type issues
+    >
+      <PhysicsBallsScene />
+    </Canvas>
+  );
+});
+
 export default function HomePage() {
   const [messages, setMessages] = useState<ChatMessageProps[]>([
     {
@@ -289,17 +307,9 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col h-full w-full relative">
-      {/* Disable TypeScript checking for this Canvas to work around library type issues */}
+      {/* Use the memoized R3FBackground component to prevent re-renders */}
       <div className="fixed inset-0" style={{ pointerEvents: 'auto' }}>
-        <Canvas 
-          camera={{ position: [0, 0, 30], fov: 17.5, near: 10, far: 40 }} 
-          flat 
-          gl={{ antialias: false }} 
-          dpr={[1, 1.5]}
-          // @ts-ignore - Working around type issues
-        >
-          <PhysicsBallsScene />
-        </Canvas>
+        <R3FBackground />
       </div>
 
       {/* UI Overlay - use pointer-events: none to let clicks pass through to the canvas
