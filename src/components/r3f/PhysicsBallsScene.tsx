@@ -1,44 +1,44 @@
 import * as THREE from 'three'
 import React, { useRef, useReducer, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Environment, Lightformer } from '@react-three/drei'
-import { BallCollider, Physics, RigidBody } from '@react-three/rapier'
+import { Environment } from '@react-three/drei'
+import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier'
+import { EffectComposer, Bloom } from '@react-three/postprocessing'
 
 // Define prop types for cleaner code
-interface SphereProps {
+interface CubeProps {
   position?: [number, number, number]
   children?: React.ReactNode
   vec?: THREE.Vector3
   scale?: number
   r?: typeof THREE.MathUtils.randFloatSpread
-  accent?: boolean
   color?: string
   [key: string]: any
 }
 
-const accents = ['#ff4060', '#ffcc00', '#20ffa0', '#4060ff']
-const shuffle = (accent = 0) => [
-  { color: '#444', roughness: 0.1, metalness: 0.5 },
-  { color: '#444', roughness: 0.1, metalness: 0.5 },
-  { color: '#444', roughness: 0.1, metalness: 0.5 },
-  { color: 'white', roughness: 0.1, metalness: 0.1 },
-  { color: 'white', roughness: 0.1, metalness: 0.1 },
-  { color: 'white', roughness: 0.1, metalness: 0.1 },
-  { color: accents[accent], roughness: 0.1, accent: true },
-  { color: accents[accent], roughness: 0.1, accent: true },
-  { color: accents[accent], roughness: 0.1, accent: true },
-  { color: '#444', roughness: 0.1 },
-  { color: '#444', roughness: 0.3 },
-  { color: '#444', roughness: 0.3 },
-  { color: 'white', roughness: 0.1 },
-  { color: 'white', roughness: 0.2 },
-  { color: 'white', roughness: 0.1 },
-  { color: accents[accent], roughness: 0.1, accent: true, transparent: true, opacity: 0.5 },
-  { color: accents[accent], roughness: 0.3, accent: true },
-  { color: accents[accent], roughness: 0.1, accent: true }
+// Pure whites only - no off-white to avoid any yellowish tint
+const colors = ['#ffffff']
+
+const shuffle = () => [
+  { color: colors[0], roughness: 0.1, metalness: 0.8 },
+  { color: colors[0], roughness: 0.1, metalness: 0.8 },
+  { color: colors[0], roughness: 0.1, metalness: 0.8 },
+  { color: colors[0], roughness: 0.1, metalness: 0.8 },
+  { color: colors[0], roughness: 0.1, metalness: 0.8 },
+  { color: colors[0], roughness: 0.1, metalness: 0.8 },
+  { color: colors[0], roughness: 0.1, metalness: 0.8 },
+  { color: colors[0], roughness: 0.1, metalness: 0.8 },
+  { color: colors[0], roughness: 0.1, metalness: 0.8 },
+  { color: colors[0], roughness: 0.1, metalness: 0.8 },
+  { color: colors[0], roughness: 0.1, metalness: 0.8 },
+  { color: colors[0], roughness: 0.1, metalness: 0.8 },
+  { color: colors[0], roughness: 0.1, metalness: 0.8 },
+  { color: colors[0], roughness: 0.1, metalness: 0.8 },
+  { color: colors[0], roughness: 0.1, metalness: 0.8 },
+  { color: colors[0], roughness: 0.1, metalness: 0.8 }
 ]
 
-function Sphere({ position, children, vec = new THREE.Vector3(), scale, r = THREE.MathUtils.randFloatSpread, accent, color = 'white', ...props }: SphereProps) {
+function Cube({ position, children, vec = new THREE.Vector3(), scale, r = THREE.MathUtils.randFloatSpread, color = '#ffffff', ...props }: CubeProps) {
   // Using any type to work around Rapier typing issues
   const api = useRef<any>(null)
   const mesh = useRef<THREE.Mesh>(null)
@@ -51,23 +51,22 @@ function Sphere({ position, children, vec = new THREE.Vector3(), scale, r = THRE
       const translation = api.current.translation()
       api.current.applyImpulse(vec.copy(translation).negate().multiplyScalar(0.2))
     }
-    if (mesh.current && mesh.current.material) {
-      // Handle material color safely - use any type to work around TypeScript limitations
-      const material = mesh.current.material as any
-      if (material.color) {
-        // Simple color lerp instead of using maath
-        const targetColor = new THREE.Color(color)
-        material.color.lerp(targetColor, delta * 5)
-      }
-    }
   })
   
+  // Use cubic shape instead of sphere
   return (
     <RigidBody linearDamping={4} angularDamping={1} friction={0.1} position={pos} ref={api} colliders={false}>
-      <BallCollider args={[1]} />
+      <CuboidCollider args={[0.5, 0.5, 0.5]} />
       <mesh ref={mesh} castShadow receiveShadow>
-        <sphereGeometry args={[1, 32, 32]} />
-        <meshStandardMaterial {...props} />
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial 
+          color="#ffffff" 
+          emissive="#ffffff"
+          emissiveIntensity={0.1} // Reduced emissive intensity
+          roughness={0.3} // Increased roughness for less sharp reflections
+          metalness={0.5} // Reduced metalness for less intense reflections
+          {...props} 
+        />
         {children}
       </mesh>
     </RigidBody>
@@ -84,19 +83,21 @@ function Pointer({ vec = new THREE.Vector3() }) {
   })
   return (
     <RigidBody position={[0, 0, 0]} type="kinematicPosition" colliders={false} ref={ref}>
-      <BallCollider args={[1]} />
+      <CuboidCollider args={[0.5, 0.5, 0.5]} />
     </RigidBody>
   )
 }
 
 export default function PhysicsBallsScene() {
-  const [accent, click] = useReducer((state) => ++state % accents.length, 0)
-  const connectors = useMemo(() => shuffle(accent), [accent])
+  const [, click] = useReducer((state) => (state + 1) % colors.length, 0)
+  const connectors = useMemo(() => shuffle(), [])
   
   return (
     <>
-      <color attach="background" args={['#141622']} />
-      {/* Fix deprecated parameters warning by using an object for configuration */}
+      {/* Pure black background */}
+      <color attach="background" args={['#000000']} />
+      
+      {/* Physics with proper config */}
       <Physics
         colliders={undefined}
         config={{
@@ -106,18 +107,29 @@ export default function PhysicsBallsScene() {
       >
         <Pointer />
         {connectors.map((props, i) => {
-          return <Sphere {...props} key={i} />
+          return <Cube {...props} key={i} />
         })}
       </Physics>
-      <Environment resolution={256}>
-        <group rotation={[-Math.PI / 3, 0, 1]}>
-          <Lightformer form="circle" intensity={100} rotation-x={Math.PI / 2} position={[0, 5, -9]} scale={2} />
-          <Lightformer form="circle" intensity={2} rotation-y={Math.PI / 2} position={[-5, 1, -1]} scale={2} />
-          <Lightformer form="circle" intensity={2} rotation-y={Math.PI / 2} position={[-5, -1, -1]} scale={2} />
-          <Lightformer form="circle" intensity={2} rotation-y={-Math.PI / 2} position={[10, 1, 0]} scale={8} />
-          <Lightformer form="ring" color="#4060ff" intensity={80} onUpdate={(self) => self && self.lookAt(0, 0, 0)} position={[10, 10, 0]} scale={10} />
-        </group>
-      </Environment>
+      
+      {/* Simplified lighting - just one soft ambient light */}
+      <ambientLight intensity={0.1} color="#ffffff" />
+      
+      {/* Single distant directional light */}
+      <directionalLight 
+        position={[10, 10, 10]} 
+        intensity={0.2} 
+        color="#ffffff" 
+      />
+      
+      {/* Add bloom effect with softer settings */}
+      <EffectComposer>
+        <Bloom 
+          intensity={0.8}            // Reduced intensity
+          luminanceThreshold={0.2}   // Increased threshold to reduce over-bloom
+          luminanceSmoothing={0.9}   // Keep smooth edges
+          mipmapBlur                 // Use mipmap blur for better performance
+        />
+      </EffectComposer>
     </>
   )
 }
