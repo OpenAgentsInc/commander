@@ -18,7 +18,8 @@
     "test:unit": "vitest",
     "test:e2e": "playwright test",
     "test:all": "vitest run && playwright test",
-    "copy": "node scripts/copyAllToClipboard.js"
+    "copy": "node scripts/copyAllToClipboard.js",
+    "t": "tsc --noEmit"
   },
   "author": "Christopher David <chris@openagents.com>",
   "license": "AGPL-3.0-or-later",
