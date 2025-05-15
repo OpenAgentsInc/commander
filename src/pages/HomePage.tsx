@@ -4,13 +4,7 @@ import { ChatWindow } from "@/components/chat/ChatWindow";
 import { ChatMessageProps } from "@/components/chat/ChatMessage";
 
 export default function HomePage() {
-  const [messages, setMessages] = useState<ChatMessageProps[]>([
-    {
-      role: "system",
-      content: "Welcome to Commander. How can I assist you today?",
-      timestamp: new Date()
-    }
-  ]);
+  const [messages, setMessages] = useState<ChatMessageProps[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [userInput, setUserInput] = useState<string>("");
 
@@ -98,7 +92,7 @@ export default function HomePage() {
       </div>
       
       {/* Chat window positioned at bottom-left */}
-      <div className="absolute bottom-0 left-0 w-80 h-64 p-1">
+      <div className="absolute bottom-0 left-0 w-[28rem] h-64 p-1">
         <ChatWindow
           messages={messages}
           userInput={userInput}

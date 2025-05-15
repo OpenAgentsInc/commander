@@ -205,8 +205,8 @@ const mainProgram = Effect.gen(function*(_) {
   yield* _(appService.waitUntilReady());
 
   const window = yield* _(mainWindowService.createWindow({
-    width: 800,
-    height: 600,
+    width: 1000,
+    height: 800,
     webPreferences: { /* ... */ preload: path.join(__dirname, "preload.js") },
     titleBarStyle: "hidden",
   }));
