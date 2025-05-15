@@ -1,8 +1,11 @@
-import { Effect } from "effect";
+import { Effect, Schema, Context, Layer } from "effect";
 import {
     OllamaService,
     OllamaServiceConfig,
+    OllamaServiceConfigTag,
+    OllamaChatCompletionRequestSchema,
     type OllamaChatCompletionRequest,
+    OllamaChatCompletionResponseSchema,
     type OllamaChatCompletionResponse,
     OllamaHttpError,
     OllamaParseError
@@ -13,6 +16,17 @@ import {
  * @param config The Ollama service configuration
  * @returns An implementation of the OllamaService interface
  */
+/**
+ * Create a Layer providing the OllamaService implementation
+ */
+export const OllamaServiceLive = Layer.effect(
+    OllamaService,
+    Effect.gen(function* (_) {
+        const config = yield* _(OllamaServiceConfigTag);
+        return createOllamaService(config);
+    })
+);
+
 export function createOllamaService(config: OllamaServiceConfig): OllamaService {
     const makeUrl = (path: string) => `${config.baseURL}${path}`;
 
@@ -20,9 +34,18 @@ export function createOllamaService(config: OllamaServiceConfig): OllamaService 
         return Effect.gen(function* (_) {
             const url = makeUrl("/chat/completions");
 
+            // Validate request body using Schema
+            const decodedRequest = yield* _(
+                Schema.decode(OllamaChatCompletionRequestSchema)(requestBody),
+                Effect.mapError(parseError => new OllamaParseError(
+                    "Invalid request format", 
+                    parseError
+                ))
+            );
+
             const finalRequestBody = {
-                ...requestBody,
-                model: requestBody.model || config.defaultModel,
+                ...decodedRequest as OllamaChatCompletionRequest,
+                model: decodedRequest.model || config.defaultModel,
             };
 
             // Make the HTTP request
@@ -67,30 +90,14 @@ export function createOllamaService(config: OllamaServiceConfig): OllamaService 
                 Effect.mapError(e => new OllamaParseError("Failed to parse success JSON response", e))
             );
 
-            // Validate the response shape
-            if (!json || typeof json !== 'object' || !('choices' in json)) {
-                return yield* _(Effect.fail(new OllamaParseError(
-                    "Invalid Ollama response format", 
-                    json
-                )));
-            }
-            
-            const typedJson = json as Record<string, unknown>;
-            
-            // Simple type check on important fields
-            if (
-                typeof typedJson.id !== 'string' ||
-                typeof typedJson.model !== 'string' ||
-                !Array.isArray(typedJson.choices) ||
-                typedJson.choices.length === 0
-            ) {
-                return yield* _(Effect.fail(new OllamaParseError(
-                    "Missing required fields in Ollama response", 
-                    json
-                )));
-            }
-
-            return json as OllamaChatCompletionResponse;
+            // Validate the response shape using Schema
+            return yield* _(
+                Schema.decode(OllamaChatCompletionResponseSchema)(json as unknown),
+                Effect.mapError(parseError => new OllamaParseError(
+                    "Invalid Ollama response format",
+                    parseError
+                ))
+            );
         });
     };
 

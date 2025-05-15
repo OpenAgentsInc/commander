@@ -20,6 +20,23 @@ export const handlers = [
         if (body.model === 'malformed-response-model') {
             return new HttpResponse("this is not json", { status: 200, headers: { 'Content-Type': 'text/plain' } });
         }
+        if (body.model === 'invalid-schema-model') {
+            // Return structurally invalid JSON (missing required fields)
+            return HttpResponse.json({
+                id: `chatcmpl-${Date.now()}`,
+                // Missing required 'object', 'created', and 'model' fields
+                choices: [
+                    {
+                        // Missing required 'index' field
+                        message: {
+                            // Missing required 'role' field
+                            content: "This response is missing required schema fields"
+                        },
+                        // Missing required 'finish_reason' field
+                    }
+                ]
+            });
+        }
         if (body.model === 'network-error-model') {
             return HttpResponse.error();
         }

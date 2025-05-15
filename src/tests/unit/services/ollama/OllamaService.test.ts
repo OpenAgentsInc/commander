@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest';
-import { Effect, Cause } from 'effect';
+import { Effect, Cause, Schema } from 'effect';
 import {
     OllamaService,
     OllamaServiceConfig,
     type OllamaChatCompletionRequest,
+    OllamaMessageSchema,
     OllamaHttpError,
     OllamaParseError
 } from '../../../../services/ollama/OllamaService';
@@ -126,6 +127,21 @@ describe('OllamaService', () => {
                 /Failed to parse success JSON response/
             );
         });
+        
+        it('should fail with OllamaParseError if the API returns a structurally invalid response', async () => {
+            const ollamaService = createOllamaService(testConfig);
+                
+            const request: OllamaChatCompletionRequest = {
+                model: 'invalid-schema-model', // Triggers invalid schema response in MSW
+                messages: [{ role: 'user', content: 'Test invalid schema' }],
+            };
+
+            await expectEffectFailure(
+                ollamaService.generateChatCompletion(request),
+                OllamaParseError,
+                /Invalid Ollama response format/
+            );
+        });
 
         it('should fail with OllamaHttpError for network errors', async () => {
             const ollamaService = createOllamaService(testConfig);
@@ -139,6 +155,25 @@ describe('OllamaService', () => {
                 ollamaService.generateChatCompletion(request),
                 OllamaHttpError,
                 /HTTP request failed/
+            );
+        });
+        
+        it('should fail with OllamaParseError if the request contains an invalid message format', async () => {
+            const ollamaService = createOllamaService(testConfig);
+            
+            // @ts-ignore - Intentionally bypassing TypeScript to test runtime validation
+            const request = {
+                model: 'llama2',
+                messages: [{ 
+                    role: 'invalid-role', // Invalid role not in the schema
+                    content: 'This should fail schema validation'
+                }]
+            };
+            
+            await expectEffectFailure(
+                ollamaService.generateChatCompletion(request as OllamaChatCompletionRequest),
+                OllamaParseError,
+                /Invalid request format/
             );
         });
     });

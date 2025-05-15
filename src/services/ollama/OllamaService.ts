@@ -12,23 +12,23 @@ export const OllamaMessageSchema = Schema.Struct({
     ),
     content: Schema.String
 });
-export type OllamaMessage = Schema.To<typeof OllamaMessageSchema>;
+export type OllamaMessage = Schema.Schema.Type<typeof OllamaMessageSchema>;
 
 // OllamaServiceConfig schema
 export const OllamaServiceConfigSchema = Schema.Struct({
     baseURL: Schema.String,
-    defaultModel: Schema.String.pipe(Schema.withDefault(() => "llama2"))
+    defaultModel: Schema.String.pipe(Schema.withDefaults({ default: () => "llama2" }))
 });
-export type OllamaServiceConfig = Schema.To<typeof OllamaServiceConfigSchema>;
-export const OllamaServiceConfigTag = Context.Tag<OllamaServiceConfig>("OllamaServiceConfig");
+export type OllamaServiceConfig = Schema.Schema.Type<typeof OllamaServiceConfigSchema>;
+export const OllamaServiceConfigTag = Context.Tag<OllamaServiceConfig>();
 
 // OllamaChatCompletionRequest schema
 export const OllamaChatCompletionRequestSchema = Schema.Struct({
-    model: Schema.Optional(Schema.String),
+    model: Schema.optional(Schema.String),
     messages: Schema.Array(OllamaMessageSchema),
-    stream: Schema.Boolean.pipe(Schema.withDefault(() => false))
+    stream: Schema.Boolean.pipe(Schema.withDefaults({ default: () => false }))
 });
-export type OllamaChatCompletionRequest = Schema.To<typeof OllamaChatCompletionRequestSchema>;
+export type OllamaChatCompletionRequest = Schema.Schema.Type<typeof OllamaChatCompletionRequestSchema>;
 
 // OllamaChatCompletionChoice schema
 export const OllamaChatCompletionChoiceSchema = Schema.Struct({
@@ -51,15 +51,15 @@ export const OllamaChatCompletionResponseSchema = Schema.Struct({
     created: Schema.Number,
     model: Schema.String,
     choices: Schema.Array(OllamaChatCompletionChoiceSchema),
-    usage: Schema.Optional(OllamaChatCompletionUsageSchema)
+    usage: Schema.optional(OllamaChatCompletionUsageSchema)
 });
-export type OllamaChatCompletionResponse = Schema.To<typeof OllamaChatCompletionResponseSchema>;
+export type OllamaChatCompletionResponse = Schema.Schema.Type<typeof OllamaChatCompletionResponseSchema>;
 
 // --- Error Schema Definitions ---
 export const OllamaErrorSchema = Schema.Struct({
   _tag: Schema.Literal("OllamaError"),
   message: Schema.String,
-  cause: Schema.Optional(Schema.Unknown)
+  cause: Schema.optional(Schema.Unknown)
 });
 
 export const OllamaHttpErrorSchema = Schema.Struct({
@@ -77,14 +77,13 @@ export const OllamaParseErrorSchema = Schema.Struct({
 
 // --- Custom Error Types ---
 export class OllamaError extends Error {
-    readonly _tag = "OllamaError";
     constructor(message: string, readonly cause?: unknown) {
         super(message);
         this.name = "OllamaError";
     }
 }
 
-export class OllamaHttpError extends OllamaError {
+export class OllamaHttpError extends Error {
     readonly _tag = "OllamaHttpError";
     constructor(
         message: string, 
@@ -96,7 +95,7 @@ export class OllamaHttpError extends OllamaError {
     }
 }
 
-export class OllamaParseError extends OllamaError {
+export class OllamaParseError extends Error {
     readonly _tag = "OllamaParseError";
     constructor(
         message: string, 
@@ -114,4 +113,5 @@ export interface OllamaService {
     ): Effect.Effect<OllamaChatCompletionResponse, OllamaHttpError | OllamaParseError, never>;
 }
 
-export const OllamaService = Context.Tag<OllamaService>("OllamaService");
+// Define a Tag for the service that can be used in dependency injection
+export const OllamaService = Context.Tag<OllamaService>();
