@@ -20,6 +20,10 @@ const dirsToScan = [
 
 // Files to explicitly include from root
 const rootFilesToInclude = [
+  'node_modules/@effect/platform/dist/dts/HttpClient.d.ts',
+  'node_modules/@effect/platform/dist/dts/HttpClientRequest.d.ts',
+  'node_modules/@effect/platform/dist/dts/HttpClientResponse.d.ts',
+  'node_modules/@effect/platform/dist/dts/HttpBody.d.ts',
   'README.md',
   'README-template.md',
   'forge.config.ts',
