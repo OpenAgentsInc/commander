@@ -2,6 +2,17 @@
 
 Our new flagship app, introduced in [episode 170](https://x.com/OpenAgentsInc/status/1919797578452869267).
 
+## Running a dev build
+
+```bash
+git clone https://github.com/OpenAgentsInc/commander.git
+cd commander
+pnpm i
+pnpm dev
+```
+
+To chat, you must have [Ollama](https://ollama.com/) running. The current chat model used is `gemma3`, which you can preload in Ollama by running `ollama pull gemma3`.
+
 ## Tech Stack
 
 *   **Application Framework:** [Electron](https://www.electronjs.org) (~v35)
