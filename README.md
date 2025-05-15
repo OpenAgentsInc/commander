@@ -4,12 +4,28 @@ Our new flagship app, introduced in [episode 170](https://x.com/OpenAgentsInc/st
 
 ## Running a dev build
 
-```bash
-git clone https://github.com/OpenAgentsInc/commander.git
-cd commander
-pnpm i
-pnpm dev
-```
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/OpenAgentsInc/commander.git
+    cd commander
+    ```
+
+2.  **Install pnpm (if you haven't already):**
+    [pnpm](https://pnpm.io/) is the package manager used for this project. If you don't have pnpm installed, you can install it using npm (which comes with Node.js):
+    ```bash
+    npm install -g pnpm
+    ```
+    For other installation methods (like Homebrew, or using a specific version), please refer to the [official pnpm installation guide](https://pnpm.io/installation).
+
+3.  **Install dependencies:**
+    ```bash
+    pnpm i
+    ```
+
+4.  **Run the development server:**
+    ```bash
+    pnpm start
+    ```
 
 To chat, you must have [Ollama](https://ollama.com/) running. The current chat model used is `gemma3`, which you can preload in Ollama by running `ollama pull gemma3`.
 
