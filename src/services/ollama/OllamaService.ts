@@ -1,4 +1,4 @@
-import { Effect, Context, Schema } from "effect";
+import { Effect, Context, Schema, Layer } from "effect";
 import { HttpClient } from "@effect/platform/HttpClient";
 
 // --- Schema Definitions ---
@@ -115,3 +115,11 @@ export interface OllamaService {
 
 // Define a Tag for the service that can be used in dependency injection
 export const OllamaService = Context.GenericTag<OllamaService>("OllamaService");
+
+// --- UI Configuration ---
+export const uiOllamaConfig: OllamaServiceConfig = {
+  baseURL: "http://localhost:11434/v1",
+  defaultModel: "gemma3" // Default model for the UI button
+};
+
+export const UiOllamaConfigLive = Layer.succeed(OllamaServiceConfigTag, uiOllamaConfig);
