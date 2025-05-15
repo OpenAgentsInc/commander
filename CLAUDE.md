@@ -23,7 +23,7 @@
 - Electron architecture: Follow context isolation pattern for IPC communication
 - Naming: PascalCase for components/types, camelCase for variables/functions
 - Formatting: 2-space indentation, single quotes, semicolons
-- UI Components: Add new Shadcn components using `npx shadcn@canary add <component-name>`
+- UI Components: Add new Shadcn components using `pnpm dlx shadcn@latest add <component-name>`
 - Tailwind: Use classes directly in JSX, composable utilities in `@/utils/tailwind.ts`
 - State Management: Use React Query (TanStack Query) for data fetching
 - Internationalization: Use i18next with language helpers

@@ -1,13 +1,20 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { type OllamaChatCompletionRequest } from "@/services/ollama/OllamaService";
+import { Textarea } from "@/components/ui/textarea";
+import { type OllamaChatCompletionRequest, uiOllamaConfig } from "@/services/ollama/OllamaService";
 
 export default function HomePage() {
   const [ollamaResponse, setOllamaResponse] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [userInput, setUserInput] = useState<string>("Hello world!");
 
   const handleCallOllama = async () => {
+    if (!userInput.trim()) {
+      setError("Please enter a message.");
+      return;
+    }
+    
     setIsLoading(true);
     setError(null);
     setOllamaResponse(null);
@@ -15,7 +22,7 @@ export default function HomePage() {
     const requestPayload: OllamaChatCompletionRequest = {
       messages: [
         { role: "system", content: "You are a helpful assistant." },
-        { role: "user", content: "Hello world!" }
+        { role: "user", content: userInput }
       ],
       stream: false
     };
@@ -35,7 +42,7 @@ export default function HomePage() {
         setOllamaResponse("No response choices found.");
       }
     } catch (caughtError: any) {
-      console.error("Ollama API call failed", caughtError);
+      console.error("Ollama API call failed from renderer:", caughtError);
       setError(`Error: ${caughtError.message || "Unknown error occurred"}`);
     } finally {
       setIsLoading(false);
@@ -52,21 +59,31 @@ export default function HomePage() {
           </p>
         </span>
         
-        <div className="mt-4">
-          <Button onClick={handleCallOllama} disabled={isLoading}>
-            {isLoading ? "Calling Ollama..." : "Call Ollama (gemma3: Hello world!)"}
+        <div className="mt-4 w-full max-w-md">
+          <Textarea
+            placeholder="Enter your message to Ollama..."
+            value={userInput}
+            onChange={(e) => setUserInput(e.target.value)}
+            className="min-h-[80px]"
+            disabled={isLoading}
+          />
+        </div>
+
+        <div className="mt-2">
+          <Button onClick={handleCallOllama} disabled={isLoading || !userInput.trim()}>
+            {isLoading ? "Calling Ollama..." : `Call Ollama (${uiOllamaConfig.defaultModel})`}
           </Button>
         </div>
 
         {ollamaResponse && (
-          <div className="mt-4 p-4 border rounded bg-gray-50 dark:bg-gray-800">
+          <div className="mt-4 p-4 border rounded bg-zinc-50 dark:bg-zinc-800 w-full max-w-md">
             <h3 className="font-semibold">Ollama Response:</h3>
             <pre className="whitespace-pre-wrap">{ollamaResponse}</pre>
           </div>
         )}
 
         {error && (
-          <div className="mt-4 p-4 border rounded bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200">
+          <div className="mt-4 p-4 border rounded bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200 w-full max-w-md">
             <h3 className="font-semibold">Error:</h3>
             <pre className="whitespace-pre-wrap">{error}</pre>
           </div>
