@@ -1,5 +1,5 @@
 import { ipcMain, BrowserWindow } from "electron";
-import { Effect, Layer, Stream, Cause, Exit } from "effect";
+import { Effect, Layer, Stream, Cause, Exit, Option } from "effect";
 import { NodeHttpClient } from "@effect/platform-node";
 import { 
   OLLAMA_CHAT_COMPLETION_CHANNEL,
@@ -30,7 +30,26 @@ const activeStreams = new Map<string, () => void>();
 
 // Helper function to extract error details suitable for IPC
 function extractErrorForIPC(error: any): object {
-  const details: { __error: true; name: string; message: string; stack?: string; _tag?: string; cause?: string } = {
+  // Helper for handling Effect Cause objects
+  const causeDetails = (err: any) => {
+    if (Cause.isCause(err)) {
+      // If it's a Cause, try to extract a failure first
+      const failure = Cause.failureOption(err as Cause.Cause<any>);
+      if (Option.isSome(failure)) {
+        return extractErrorForIPC(failure.value); // Recursively extract from failure
+      }
+      
+      // For Die or Interrupt, provide tag and squashed message
+      return { 
+        name: "CauseError", 
+        message: Cause.pretty(err as Cause.Cause<any>), 
+        _tag: (err as Cause.Cause<any>)._tag 
+      };
+    }
+    return undefined;
+  };
+
+  const details: { __error: true; name: string; message: string; stack?: string; _tag?: string; cause?: any } = {
     __error: true,
     name: error instanceof Error ? error.name : "Error",
     message: error instanceof Error ? error.message : String(error)
@@ -45,19 +64,15 @@ function extractErrorForIPC(error: any): object {
       details._tag = (error as any)._tag;
     }
     
-    if ('cause' in error && error.cause) {
-      try {
-        // Try to serialize the cause
-        if (Cause && typeof Cause.pretty === 'function') {
-          details.cause = Cause.pretty(error.cause);
-        } else {
-          details.cause = JSON.stringify(error.cause, (k, v) => 
-            k === 'cause' ? undefined : v
-          );
-        }
-      } catch (e) {
-        details.cause = "Error serializing cause: " + String(error.cause);
-      }
+    if (Cause.isCause(error)) {
+      // If the error itself is a Cause
+      details.cause = causeDetails(error);
+    } else if (Cause.isCause(error.cause)) {
+      // If the error has a cause property that is a Cause
+      details.cause = causeDetails(error.cause);
+    } else if ('cause' in error && error.cause) {
+      // For non-Effect causes, provide a simple representation
+      details.cause = String(error.cause);
     }
   }
   
@@ -144,7 +159,7 @@ export function addOllamaEventListeners() {
 
         if (Exit.isFailure(streamResult)) {
           // The program to get the stream itself failed
-          console.error("Ollama stream initialization failed (program error):", streamResult.cause);
+          console.error("[IPC Listener] Ollama stream initialization failed (program error):", Cause.pretty(streamResult.cause));
           
           // Extract a serializable error from streamResult.cause
           const errorForIPC = extractErrorForIPC(Cause.squash(streamResult.cause));
@@ -155,41 +170,51 @@ export function addOllamaEventListeners() {
 
         // We have a valid stream
         const stream = streamResult.value;
-        console.log("[IPC Listener] Successfully obtained stream from program. Type:", typeof stream);
+        console.log(`[IPC Listener] Stream obtained, starting processing for requestId: ${requestId}`);
 
-        // Set up stream processing effect 
-        // Make sure to create the processing effect correctly
-        const streamProcessingEffect = Stream.runForEach(stream, (chunk) => {
+        // Define the effect for processing each chunk
+        const processChunkEffect = (chunk: any) => {
           if (!signal.aborted) {
-            // For debugging, log the chunk content
-            console.log(`[IPC Listener] Stream.runForEach received chunk:`, JSON.stringify(chunk, null, 2).substring(0, 100) + "...");
+            console.log(`[IPC Listener] Stream.runForEach received chunk for ${requestId}:`, 
+              JSON.stringify(chunk).substring(0, 100) + "...");
+            
             // Send to renderer
             event.sender.send(`${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL}:chunk`, requestId, chunk);
           }
-          return Effect.void; // Correct for runForEach's callback
-        });
+          return Effect.void; // Must return an Effect for runForEach
+        };
 
-        // Run the stream processing with detailed exit handling
-        // Remove the Layer.setRequestCache() since it needs an argument we don't have
+        // Define the stream processing effect
+        console.log(`[IPC Listener] Creating Stream.runForEach effect for stream ${requestId}`);
+        // Must call Stream.runForEach with the stream as first argument and the handler function second
+        const streamProcessingEffect = Stream.runForEach(stream, processChunkEffect);
+
+        // Run the stream processing without any unnecessary Layer.setRequestCache
+        console.log(`[IPC Listener] Running stream processing effect for ${requestId}`);
         const finalExit = await Effect.runPromiseExit(streamProcessingEffect);
 
         if (Exit.isSuccess(finalExit)) {
           if (!signal.aborted) {
-            console.log(`Stream ${requestId} completed successfully.`);
+            console.log(`[IPC Listener] Stream ${requestId} completed successfully.`);
             event.sender.send(`${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL}:done`, requestId);
+          } else {
+            console.log(`[IPC Listener] Stream ${requestId} was aborted before completion.`);
           }
         } else { // Stream processing failed
           if (!signal.aborted) {
-            console.error(`Ollama stream processing error for ${requestId}:`, finalExit.cause);
+            console.error(`[IPC Listener] Ollama stream processing error for ${requestId}:`, Cause.pretty(finalExit.cause));
             const errorForIPC = extractErrorForIPC(Cause.squash(finalExit.cause));
             event.sender.send(`${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL}:error`, requestId, errorForIPC);
+          } else {
+            console.log(`[IPC Listener] Stream ${requestId} processing aborted, error not sent:`, Cause.pretty(finalExit.cause));
           }
         }
       } catch (initialProgramError) { // Catch synchronous errors from runPromiseExit or other setup
-        console.error("Critical error during stream setup/run:", initialProgramError);
+        console.error(`[IPC Listener] Critical error during stream setup/run for requestId: ${requestId}`, initialProgramError);
         const errorForIPC = extractErrorForIPC(initialProgramError);
         event.sender.send(`${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL}:error`, requestId, errorForIPC);
       } finally {
+        console.log(`[IPC Listener] Cleaning up activeStream for requestId: ${requestId}`);
         activeStreams.delete(requestId);
       }
     });
@@ -197,9 +222,11 @@ export function addOllamaEventListeners() {
     // Stream cancellation handler
     ipcMain.on(`${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL}:cancel`, (_, requestId) => {
       if (activeStreams.has(requestId)) {
-        console.log(`Cancelling stream ${requestId}`);
+        console.log(`[IPC Listener] Cancelling stream ${requestId}`);
         activeStreams.get(requestId)?.();
         activeStreams.delete(requestId);
+      } else {
+        console.log(`[IPC Listener] Received cancel request for non-existent stream: ${requestId}`);
       }
     });
   } catch (e) {

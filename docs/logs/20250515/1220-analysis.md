@@ -5,7 +5,7 @@ However, we have a new situation:
 1.  **Test Failure:** The Vitest unit test `should fail the stream with OllamaHttpError for API errors on initial request (e.g., 404)` is now failing with a `FiberFailure` where the defect is the `OllamaHttpError` we actually expect. This means our `expectEffectFailure` helper isn't correctly catching or unwrapping this specific failure mode when the stream itself is the result of a failed `Effect.gen` inside `Stream.unwrap`.
 2.  **UI Behavior:** Streaming starts, one token "I" appears, and then it stops. The logs show *many* chunks being processed by the service and sent via IPC. This suggests the main process is correctly handling the stream from Ollama and sending chunks, but the renderer (`HomePage.tsx`) might not be processing them correctly after the first one, or the stream in the main process isn't being fully consumed/closed properly, leading to an error eventually.
 
-**Log your work in `docs/logs/20250515/1120-streaming-test-ipc-refinement.md`**
+**Log your work in `docs/logs/20250515/1223-streaming-test-ipc-refinement.md`**
 
 **VERY DETAILED ANALYSIS (PRE-MEMORY RESET):**
 

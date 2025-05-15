@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll, beforeEach } from 'vitest';
-import { Effect, Schema, Layer, Stream, Option } from 'effect';
+import { Effect, Schema, Layer, Stream, Option, Exit, Cause } from 'effect';
 import {
     OllamaService,
     OllamaServiceConfig,
@@ -504,26 +504,50 @@ describe('OllamaService (/v1/chat/completions)', () => {
                 messages: [{ role: 'user', content: 'Test stream 404' }],
             };
 
-            // Let's use a simpler approach with expectEffectFailure helper
+            // Create a program to get the stream and try to consume it
             const program = Effect.gen(function* (_) {
                 const ollamaService = yield* _(OllamaService);
-                // This should fail with an OllamaHttpError:
                 const stream = ollamaService.generateChatCompletionStream(request);
-                // If we try to collect from this stream, it will fail when the HTTP request returns 404
+                // Attempt to take one element. If stream init fails, this will fail.
                 return yield* _(Stream.runCollect(stream));
             }).pipe(Effect.provide(ollamaTestLayer));
 
-            // Use our expectEffectFailure helper to verify the failure
-            const error = await expectEffectFailure(
-                program,
-                OllamaHttpError,
-                /Ollama API Error on stream initiation/
-            );
+            // Use Effect.runPromiseExit to get the full Exit value with detailed cause information
+            const exit = await Effect.runPromiseExit(program);
 
-            // Additional verification
-            expect(error.message).toContain("404");
-            const errorResponse = error.response as any;
-            expect(errorResponse?.body?.error?.message).toBe("Chat stream model not found");
+            // Verify it's a failure
+            expect(Exit.isFailure(exit)).toBe(true);
+            
+            if (Exit.isFailure(exit)) {
+                const cause = exit.cause;
+                
+                // Check if the cause is a Die with our expected error as the defect
+                const dieOption = Cause.dieOption(cause);
+                if (Option.isSome(dieOption)) {
+                    const defect = dieOption.value;
+                    expect(defect).toBeInstanceOf(OllamaHttpError);
+                    if (defect instanceof OllamaHttpError) {
+                        expect(defect.message).toContain("Ollama API Error on stream initiation (chat/completions): 404");
+                        const errorResponse = defect.response as any;
+                        expect(errorResponse?.body?.error?.message).toBe("Chat stream model not found");
+                    }
+                } else {
+                    // If it's not a Die, check if it's a Fail with our error
+                    const failureOption = Cause.failureOption(cause);
+                    if (Option.isSome(failureOption)) {
+                        const error = failureOption.value;
+                        expect(error).toBeInstanceOf(OllamaHttpError);
+                        if (error instanceof OllamaHttpError) {
+                            expect(error.message).toContain("Ollama API Error on stream initiation (chat/completions): 404");
+                        }
+                    } else {
+                        // If neither Die nor Fail contains OllamaHttpError, fail the test
+                        throw new Error("Expected stream to fail with OllamaHttpError due to 404, but got different failure: " + Cause.pretty(cause));
+                    }
+                }
+            } else {
+                throw new Error("Expected program to fail but it succeeded.");
+            }
         });
 
         it('should fail the stream with OllamaParseError if a chunk contains malformed JSON', async () => {
