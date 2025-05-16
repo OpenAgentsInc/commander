@@ -26,7 +26,7 @@ const MainSceneContent = React.memo(({ handPosition, activeHandPose }: MainScene
     camera.lookAt(0, 0, 0);
     invalidate();
     
-    console.log("[MainSceneContent] Scene initialized with black background");
+    // Scene initialized
   }, [camera, scene, invalidate]);
 
   // Create a stable, fixed set of box positions that won't re-randomize
@@ -50,10 +50,10 @@ const MainSceneContent = React.memo(({ handPosition, activeHandPose }: MainScene
   useEffect(() => {
     if (activeHandPose === HandPose.FLAT_HAND) {
       setRotationDirection(1); // Clockwise for flat hand
-      console.log("[MainSceneContent] FLAT_HAND detected - rotating clockwise");
+      // FLAT_HAND detected - rotating clockwise
     } else if (activeHandPose === HandPose.OPEN_HAND) {
       setRotationDirection(-1); // Counter-clockwise for open hand
-      console.log("[MainSceneContent] OPEN_HAND detected - rotating counter-clockwise");
+      // OPEN_HAND detected - rotating counter-clockwise
     }
     // Other poses keep the current direction but will rotate slower
   }, [activeHandPose]);
@@ -91,41 +91,41 @@ const MainSceneContent = React.memo(({ handPosition, activeHandPose }: MainScene
           >
             <boxGeometry args={[1, 1, 1]} />
             <meshStandardMaterial 
-              color="#111111"
+              color="#333333" // Dark gray base color for contrast with reflections
               emissive="#ffffff"
-              emissiveIntensity={1.0} // Much higher intensity
-              roughness={0.05} // More shiny (was 0.1)
-              metalness={0.95} // More metallic (was 0.9)
-              envMapIntensity={2.0} // Add this to increase reflectivity
+              emissiveIntensity={0.05} // Just enough to see in darkness
+              roughness={0.01} // Super shiny surface
+              metalness={1.0} // Fully metallic for maximum reflections
+              envMapIntensity={5.0} // Very strong environment reflections
             /> 
           </mesh>
         ))}
       </group>
 
-      {/* Lighting setup more like PhysicsBallsScene */}
-      <ambientLight intensity={0.4} />
+      {/* Darker lighting with more contrast */}
+      <ambientLight intensity={0.1} /* Balanced for darkness but some visibility */ />
       
       {/* Main directional light with shadows */}
       <directionalLight 
         position={[5, 5, 5]} 
-        intensity={1.0}
+        intensity={1.2} /* Strong main light for highlights */
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0001}
       />
 
-      {/* Multiple point lights for more dynamic reflections */}
-      <pointLight position={[10, 10, 10]} intensity={1.5} />
-      <pointLight position={[-10, -10, -10]} intensity={0.5} />
-      <pointLight position={[-10, 10, -10]} intensity={0.8} />
-      <pointLight position={[10, -10, -10]} intensity={0.8} />
+      {/* Reduced point light intensity but kept the multiple lights for highlights */}
+      <pointLight position={[10, 10, 10]} intensity={1.5} /* Bright highlight source */ />
+      <pointLight position={[-10, -10, -10]} intensity={0.1} /* Secondary dim light */ />
+      <pointLight position={[-10, 10, -10]} intensity={0.9} /* Another strong highlight source */ />
+      <pointLight position={[10, -10, -10]} intensity={0.2} /* Dim background light */ />
       
-      {/* Add bloom effect with higher intensity */}
+      {/* Add bloom effect with better contrast settings */}
       <EffectComposer>
         <Bloom
-          intensity={1.0}             // Higher intensity (was 0.3)
-          luminanceThreshold={0.1}    // Lower threshold to make more things glow (was 0.2)
-          luminanceSmoothing={0.9}    // Smooth edges
+          intensity={1.2}             // Strong bloom on bright spots
+          luminanceThreshold={0.5}    // Only brightest reflections bloom
+          luminanceSmoothing={0.7}    // Sharper bloom edges
           mipmapBlur                  // Use mipmap blur for better performance
         />
       </EffectComposer>

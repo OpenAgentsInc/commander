@@ -55,17 +55,11 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
     
     // Log pinchMidpoint as soon as it's received from props
     if (isHandTrackingActive && pinchMidpoint) {
-      console.log(`PinnableChatWindow RX pinchMidpoint: X=${pinchMidpoint.x.toFixed(0)}, Y=${pinchMidpoint.y.toFixed(0)} (Screen Pixels)`);
+      // Received pinch midpoint
     }
     
     // Log current state for debugging - now using screen coordinates
-    console.log("Hand state:", { 
-      isPinching, 
-      isPinchDragging, 
-      pinchMidpoint: pinchMidpoint ? `${Math.round(pinchMidpoint.x)}, ${Math.round(pinchMidpoint.y)} px` : null,
-      activeHandPose,
-      windowPosition: elementState.position ? `${elementState.position.x}, ${elementState.position.y} px` : null
-    });
+    // Hand state tracking
     
     if (isPinching && pinchMidpoint && !isPinchDragging) {
       // Only start dragging if the pinch is over the chat window
@@ -80,21 +74,17 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
           pinchMidpoint.y <= bounds.bottom;
         
         // Log intersection test for debugging
-        console.log(`PINCH LOCATION TEST: 
-          pinch @ (${Math.round(pinchMidpoint.x)}, ${Math.round(pinchMidpoint.y)}) px
-          window @ L:${Math.round(bounds.left)} T:${Math.round(bounds.top)} R:${Math.round(bounds.right)} B:${Math.round(bounds.bottom)} px
-          intersection: ${isCurrentlyPinchOverWindow}
-        `);
+        // Pinch location test
         
         // Now we ONLY allow dragging when pinch is over the window
         if (isCurrentlyPinchOverWindow) {
-          console.log(`%cSTARTING PINCH DRAG%c @ ${Math.round(pinchMidpoint.x)},${Math.round(pinchMidpoint.y)}px. Window: L${Math.round(bounds.left)} T${Math.round(bounds.top)} R${Math.round(bounds.right)} B${Math.round(bounds.bottom)}`, "color: purple; font-weight: bold;", "color: purple;");
+          // Starting pinch drag
           setIsPinchDragging(true);
           pinchDragStartRef.current = { ...pinchMidpoint }; // Store a copy
           initialElementPosRef.current = { ...elementState.position }; // Store a copy
           pinElement(chatWindowId, elementState.position);
         } else if (pinchMidpoint) {
-          console.warn(`Pinch Closed DETECTED BUT NOT OVER WINDOW. Pinch @ ${Math.round(pinchMidpoint.x)},${Math.round(pinchMidpoint.y)}px. Window Rect: L${Math.round(bounds.left)} T${Math.round(bounds.top)} R${Math.round(bounds.right)} B${Math.round(bounds.bottom)}`);
+          // Pinch closed but not over window
         }
       }
     } 
@@ -110,9 +100,7 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
         const newY = initialElementPosRef.current.y + deltaY;
         
         const bounds = document.getElementById(chatWindowId)?.getBoundingClientRect();
-        console.log(`%cMOVING WITH PINCH%c Delta: ${Math.round(deltaX)},${Math.round(deltaY)}px | New: ${Math.round(newX)},${Math.round(newY)}px | Bounds: L${bounds ? Math.round(bounds.left) : '?'} T${bounds ? Math.round(bounds.top) : '?'} R${bounds ? Math.round(bounds.right) : '?'} B${bounds ? Math.round(bounds.bottom) : '?'}`, 
-          "color: blue; font-weight: bold;", 
-          "color: blue;");
+        // Moving with pinch
         
         // Update the start position to current position to prevent jitter
         pinchDragStartRef.current = { ...pinchMidpoint };
@@ -126,11 +114,7 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
     }
     else if (isPinchDragging && !isPinching) {
       // End pinch drag
-      console.log("%cENDING PINCH DRAG%c - Final position: " + 
-        (elementState ? `${Math.round(elementState.position.x)},${Math.round(elementState.position.y)}px` : "unknown"),
-        "color: purple; font-weight: bold;",
-        "color: purple;"
-      );
+      // Ending pinch drag
       setIsPinchDragging(false);
       pinchDragStartRef.current = null;
       initialElementPosRef.current = null;
@@ -239,20 +223,10 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
       }}
       onMouseDown={handleMouseDown}
     >
-      {/* Targeting indicator - shows when pinch is over the window but not yet dragging */}
-      {isTargeted && (
-        <div
-          className="absolute inset-0 border-4 border-dashed border-blue-500 animate-pulse z-40 pointer-events-none rounded-md"
-          style={{ margin: "-2px" }}
-        >
-          <div className="absolute top-1 left-1/2 transform -translate-x-1/2 -translate-y-full bg-blue-600 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-lg">
-            TARGETED
-          </div>
-        </div>
-      )}
+      {/* Removed targeting indicator */}
       <div 
         className={`h-80 border rounded-md shadow-lg bg-background/80 backdrop-blur-sm overflow-hidden transition-all duration-200 relative
-                   ${isPinchDragging ? 'scale-105 opacity-100 border-primary border-4 shadow-2xl shadow-primary/70 ring-4 ring-primary/70' : isTargeted ? 'opacity-95 border-blue-600 border-2 shadow-xl shadow-blue-600/50' : 'opacity-85 hover:opacity-100 border-border'}`}
+                   ${isPinchDragging ? 'scale-105 opacity-90' : 'opacity-85 hover:opacity-100 border-border'}`}
       >
         {/* Removed the pinch overlay indicator */}
         <ChatContainer
@@ -295,12 +269,12 @@ export default function HomePage() {
 
     canvas.addEventListener('webglcontextlost', handleContextLost, false);
     canvas.addEventListener('webglcontextrestored', handleContextRestored, false);
-    console.log("[HomePage] Added WebGL context listeners to main canvas");
+    // Added WebGL context listeners
 
     return () => {
       canvas.removeEventListener('webglcontextlost', handleContextLost);
       canvas.removeEventListener('webglcontextrestored', handleContextRestored);
-      console.log("[HomePage] Removed WebGL context listeners from main canvas");
+      // Removed WebGL context listeners
     };
   }, []); // Empty dependency array to run once after initial mount
   
@@ -323,7 +297,7 @@ export default function HomePage() {
           }}
           dpr={1} // Fixed DPR instead of range for more stability
           onCreated={({ gl, scene }) => {
-            console.log("[HomePage] Main R3F Canvas CREATED");
+            // Main R3F Canvas created
             // Set clear color and clear buffers
             gl.setClearColor(0x000000, 1);
             gl.clear();

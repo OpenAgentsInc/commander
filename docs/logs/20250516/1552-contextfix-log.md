@@ -101,19 +101,25 @@ After initial implementation, there was still a WebGL context loss issue when lo
 - Made all cubes shiny white with very high emissive properties
 - Made rotation 5x faster when flat/open hand detected (0.5 vs 0.1)
 - Added bloom post-processing effect from @react-three/postprocessing
-- Configured bloom for maximum visual impact:
-  - High intensity (1.0, up from 0.3)
-  - Lower luminance threshold (0.1, down from 0.2) to make more surfaces glow
+- Created dramatic contrast with optimized bloom settings:
+  - Moderate intensity (0.8) for better contrast
+  - Higher luminance threshold (0.3) to increase darkness in non-glowing areas
   - Smooth edges with luminance smoothing (0.9)
   - Mipmap blur for better performance
 - Completely overhauled lighting system:
-  - Base color set to dark gray (#111111) with bright white emissive overlay
-  - Increased emissive intensity from 0.15 to 1.0 (6.6x brighter)
-  - Reduced roughness from 0.1 to 0.05 for shinier surfaces
-  - Increased metalness from 0.9 to 0.95 for more reflectivity
-  - Added envMapIntensity of 2.0 to enhance reflections
-  - Added multiple point lights at different positions for more dynamic reflections
-  - Increased directional light intensity and improved shadow quality
+  - Base color set to pure black (#000000) with bright white emissive overlay
+  - Optimized emissive intensity to 0.7 for better contrast 
+  - Ultra-low roughness (0.02) for sharp, defined highlights
+  - Extremely high metalness (0.98) for mirror-like reflections
+  - Fine-tuned envMapIntensity of 1.5 for balanced reflections
+  - Significantly reduced ambient light (0.1) to increase darkness and contrast
+  - Reduced directional and point light intensities for more dramatic shadows
+  - Added multiple point lights at different positions for selective highlights
+
+### 8. Fixed Two-Hand Detection
+- Changed maxNumHands setting back to 2 in the MediaPipe Hands configuration
+- The system now properly detects and tracks two hands simultaneously
+- This allows for more complex interactions using both hands
 
 ## Result
 With these changes, the WebGL context should remain stable. We've eliminated both the @react-three/rapier dependency and the Environment component from drei, both of which were causing context issues. The 3D scene is now enhanced but stable, showing a neatly arranged grid of glowing white cubes with proper lighting, shadows, and bloom effects.

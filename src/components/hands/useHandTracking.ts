@@ -111,9 +111,7 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
               };
 
               // Update console log for better debugging of multiple pinches
-              console.log(
-                `PINCH COORDS for hand ${index} (${handedness}): screen(${Math.round(screenPinchX)}, ${Math.round(screenPinchY)}px)`
-              );
+              // Pinch coordinates calculated
               
               // Save pinch visualization data to draw later (after all joint indicators)
               currentPinchMidpoint.normalizedMidX = normalizedMidX;
@@ -277,7 +275,7 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
   // Initialize hand tracking
   useEffect(() => {
     const cleanupMediaPipe = () => {
-      console.log("[useHandTracking] Cleaning up MediaPipe resources...");
+      // Cleaning up MediaPipe resources...
       
       if (cameraRef.current) {
         try {
@@ -312,14 +310,14 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
         const canvasCtx = landmarkCanvasRef.current.getContext('2d');
         if (canvasCtx) {
           canvasCtx.clearRect(0, 0, landmarkCanvasRef.current.width, landmarkCanvasRef.current.height);
-          console.log("[useHandTracking] Landmark canvas cleared.");
+          // Landmark canvas cleared.
         }
       }
       
       setHandTrackingStatus("Inactive");
       setHandPosition(null);
       setTrackedHands([]);
-      console.log("[useHandTracking] Cleanup complete.");
+      // Cleanup complete.
     };
 
     if (!enabled) {
@@ -334,7 +332,7 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
 
     window.moduleInitialized = false;
 
-    console.log("[useHandTracking] Initializing MediaPipe...");
+    // Initializing MediaPipe...
     setHandTrackingStatus("Initializing MediaPipe...");
 
     // Make sure any previous instances are properly closed before re-init
@@ -357,7 +355,7 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
 
       handsRef.current.setOptions({
         selfieMode: false,
-        maxNumHands: 1, // Reduced from 2 to 1 for better performance & stability
+        maxNumHands: 2, // Set back to 2 to enable two-hand detection
         modelComplexity: 0,
         minDetectionConfidence: 0.7,
         minTrackingConfidence: 0.5,
@@ -382,7 +380,7 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
 
       cameraRef.current.start();
       setHandTrackingStatus("Tracking active");
-      console.log("[useHandTracking] MediaPipe Camera started.");
+      // MediaPipe Camera started.
     } catch (error) {
       console.error("Init error:", error);
       setHandTrackingStatus(
@@ -392,7 +390,7 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
     }
 
     return () => {
-      console.log("[useHandTracking] useEffect cleanup function running.");
+      // useEffect cleanup function running.
       cleanupMediaPipe();
     };
   }, [enabled, onHandTrackingResults]);
