@@ -25,7 +25,7 @@ const canvasDrawY_unmirrored = normalizedMidY * canvasHeight; // NMY_orig_MP is 
 // Since canvas is CSS-mirrored, drawing at canvasDrawX_unmirrored will make it appear at the correct visual spot.
 ctx.beginPath();
 ctx.arc(canvasDrawX_unmirrored, canvasDrawY_unmirrored, 10, 0, 2 * Math.PI); // Radius 10px
-ctx.strokeStyle = "rgba(50, 205, 50, 0.9)"; // Lime green
+ctx.strokeStyle = "rgba(255, 255, 255, 0.9)"; // White (changed from lime green)
 ctx.lineWidth = 2;
 ctx.stroke();
 
@@ -69,7 +69,7 @@ ctx.fillRect(
 );
 
 // Draw the actual text
-ctx.fillStyle = "rgba(50, 205, 50, 1)"; // Lime green text
+ctx.fillStyle = "rgba(255, 255, 255, 1)"; // White text (changed from lime green)
 ctx.fillText(coordText, drawTextAnchorLeftX_in_flipped_ctx, textY - 3); // Adjusted Y for better visual centering
 
 ctx.restore(); // Restore the context to its original state (mirrored by CSS, but scale(1,1))
@@ -97,8 +97,16 @@ ctx.restore(); // Restore the context to its original state (mirrored by CSS, bu
      - Visual screen coordinates (left=0, right=width)
      - Canvas drawing coordinates in flipped context
 
+## Color Updates
+Per user request, changed all green/blue elements to white:
+1. Changed thumb highlight from green (#22c55e) to white (#ffffff)
+2. Changed index finger highlight from blue (#3b82f6) to white (#ffffff) 
+3. Changed the pinch circle outline from lime green (rgba(50, 205, 50, 0.9)) to white (rgba(255, 255, 255, 0.9))
+4. Changed the coordinate text from lime green (rgba(50, 205, 50, 1)) to white (rgba(255, 255, 255, 1))
+
 ## Expected Results
 - The green "Pinch: X, Y px" label should now:
   - Show readable text (not backwards/mirrored)
   - Be positioned to the VISUAL RIGHT of the pinch circle
   - Display coordinate values that match intuitive screen positions
+  - All highlighting now appears in white instead of green/blue
