@@ -51,6 +51,53 @@ function isFingerCurled(tip: Landmark, pip: Landmark, mcp: Landmark, wrist: Land
   return tipLowerThanPip && (tipToMcpDistance < curledThreshold || (tip.y - pip.y) > referenceDistance * 0.1);
 }
 
+// Helper to calculate distance between thumb tip and index finger tip
+function getPinchDistance(landmarks: HandLandmarks): number {
+  const thumbTip = landmarks[LandmarkIndex.THUMB_TIP];
+  const indexTip = landmarks[LandmarkIndex.INDEX_FINGER_TIP];
+  return distance(thumbTip, indexTip);
+}
+
+// Helper to check if other fingers (middle, ring, pinky) are curled
+function areOtherFingersCurled(landmarks: HandLandmarks): boolean {
+  const wrist = landmarks[LandmarkIndex.WRIST];
+  return (
+    isFingerCurled(landmarks[LandmarkIndex.MIDDLE_FINGER_TIP], landmarks[LandmarkIndex.MIDDLE_FINGER_PIP], landmarks[LandmarkIndex.MIDDLE_FINGER_MCP], wrist) &&
+    isFingerCurled(landmarks[LandmarkIndex.RING_FINGER_TIP], landmarks[LandmarkIndex.RING_FINGER_PIP], landmarks[LandmarkIndex.RING_FINGER_MCP], wrist) &&
+    isFingerCurled(landmarks[LandmarkIndex.PINKY_TIP], landmarks[LandmarkIndex.PINKY_PIP], landmarks[LandmarkIndex.PINKY_MCP], wrist)
+  );
+}
+
+// Detect the PINCH_CLOSED pose - thumb and index finger close together, other fingers curled
+function isPinchClosed(landmarks: HandLandmarks): boolean {
+  const pinchDist = getPinchDistance(landmarks);
+  
+  // This threshold is crucial and needs calibration.
+  // Normalized coordinates (0-1), so this is a percentage of screen/image dimension.
+  const pinchThreshold = 0.05;
+  
+  // Check if thumb and index finger tips are close together
+  const closeFingers = pinchDist < pinchThreshold;
+  
+  // Check if other fingers are curled
+  const othersCurled = areOtherFingersCurled(landmarks);
+  
+  // For a proper pinch, thumb and index finger should be somewhat pointed forward
+  const thumbTip = landmarks[LandmarkIndex.THUMB_TIP];
+  const thumbIp = landmarks[LandmarkIndex.THUMB_IP];
+  const thumbMcp = landmarks[LandmarkIndex.THUMB_MCP];
+  
+  const indexTip = landmarks[LandmarkIndex.INDEX_FINGER_TIP];
+  const indexPip = landmarks[LandmarkIndex.INDEX_FINGER_PIP];
+  const indexMcp = landmarks[LandmarkIndex.INDEX_FINGER_MCP];
+  
+  // Simple check to verify thumb and index are extended rather than curled
+  const thumbExtended = distance(thumbTip, thumbMcp) > distance(thumbIp, thumbMcp);
+  const indexExtended = distance(indexTip, indexMcp) > distance(indexPip, indexMcp);
+  
+  return closeFingers && othersCurled && thumbExtended && indexExtended;
+}
+
 function isFist(landmarks: HandLandmarks): boolean {
   const wrist = landmarks[LandmarkIndex.WRIST];
   const fingersCurled =
@@ -146,6 +193,11 @@ export function recognizeHandPose(landmarks: HandLandmarks | null): HandPose {
     return HandPose.NONE;
   }
 
+  // Check for PINCH_CLOSED first as it's more specific
+  if (isPinchClosed(landmarks)) {
+    return HandPose.PINCH_CLOSED;
+  }
+  
   // Order of checks can matter if poses are similar.
   // More specific poses (like Two-Finger V) should ideally be checked before more general ones (like Open Hand).
   if (isFist(landmarks)) {

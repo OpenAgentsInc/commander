@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera } from '@mediapipe/camera_utils';
-import { Hands, Results as HandResults, LandmarkConnectionArray, HAND_CONNECTIONS, NormalizedLandmarkList } from '@mediapipe/hands';
+import { Hands, Results as HandResults, LandmarkConnectionArray, HAND_CONNECTIONS } from '@mediapipe/hands';
 import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
-import { HandPose, type HandLandmarks } from './handPoseTypes'; // Added
-import { recognizeHandPose } from './handPoseRecognition'; // Added
+import { HandPose, type HandLandmarks, type PinchCoordinates } from './handPoseTypes';
+import { recognizeHandPose } from './handPoseRecognition';
 
 // Fix for the WebAssembly issues in Electron
 declare global {
@@ -28,7 +28,8 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
   const handsRef = useRef<Hands | null>(null);
   const [handTrackingStatus, setHandTrackingStatus] = useState('Inactive');
   const [handPosition, setHandPosition] = useState<HandPosition | null>(null);
-  const [activeHandPose, setActiveHandPose] = useState<HandPose>(HandPose.NONE); // Added
+  const [activeHandPose, setActiveHandPose] = useState<HandPose>(HandPose.NONE);
+  const [pinchMidpoint, setPinchMidpoint] = useState<PinchCoordinates | null>(null);
 
   // Process MediaPipe results
   const onHandTrackingResults = useCallback((results: HandResults) => {
@@ -38,7 +39,8 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
         canvasCtx.clearRect(0, 0, landmarkCanvasRef.current.width, landmarkCanvasRef.current.height);
       }
       setHandPosition(null);
-      setActiveHandPose(HandPose.NONE); // Reset pose when not enabled
+      setActiveHandPose(HandPose.NONE);
+      setPinchMidpoint(null);
       return;
     }
 
@@ -47,22 +49,23 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
     canvasCtx.clearRect(0, 0, landmarkCanvasRef.current.width, landmarkCanvasRef.current.height);
 
     let handsDetected = 0;
-    let rightHandLandmarks: HandLandmarks | null = null; // Changed type
+    let rightHandLandmarks: HandLandmarks | null = null;
 
     if (results.multiHandLandmarks && results.multiHandedness) {
       handsDetected = results.multiHandLandmarks.length;
       for (let index = 0; index < results.multiHandLandmarks.length; index++) {
         const classification = results.multiHandedness[index];
-        const isRightHand = classification.label !== 'Right';
-        const landmarks = results.multiHandLandmarks[index] as HandLandmarks; // Cast to HandLandmarks
+        const isRightHand = classification.label === 'Right'; // Note: MediaPipe labels are for the actual hand, not mirrored view
+        const landmarks = results.multiHandLandmarks[index] as HandLandmarks;
 
-        if (isRightHand) {
+        // Use the first hand as primary for simplicity, or preferably the right hand if detected
+        if (index === 0 || isRightHand) {
           rightHandLandmarks = landmarks;
           if (landmarks.length > 8) {
-            const rightHandIndexFingerTip = landmarks[8];
+            const indexFingerTip = landmarks[8];
             setHandPosition({
-              x: rightHandIndexFingerTip.x,
-              y: rightHandIndexFingerTip.y
+              x: indexFingerTip.x,
+              y: indexFingerTip.y
             });
           }
         }
@@ -76,17 +79,50 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
           color: "#fff",
           lineWidth: 1,
           fillColor: '#000',
-          radius: 4
+          radius: 4 // Fixed radius for all landmarks
         });
+        
+        // Highlight thumb tip (4) and index tip (8) with larger dots
+        if (landmarks.length > 8) {
+          const thumbTip = landmarks[4];
+          const indexTip = landmarks[8];
+          
+          canvasCtx.beginPath();
+          canvasCtx.arc(thumbTip.x * landmarkCanvasRef.current.width, thumbTip.y * landmarkCanvasRef.current.height, 6, 0, 2 * Math.PI);
+          canvasCtx.fillStyle = "#22c55e"; // Green for thumb
+          canvasCtx.fill();
+          
+          canvasCtx.beginPath();
+          canvasCtx.arc(indexTip.x * landmarkCanvasRef.current.width, indexTip.y * landmarkCanvasRef.current.height, 6, 0, 2 * Math.PI);
+          canvasCtx.fillStyle = "#3b82f6"; // Blue for index
+          canvasCtx.fill();
+        }
       }
     }
 
     if (rightHandLandmarks) {
       const pose = recognizeHandPose(rightHandLandmarks);
       setActiveHandPose(pose);
+
+      // If we detect PINCH_CLOSED pose, calculate and set the pinch midpoint
+      if (pose === HandPose.PINCH_CLOSED) {
+        const thumbTip = rightHandLandmarks[4]; // THUMB_TIP
+        const indexTip = rightHandLandmarks[8]; // INDEX_FINGER_TIP
+        
+        if (thumbTip && indexTip) {
+          setPinchMidpoint({
+            x: (thumbTip.x + indexTip.x) / 2,
+            y: (thumbTip.y + indexTip.y) / 2,
+            z: (thumbTip.z + indexTip.z) / 2
+          });
+        }
+      } else {
+        setPinchMidpoint(null);
+      }
     } else {
       setHandPosition(null);
       setActiveHandPose(HandPose.NONE);
+      setPinchMidpoint(null);
     }
 
     if (enabled) {
@@ -109,7 +145,8 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
         }
       }
       setHandTrackingStatus('Inactive');
-      setActiveHandPose(HandPose.NONE); // Reset pose on disable
+      setActiveHandPose(HandPose.NONE);
+      setPinchMidpoint(null);
       return;
     }
 
@@ -213,6 +250,7 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
     landmarkCanvasRef,
     handPosition,
     handTrackingStatus,
-    activeHandPose, // Added
+    activeHandPose,
+    pinchMidpoint, // Expose pinch midpoint
   };
 }

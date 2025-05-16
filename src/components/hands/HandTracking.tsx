@@ -1,6 +1,6 @@
 import React from 'react';
 import { useHandTracking } from './useHandTracking';
-import { HandPose } from './handPoseTypes'; // Explicit import
+import { HandPose, PinchCoordinates } from './handPoseTypes';
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import ThreeScene from './ThreeScene';
@@ -16,7 +16,8 @@ export default function HandTracking({ showHandTracking, setShowHandTracking }: 
     landmarkCanvasRef,
     handPosition,
     handTrackingStatus,
-    activeHandPose, // Added
+    activeHandPose,
+    pinchMidpoint,
   } = useHandTracking({ enabled: showHandTracking });
 
   return (
@@ -42,10 +43,18 @@ export default function HandTracking({ showHandTracking, setShowHandTracking }: 
             <p className="text-white bg-black bg-opacity-50 p-2 rounded text-xs">
               Status: {handTrackingStatus}
             </p>
-            {/* Display active hand pose */}
-            <p className="text-white bg-black bg-opacity-50 p-2 rounded text-xs">
+            {/* Display active hand pose with special highlight for pinch */}
+            <p className={`${activeHandPose === HandPose.PINCH_CLOSED ? 'bg-primary' : 'bg-black bg-opacity-50'} text-white p-2 rounded text-xs transition-colors`}>
               Pose: {activeHandPose === HandPose.NONE ? 'N/A' : activeHandPose}
             </p>
+            
+            {/* Display pinch midpoint if available */}
+            {pinchMidpoint && (
+              <p className="text-white bg-primary p-2 rounded text-xs flex items-center">
+                <span className="inline-block w-2 h-2 rounded-full bg-white mr-2 animate-pulse"></span>
+                Pinch: {pinchMidpoint.x.toFixed(2)}, {pinchMidpoint.y.toFixed(2)}
+              </p>
+            )}
           </>
         )}
       </div>

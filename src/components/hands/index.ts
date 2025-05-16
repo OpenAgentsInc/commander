@@ -4,5 +4,5 @@ export type { HandPosition } from './useHandTracking';
 export { default as ThreeScene } from './ThreeScene';
 export { DynamicPointer } from './DynamicPointer';
 export { MousePointer } from './MousePointer';
-export { HandPose, type HandLandmarks } from './handPoseTypes'; // Added
-export { recognizeHandPose } from './handPoseRecognition'; // Added
+export { HandPose, type HandLandmarks, type PinchCoordinates } from './handPoseTypes';
+export { recognizeHandPose } from './handPoseRecognition';
