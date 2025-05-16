@@ -88,14 +88,52 @@ After initial implementation, there was still a WebGL context loss issue when lo
 - Made rotation gentler and only on Y axis to avoid chaotic movement
 - Removed debugging output that was causing confusion
 
-## Result
-With these changes, the WebGL context should remain stable. We've eliminated both the @react-three/rapier dependency and the Environment component from drei, both of which were causing context issues. The 3D scene is now extremely simple but stable, showing a neatly arranged grid of white cubes that rotate gently on a black background. 
+### 6. Enhanced 3D Scene and Hand Interaction
+- Added hand gesture-based rotation control: 
+  - FLAT_HAND rotates clockwise at normal speed
+  - OPEN_HAND rotates counter-clockwise at normal speed
+  - Other poses rotate in the last direction but much slower
+- Implemented proper lighting with directional and point lights
+- Added shadow casting for more visual depth
+- Removed the pinch coordinate display from the top-left corner
 
-The scene now uses basic materials that don't require environment maps or complex lighting. The pink hand position sphere has been removed, and the boxes are arranged in a predictable pattern with gentle rotation to avoid chaotic movement.
+### 7. Implemented Glowing White Cubes with Enhanced Visuals
+- Made all cubes shiny white with very high emissive properties
+- Made rotation 5x faster when flat/open hand detected (0.5 vs 0.1)
+- Added bloom post-processing effect from @react-three/postprocessing
+- Configured bloom for maximum visual impact:
+  - High intensity (1.0, up from 0.3)
+  - Lower luminance threshold (0.1, down from 0.2) to make more surfaces glow
+  - Smooth edges with luminance smoothing (0.9)
+  - Mipmap blur for better performance
+- Completely overhauled lighting system:
+  - Base color set to dark gray (#111111) with bright white emissive overlay
+  - Increased emissive intensity from 0.15 to 1.0 (6.6x brighter)
+  - Reduced roughness from 0.1 to 0.05 for shinier surfaces
+  - Increased metalness from 0.9 to 0.95 for more reflectivity
+  - Added envMapIntensity of 2.0 to enhance reflections
+  - Added multiple point lights at different positions for more dynamic reflections
+  - Increased directional light intensity and improved shadow quality
+
+## Result
+With these changes, the WebGL context should remain stable. We've eliminated both the @react-three/rapier dependency and the Environment component from drei, both of which were causing context issues. The 3D scene is now enhanced but stable, showing a neatly arranged grid of glowing white cubes with proper lighting, shadows, and bloom effects.
+
+The scene now responds to hand gestures:
+- FLAT_HAND will cause the cubes to rotate clockwise at high speed (0.5)
+- OPEN_HAND will cause the cubes to rotate counter-clockwise at high speed (0.5)
+- All other poses maintain the last rotation direction but at a much slower speed (0.01)
+
+Visual improvements include:
+- Ultra-bright glowing white cubes with high emissive intensity
+- Much higher bloom effect that creates a dazzling glow around cubes
+- Multiple point lights creating dynamic highlights and reflections
+- High-quality shadows with improved resolution and bias correction
+- A steady, predictable grid layout with proper perspective depth
 
 The pinch dragging functionality in the chat window has been significantly improved:
 1. It now only activates when the user pinches directly on the chat window element
 2. It prevents infinite update loops by only applying position updates when significant movement is detected
 3. It properly updates reference points during the drag operation to provide smooth movement
+4. The pinch coordinate display has been removed from the UI for a cleaner interface
 
 The MediaPipe resources are properly managed and cleaned up when not in use, and the WebGL context should no longer be lost when toggling hand tracking.

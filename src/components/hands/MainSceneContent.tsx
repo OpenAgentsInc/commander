@@ -1,16 +1,21 @@
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+// @ts-ignore - Ignore TypeScript errors for postprocessing
+import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { HandPosition } from './useHandTracking';
+import { HandPose } from './handPoseTypes';
 
 interface MainSceneContentProps {
   handPosition: HandPosition | null;
+  activeHandPose: HandPose;
 }
 
-// Super simplified scene content - absolute minimum to work reliably
-const MainSceneContent = React.memo(({ handPosition }: MainSceneContentProps) => {
+// Enhanced scene content with hand gesture-based rotation and bloom effect
+const MainSceneContent = React.memo(({ handPosition, activeHandPose }: MainSceneContentProps) => {
   const { invalidate, camera, scene } = useThree();
   const boxesRef = useRef<THREE.Group>(null);
+  const [rotationDirection, setRotationDirection] = useState<number>(1); // 1 for clockwise, -1 for counter
   
   // Set up scene when first mounted
   useEffect(() => {
@@ -41,32 +46,89 @@ const MainSceneContent = React.memo(({ handPosition }: MainSceneContentProps) =>
     return positions;
   }, []);
   
-  // Animation loop for rotating the boxes - very gentle rotation
+  // Check hand pose and adjust rotation direction
+  useEffect(() => {
+    if (activeHandPose === HandPose.FLAT_HAND) {
+      setRotationDirection(1); // Clockwise for flat hand
+      console.log("[MainSceneContent] FLAT_HAND detected - rotating clockwise");
+    } else if (activeHandPose === HandPose.OPEN_HAND) {
+      setRotationDirection(-1); // Counter-clockwise for open hand
+      console.log("[MainSceneContent] OPEN_HAND detected - rotating counter-clockwise");
+    }
+    // Other poses keep the current direction but will rotate slower
+  }, [activeHandPose]);
+  
+  // Animation loop for rotating the boxes based on hand pose
   useFrame((state, delta) => {
     if (boxesRef.current) {
-      boxesRef.current.rotation.y += delta * 0.05; // Only rotate around Y axis
+      // Determine rotation speed based on pose
+      let rotationSpeed = 0.05;
+      
+      if (activeHandPose === HandPose.FLAT_HAND || activeHandPose === HandPose.OPEN_HAND) {
+        // MUCH faster speed for detected gesture
+        rotationSpeed = 0.5; // 5x faster than before
+      } else {
+        // Much slower for any other pose
+        rotationSpeed = 0.01;
+      }
+      
+      // Apply rotation in the current direction
+      boxesRef.current.rotation.y += delta * rotationSpeed * rotationDirection;
       invalidate();
     }
   });
 
   return (
     <>
-      {/* Group of boxes in a predictable grid pattern */}
+      {/* Group of boxes in a predictable grid pattern - all shiny white with bloom */}
       <group ref={boxesRef}>
         {boxPositions.map((position, i) => (
           <mesh 
             key={i} 
             position={position}
+            castShadow
+            receiveShadow
           >
             <boxGeometry args={[1, 1, 1]} />
-            <meshBasicMaterial color="#ffffff" /> 
+            <meshStandardMaterial 
+              color="#111111"
+              emissive="#ffffff"
+              emissiveIntensity={1.0} // Much higher intensity
+              roughness={0.05} // More shiny (was 0.1)
+              metalness={0.95} // More metallic (was 0.9)
+              envMapIntensity={2.0} // Add this to increase reflectivity
+            /> 
           </mesh>
         ))}
       </group>
 
-      {/* Simple lighting */}
-      <ambientLight intensity={1.0} />
-      <directionalLight position={[0, 10, 10]} intensity={1.0} />
+      {/* Lighting setup more like PhysicsBallsScene */}
+      <ambientLight intensity={0.4} />
+      
+      {/* Main directional light with shadows */}
+      <directionalLight 
+        position={[5, 5, 5]} 
+        intensity={1.0}
+        castShadow
+        shadow-mapSize={[2048, 2048]}
+        shadow-bias={-0.0001}
+      />
+
+      {/* Multiple point lights for more dynamic reflections */}
+      <pointLight position={[10, 10, 10]} intensity={1.5} />
+      <pointLight position={[-10, -10, -10]} intensity={0.5} />
+      <pointLight position={[-10, 10, -10]} intensity={0.8} />
+      <pointLight position={[10, -10, -10]} intensity={0.8} />
+      
+      {/* Add bloom effect with higher intensity */}
+      <EffectComposer>
+        <Bloom
+          intensity={1.0}             // Higher intensity (was 0.3)
+          luminanceThreshold={0.1}    // Lower threshold to make more things glow (was 0.2)
+          luminanceSmoothing={0.9}    // Smooth edges
+          mipmapBlur                  // Use mipmap blur for better performance
+        />
+      </EffectComposer>
     </>
   );
 });

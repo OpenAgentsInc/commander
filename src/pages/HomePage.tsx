@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Canvas } from '@react-three/fiber';
+import * as THREE from 'three';
 import { HandTrackingUIControls, MainSceneContent, HandPose, type PinchCoordinates, useHandTracking } from "@/components/hands";
 import { ChatContainer } from "@/components/chat";
 import { useUIElementsStore, UIPosition } from "@/stores/uiElementsStore";
@@ -318,6 +319,7 @@ export default function HomePage() {
         <Canvas
           frameloop="always" // Changed from "demand" to ensure continual updates
           camera={{ position: [0, 0, 15], fov: 45, near: 0.1, far: 1000 }}
+          shadows
           gl={{ 
             antialias: true, 
             alpha: false, // Set to false for better performance
@@ -334,6 +336,10 @@ export default function HomePage() {
             gl.setClearColor(0x000000, 1);
             gl.clear();
             
+            // Setup shadows
+            gl.shadowMap.enabled = true;
+            gl.shadowMap.type = THREE.PCFSoftShadowMap;
+            
             // Add WebGL context listeners directly to the gl object
             gl.domElement.addEventListener('webglcontextlost', (event) => {
               console.error('[HomePage] WebGL Context Lost (from onCreated):', event);
@@ -345,7 +351,7 @@ export default function HomePage() {
             }, false);
           }}
         >
-          <MainSceneContent handPosition={handPosition} />
+          <MainSceneContent handPosition={handPosition} activeHandPose={activeHandPose} />
         </Canvas>
       </div>
 

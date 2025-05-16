@@ -53,15 +53,7 @@ export default function HandTrackingUIControls({
         )}
       </div>
       
-      {/* Pinch coordinate display on LEFT side of screen */}
-      {showHandTracking && pinchMidpoint && (
-        <div className="absolute top-5 left-5 z-30" style={{ pointerEvents: 'auto' }}>
-          <p className="text-white bg-black bg-opacity-50 p-2 rounded text-xs flex items-center">
-            <span className="inline-block w-2 h-2 rounded-full bg-primary mr-2 animate-pulse"></span>
-            Pinch: {Math.round(pinchMidpoint.x)}, {Math.round(pinchMidpoint.y)} px
-          </p>
-        </div>
-      )}
+      {/* Removed pinch coordinate display */}
 
       {/* Hidden video element for camera input */}
       {showHandTracking && (
