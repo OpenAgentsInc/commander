@@ -229,10 +229,10 @@ export default function HomePage() {
         });
 
         drawLandmarks(canvasCtx, landmarks, {
-          color: "#a1a1aa", // isRightHand ? '#FFFFFF' : '#CCCCCC',
-          lineWidth: 2,
+          color: "#fff", // isRightHand ? '#FFFFFF' : '#CCCCCC',
+          lineWidth: 1,
           fillColor: '#000',
-          radius: 5
+          radius: 4
           // radius: (landmarkData) => {
           //   // Make thumb and index fingertips larger for better visibility
           //   return (landmarkData.index === 4 || landmarkData.index === 8) ? 6 : 3;
