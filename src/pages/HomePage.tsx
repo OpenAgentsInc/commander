@@ -6,6 +6,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Canvas } from '@react-three/fiber';
 import PhysicsBallsScene from '@/components/r3f/PhysicsBallsScene';
+import { Link } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
 
 // Memoized Canvas component to prevent unnecessary re-renders
 const R3FBackground = React.memo(() => {
@@ -288,7 +290,14 @@ export default function HomePage() {
            except for specific UI elements that need interaction */}
       <div className="relative w-full h-full flex" style={{ pointerEvents: 'none' }}>
         {/* Empty main content area - no interaction needed */}
-        <div className="flex-1"></div>
+        <div className="flex-1">
+          {/* Navigation link for Hand Tracking Demo */}
+          <div className="absolute top-5 right-5" style={{ pointerEvents: 'auto' }}>
+            <Link to="/hand-tracking-demo">
+              <Button>Hand Tracking Demo</Button>
+            </Link>
+          </div>
+        </div>
 
         {/* Chat window positioned at bottom-left */}
         <div
