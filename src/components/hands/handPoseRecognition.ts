@@ -74,7 +74,8 @@ function isPinchClosed(landmarks: HandLandmarks): boolean {
   
   // This threshold is crucial and needs calibration.
   // Normalized coordinates (0-1), so this is a percentage of screen/image dimension.
-  const pinchThreshold = 0.05;
+  // Increasing the threshold makes pinch detection more forgiving
+  const pinchThreshold = 0.08; // Increased from 0.05 to make pinch detection easier
   
   // Check if thumb and index finger tips are close together
   const closeFingers = pinchDist < pinchThreshold;

@@ -110,9 +110,47 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
         const indexTip = rightHandLandmarks[8]; // INDEX_FINGER_TIP
         
         if (thumbTip && indexTip) {
+          // The midpoint between thumb and index finger
+          // Convert from normalized (0-1) to screen pixel coordinates
+          const midpointX = (thumbTip.x + indexTip.x) / 2;
+          const midpointY = (thumbTip.y + indexTip.y) / 2;
+          
+          // Draw a circle at the pinch midpoint for visual debugging
+          if (landmarkCanvasRef.current) {
+            const canvasWidth = landmarkCanvasRef.current.width;
+            const canvasHeight = landmarkCanvasRef.current.height;
+            
+            // Draw pinch hitbox
+            canvasCtx.beginPath();
+            canvasCtx.arc(
+              midpointX * canvasWidth, 
+              midpointY * canvasHeight, 
+              15, 0, 2 * Math.PI
+            );
+            canvasCtx.strokeStyle = "#10b981"; // Primary green
+            canvasCtx.lineWidth = 3;
+            canvasCtx.stroke();
+            
+            // Add label with screen coordinates
+            // Use a background for better readability
+            const coordText = `X: ${Math.round(midpointX * window.innerWidth)}, Y: ${Math.round(midpointY * window.innerHeight)}`;
+            const textX = midpointX * canvasWidth + 20;
+            const textY = midpointY * canvasHeight;
+            
+            // Draw a background for the text
+            canvasCtx.fillStyle = "rgba(0, 0, 0, 0.7)";
+            canvasCtx.fillRect(textX - 5, textY - 16, coordText.length * 8, 20);
+            
+            // Draw text
+            canvasCtx.fillStyle = "#ffffff";
+            canvasCtx.font = "14px sans-serif";
+            canvasCtx.fillText(coordText, textX, textY);
+          }
+          
+          // Store the screen pixel coordinates in state, not normalized values
           setPinchMidpoint({
-            x: (thumbTip.x + indexTip.x) / 2,
-            y: (thumbTip.y + indexTip.y) / 2,
+            x: midpointX * window.innerWidth,  // Convert to actual screen X
+            y: midpointY * window.innerHeight, // Convert to actual screen Y
             z: (thumbTip.z + indexTip.z) / 2
           });
         }

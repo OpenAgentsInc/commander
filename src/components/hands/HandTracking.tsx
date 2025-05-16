@@ -43,16 +43,16 @@ export default function HandTracking({ showHandTracking, setShowHandTracking }: 
             <p className="text-white bg-black bg-opacity-50 p-2 rounded text-xs">
               Status: {handTrackingStatus}
             </p>
-            {/* Display active hand pose with special highlight for pinch */}
-            <p className={`${activeHandPose === HandPose.PINCH_CLOSED ? 'bg-primary' : 'bg-black bg-opacity-50'} text-white p-2 rounded text-xs transition-colors`}>
-              Pose: {activeHandPose === HandPose.NONE ? 'N/A' : activeHandPose}
+            {/* Display active hand pose with special highlight for pinch but no background */}
+            <p className="bg-black bg-opacity-50 text-white p-2 rounded text-xs transition-colors">
+              Pose: <span className={activeHandPose === HandPose.PINCH_CLOSED ? 'text-primary font-bold' : ''}>{activeHandPose === HandPose.NONE ? 'N/A' : activeHandPose}</span>
             </p>
             
-            {/* Display pinch midpoint if available */}
+            {/* Display pinch midpoint if available - now showing screen coordinates */}
             {pinchMidpoint && (
-              <p className="text-white bg-primary p-2 rounded text-xs flex items-center">
-                <span className="inline-block w-2 h-2 rounded-full bg-white mr-2 animate-pulse"></span>
-                Pinch: {pinchMidpoint.x.toFixed(2)}, {pinchMidpoint.y.toFixed(2)}
+              <p className="text-white bg-black bg-opacity-50 p-2 rounded text-xs flex items-center">
+                <span className="inline-block w-2 h-2 rounded-full bg-primary mr-2 animate-pulse"></span>
+                Pinch: {Math.round(pinchMidpoint.x)}, {Math.round(pinchMidpoint.y)} px
               </p>
             )}
           </>
