@@ -14,6 +14,13 @@ import {
 } from "./handPoseTypes";
 import { recognizeHandPose } from "./handPoseRecognition";
 
+interface TrackedHandInfo {
+  landmarks: HandLandmarks; // from @mediapipe/hands
+  pose: HandPose;           // from ./handPoseTypes
+  pinchMidpoint: PinchCoordinates | null; // from ./handPoseTypes
+  handedness: string;       // e.g., "Left" or "Right"
+}
+
 // Fix for the WebAssembly issues in Electron
 declare global {
   interface Window {
@@ -37,10 +44,7 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
   const handsRef = useRef<Hands | null>(null);
   const [handTrackingStatus, setHandTrackingStatus] = useState("Inactive");
   const [handPosition, setHandPosition] = useState<HandPosition | null>(null);
-  const [activeHandPose, setActiveHandPose] = useState<HandPose>(HandPose.NONE);
-  const [pinchMidpoint, setPinchMidpoint] = useState<PinchCoordinates | null>(
-    null,
-  );
+  const [trackedHands, setTrackedHands] = useState<TrackedHandInfo[]>([]);
 
   // Process MediaPipe results
   const onHandTrackingResults = useCallback(
@@ -56,8 +60,7 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
           );
         }
         setHandPosition(null);
-        setActiveHandPose(HandPose.NONE);
-        setPinchMidpoint(null);
+        setTrackedHands([]);
         return;
       }
 
@@ -71,7 +74,7 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
       );
 
       let handsDetected = 0;
-      let rightHandLandmarks: HandLandmarks | null = null;
+      const currentFrameTrackedHands: TrackedHandInfo[] = [];
 
       if (results.multiHandLandmarks && results.multiHandedness) {
         handsDetected = results.multiHandLandmarks.length;
@@ -81,117 +84,48 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
           index++
         ) {
           const classification = results.multiHandedness[index];
-          const isRightHand = classification.label === "Right"; // Note: MediaPipe labels are for the actual hand, not mirrored view
+          const handedness = classification.label; // "Right" or "Left"
           const landmarks = results.multiHandLandmarks[index] as HandLandmarks;
+          const pose = recognizeHandPose(landmarks);
 
-          // Use the first hand as primary for simplicity, or preferably the right hand if detected
-          if (index === 0 || isRightHand) {
-            rightHandLandmarks = landmarks;
-            if (landmarks.length > 8) {
-              const indexFingerTip = landmarks[8];
-              setHandPosition({
-                x: indexFingerTip.x,
-                y: indexFingerTip.y,
-              });
-            }
-          }
+          // Calculate pinch midpoint for the current hand
+          let currentPinchMidpoint: PinchCoordinates | null = null;
+          if (pose === HandPose.PINCH_CLOSED) {
+            const thumbTip = landmarks[4]; // THUMB_TIP index
+            const indexTip = landmarks[8]; // INDEX_FINGER_TIP index
 
-          drawConnectors(
-            canvasCtx,
-            landmarks,
-            HAND_CONNECTIONS as LandmarkConnectionArray,
-            {
-              color: "#3f3f46",
-              lineWidth: 1,
-            },
-          );
-
-          drawLandmarks(canvasCtx, landmarks, {
-            color: "#fff",
-            lineWidth: 1,
-            fillColor: "#000",
-            radius: 4, // Fixed radius for all landmarks
-          });
-
-          // Highlight thumb tip (4) and index tip (8) with larger dots
-          if (landmarks.length > 8) {
-            const thumbTip = landmarks[4];
-            const indexTip = landmarks[8];
-
-            canvasCtx.beginPath();
-            canvasCtx.arc(
-              thumbTip.x * landmarkCanvasRef.current.width,
-              thumbTip.y * landmarkCanvasRef.current.height,
-              6,
-              0,
-              2 * Math.PI,
-            );
-            canvasCtx.fillStyle = "#ffffff"; // White for thumb
-            canvasCtx.fill();
-
-            canvasCtx.beginPath();
-            canvasCtx.arc(
-              indexTip.x * landmarkCanvasRef.current.width,
-              indexTip.y * landmarkCanvasRef.current.height,
-              6,
-              0,
-              2 * Math.PI,
-            );
-            canvasCtx.fillStyle = "#ffffff"; // White for index
-            canvasCtx.fill();
-          }
-        }
-      }
-
-      if (rightHandLandmarks) {
-        const pose = recognizeHandPose(rightHandLandmarks);
-        setActiveHandPose(pose);
-
-        // If we detect PINCH_CLOSED pose, calculate and set the pinch midpoint
-        if (pose === HandPose.PINCH_CLOSED) {
-          const thumbTip = rightHandLandmarks[4]; // THUMB_TIP
-          const indexTip = rightHandLandmarks[8]; // INDEX_FINGER_TIP
-
-          if (thumbTip && indexTip) {
-            // The midpoint between thumb and index finger
-            // Convert from normalized (0-1) to screen pixel coordinates
-            const midpointX = (thumbTip.x + indexTip.x) / 2;
-            const midpointY = (thumbTip.y + indexTip.y) / 2;
-
-            // Draw a circle at the pinch midpoint for visual debugging
             if (thumbTip && indexTip && landmarkCanvasRef.current) {
+              const normalizedMidX = (thumbTip.x + indexTip.x) / 2;
+              const normalizedMidY = (thumbTip.y + indexTip.y) / 2;
+
+              // Convert to screen pixel coordinates (relative to viewport)
+              // Ensure X is flipped to match mirrored camera view for UI interaction
+              const mirroredNormalizedMidX = 1 - normalizedMidX;
+              const screenPinchX = mirroredNormalizedMidX * window.innerWidth;
+              const screenPinchY = normalizedMidY * window.innerHeight;
+
+              currentPinchMidpoint = {
+                x: screenPinchX,
+                y: screenPinchY,
+                z: (thumbTip.z + indexTip.z) / 2, // Keep Z for potential 3D use
+              };
+
+              // Update console log for better debugging of multiple pinches
+              console.log(
+                `PINCH COORDS for hand ${index} (${handedness}): screen(${Math.round(screenPinchX)}, ${Math.round(screenPinchY)}px)`
+              );
+
+              // Draw a circle at the pinch midpoint for visual debugging
               const canvas = landmarkCanvasRef.current;
               const ctx = canvasCtx;
               const canvasWidth = canvas.width;
               const canvasHeight = canvas.height;
-
-              // Normalized midpoint on the input video/canvas plane
-              const normalizedMidX = (thumbTip.x + indexTip.x) / 2;
-              const normalizedMidY = (thumbTip.y + indexTip.y) / 2;
-
-              // --- Screen Pixel Coordinates for Logic and UI Display (outside canvas) ---
-              // These are used by HomePage.tsx for moving the chat window
-              // FLIP X coordinate for both display and logic to match visual screen position
-              const mirroredNormalizedMidX = 1 - normalizedMidX; // Flip normalized X (0-1)
-              const screenPinchX = mirroredNormalizedMidX * window.innerWidth; // Use flipped X
-              const screenPinchY = normalizedMidY * window.innerHeight; // Y is correct as is
-
-              // Debug log to see raw values
-              console.log(
-                `PINCH COORDS: original(${normalizedMidX.toFixed(3)}) -> mirrored(${mirroredNormalizedMidX.toFixed(3)}) -> screen(${Math.round(screenPinchX)},${Math.round(screenPinchY)})`,
-              );
-
-              setPinchMidpoint({
-                x: screenPinchX, // This is now the flipped X coordinate
-                y: screenPinchY,
-                z: (thumbTip.z + indexTip.z) / 2,
-              });
-
+              
               // --- Visual Debugging on Canvas (landmarkCanvasRef) ---
               // canvasDrawX_unmirrored: X coord of pinch point on an unmirrored canvas (0=left, canvasWidth=right)
               // If hand is visually on left (user's right hand), NMX_orig_MP is large, so canvasDrawX_unmirrored is large.
-              const canvasDrawX_unmirrored = normalizedMidX * canvasWidth; // NMX_orig_MP is normalizedMidX here
-              const canvasDrawY_unmirrored = normalizedMidY * canvasHeight; // NMY_orig_MP is normalizedMidY here
+              const canvasDrawX_unmirrored = normalizedMidX * canvasWidth;
+              const canvasDrawY_unmirrored = normalizedMidY * canvasHeight;
 
               // 1. Draw the green circle for the pinch point.
               // Since canvas is CSS-mirrored, drawing at canvasDrawX_unmirrored will make it appear at the correct visual spot.
@@ -259,18 +193,80 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
 
               ctx.restore(); // Restore the context to its original state (mirrored by CSS, but scale(1,1))
             }
-          } else if (pose !== HandPose.PINCH_CLOSED) {
-            // If not in pinch pose, ensure pinchMidpoint is nullified
-            setPinchMidpoint(null);
           }
-        } else {
-          // If no hand landmarks detected
-          setPinchMidpoint(null);
+          
+          // Add the hand data to the tracked hands array
+          currentFrameTrackedHands.push({
+            landmarks,
+            pose,
+            pinchMidpoint: currentPinchMidpoint,
+            handedness
+          });
+
+          // Use the first hand for the 3D pointer (handPosition)
+          if (index === 0) {
+            if (landmarks.length > 8) {
+              const indexFingerTip = landmarks[8];
+              setHandPosition({
+                x: indexFingerTip.x,
+                y: indexFingerTip.y,
+              });
+            }
+          }
+
+          drawConnectors(
+            canvasCtx,
+            landmarks,
+            HAND_CONNECTIONS as LandmarkConnectionArray,
+            {
+              color: "#3f3f46",
+              lineWidth: 1,
+            },
+          );
+
+          drawLandmarks(canvasCtx, landmarks, {
+            color: "#fff",
+            lineWidth: 1,
+            fillColor: "#000",
+            radius: 4, // Fixed radius for all landmarks
+          });
+
+          // Highlight thumb tip (4) and index tip (8) with larger dots
+          if (landmarks.length > 8) {
+            const thumbTip = landmarks[4];
+            const indexTip = landmarks[8];
+
+            canvasCtx.beginPath();
+            canvasCtx.arc(
+              thumbTip.x * landmarkCanvasRef.current.width,
+              thumbTip.y * landmarkCanvasRef.current.height,
+              6,
+              0,
+              2 * Math.PI,
+            );
+            canvasCtx.fillStyle = "#ffffff"; // White for thumb
+            canvasCtx.fill();
+
+            canvasCtx.beginPath();
+            canvasCtx.arc(
+              indexTip.x * landmarkCanvasRef.current.width,
+              indexTip.y * landmarkCanvasRef.current.height,
+              6,
+              0,
+              2 * Math.PI,
+            );
+            canvasCtx.fillStyle = "#ffffff"; // White for index
+            canvasCtx.fill();
+          }
         }
-      } else {
+      }
+
+      // Update the tracked hands state with the hands from the current frame
+      setTrackedHands(currentFrameTrackedHands);
+
+      // If no hands were detected, reset the hand position
+      if (currentFrameTrackedHands.length === 0) {
         setHandPosition(null);
-        setActiveHandPose(HandPose.NONE);
-        setPinchMidpoint(null);
       }
 
       if (enabled) {
@@ -299,8 +295,7 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
         }
       }
       setHandTrackingStatus("Inactive");
-      setActiveHandPose(HandPose.NONE);
-      setPinchMidpoint(null);
+      setTrackedHands([]);
       return;
     }
 
@@ -407,7 +402,6 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
     landmarkCanvasRef,
     handPosition,
     handTrackingStatus,
-    activeHandPose,
-    pinchMidpoint, // Expose pinch midpoint
+    trackedHands, // Replaced activeHandPose and pinchMidpoint with trackedHands array
   };
 }
