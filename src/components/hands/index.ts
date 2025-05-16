@@ -1,4 +1,6 @@
 export { default as HandTracking } from './HandTracking';
+export { default as HandTrackingUIControls } from './HandTrackingUIControls';
+export { default as MainSceneContent } from './MainSceneContent';
 export { useHandTracking } from './useHandTracking';
 export type { HandPosition } from './useHandTracking';
 export { default as ThreeScene } from './ThreeScene';

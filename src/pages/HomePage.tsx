@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { HandTracking, HandPose, type PinchCoordinates, useHandTracking } from "@/components/hands";
+import { Canvas } from '@react-three/fiber';
+import { HandTrackingUIControls, MainSceneContent, HandPose, type PinchCoordinates, useHandTracking } from "@/components/hands";
 import { ChatContainer } from "@/components/chat";
 import { useUIElementsStore, UIPosition } from "@/stores/uiElementsStore";
 
@@ -264,20 +265,90 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
 
 export default function HomePage() {
   const [showHandTracking, setShowHandTracking] = useState(false);
+  const mainCanvasContainerRef = useRef<HTMLDivElement>(null);
   
-  // Get hand tracking data from the hook directly in HomePage to pass to PinnableChatWindow
-  const { activeHandPose, pinchMidpoint } = useHandTracking({ enabled: showHandTracking });
+  // Use hand tracking hook directly in HomePage
+  const {
+    videoRef,
+    landmarkCanvasRef,
+    handPosition,
+    handTrackingStatus,
+    activeHandPose,
+    pinchMidpoint,
+  } = useHandTracking({ enabled: showHandTracking });
 
+  // Add WebGL context lost/restored event listeners
+  useEffect(() => {
+    const canvas = mainCanvasContainerRef.current?.querySelector('canvas');
+    if (!canvas) return;
+
+    const handleContextLost = (event: Event) => {
+      console.error('[HomePage] WebGL Context Lost:', event);
+      event.preventDefault(); // Try to prevent default behavior
+    };
+    
+    const handleContextRestored = (event: Event) => {
+      console.log('[HomePage] WebGL Context Restored:', event);
+    };
+
+    canvas.addEventListener('webglcontextlost', handleContextLost, false);
+    canvas.addEventListener('webglcontextrestored', handleContextRestored, false);
+    console.log("[HomePage] Added WebGL context listeners to main canvas");
+
+    return () => {
+      canvas.removeEventListener('webglcontextlost', handleContextLost);
+      canvas.removeEventListener('webglcontextrestored', handleContextRestored);
+      console.log("[HomePage] Removed WebGL context listeners from main canvas");
+    };
+  }, []); // Empty dependency array to run once after initial mount
+  
   return (
-    <div className="flex flex-col h-full w-full relative overflow-hidden">
-      {/* Hand tracking component */}
-      <HandTracking
+    <div className="flex flex-col h-full w-full relative overflow-hidden bg-black">
+      {/* Main R3F Canvas - ALWAYS rendered, not conditional on showHandTracking */}
+      <div ref={mainCanvasContainerRef} className="fixed inset-0 z-0">
+        <Canvas
+          frameloop="demand"
+          camera={{ position: [0, 0, 30], fov: 17.5, near: 10, far: 40 }}
+          shadows
+          gl={{ 
+            antialias: true, 
+            alpha: true,
+            powerPreference: "high-performance",
+            failIfMajorPerformanceCaveat: false
+          }}
+          dpr={[1, 1.5]}
+          performance={{ min: 0.5 }}
+          onCreated={({ gl }) => {
+            console.log("[HomePage] Main R3F Canvas CREATED");
+            
+            // Add WebGL context listeners directly to the gl object
+            gl.domElement.addEventListener('webglcontextlost', (event) => {
+              console.error('[HomePage] WebGL Context Lost (from onCreated):', event);
+              event.preventDefault();
+            }, false);
+            
+            gl.domElement.addEventListener('webglcontextrestored', () => {
+              console.log('[HomePage] WebGL Context Restored (from onCreated)');
+            }, false);
+          }}
+        >
+          <MainSceneContent handPosition={handPosition} />
+        </Canvas>
+      </div>
+
+      {/* Hand tracking UI controls (switch, video, canvas, etc.) */}
+      <HandTrackingUIControls
         showHandTracking={showHandTracking}
         setShowHandTracking={setShowHandTracking}
+        videoRef={videoRef}
+        landmarkCanvasRef={landmarkCanvasRef}
+        handTrackingStatus={handTrackingStatus}
+        activeHandPose={activeHandPose}
+        pinchMidpoint={pinchMidpoint}
       />
 
       {/* UI Overlay */}
-      <div className="relative w-full h-full" style={{ pointerEvents: 'none' }}>
+      <div className="relative w-full h-full z-10" style={{ pointerEvents: 'none' }}>
         {/* Pinnable chat window */}
         <PinnableChatWindow
           isHandTrackingActive={showHandTracking}

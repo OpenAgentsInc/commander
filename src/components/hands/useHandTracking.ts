@@ -276,29 +276,79 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
 
   // Initialize hand tracking
   useEffect(() => {
-    if (!enabled) {
+    const cleanupMediaPipe = () => {
+      console.log("[useHandTracking] Cleaning up MediaPipe resources...");
+      
       if (cameraRef.current) {
         try {
           cameraRef.current.stop();
-          if (handsRef.current) {
-            handsRef.current.close();
-          }
+        } catch (err) { 
+          console.error("Error stopping camera:", err); 
+        }
+        cameraRef.current = null;
+      }
+      
+      if (handsRef.current) {
+        try {
+          handsRef.current.close();
+        } catch (err) { 
+          console.error("Error closing MediaPipe Hands:", err); 
+        }
+        handsRef.current = null;
+      }
+      
+      if (videoRef.current && videoRef.current.srcObject) {
+        try {
+          const stream = videoRef.current.srcObject as MediaStream;
+          stream.getTracks().forEach(track => track.stop());
+          videoRef.current.srcObject = null;
+          videoRef.current.load(); // Reset video element fully
         } catch (err) {
-          console.error("Cleanup error:", err);
+          console.error("Error cleaning up video stream:", err);
         }
       }
+      
+      if (landmarkCanvasRef.current) {
+        const canvasCtx = landmarkCanvasRef.current.getContext('2d');
+        if (canvasCtx) {
+          canvasCtx.clearRect(0, 0, landmarkCanvasRef.current.width, landmarkCanvasRef.current.height);
+          console.log("[useHandTracking] Landmark canvas cleared.");
+        }
+      }
+      
       setHandTrackingStatus("Inactive");
+      setHandPosition(null);
       setTrackedHands([]);
+      console.log("[useHandTracking] Cleanup complete.");
+    };
+
+    if (!enabled) {
+      cleanupMediaPipe();
       return;
     }
 
-    if (!videoRef.current || !landmarkCanvasRef.current) return;
+    if (!videoRef.current || !landmarkCanvasRef.current) {
+      console.warn("[useHandTracking] Video or landmark canvas ref not available for init.");
+      return;
+    }
 
     window.moduleInitialized = false;
 
-    try {
-      setHandTrackingStatus("Initializing MediaPipe...");
+    console.log("[useHandTracking] Initializing MediaPipe...");
+    setHandTrackingStatus("Initializing MediaPipe...");
 
+    // Make sure any previous instances are properly closed before re-init
+    if (handsRef.current) {
+      try { handsRef.current.close(); } catch(e) { /* ignore */ }
+      handsRef.current = null;
+    }
+    
+    if (cameraRef.current) {
+      try { cameraRef.current.stop(); } catch(e) { /* ignore */ }
+      cameraRef.current = null;
+    }
+
+    try {
       handsRef.current = new Hands({
         locateFile: (file) => {
           return `/mediapipe/hands/${file}`;
@@ -307,7 +357,7 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
 
       handsRef.current.setOptions({
         selfieMode: false,
-        maxNumHands: 2,
+        maxNumHands: 1, // Reduced from 2 to 1 for better performance & stability
         modelComplexity: 0,
         minDetectionConfidence: 0.7,
         minTrackingConfidence: 0.5,
@@ -318,11 +368,11 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
 
       cameraRef.current = new Camera(videoRef.current, {
         onFrame: async () => {
-          if (videoRef.current && handsRef.current) {
+          if (videoRef.current && handsRef.current && videoRef.current.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
             try {
               await handsRef.current.send({ image: videoRef.current });
             } catch (err) {
-              console.log("Frame error (normal during tracking)");
+              // Expected during shutdown - don't log
             }
           }
         },
@@ -332,22 +382,18 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
 
       cameraRef.current.start();
       setHandTrackingStatus("Tracking active");
+      console.log("[useHandTracking] MediaPipe Camera started.");
     } catch (error) {
       console.error("Init error:", error);
       setHandTrackingStatus(
         `Error initializing MediaPipe: ${error instanceof Error ? error.message : String(error)}`,
       );
+      cleanupMediaPipe(); // Clean up if initialization fails
     }
 
     return () => {
-      try {
-        cameraRef.current?.stop();
-        if (handsRef.current) {
-          handsRef.current.close();
-        }
-      } catch (err) {
-        console.error("Cleanup error:", err);
-      }
+      console.log("[useHandTracking] useEffect cleanup function running.");
+      cleanupMediaPipe();
     };
   }, [enabled, onHandTrackingResults]);
 
@@ -390,11 +436,18 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
     };
   }, [enabled]);
 
+  // Compute values for the first tracked hand (for backward compatibility)
+  const activeHand = trackedHands.length > 0 ? trackedHands[0] : null;
+  const activeHandPose = activeHand ? activeHand.pose : HandPose.NONE;
+  const pinchMidpoint = activeHand ? activeHand.pinchMidpoint : null;
+
   return {
     videoRef,
     landmarkCanvasRef,
     handPosition,
     handTrackingStatus,
-    trackedHands, // Replaced activeHandPose and pinchMidpoint with trackedHands array
+    activeHandPose, // Add for compatibility with existing components
+    pinchMidpoint,  // Add for compatibility with existing components
+    trackedHands,   // For components that need access to all tracked hands
   };
 }
