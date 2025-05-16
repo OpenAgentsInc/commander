@@ -74,7 +74,7 @@ function isPinchClosed(landmarks: HandLandmarks): boolean {
   const indexTip = landmarks[LandmarkIndex.INDEX_FINGER_TIP];
 
   const pinchDist = distance(thumbTip, indexTip); // Recalculate for local scope if needed
-  const pinchThreshold = 0.15; // INCREASED from 0.08 to make pinch detection more forgiving
+  const pinchThreshold = 0.08; // Decreased from 0.15 to require fingers to be closer together
   const closeFingers = pinchDist < pinchThreshold;
 
   const othersCurled = areOtherFingersCurled(landmarks);

@@ -114,84 +114,10 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
               console.log(
                 `PINCH COORDS for hand ${index} (${handedness}): screen(${Math.round(screenPinchX)}, ${Math.round(screenPinchY)}px)`
               );
-
-              // Draw a circle at the pinch midpoint for visual debugging
-              const canvas = landmarkCanvasRef.current;
-              const ctx = canvasCtx;
-              const canvasWidth = canvas.width;
-              const canvasHeight = canvas.height;
               
-              // --- Visual Debugging on Canvas (landmarkCanvasRef) ---
-              // canvasDrawX_unmirrored: X coord of pinch point on an unmirrored canvas (0=left, canvasWidth=right)
-              // If hand is visually on left (user's right hand), NMX_orig_MP is large, so canvasDrawX_unmirrored is large.
-              const canvasDrawX_unmirrored = normalizedMidX * canvasWidth;
-              const canvasDrawY_unmirrored = normalizedMidY * canvasHeight;
-
-              // 1. Draw the green circle for the pinch point.
-              // Since canvas is CSS-mirrored, drawing at canvasDrawX_unmirrored will make it appear at the correct visual spot.
-              ctx.beginPath();
-              ctx.arc(
-                canvasDrawX_unmirrored,
-                canvasDrawY_unmirrored,
-                10,
-                0,
-                2 * Math.PI,
-              ); // Radius 10px
-              ctx.strokeStyle = "rgba(255, 255, 255, 0.9)"; // White
-              ctx.lineWidth = 2;
-              ctx.stroke();
-
-              // 2. Draw the coordinate text (readable and positioned visually to the RIGHT of the circle)
-              // screenPinchX already holds the visually correct X value for the label's text content.
-              const coordText = `Pinch: ${Math.round(screenPinchX)}, ${Math.round(screenPinchY)} px`;
-
-              ctx.save(); // Save current context state
-              ctx.scale(-1, 1); // Flip the context horizontally to make text readable (counteracts CSS mirror)
-
-              ctx.font = "bold 12px Berkeley Mono";
-              const textMetrics = ctx.measureText(coordText);
-              const textWidth = textMetrics.width;
-              const textHeight = 14; // Approximate height for background
-
-              // Calculate visual X of the pinch circle's center on the screen
-              // normalizedMidX is raw from MediaPipe. If hand visually left, normalizedMidX is large (e.g. 0.8).
-              // Visual X for circle center: (1 - normalizedMidX) * canvasWidth
-              const visualCircleCenterX = (1 - normalizedMidX) * canvasWidth;
-
-              // Determine the visual X for the left anchor of the text, to the right of the circle
-              const circleRadius = 10;
-              const padding = 5;
-              const visualTextAnchorLeftX =
-                visualCircleCenterX + circleRadius + padding;
-
-              // Convert this desired visual X to the X coordinate needed for drawing in the flipped context
-              // If visX is desired visual X, draw_X_in_flipped_ctx = -(canvasWidth - visX).
-              const drawTextAnchorLeftX_in_flipped_ctx = -(
-                canvasWidth - visualTextAnchorLeftX
-              );
-
-              const textY = canvasDrawY_unmirrored; // Use unmirrored Y for vertical positioning
-
-              ctx.textAlign = "left"; // Align text to its left edge
-
-              // Draw background for readability
-              ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
-              ctx.fillRect(
-                drawTextAnchorLeftX_in_flipped_ctx - 2, // Background rect left edge
-                textY - textHeight, // Background rect top edge (approx for text baseline)
-                textWidth + 4, // Background rect width
-                textHeight + 4, // Background rect height
-              );
-
-              // Draw the actual text
-              ctx.fillStyle = "rgba(255, 255, 255, 1)"; // White text
-              ctx.fillText(
-                coordText,
-                drawTextAnchorLeftX_in_flipped_ctx,
-                textY - 3,
-              ); // Adjusted Y for better visual centering
-
-              ctx.restore(); // Restore the context to its original state (mirrored by CSS, but scale(1,1))
+              // Save pinch visualization data to draw later (after all joint indicators)
+              currentPinchMidpoint.normalizedMidX = normalizedMidX;
+              currentPinchMidpoint.normalizedMidY = normalizedMidY;
             }
           }
           
@@ -261,9 +187,76 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
         }
       }
 
+      // Now draw all pinch visualizations AFTER all hand landmarks have been drawn
+      // This ensures pinch circles and text appear on top of joint indicators
+      currentFrameTrackedHands.forEach(hand => {
+        if (hand.pinchMidpoint && hand.pinchMidpoint.normalizedMidX !== undefined && hand.pinchMidpoint.normalizedMidY !== undefined) {
+          const normalizedMidX = hand.pinchMidpoint.normalizedMidX;
+          const normalizedMidY = hand.pinchMidpoint.normalizedMidY;
+          const screenPinchX = hand.pinchMidpoint.x;
+          const screenPinchY = hand.pinchMidpoint.y;
+          
+          const canvas = landmarkCanvasRef.current!;
+          const ctx = canvasCtx;
+          const canvasWidth = canvas.width;
+          const canvasHeight = canvas.height;
+          
+          // Draw the pinch circle
+          const canvasDrawX_unmirrored = normalizedMidX * canvasWidth;
+          const canvasDrawY_unmirrored = normalizedMidY * canvasHeight;
+          
+          ctx.beginPath();
+          ctx.arc(
+            canvasDrawX_unmirrored,
+            canvasDrawY_unmirrored,
+            10,
+            0,
+            2 * Math.PI,
+          );
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          
+          // Draw the coordinate text
+          const coordText = `Pinch: ${Math.round(screenPinchX)}, ${Math.round(screenPinchY)} px`;
+          
+          ctx.save();
+          ctx.scale(-1, 1);
+          
+          ctx.font = "bold 9px Berkeley Mono";
+          const textMetrics = ctx.measureText(coordText);
+          const textWidth = textMetrics.width;
+          const textHeight = 14;
+          
+          const visualCircleCenterX = (1 - normalizedMidX) * canvasWidth;
+          const circleRadius = 10;
+          const padding = 5;
+          const visualTextAnchorLeftX = visualCircleCenterX + circleRadius + padding;
+          const drawTextAnchorLeftX_in_flipped_ctx = -(canvasWidth - visualTextAnchorLeftX);
+          const textY = canvasDrawY_unmirrored;
+          
+          ctx.textAlign = "left";
+          
+          // Draw background
+          ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+          ctx.fillRect(
+            drawTextAnchorLeftX_in_flipped_ctx - 2,
+            textY - textHeight,
+            textWidth + 4,
+            textHeight + 4,
+          );
+          
+          // Draw text
+          ctx.fillStyle = "rgba(255, 255, 255, 1)";
+          ctx.fillText(coordText, drawTextAnchorLeftX_in_flipped_ctx, textY - 3);
+          
+          ctx.restore();
+        }
+      });
+      
       // Update the tracked hands state with the hands from the current frame
       setTrackedHands(currentFrameTrackedHands);
-
+      
       // If no hands were detected, reset the hand position
       if (currentFrameTrackedHands.length === 0) {
         setHandPosition(null);

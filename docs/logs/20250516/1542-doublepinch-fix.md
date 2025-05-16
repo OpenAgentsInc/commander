@@ -70,20 +70,30 @@ return {
 };
 ```
 
+## Additional Changes Requested
+
+### 1. Decreased Pinch Threshold
+Decreased the pinch threshold from 0.15 to 0.08 to require fingers to be closer together for a pinch to be detected:
+
+```typescript
+// In handPoseRecognition.ts
+const pinchThreshold = 0.08; // Decreased from 0.15 to require fingers to be closer together
+```
+
+### 2. Reduced Font Size in Canvas Overlay
+Decreased the font size of the "Pinch: x, y" text in the scene from 12px to 9px:
+
+```typescript
+// In useHandTracking.ts
+ctx.font = "bold 9px Berkeley Mono"; // Reduced from 12px
+```
+
 ## Expected Results
 - The hook now tracks and reports information for all detected hands (up to 2 hands)
 - Each hand's pose and pinch information is independently tracked and available 
+- Pinch detection now requires thumb and index finger to be closer together (more precise)
+- The overlay text showing pinch coordinates is smaller and less obtrusive
 - Components using this hook will need to be updated to work with the trackedHands array
-- For example, to check if any hand is pinching:
-  ```typescript
-  const isPinching = trackedHands.some(hand => hand.pose === HandPose.PINCH_CLOSED);
-  ```
-- To get all pinch coordinates:
-  ```typescript
-  const pinchPoints = trackedHands
-    .filter(hand => hand.pinchMidpoint !== null)
-    .map(hand => hand.pinchMidpoint);
-  ```
 
 ## Next Steps (Not Implemented)
 Components that use this hook need to be updated to work with multiple hands:

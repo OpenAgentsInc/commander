@@ -23,4 +23,6 @@ export interface PinchCoordinates {
   x: number;
   y: number;
   z?: number; // Optional depth
+  normalizedMidX?: number; // Added for canvas drawing
+  normalizedMidY?: number; // Added for canvas drawing
 }
