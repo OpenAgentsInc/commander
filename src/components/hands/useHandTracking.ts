@@ -117,34 +117,59 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
           
           // Draw a circle at the pinch midpoint for visual debugging
           if (landmarkCanvasRef.current) {
-            const canvasWidth = landmarkCanvasRef.current.width;
-            const canvasHeight = landmarkCanvasRef.current.height;
+            const canvas = landmarkCanvasRef.current;
+            const canvasWidth = canvas.width;
+            const canvasHeight = canvas.height;
             
-            // Draw pinch hitbox
+            // Calculate the normalized values for drawing on canvas
+            const normalizedMidX = midpointX;
+            const normalizedMidY = midpointY;
+            
+            // Calculate canvas coordinates
+            const canvasPinchX = normalizedMidX * canvasWidth;
+            const canvasPinchY = normalizedMidY * canvasHeight;
+            
+            // 1. Draw the green circle (this will be mirrored, which is fine for a circle)
             canvasCtx.beginPath();
-            canvasCtx.arc(
-              midpointX * canvasWidth, 
-              midpointY * canvasHeight, 
-              15, 0, 2 * Math.PI
-            );
-            canvasCtx.strokeStyle = "#10b981"; // Primary green
+            canvasCtx.arc(canvasPinchX, canvasPinchY, 15, 0, 2 * Math.PI);
+            canvasCtx.strokeStyle = "rgba(16, 185, 129, 0.8)"; // Primary green with transparency
             canvasCtx.lineWidth = 3;
             canvasCtx.stroke();
             
-            // Add label with screen coordinates
-            // Use a background for better readability
-            const coordText = `X: ${Math.round(midpointX * window.innerWidth)}, Y: ${Math.round(midpointY * window.innerHeight)}`;
-            const textX = midpointX * canvasWidth + 20;
-            const textY = midpointY * canvasHeight;
+            // 2. Draw the coordinate text (unmirrored)
+            const screenX = Math.round(normalizedMidX * window.innerWidth);
+            const screenY = Math.round(normalizedMidY * window.innerHeight);
+            const coordText = `Pinch: ${screenX}px, ${screenY}px`;
             
-            // Draw a background for the text
-            canvasCtx.fillStyle = "rgba(0, 0, 0, 0.7)";
-            canvasCtx.fillRect(textX - 5, textY - 16, coordText.length * 8, 20);
+            canvasCtx.font = "bold 11px sans-serif";
+            const textMetrics = canvasCtx.measureText(coordText);
+            const textWidth = textMetrics.width;
+            const textHeight = 11;
             
-            // Draw text
-            canvasCtx.fillStyle = "#ffffff";
-            canvasCtx.font = "14px sans-serif";
-            canvasCtx.fillText(coordText, textX, textY);
+            // Position text to right of circle
+            const textStartXUnmirrored = canvasPinchX + 25; // 15 (radius) + 10 (padding)
+            const textStartYUnmirrored = canvasPinchY + (textHeight / 3); // Vertical center approx
+            
+            // Need to adjust for mirrored canvas
+            canvasCtx.save();
+            // Canvas is CSS transformed with scale-x: -1
+            // To draw unmirrored text:
+            // 1. Scale context by (-1, 1) to flip it
+            // 2. Adjust X coordinate for the flipped context
+            canvasCtx.scale(-1, 1);
+            
+            const mirroredTextX = -(canvasWidth - textStartXUnmirrored);
+            
+            // Background for text
+            canvasCtx.fillStyle = "rgba(0, 0, 0, 0.6)";
+            canvasCtx.fillRect(mirroredTextX - 5, textStartYUnmirrored - textHeight, textWidth + 10, textHeight + 4);
+            
+            // Actual text
+            canvasCtx.fillStyle = "rgba(16, 185, 129, 1)"; // Brighter green for text
+            canvasCtx.textAlign = "left";
+            canvasCtx.fillText(coordText, mirroredTextX, textStartYUnmirrored);
+            
+            canvasCtx.restore();
           }
           
           // Store the screen pixel coordinates in state, not normalized values

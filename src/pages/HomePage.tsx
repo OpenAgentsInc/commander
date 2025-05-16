@@ -51,6 +51,11 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
     // Check if the pose is a pinch
     const isPinching = activeHandPose === HandPose.PINCH_CLOSED;
     
+    // Log pinchMidpoint as soon as it's received from props
+    if (isHandTrackingActive && pinchMidpoint) {
+      console.log(`PinnableChatWindow received pinchMidpoint: X=${pinchMidpoint.x.toFixed(2)}, Y=${pinchMidpoint.y.toFixed(2)} (Are these screen pixels?)`);
+    }
+    
     // Log current state for debugging - now using screen coordinates
     console.log("Hand state:", { 
       isPinching, 
@@ -63,23 +68,23 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
     if (isPinching && pinchMidpoint && !isPinchDragging) {
       // Only start dragging if the pinch is over the chat window
       const windowElem = document.getElementById(chatWindowId);
-      if (windowElem) {
+      if (windowElem && elementState) {
         const bounds = windowElem.getBoundingClientRect();
-        const isPinchOverWindow = 
+        // Extract specific check to a const for clarity
+        const isCurrentlyPinchOverWindow = 
           pinchMidpoint.x >= bounds.left && 
           pinchMidpoint.x <= bounds.right && 
           pinchMidpoint.y >= bounds.top && 
           pinchMidpoint.y <= bounds.bottom;
         
-        if (isPinchOverWindow) {
-          console.log("STARTING PINCH DRAG at", `${Math.round(pinchMidpoint.x)}, ${Math.round(pinchMidpoint.y)} px`);
-          console.log("WINDOW BOUNDS:", bounds);
+        if (isCurrentlyPinchOverWindow) {
+          console.log(`%cSTARTING PINCH DRAG%c @ ${Math.round(pinchMidpoint.x)},${Math.round(pinchMidpoint.y)}px. Window: L${Math.round(bounds.left)} T${Math.round(bounds.top)} R${Math.round(bounds.right)} B${Math.round(bounds.bottom)}`, "color: green; font-weight: bold;", "color: green;");
           setIsPinchDragging(true);
-          pinchDragStartRef.current = pinchMidpoint; // These are already screen coordinates
-          initialElementPosRef.current = elementState.position;
+          pinchDragStartRef.current = { ...pinchMidpoint }; // Store a copy
+          initialElementPosRef.current = { ...elementState.position }; // Store a copy
           pinElement(chatWindowId, elementState.position);
-        } else {
-          console.log("Pinch detected but not over the window", `Pinch: ${Math.round(pinchMidpoint.x)}, ${Math.round(pinchMidpoint.y)} px`, `Window: ${bounds.left}, ${bounds.top}, ${bounds.right}, ${bounds.bottom}`);
+        } else if (pinchMidpoint) {
+          console.warn(`Pinch Closed DETECTED BUT NOT OVER WINDOW. Pinch @ ${Math.round(pinchMidpoint.x)},${Math.round(pinchMidpoint.y)}px. Window Rect: L${Math.round(bounds.left)} T${Math.round(bounds.top)} R${Math.round(bounds.right)} B${Math.round(bounds.bottom)}`);
         }
       }
     } 
@@ -92,22 +97,25 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
       const newX = initialElementPosRef.current.x + deltaX;
       const newY = initialElementPosRef.current.y + deltaY;
       
-      console.log("MOVING WITH PINCH", { 
-        delta: `${Math.round(deltaX)}, ${Math.round(deltaY)} px`,
-        newPosition: `${Math.round(newX)}, ${Math.round(newY)} px`,
-        chatWindowBounds: document.getElementById(chatWindowId)?.getBoundingClientRect() || 'unknown'
-      });
+      const bounds = document.getElementById(chatWindowId)?.getBoundingClientRect();
+      console.log(`%cMOVING WITH PINCH%c Delta: ${Math.round(deltaX)},${Math.round(deltaY)}px | New: ${Math.round(newX)},${Math.round(newY)}px | Bounds: L${bounds ? Math.round(bounds.left) : '?'} T${bounds ? Math.round(bounds.top) : '?'} R${bounds ? Math.round(bounds.right) : '?'} B${bounds ? Math.round(bounds.bottom) : '?'}`, 
+        "color: blue; font-weight: bold;", 
+        "color: blue;");
       
       // Apply the movement delta to the initial position
       setPosition(chatWindowId, { x: newX, y: newY });
     }
     else if (isPinchDragging && !isPinching) {
       // End pinch drag
-      console.log("ENDING PINCH DRAG");
+      console.log("%cENDING PINCH DRAG%c - Final position: " + 
+        (elementState ? `${Math.round(elementState.position.x)},${Math.round(elementState.position.y)}px` : "unknown"),
+        "color: purple; font-weight: bold;",
+        "color: purple;"
+      );
       setIsPinchDragging(false);
       pinchDragStartRef.current = null;
       initialElementPosRef.current = null;
-      if (elementState.isPinned) {
+      if (elementState?.isPinned) {
         unpinElement(chatWindowId);
       }
     }
@@ -214,23 +222,25 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
     >
       {/* Targeting indicator - shows when pinch is over the window but not yet dragging */}
       {isTargeted && (
-        <div className="absolute inset-0 border-4 border-dashed border-primary animate-pulse z-40 pointer-events-none" 
-             style={{ margin: "-4px" }}>
-          <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-primary text-white text-xs px-2 py-1 rounded-full">
-            Ready to Grab
+        <div
+          className="absolute inset-0 border-4 border-dashed border-blue-500 animate-pulse z-40 pointer-events-none rounded-md"
+          style={{ margin: "-2px" }}
+        >
+          <div className="absolute top-1 left-1/2 transform -translate-x-1/2 -translate-y-full bg-blue-600 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-lg">
+            TARGETED
           </div>
         </div>
       )}
       <div 
         className={`h-80 border rounded-md shadow-lg bg-background/80 backdrop-blur-sm overflow-hidden transition-all duration-200 relative
-                   ${isPinchDragging ? 'scale-105 opacity-100 border-primary border-2 shadow-[0_0_15px_rgba(0,0,0,0.3),0_0_10px_rgba(16,185,129,0.5)] ring-2 ring-primary/50' : 'opacity-85 hover:opacity-100 border-border'}`}
+                   ${isPinchDragging ? 'scale-105 opacity-100 border-primary border-4 shadow-2xl shadow-primary/70 ring-4 ring-primary/70' : isTargeted ? 'opacity-95 border-blue-600 border-2 shadow-xl shadow-blue-600/50' : 'opacity-85 hover:opacity-100 border-border'}`}
       >
         {/* Pinch overlay indicator - only shows when pinching */}
         {isPinchDragging && (
-          <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none">
-            <div className="bg-primary/30 text-white font-bold text-center p-4 rounded-lg animate-pulse">
+          <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none bg-primary/20 backdrop-blur-sm rounded-md">
+            <div className="bg-primary text-primary-foreground font-bold text-lg text-center p-3 rounded-lg animate-pulse shadow-2xl ring-4 ring-offset-2 ring-offset-background ring-primary">
               PINCHING
-              <div className="text-xs mt-1">Move hand to drag window</div>
+              <div className="text-sm mt-1 font-normal">Move hand to drag</div>
             </div>
           </div>
         )}

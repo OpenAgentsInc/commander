@@ -80,23 +80,25 @@ function isPinchClosed(landmarks: HandLandmarks): boolean {
   // Check if thumb and index finger tips are close together
   const closeFingers = pinchDist < pinchThreshold;
   
-  // Check if other fingers are curled
-  const othersCurled = areOtherFingersCurled(landmarks);
+  // Using a simplified approach for more reliable detection during testing
+  // Only check the distance between thumb and index finger
+  // This will make pinch detection more forgiving
+  console.log(`Pinch distance: ${pinchDist.toFixed(3)}, threshold: ${pinchThreshold}, close: ${closeFingers}`);
   
-  // For a proper pinch, thumb and index finger should be somewhat pointed forward
-  const thumbTip = landmarks[LandmarkIndex.THUMB_TIP];
-  const thumbIp = landmarks[LandmarkIndex.THUMB_IP];
-  const thumbMcp = landmarks[LandmarkIndex.THUMB_MCP];
+  // Original logic - keeping this for reference:
+  // const othersCurled = areOtherFingersCurled(landmarks);
+  // const thumbTip = landmarks[LandmarkIndex.THUMB_TIP];
+  // const thumbIp = landmarks[LandmarkIndex.THUMB_IP];
+  // const thumbMcp = landmarks[LandmarkIndex.THUMB_MCP];
+  // const indexTip = landmarks[LandmarkIndex.INDEX_FINGER_TIP];
+  // const indexPip = landmarks[LandmarkIndex.INDEX_FINGER_PIP];
+  // const indexMcp = landmarks[LandmarkIndex.INDEX_FINGER_MCP];
+  // const thumbExtended = distance(thumbTip, thumbMcp) > distance(thumbIp, thumbMcp);
+  // const indexExtended = distance(indexTip, indexMcp) > distance(indexPip, indexMcp);
+  // return closeFingers && othersCurled && thumbExtended && indexExtended;
   
-  const indexTip = landmarks[LandmarkIndex.INDEX_FINGER_TIP];
-  const indexPip = landmarks[LandmarkIndex.INDEX_FINGER_PIP];
-  const indexMcp = landmarks[LandmarkIndex.INDEX_FINGER_MCP];
-  
-  // Simple check to verify thumb and index are extended rather than curled
-  const thumbExtended = distance(thumbTip, thumbMcp) > distance(thumbIp, thumbMcp);
-  const indexExtended = distance(indexTip, indexMcp) > distance(indexPip, indexMcp);
-  
-  return closeFingers && othersCurled && thumbExtended && indexExtended;
+  // Simplified approach for testing:
+  return closeFingers;
 }
 
 function isFist(landmarks: HandLandmarks): boolean {
