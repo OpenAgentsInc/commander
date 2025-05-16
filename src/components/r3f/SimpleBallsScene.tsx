@@ -5,7 +5,14 @@ import { Environment } from '@react-three/drei'
 
 const accents = ['#ff4060', '#ffcc00', '#20ffa0', '#4060ff']
 
-function Ball({ position, color = 'white', speed = 1, size = 1 }) {
+interface BallProps {
+  position: [number, number, number];
+  color?: string;
+  speed?: number;
+  size?: number;
+}
+
+function Ball({ position, color = 'white', speed = 1, size = 1 }: BallProps) {
   const mesh = useRef<THREE.Mesh>(null!)
   
   useFrame((state, delta) => {
