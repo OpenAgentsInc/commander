@@ -130,10 +130,12 @@ Visual improvements include:
 - High-quality shadows with improved resolution and bias correction
 - A steady, predictable grid layout with proper perspective depth
 
-The pinch dragging functionality in the chat window has been significantly improved:
-1. It now only activates when the user pinches directly on the chat window element
-2. It prevents infinite update loops by only applying position updates when significant movement is detected
-3. It properly updates reference points during the drag operation to provide smooth movement
-4. The pinch coordinate display has been removed from the UI for a cleaner interface
+The chat window interaction has been significantly improved:
+1. It can now be dragged with either mouse or hand pinch gestures, even when hand tracking is active
+2. The pinch dragging only activates when the user pinches directly on the chat window element
+3. The distracting "PINCHING" text overlay has been removed for a cleaner interface
+4. It prevents infinite update loops by only applying position updates when significant movement is detected
+5. It properly updates reference points during the drag operation to provide smooth movement
+6. The pinch coordinate display has been removed from the UI for a cleaner interface
 
 The MediaPipe resources are properly managed and cleaned up when not in use, and the WebGL context should no longer be lost when toggling hand tracking.

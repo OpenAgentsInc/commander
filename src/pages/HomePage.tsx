@@ -153,7 +153,7 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
   
   // Mouse Drag Handlers
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (isHandTrackingActive || !elementState || isPinchDragging) return;
+    if (!elementState || isPinchDragging) return; // Allow mouse dragging even with hand tracking on
     
     e.preventDefault();
     e.stopPropagation();
@@ -162,7 +162,7 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
     mouseDragStartRef.current = { x: e.clientX, y: e.clientY };
     initialElementPosRef.current = currentPosition;
     pinElement(chatWindowId, currentPosition);
-  }, [isHandTrackingActive, elementState, pinElement, currentPosition, chatWindowId, isPinchDragging]);
+  }, [elementState, pinElement, currentPosition, chatWindowId, isPinchDragging]);
   
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isMouseDragging || !mouseDragStartRef.current || !initialElementPosRef.current || !elementState?.isPinned || isPinchDragging) return;
@@ -254,15 +254,7 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
         className={`h-80 border rounded-md shadow-lg bg-background/80 backdrop-blur-sm overflow-hidden transition-all duration-200 relative
                    ${isPinchDragging ? 'scale-105 opacity-100 border-primary border-4 shadow-2xl shadow-primary/70 ring-4 ring-primary/70' : isTargeted ? 'opacity-95 border-blue-600 border-2 shadow-xl shadow-blue-600/50' : 'opacity-85 hover:opacity-100 border-border'}`}
       >
-        {/* Pinch overlay indicator - only shows when pinching */}
-        {isPinchDragging && (
-          <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none bg-primary/20 backdrop-blur-sm rounded-md">
-            <div className="bg-primary text-primary-foreground font-bold text-lg text-center p-3 rounded-lg animate-pulse shadow-2xl ring-4 ring-offset-2 ring-offset-background ring-primary">
-              PINCHING
-              <div className="text-sm mt-1 font-normal">Move hand to drag</div>
-            </div>
-          </div>
-        )}
+        {/* Removed the pinch overlay indicator */}
         <ChatContainer
           className="bg-transparent !h-full"
           systemMessage="You are an AI agent inside an app used by a human called Commander. When asked, identify yourself simply as 'Agent'. Respond helpfully but extremely concisely, in 1-2 sentences."
