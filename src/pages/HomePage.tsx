@@ -53,7 +53,7 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
     
     // Log pinchMidpoint as soon as it's received from props
     if (isHandTrackingActive && pinchMidpoint) {
-      console.log(`PinnableChatWindow received pinchMidpoint: X=${pinchMidpoint.x.toFixed(2)}, Y=${pinchMidpoint.y.toFixed(2)} (Are these screen pixels?)`);
+      console.log(`PinnableChatWindow RX pinchMidpoint: X=${pinchMidpoint.x.toFixed(0)}, Y=${pinchMidpoint.y.toFixed(0)} (Screen Pixels)`);
     }
     
     // Log current state for debugging - now using screen coordinates
@@ -77,15 +77,23 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
           pinchMidpoint.y >= bounds.top && 
           pinchMidpoint.y <= bounds.bottom;
         
-        if (isCurrentlyPinchOverWindow) {
-          console.log(`%cSTARTING PINCH DRAG%c @ ${Math.round(pinchMidpoint.x)},${Math.round(pinchMidpoint.y)}px. Window: L${Math.round(bounds.left)} T${Math.round(bounds.top)} R${Math.round(bounds.right)} B${Math.round(bounds.bottom)}`, "color: green; font-weight: bold;", "color: green;");
+        // Log intersection test for debugging
+        console.log(`PINCH LOCATION TEST: 
+          pinch @ (${Math.round(pinchMidpoint.x)}, ${Math.round(pinchMidpoint.y)}) px
+          window @ L:${Math.round(bounds.left)} T:${Math.round(bounds.top)} R:${Math.round(bounds.right)} B:${Math.round(bounds.bottom)} px
+          intersection: ${isCurrentlyPinchOverWindow}
+        `);
+        
+        // Temporarily comment out the check to allow pinch from anywhere
+        // if (isCurrentlyPinchOverWindow) {
+          console.log(`%cSTARTING PINCH DRAG (OVERRIDE)%c @ ${Math.round(pinchMidpoint.x)},${Math.round(pinchMidpoint.y)}px. Window: L${Math.round(bounds.left)} T${Math.round(bounds.top)} R${Math.round(bounds.right)} B${Math.round(bounds.bottom)}`, "color: purple; font-weight: bold;", "color: purple;");
           setIsPinchDragging(true);
           pinchDragStartRef.current = { ...pinchMidpoint }; // Store a copy
           initialElementPosRef.current = { ...elementState.position }; // Store a copy
           pinElement(chatWindowId, elementState.position);
-        } else if (pinchMidpoint) {
-          console.warn(`Pinch Closed DETECTED BUT NOT OVER WINDOW. Pinch @ ${Math.round(pinchMidpoint.x)},${Math.round(pinchMidpoint.y)}px. Window Rect: L${Math.round(bounds.left)} T${Math.round(bounds.top)} R${Math.round(bounds.right)} B${Math.round(bounds.bottom)}`);
-        }
+        // } else if (pinchMidpoint) {
+        //   console.warn(`Pinch Closed DETECTED BUT NOT OVER WINDOW. Pinch @ ${Math.round(pinchMidpoint.x)},${Math.round(pinchMidpoint.y)}px. Window Rect: L${Math.round(bounds.left)} T${Math.round(bounds.top)} R${Math.round(bounds.right)} B${Math.round(bounds.bottom)}`);
+        // }
       }
     } 
     else if (isPinchDragging && isPinching && pinchMidpoint && pinchDragStartRef.current && initialElementPosRef.current) {

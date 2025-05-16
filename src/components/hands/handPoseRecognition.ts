@@ -70,35 +70,41 @@ function areOtherFingersCurled(landmarks: HandLandmarks): boolean {
 
 // Detect the PINCH_CLOSED pose - thumb and index finger close together, other fingers curled
 function isPinchClosed(landmarks: HandLandmarks): boolean {
-  const pinchDist = getPinchDistance(landmarks);
-  
-  // This threshold is crucial and needs calibration.
-  // Normalized coordinates (0-1), so this is a percentage of screen/image dimension.
-  // Increasing the threshold makes pinch detection more forgiving
-  const pinchThreshold = 0.08; // Increased from 0.05 to make pinch detection easier
-  
-  // Check if thumb and index finger tips are close together
+  const thumbTip = landmarks[LandmarkIndex.THUMB_TIP];
+  const indexTip = landmarks[LandmarkIndex.INDEX_FINGER_TIP];
+
+  const pinchDist = distance(thumbTip, indexTip); // Recalculate for local scope if needed
+  const pinchThreshold = 0.15; // INCREASED from 0.08 to make pinch detection more forgiving
   const closeFingers = pinchDist < pinchThreshold;
+
+  const othersCurled = areOtherFingersCurled(landmarks);
+
+  const thumbIp = landmarks[LandmarkIndex.THUMB_IP];
+  const thumbMcp = landmarks[LandmarkIndex.THUMB_MCP];
+  const indexPip = landmarks[LandmarkIndex.INDEX_FINGER_PIP];
+  const indexMcp = landmarks[LandmarkIndex.INDEX_FINGER_MCP];
+
+  const thumbExtendedVal = distance(thumbTip, thumbMcp) > distance(thumbIp, thumbMcp);
+  const indexExtendedVal = distance(indexTip, indexMcp) > distance(indexPip, indexMcp);
+
+  console.log(
+    `isPinchClosed Eval:
+     - Thumb Tip (4): x=${thumbTip.x.toFixed(3)}, y=${thumbTip.y.toFixed(3)}, z=${thumbTip.z.toFixed(3)}
+     - Index Tip (8): x=${indexTip.x.toFixed(3)}, y=${indexTip.y.toFixed(3)}, z=${indexTip.z.toFixed(3)}
+     - pinchDist: ${pinchDist.toFixed(3)} (threshold: ${pinchThreshold}) -> closeFingers: ${closeFingers}
+     - othersCurled: ${othersCurled}
+     - thumbExtended: ${thumbExtendedVal} (Tip-MCP: ${distance(thumbTip, thumbMcp).toFixed(3)}, IP-MCP: ${distance(thumbIp, thumbMcp).toFixed(3)})
+     - indexExtended: ${indexExtendedVal} (Tip-MCP: ${distance(indexTip, indexMcp).toFixed(3)}, PIP-MCP: ${distance(indexPip, indexMcp).toFixed(3)})
+     - FINAL RESULT (incl. all checks): ${closeFingers && othersCurled && thumbExtendedVal && indexExtendedVal}`
+  );
+
+  // For testing, we'll use a simplified check that only looks at the distance
+  // Once we have more data from logs, we can re-enable the other checks
+  console.log(`Simplified Check (closeFingers only): ${closeFingers}`);
+  return closeFingers; // TEST WITH THIS FIRST
   
-  // Using a simplified approach for more reliable detection during testing
-  // Only check the distance between thumb and index finger
-  // This will make pinch detection more forgiving
-  console.log(`Pinch distance: ${pinchDist.toFixed(3)}, threshold: ${pinchThreshold}, close: ${closeFingers}`);
-  
-  // Original logic - keeping this for reference:
-  // const othersCurled = areOtherFingersCurled(landmarks);
-  // const thumbTip = landmarks[LandmarkIndex.THUMB_TIP];
-  // const thumbIp = landmarks[LandmarkIndex.THUMB_IP];
-  // const thumbMcp = landmarks[LandmarkIndex.THUMB_MCP];
-  // const indexTip = landmarks[LandmarkIndex.INDEX_FINGER_TIP];
-  // const indexPip = landmarks[LandmarkIndex.INDEX_FINGER_PIP];
-  // const indexMcp = landmarks[LandmarkIndex.INDEX_FINGER_MCP];
-  // const thumbExtended = distance(thumbTip, thumbMcp) > distance(thumbIp, thumbMcp);
-  // const indexExtended = distance(indexTip, indexMcp) > distance(indexPip, indexMcp);
-  // return closeFingers && othersCurled && thumbExtended && indexExtended;
-  
-  // Simplified approach for testing:
-  return closeFingers;
+  // Original complete check:
+  // return closeFingers && othersCurled && thumbExtendedVal && indexExtendedVal;
 }
 
 function isFist(landmarks: HandLandmarks): boolean {
