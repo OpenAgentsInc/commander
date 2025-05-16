@@ -143,59 +143,63 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
             });
 
             // --- Visual Debugging on Canvas (landmarkCanvasRef) ---
-            // Calculate drawing positions based on canvas dimensions
-            const canvasDrawX = normalizedMidX * canvasWidth;
-            const canvasDrawY = normalizedMidY * canvasHeight;
+            // canvasDrawX_unmirrored: X coord of pinch point on an unmirrored canvas (0=left, canvasWidth=right)
+            // If hand is visually on left (user's right hand), NMX_orig_MP is large, so canvasDrawX_unmirrored is large.
+            const canvasDrawX_unmirrored = normalizedMidX * canvasWidth; // NMX_orig_MP is normalizedMidX here
+            const canvasDrawY_unmirrored = normalizedMidY * canvasHeight; // NMY_orig_MP is normalizedMidY here
 
-            // 1. Draw the green circle for the pinch point (will appear mirrored, which is fine)
+            // 1. Draw the green circle for the pinch point.
+            // Since canvas is CSS-mirrored, drawing at canvasDrawX_unmirrored will make it appear at the correct visual spot.
             ctx.beginPath();
-            ctx.arc(canvasDrawX, canvasDrawY, 10, 0, 2 * Math.PI); // Radius 10px
+            ctx.arc(canvasDrawX_unmirrored, canvasDrawY_unmirrored, 10, 0, 2 * Math.PI); // Radius 10px
             ctx.strokeStyle = "rgba(50, 205, 50, 0.9)"; // Lime green
             ctx.lineWidth = 2;
             ctx.stroke();
 
-            // 2. Draw the coordinate text with CORRECT orientation
+            // 2. Draw the coordinate text (readable and positioned visually to the RIGHT of the circle)
+            // screenPinchX already holds the visually correct X value for the label's text content.
             const coordText = `Pinch: ${Math.round(screenPinchX)}, ${Math.round(screenPinchY)} px`;
-            
-            ctx.save(); // Save context state
-            ctx.scale(-1, 1); // Flip context to counter the CSS transform scale-x[-1]
-            
-            // In flipped context, convert canvas coordinates
-            const canvasDrawXFlipped = -(canvasWidth - canvasDrawX);
-            
-            // Position text to LEFT of pinch in visual space
-            // In flipped context, setting textAlign to "right" and positioning
-            // to the LEFT of our reference point will put text visually left
-            const circleRadius = 10;
-            const padding = 5;
-            
-            // Set text alignment to right in the flipped context
-            ctx.textAlign = "right";
+
+            ctx.save(); // Save current context state
+            ctx.scale(-1, 1); // Flip the context horizontally to make text readable (counteracts CSS mirror)
+
             ctx.font = "bold 12px Arial";
-            
-            // Position text's right edge to left of circle
-            const textAnchorX = canvasDrawXFlipped - circleRadius - padding;
-            const textY = canvasDrawY;
-            
-            // Measure text for background
             const textMetrics = ctx.measureText(coordText);
             const textWidth = textMetrics.width;
-            const textHeight = 14;
-            
-            // Draw background (using textAlign:right positioning)
+            const textHeight = 14; // Approximate height for background
+
+            // Calculate visual X of the pinch circle's center on the screen
+            // normalizedMidX is raw from MediaPipe. If hand visually left, normalizedMidX is large (e.g. 0.8).
+            // Visual X for circle center: (1 - normalizedMidX) * canvasWidth
+            const visualCircleCenterX = (1 - normalizedMidX) * canvasWidth;
+
+            // Determine the visual X for the left anchor of the text, to the right of the circle
+            const circleRadius = 10;
+            const padding = 5;
+            const visualTextAnchorLeftX = visualCircleCenterX + circleRadius + padding;
+
+            // Convert this desired visual X to the X coordinate needed for drawing in the flipped context
+            // If visX is desired visual X, draw_X_in_flipped_ctx = -(canvasWidth - visX).
+            const drawTextAnchorLeftX_in_flipped_ctx = -(canvasWidth - visualTextAnchorLeftX);
+
+            const textY = canvasDrawY_unmirrored; // Use unmirrored Y for vertical positioning
+
+            ctx.textAlign = "left"; // Align text to its left edge
+
+            // Draw background for readability
             ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
             ctx.fillRect(
-                textAnchorX - textWidth, // Left edge with right alignment 
-                textY - textHeight,
-                textWidth + 4,
-                textHeight + 4
+                drawTextAnchorLeftX_in_flipped_ctx - 2,       // Background rect left edge
+                textY - textHeight,                       // Background rect top edge (approx for text baseline)
+                textWidth + 4,                             // Background rect width
+                textHeight + 4                             // Background rect height
             );
-            
-            // Draw text in bright green
+
+            // Draw the actual text
             ctx.fillStyle = "rgba(50, 205, 50, 1)"; // Lime green text
-            ctx.fillText(coordText, textAnchorX, textY);
-            
-            ctx.restore(); // Restore context
+            ctx.fillText(coordText, drawTextAnchorLeftX_in_flipped_ctx, textY - 3); // Adjusted Y for better visual centering
+
+            ctx.restore(); // Restore the context to its original state (mirrored by CSS, but scale(1,1))
           }
         } else if (pose !== HandPose.PINCH_CLOSED) {
           // If not in pinch pose, ensure pinchMidpoint is nullified
