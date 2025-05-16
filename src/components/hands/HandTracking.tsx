@@ -27,7 +27,7 @@ export default function HandTracking({ showHandTracking, setShowHandTracking }: 
         {showHandTracking && <ThreeScene handPosition={handPosition} />}
       </div>
 
-      {/* Hand tracking controls */}
+      {/* Hand tracking controls - split between left and right sides */}
       <div className="absolute top-5 right-5 flex flex-col gap-3 z-30" style={{ pointerEvents: 'auto' }}>
         <div className="flex items-center space-x-2 bg-black bg-opacity-50 p-2 rounded">
           <Switch
@@ -47,17 +47,19 @@ export default function HandTracking({ showHandTracking, setShowHandTracking }: 
             <p className="bg-black bg-opacity-50 text-white p-2 rounded text-xs transition-colors">
               Pose: <span className={activeHandPose === HandPose.PINCH_CLOSED ? 'text-primary font-bold' : ''}>{activeHandPose === HandPose.NONE ? 'N/A' : activeHandPose}</span>
             </p>
-            
-            {/* Display pinch midpoint if available - now showing screen coordinates */}
-            {pinchMidpoint && (
-              <p className="text-white bg-black bg-opacity-50 p-2 rounded text-xs flex items-center">
-                <span className="inline-block w-2 h-2 rounded-full bg-primary mr-2 animate-pulse"></span>
-                Pinch: {Math.round(pinchMidpoint.x)}, {Math.round(pinchMidpoint.y)} px
-              </p>
-            )}
           </>
         )}
       </div>
+      
+      {/* Pinch coordinate display on LEFT side of screen */}
+      {showHandTracking && pinchMidpoint && (
+        <div className="absolute top-5 left-5 z-30" style={{ pointerEvents: 'auto' }}>
+          <p className="text-white bg-black bg-opacity-50 p-2 rounded text-xs flex items-center">
+            <span className="inline-block w-2 h-2 rounded-full bg-primary mr-2 animate-pulse"></span>
+            Pinch: {Math.round(pinchMidpoint.x)}, {Math.round(pinchMidpoint.y)} px
+          </p>
+        </div>
+      )}
 
       {/* Hidden video element for camera input */}
       {showHandTracking && (

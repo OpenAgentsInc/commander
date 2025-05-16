@@ -87,16 +87,8 @@ function isPinchClosed(landmarks: HandLandmarks): boolean {
   const thumbExtendedVal = distance(thumbTip, thumbMcp) > distance(thumbIp, thumbMcp);
   const indexExtendedVal = distance(indexTip, indexMcp) > distance(indexPip, indexMcp);
 
-  console.log(
-    `isPinchClosed Eval:
-     - Thumb Tip (4): x=${thumbTip.x.toFixed(3)}, y=${thumbTip.y.toFixed(3)}, z=${thumbTip.z.toFixed(3)}
-     - Index Tip (8): x=${indexTip.x.toFixed(3)}, y=${indexTip.y.toFixed(3)}, z=${indexTip.z.toFixed(3)}
-     - pinchDist: ${pinchDist.toFixed(3)} (threshold: ${pinchThreshold}) -> closeFingers: ${closeFingers}
-     - othersCurled: ${othersCurled}
-     - thumbExtended: ${thumbExtendedVal} (Tip-MCP: ${distance(thumbTip, thumbMcp).toFixed(3)}, IP-MCP: ${distance(thumbIp, thumbMcp).toFixed(3)})
-     - indexExtended: ${indexExtendedVal} (Tip-MCP: ${distance(indexTip, indexMcp).toFixed(3)}, PIP-MCP: ${distance(indexPip, indexMcp).toFixed(3)})
-     - FINAL RESULT (incl. all checks): ${closeFingers && othersCurled && thumbExtendedVal && indexExtendedVal}`
-  );
+  // Simple log for pinch status only
+  console.log(`PINCH: dist=${pinchDist.toFixed(3)}, threshold=${pinchThreshold}, detected=${closeFingers}`);
 
   // For testing, we'll use a simplified check that only looks at the distance
   // Once we have more data from logs, we can re-enable the other checks

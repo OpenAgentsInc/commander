@@ -46,13 +46,55 @@ This log tracks continued work on fixing hand tracking and pinch-to-move issues:
 - Temporarily disabled the isPinchOverWindow check to allow pinch dragging from anywhere
 - This will help isolate whether the issue is with pinch detection or with the window intersection test
 
+## Fixed Green Label Position and Orientation
+
+- **Problem**: The green "Pinch: x, y" label in the scene had two issues:
+  1. The text was appearing on the wrong side of the pinch point (to the right instead of left)
+  2. The text was sometimes appearing mirrored/backwards
+
+- **Solution**: Completely redid the canvas text drawing with careful attention to both orientation and position:
+  ```typescript
+  // 2. Draw the coordinate text with CORRECT orientation
+  const coordText = `Pinch: ${Math.round(screenPinchX)}, ${Math.round(screenPinchY)} px`;
+  
+  // We need to:
+  // 1. Draw text in correct orientation (not mirrored)
+  // 2. Position it to the left of the pinch point (not right)
+  
+  ctx.save(); // Save context state
+  ctx.scale(-1, 1); // Flip context to counter the CSS transform scale-x[-1]
+  
+  // In flipped canvas context, right = left and vice versa
+  // So to put text on LEFT of pinch, calculate position to RIGHT of midpoint
+  // But in the flipped context, X coordinates are negative
+  const canvasDrawXFlipped = -(canvasWidth - canvasDrawX); // Convert to flipped coordinates
+  const textOffset = 20; // Distance from pinch point
+  const textX = canvasDrawXFlipped + textOffset; // RIGHT of pinch in flipped context = LEFT in visual space
+  const textY = canvasDrawY;
+  ```
+
+- **Key Changes**:
+  1. **Fixed text orientation**: Used `ctx.scale(-1, 1)` to properly flip the canvas drawing context, ensuring text renders in correct reading orientation
+  
+  2. **Fixed position relative to pinch**: Carefully calculated the position in the flipped coordinate system
+     - Converted canvas X to flipped coordinates: `-(canvasWidth - canvasDrawX)`
+     - Added positive offset (`+ textOffset`) which in flipped context positions text to visual left
+  
+  3. **Protected transformation with save/restore**: Used proper context state management to isolate the transformation
+  
+- **Result**: The green text label now appears:
+  - To the left of the pinch point (not right)
+  - In correct reading orientation (not mirrored)
+  - With consistent positioning relative to the pinch point
+
 ## Summary
 
 The primary issues were:
 
 1. **Coordinates and Text Display**:
    - Fixed the coordinate text display by properly handling the mirrored canvas context
-   - Ensured pinchMidpoint always stores screen pixel coordinates, not normalized values
+   - Corrected X coordinate mirroring by flipping normalized X values when converting to screen coordinates
+   - Ensured pinchMidpoint always stores screen pixel coordinates, not normalized values 
    - Added clear nullification of pinchMidpoint when not in pinch pose
 
 2. **Pinch Detection**: 
