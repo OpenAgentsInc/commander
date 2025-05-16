@@ -329,7 +329,7 @@ This completes Phase 1. The store is set up and basic tests pass.
         >
           <div className="h-80"> {/* Fixed height for chat content */}
             <ChatContainer
-              systemMessage="You are an AI agent inside an app used by a human called Commander. When asked, identify yourself simply as 'Agent'. Respond helpfully but extremely concisely, in 1-2 sentences."
+              systemMessage="You are an AI agent named 'Agent' inside an app used by a human called Commander. Respond helpfully but concisely, in 2-3 sentences."
               model="gemma3:1b"
             />
           </div>
@@ -1294,7 +1294,7 @@ Here are the phased instructions:
           <div className="h-80 opacity-85 hover:opacity-100 transition-opacity duration-200 border border-border rounded-md shadow-lg bg-background/80 backdrop-blur-sm overflow-hidden">
             <ChatContainer
               className="bg-transparent !h-full" // Ensure ChatContainer fills this div
-              systemMessage="You are an AI agent inside an app used by a human called Commander. When asked, identify yourself simply as 'Agent'. Respond helpfully but extremely concisely, in 1-2 sentences."
+              systemMessage="You are an AI agent named 'Agent' inside an app used by a human called Commander. Respond helpfully but concisely, in 2-3 sentences."
               model="gemma3:1b"
             />
           </div>

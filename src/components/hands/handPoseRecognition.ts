@@ -74,7 +74,7 @@ function isPinchClosed(landmarks: HandLandmarks): boolean {
   const indexTip = landmarks[LandmarkIndex.INDEX_FINGER_TIP];
 
   const pinchDist = distance(thumbTip, indexTip); // Recalculate for local scope if needed
-  const pinchThreshold = 0.08; // Decreased from 0.15 to require fingers to be closer together
+  const pinchThreshold = 0.1; // Increased from 0.08 to 0.1 as requested
   const closeFingers = pinchDist < pinchThreshold;
 
   const othersCurled = areOtherFingersCurled(landmarks);
@@ -87,12 +87,10 @@ function isPinchClosed(landmarks: HandLandmarks): boolean {
   const thumbExtendedVal = distance(thumbTip, thumbMcp) > distance(thumbIp, thumbMcp);
   const indexExtendedVal = distance(indexTip, indexMcp) > distance(indexPip, indexMcp);
 
-  // Simple log for pinch status only
-  console.log(`PINCH: dist=${pinchDist.toFixed(3)}, threshold=${pinchThreshold}, detected=${closeFingers}`);
+  // Removed logging for pinch status
 
   // For testing, we'll use a simplified check that only looks at the distance
   // Once we have more data from logs, we can re-enable the other checks
-  console.log(`Simplified Check (closeFingers only): ${closeFingers}`);
   return closeFingers; // TEST WITH THIS FIRST
   
   // Original complete check:

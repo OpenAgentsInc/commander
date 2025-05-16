@@ -7,8 +7,8 @@ interface UseChatOptions {
   model?: string;
 }
 
-export function useChat({ 
-  initialSystemMessage = "You are an AI agent inside an app used by a human called Commander. When asked, identify yourself simply as 'Agent'. Respond helpfully but extremely concisely, in 1-2 sentences.",
+export function useChat({
+  initialSystemMessage = "You are an AI agent named 'Agent' inside an app used by a human called Commander. Respond helpfully but concisely, in 2-3 sentences.",
   model = "gemma3:1b"
 }: UseChatOptions = {}) {
   const [messages, setMessages] = useState<ChatMessageProps[]>([
@@ -19,7 +19,7 @@ export function useChat({
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [userInput, setUserInput] = useState<string>("");
-  
+
   // Always use streaming
   const useStreaming = true;
 

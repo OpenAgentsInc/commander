@@ -105,15 +105,15 @@ const MainSceneContent = React.memo(({ handPosition, activeHandPose }: MainScene
       <color attach="background" args={['#000000']} />
 
       {/* Adjusted lighting for bright glow */}
-      <ambientLight intensity={0.11} />
+      <ambientLight intensity={0.05} />
 
       {/* Main directional light */}
       <directionalLight
-        position={[5, 5, 5]}
-        intensity={0.1}
+        position={[3, 5, 2]}
+        intensity={1.0}
         castShadow
         shadow-mapSize={[2048, 2048]}
-        shadow-bias={-0.0001}
+        shadow-bias={-0.001}
       >
         <orthographicCamera attach="shadow-camera" args={[-10, 10, 10, -10, 0.1, 50]} />
       </directionalLight>
@@ -121,7 +121,7 @@ const MainSceneContent = React.memo(({ handPosition, activeHandPose }: MainScene
       {/* Fill light */}
       <directionalLight
         position={[-5, -5, -5]}
-        intensity={0.8}
+        intensity={0.4}
       />
 
       {/* Environment for reflections - matches PhysicsBallsScene */}
@@ -130,9 +130,9 @@ const MainSceneContent = React.memo(({ handPosition, activeHandPose }: MainScene
       {/* Add bloom effect with softer settings - matches PhysicsBallsScene */}
       <EffectComposer>
         <Bloom
-          intensity={8.0}
+          intensity={12.0}
           luminanceThreshold={0.01}
-          luminanceSmoothing={0.5}
+          luminanceSmoothing={0.9}
           mipmapBlur
         />
       </EffectComposer>

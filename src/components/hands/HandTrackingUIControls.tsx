@@ -23,16 +23,13 @@ export default function HandTrackingUIControls({
   pinchMidpoint
 }: HandTrackingUIControlsProps) {
   
-  useEffect(() => {
-    // This effect just observes prop changes for debugging
-    console.log("[HandTrackingUIControls] showHandTracking:", showHandTracking);
-  }, [showHandTracking]);
+  // No need for debug logging effect
 
   return (
     <>
       {/* Hand tracking UI controls */}
       <div className="absolute top-5 right-5 flex flex-col gap-3 z-30" style={{ pointerEvents: 'auto' }}>
-        <div className="flex items-center space-x-2 bg-black bg-opacity-50 p-2 rounded">
+        <div className="flex items-center space-x-2 p-2">
           <Switch
             id="hand-tracking-toggle-main"
             checked={showHandTracking}
@@ -43,10 +40,10 @@ export default function HandTrackingUIControls({
 
         {showHandTracking && (
           <>
-            <p className="text-white bg-black bg-opacity-50 p-2 rounded text-xs">
+            <p className="text-white text-xs p-2">
               Status: {handTrackingStatus}
             </p>
-            <p className="bg-black bg-opacity-50 text-white p-2 rounded text-xs transition-colors">
+            <p className="text-white text-xs p-2 transition-colors">
               Pose: <span className={activeHandPose === HandPose.PINCH_CLOSED ? 'text-primary font-bold' : ''}>{activeHandPose === HandPose.NONE ? 'N/A' : activeHandPose}</span>
             </p>
           </>

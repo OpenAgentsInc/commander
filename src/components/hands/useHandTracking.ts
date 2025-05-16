@@ -110,8 +110,7 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
                 z: (thumbTip.z + indexTip.z) / 2, // Keep Z for potential 3D use
               };
 
-              // Update console log for better debugging of multiple pinches
-              // Pinch coordinates calculated
+              // Pinch coordinates calculated for multiple pinches
               
               // Save pinch visualization data to draw later (after all joint indicators)
               currentPinchMidpoint.normalizedMidX = normalizedMidX;
@@ -310,14 +309,12 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
         const canvasCtx = landmarkCanvasRef.current.getContext('2d');
         if (canvasCtx) {
           canvasCtx.clearRect(0, 0, landmarkCanvasRef.current.width, landmarkCanvasRef.current.height);
-          // Landmark canvas cleared.
         }
       }
       
       setHandTrackingStatus("Inactive");
       setHandPosition(null);
       setTrackedHands([]);
-      // Cleanup complete.
     };
 
     if (!enabled) {
@@ -326,13 +323,12 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
     }
 
     if (!videoRef.current || !landmarkCanvasRef.current) {
-      console.warn("[useHandTracking] Video or landmark canvas ref not available for init.");
+      // Video or landmark canvas ref not available for init
       return;
     }
 
     window.moduleInitialized = false;
 
-    // Initializing MediaPipe...
     setHandTrackingStatus("Initializing MediaPipe...");
 
     // Make sure any previous instances are properly closed before re-init
@@ -380,7 +376,6 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
 
       cameraRef.current.start();
       setHandTrackingStatus("Tracking active");
-      // MediaPipe Camera started.
     } catch (error) {
       console.error("Init error:", error);
       setHandTrackingStatus(
@@ -390,7 +385,6 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
     }
 
     return () => {
-      // useEffect cleanup function running.
       cleanupMediaPipe();
     };
   }, [enabled, onHandTrackingResults]);
