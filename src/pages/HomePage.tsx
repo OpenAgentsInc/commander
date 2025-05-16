@@ -17,10 +17,9 @@ export default function HomePage() {
       <div className="relative w-full h-full flex" style={{ pointerEvents: 'none' }}>
         {/* Chat container positioned at bottom-left */}
         <div
-          className="absolute bottom-0 left-0 p-1"
+          className="absolute bottom-0 left-0 w-[32rem] p-1"
           style={{ pointerEvents: 'auto' }}
         >
-          <div className="mb-1"></div>
           <div className="h-80">
             <ChatContainer
               systemMessage="You are an AI agent inside an app used by a human called Commander. When asked, identify yourself simply as 'Agent'. Respond helpfully but extremely concisely, in 1-2 sentences."

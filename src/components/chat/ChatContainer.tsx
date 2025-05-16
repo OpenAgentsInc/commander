@@ -31,7 +31,7 @@ export function ChatContainer({
   }, [cleanup]);
 
   return (
-    <div className={`w-[32rem] ${className}`}>
+    <div className={`h-full ${className}`}>
       <ChatWindow
         messages={messages}
         userInput={userInput}
