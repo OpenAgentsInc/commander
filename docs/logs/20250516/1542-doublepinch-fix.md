@@ -88,11 +88,45 @@ Decreased the font size of the "Pinch: x, y" text in the scene from 12px to 9px:
 ctx.font = "bold 9px Berkeley Mono"; // Reduced from 12px
 ```
 
+### 3. Fixed Z-Index Layering Issue
+Rearranged the drawing order so pinch visualization (circles and text) appears on top of joint indicators:
+
+1. Extended the PinchCoordinates interface to store normalized coordinates:
+```typescript
+export interface PinchCoordinates {
+  x: number;
+  y: number;
+  z?: number; // Optional depth
+  normalizedMidX?: number; // Added for canvas drawing
+  normalizedMidY?: number; // Added for canvas drawing
+}
+```
+
+2. Modified the pinch detection logic to store normalized coordinates but delay drawing:
+```typescript
+// Store normalized coordinates for later drawing
+currentPinchMidpoint.normalizedMidX = normalizedMidX;
+currentPinchMidpoint.normalizedMidY = normalizedMidY;
+```
+
+3. Added a separate drawing phase after all hand landmarks are drawn:
+```typescript
+// Now draw all pinch visualizations AFTER all hand landmarks have been drawn
+// This ensures pinch circles and text appear on top of joint indicators
+currentFrameTrackedHands.forEach(hand => {
+  if (hand.pinchMidpoint && hand.pinchMidpoint.normalizedMidX !== undefined) {
+    // Draw pinch circle and text here
+    // ...
+  }
+});
+```
+
 ## Expected Results
 - The hook now tracks and reports information for all detected hands (up to 2 hands)
 - Each hand's pose and pinch information is independently tracked and available 
 - Pinch detection now requires thumb and index finger to be closer together (more precise)
 - The overlay text showing pinch coordinates is smaller and less obtrusive
+- Pinch circles and coordinate text now appear on top of all other hand landmarks
 - Components using this hook will need to be updated to work with the trackedHands array
 
 ## Next Steps (Not Implemented)
