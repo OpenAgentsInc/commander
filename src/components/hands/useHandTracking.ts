@@ -1,9 +1,25 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera } from '@mediapipe/camera_utils';
-import { Hands, Results as HandResults, LandmarkConnectionArray, HAND_CONNECTIONS, NormalizedLandmarkList } from '@mediapipe/hands';
-import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
-import { HandPose, type HandLandmarks } from './handPoseTypes'; // Added
-import { recognizeHandPose } from './handPoseRecognition'; // Added
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Camera } from "@mediapipe/camera_utils";
+import {
+  Hands,
+  Results as HandResults,
+  LandmarkConnectionArray,
+  HAND_CONNECTIONS,
+} from "@mediapipe/hands";
+import { drawConnectors, drawLandmarks } from "@mediapipe/drawing_utils";
+import {
+  HandPose,
+  type HandLandmarks,
+  type PinchCoordinates,
+} from "./handPoseTypes";
+import { recognizeHandPose } from "./handPoseRecognition";
+
+interface TrackedHandInfo {
+  landmarks: HandLandmarks; // from @mediapipe/hands
+  pose: HandPose;           // from ./handPoseTypes
+  pinchMidpoint: PinchCoordinates | null; // from ./handPoseTypes
+  handedness: string;       // e.g., "Left" or "Right"
+}
 
 // Fix for the WebAssembly issues in Electron
 declare global {
@@ -26,148 +42,350 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
   const landmarkCanvasRef = useRef<HTMLCanvasElement>(null);
   const cameraRef = useRef<Camera | null>(null);
   const handsRef = useRef<Hands | null>(null);
-  const [handTrackingStatus, setHandTrackingStatus] = useState('Inactive');
+  const [handTrackingStatus, setHandTrackingStatus] = useState("Inactive");
   const [handPosition, setHandPosition] = useState<HandPosition | null>(null);
-  const [activeHandPose, setActiveHandPose] = useState<HandPose>(HandPose.NONE); // Added
+  const [trackedHands, setTrackedHands] = useState<TrackedHandInfo[]>([]);
 
   // Process MediaPipe results
-  const onHandTrackingResults = useCallback((results: HandResults) => {
-    if (!landmarkCanvasRef.current || !enabled) {
-      if (landmarkCanvasRef.current) {
-        const canvasCtx = landmarkCanvasRef.current.getContext('2d')!;
-        canvasCtx.clearRect(0, 0, landmarkCanvasRef.current.width, landmarkCanvasRef.current.height);
+  const onHandTrackingResults = useCallback(
+    (results: HandResults) => {
+      if (!landmarkCanvasRef.current || !enabled) {
+        if (landmarkCanvasRef.current) {
+          const canvasCtx = landmarkCanvasRef.current.getContext("2d")!;
+          canvasCtx.clearRect(
+            0,
+            0,
+            landmarkCanvasRef.current.width,
+            landmarkCanvasRef.current.height,
+          );
+        }
+        setHandPosition(null);
+        setTrackedHands([]);
+        return;
       }
-      setHandPosition(null);
-      setActiveHandPose(HandPose.NONE); // Reset pose when not enabled
-      return;
-    }
 
-    const canvasCtx = landmarkCanvasRef.current.getContext('2d')!;
-    canvasCtx.save();
-    canvasCtx.clearRect(0, 0, landmarkCanvasRef.current.width, landmarkCanvasRef.current.height);
+      const canvasCtx = landmarkCanvasRef.current.getContext("2d")!;
+      canvasCtx.save();
+      canvasCtx.clearRect(
+        0,
+        0,
+        landmarkCanvasRef.current.width,
+        landmarkCanvasRef.current.height,
+      );
 
-    let handsDetected = 0;
-    let rightHandLandmarks: HandLandmarks | null = null; // Changed type
+      let handsDetected = 0;
+      const currentFrameTrackedHands: TrackedHandInfo[] = [];
 
-    if (results.multiHandLandmarks && results.multiHandedness) {
-      handsDetected = results.multiHandLandmarks.length;
-      for (let index = 0; index < results.multiHandLandmarks.length; index++) {
-        const classification = results.multiHandedness[index];
-        const isRightHand = classification.label !== 'Right';
-        const landmarks = results.multiHandLandmarks[index] as HandLandmarks; // Cast to HandLandmarks
+      if (results.multiHandLandmarks && results.multiHandedness) {
+        handsDetected = results.multiHandLandmarks.length;
+        for (
+          let index = 0;
+          index < results.multiHandLandmarks.length;
+          index++
+        ) {
+          const classification = results.multiHandedness[index];
+          const handedness = classification.label; // "Right" or "Left"
+          const landmarks = results.multiHandLandmarks[index] as HandLandmarks;
+          const pose = recognizeHandPose(landmarks);
 
-        if (isRightHand) {
-          rightHandLandmarks = landmarks;
+          // Calculate pinch midpoint for the current hand
+          let currentPinchMidpoint: PinchCoordinates | null = null;
+          if (pose === HandPose.PINCH_CLOSED) {
+            const thumbTip = landmarks[4]; // THUMB_TIP index
+            const indexTip = landmarks[8]; // INDEX_FINGER_TIP index
+
+            if (thumbTip && indexTip && landmarkCanvasRef.current) {
+              const normalizedMidX = (thumbTip.x + indexTip.x) / 2;
+              const normalizedMidY = (thumbTip.y + indexTip.y) / 2;
+
+              // Convert to screen pixel coordinates (relative to viewport)
+              // Ensure X is flipped to match mirrored camera view for UI interaction
+              const mirroredNormalizedMidX = 1 - normalizedMidX;
+              const screenPinchX = mirroredNormalizedMidX * window.innerWidth;
+              const screenPinchY = normalizedMidY * window.innerHeight;
+
+              currentPinchMidpoint = {
+                x: screenPinchX,
+                y: screenPinchY,
+                z: (thumbTip.z + indexTip.z) / 2, // Keep Z for potential 3D use
+              };
+
+              // Pinch coordinates calculated for multiple pinches
+              
+              // Save pinch visualization data to draw later (after all joint indicators)
+              currentPinchMidpoint.normalizedMidX = normalizedMidX;
+              currentPinchMidpoint.normalizedMidY = normalizedMidY;
+            }
+          }
+          
+          // Add the hand data to the tracked hands array
+          currentFrameTrackedHands.push({
+            landmarks,
+            pose,
+            pinchMidpoint: currentPinchMidpoint,
+            handedness
+          });
+
+          // Use the first hand for the 3D pointer (handPosition)
+          if (index === 0) {
+            if (landmarks.length > 8) {
+              const indexFingerTip = landmarks[8];
+              setHandPosition({
+                x: indexFingerTip.x,
+                y: indexFingerTip.y,
+              });
+            }
+          }
+
+          drawConnectors(
+            canvasCtx,
+            landmarks,
+            HAND_CONNECTIONS as LandmarkConnectionArray,
+            {
+              color: "#3f3f46",
+              lineWidth: 1,
+            },
+          );
+
+          drawLandmarks(canvasCtx, landmarks, {
+            color: "#fff",
+            lineWidth: 1,
+            fillColor: "#000",
+            radius: 4, // Fixed radius for all landmarks
+          });
+
+          // Highlight thumb tip (4) and index tip (8) with larger dots
           if (landmarks.length > 8) {
-            const rightHandIndexFingerTip = landmarks[8];
-            setHandPosition({
-              x: rightHandIndexFingerTip.x,
-              y: rightHandIndexFingerTip.y
-            });
+            const thumbTip = landmarks[4];
+            const indexTip = landmarks[8];
+
+            canvasCtx.beginPath();
+            canvasCtx.arc(
+              thumbTip.x * landmarkCanvasRef.current.width,
+              thumbTip.y * landmarkCanvasRef.current.height,
+              6,
+              0,
+              2 * Math.PI,
+            );
+            canvasCtx.fillStyle = "#ffffff"; // White for thumb
+            canvasCtx.fill();
+
+            canvasCtx.beginPath();
+            canvasCtx.arc(
+              indexTip.x * landmarkCanvasRef.current.width,
+              indexTip.y * landmarkCanvasRef.current.height,
+              6,
+              0,
+              2 * Math.PI,
+            );
+            canvasCtx.fillStyle = "#ffffff"; // White for index
+            canvasCtx.fill();
           }
         }
-
-        drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS as LandmarkConnectionArray, {
-          color: "#3f3f46",
-          lineWidth: 1
-        });
-
-        drawLandmarks(canvasCtx, landmarks, {
-          color: "#fff",
-          lineWidth: 1,
-          fillColor: '#000',
-          radius: 4
-        });
       }
-    }
 
-    if (rightHandLandmarks) {
-      const pose = recognizeHandPose(rightHandLandmarks);
-      setActiveHandPose(pose);
-    } else {
-      setHandPosition(null);
-      setActiveHandPose(HandPose.NONE);
-    }
+      // Now draw all pinch visualizations AFTER all hand landmarks have been drawn
+      // This ensures pinch circles and text appear on top of joint indicators
+      currentFrameTrackedHands.forEach(hand => {
+        if (hand.pinchMidpoint && hand.pinchMidpoint.normalizedMidX !== undefined && hand.pinchMidpoint.normalizedMidY !== undefined) {
+          const normalizedMidX = hand.pinchMidpoint.normalizedMidX;
+          const normalizedMidY = hand.pinchMidpoint.normalizedMidY;
+          const screenPinchX = hand.pinchMidpoint.x;
+          const screenPinchY = hand.pinchMidpoint.y;
+          
+          const canvas = landmarkCanvasRef.current!;
+          const ctx = canvasCtx;
+          const canvasWidth = canvas.width;
+          const canvasHeight = canvas.height;
+          
+          // Draw the pinch circle
+          const canvasDrawX_unmirrored = normalizedMidX * canvasWidth;
+          const canvasDrawY_unmirrored = normalizedMidY * canvasHeight;
+          
+          ctx.beginPath();
+          ctx.arc(
+            canvasDrawX_unmirrored,
+            canvasDrawY_unmirrored,
+            10,
+            0,
+            2 * Math.PI,
+          );
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          
+          // Draw the coordinate text
+          const coordText = `Pinch: ${Math.round(screenPinchX)}, ${Math.round(screenPinchY)} px`;
+          
+          ctx.save();
+          ctx.scale(-1, 1);
+          
+          ctx.font = "bold 9px Berkeley Mono";
+          const textMetrics = ctx.measureText(coordText);
+          const textWidth = textMetrics.width;
+          const textHeight = 14;
+          
+          const visualCircleCenterX = (1 - normalizedMidX) * canvasWidth;
+          const circleRadius = 10;
+          const padding = 5;
+          const visualTextAnchorLeftX = visualCircleCenterX + circleRadius + padding;
+          const drawTextAnchorLeftX_in_flipped_ctx = -(canvasWidth - visualTextAnchorLeftX);
+          const textY = canvasDrawY_unmirrored;
+          
+          ctx.textAlign = "left";
+          
+          // Draw background
+          ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+          ctx.fillRect(
+            drawTextAnchorLeftX_in_flipped_ctx - 2,
+            textY - textHeight,
+            textWidth + 4,
+            textHeight + 4,
+          );
+          
+          // Draw text
+          ctx.fillStyle = "rgba(255, 255, 255, 1)";
+          ctx.fillText(coordText, drawTextAnchorLeftX_in_flipped_ctx, textY - 3);
+          
+          ctx.restore();
+        }
+      });
+      
+      // Update the tracked hands state with the hands from the current frame
+      setTrackedHands(currentFrameTrackedHands);
+      
+      // If no hands were detected, reset the hand position
+      if (currentFrameTrackedHands.length === 0) {
+        setHandPosition(null);
+      }
 
-    if (enabled) {
-      setHandTrackingStatus(handsDetected > 0 ? `${handsDetected} hand(s) detected` : 'No hands detected');
-    }
-    canvasCtx.restore();
-  }, [enabled]);
+      if (enabled) {
+        setHandTrackingStatus(
+          handsDetected > 0
+            ? `${handsDetected} hand(s) detected`
+            : "No hands detected",
+        );
+      }
+      canvasCtx.restore();
+    },
+    [enabled],
+  );
 
   // Initialize hand tracking
   useEffect(() => {
-    if (!enabled) {
+    const cleanupMediaPipe = () => {
+      // Cleaning up MediaPipe resources...
+      
       if (cameraRef.current) {
         try {
           cameraRef.current.stop();
-          if (handsRef.current) {
-            handsRef.current.close();
-          }
+        } catch (err) { 
+          console.error("Error stopping camera:", err); 
+        }
+        cameraRef.current = null;
+      }
+      
+      if (handsRef.current) {
+        try {
+          handsRef.current.close();
+        } catch (err) { 
+          console.error("Error closing MediaPipe Hands:", err); 
+        }
+        handsRef.current = null;
+      }
+      
+      if (videoRef.current && videoRef.current.srcObject) {
+        try {
+          const stream = videoRef.current.srcObject as MediaStream;
+          stream.getTracks().forEach(track => track.stop());
+          videoRef.current.srcObject = null;
+          videoRef.current.load(); // Reset video element fully
         } catch (err) {
-          console.error('Cleanup error:', err);
+          console.error("Error cleaning up video stream:", err);
         }
       }
-      setHandTrackingStatus('Inactive');
-      setActiveHandPose(HandPose.NONE); // Reset pose on disable
+      
+      if (landmarkCanvasRef.current) {
+        const canvasCtx = landmarkCanvasRef.current.getContext('2d');
+        if (canvasCtx) {
+          canvasCtx.clearRect(0, 0, landmarkCanvasRef.current.width, landmarkCanvasRef.current.height);
+        }
+      }
+      
+      setHandTrackingStatus("Inactive");
+      setHandPosition(null);
+      setTrackedHands([]);
+    };
+
+    if (!enabled) {
+      cleanupMediaPipe();
       return;
     }
 
-    if (!videoRef.current || !landmarkCanvasRef.current) return;
+    if (!videoRef.current || !landmarkCanvasRef.current) {
+      // Video or landmark canvas ref not available for init
+      return;
+    }
 
     window.moduleInitialized = false;
 
-    try {
-      setHandTrackingStatus('Initializing MediaPipe...');
+    setHandTrackingStatus("Initializing MediaPipe...");
 
+    // Make sure any previous instances are properly closed before re-init
+    if (handsRef.current) {
+      try { handsRef.current.close(); } catch(e) { /* ignore */ }
+      handsRef.current = null;
+    }
+    
+    if (cameraRef.current) {
+      try { cameraRef.current.stop(); } catch(e) { /* ignore */ }
+      cameraRef.current = null;
+    }
+
+    try {
       handsRef.current = new Hands({
         locateFile: (file) => {
           return `/mediapipe/hands/${file}`;
-        }
+        },
       });
 
       handsRef.current.setOptions({
         selfieMode: false,
-        maxNumHands: 2,
+        maxNumHands: 2, // Set back to 2 to enable two-hand detection
         modelComplexity: 0,
         minDetectionConfidence: 0.7,
-        minTrackingConfidence: 0.5
+        minTrackingConfidence: 0.5,
       });
 
       handsRef.current.onResults(onHandTrackingResults);
-      setHandTrackingStatus('MediaPipe initialized');
+      setHandTrackingStatus("MediaPipe initialized");
 
       cameraRef.current = new Camera(videoRef.current, {
         onFrame: async () => {
-          if (videoRef.current && handsRef.current) {
+          if (videoRef.current && handsRef.current && videoRef.current.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
             try {
               await handsRef.current.send({ image: videoRef.current });
             } catch (err) {
-              console.log("Frame error (normal during tracking)");
+              // Expected during shutdown - don't log
             }
           }
         },
         width: 640,
-        height: 480
+        height: 480,
       });
 
       cameraRef.current.start();
-      setHandTrackingStatus('Tracking active');
-
+      setHandTrackingStatus("Tracking active");
     } catch (error) {
-      console.error('Init error:', error);
-      setHandTrackingStatus(`Error initializing MediaPipe: ${error instanceof Error ? error.message : String(error)}`);
+      console.error("Init error:", error);
+      setHandTrackingStatus(
+        `Error initializing MediaPipe: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      cleanupMediaPipe(); // Clean up if initialization fails
     }
 
     return () => {
-      try {
-        cameraRef.current?.stop();
-        if (handsRef.current) {
-          handsRef.current.close();
-        }
-      } catch (err) {
-        console.error('Cleanup error:', err);
-      }
+      cleanupMediaPipe();
     };
   }, [enabled, onHandTrackingResults]);
 
@@ -177,8 +395,10 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
 
     const updateCanvasDimensions = () => {
       if (videoRef.current && landmarkCanvasRef.current) {
-        const videoWidth = videoRef.current.videoWidth || videoRef.current.clientWidth;
-        const videoHeight = videoRef.current.videoHeight || videoRef.current.clientHeight;
+        const videoWidth =
+          videoRef.current.videoWidth || videoRef.current.clientWidth;
+        const videoHeight =
+          videoRef.current.videoHeight || videoRef.current.clientHeight;
 
         if (videoWidth > 0 && videoHeight > 0) {
           landmarkCanvasRef.current.width = videoWidth;
@@ -192,27 +412,34 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
 
     const videoEl = videoRef.current;
     if (videoEl) {
-      videoEl.addEventListener('loadedmetadata', updateCanvasDimensions);
-      videoEl.addEventListener('play', updateCanvasDimensions);
+      videoEl.addEventListener("loadedmetadata", updateCanvasDimensions);
+      videoEl.addEventListener("play", updateCanvasDimensions);
     }
 
-    window.addEventListener('resize', updateCanvasDimensions);
+    window.addEventListener("resize", updateCanvasDimensions);
     updateCanvasDimensions();
 
     return () => {
       if (videoEl) {
-        videoEl.removeEventListener('loadedmetadata', updateCanvasDimensions);
-        videoEl.removeEventListener('play', updateCanvasDimensions);
+        videoEl.removeEventListener("loadedmetadata", updateCanvasDimensions);
+        videoEl.removeEventListener("play", updateCanvasDimensions);
       }
-      window.removeEventListener('resize', updateCanvasDimensions);
+      window.removeEventListener("resize", updateCanvasDimensions);
     };
   }, [enabled]);
+
+  // Compute values for the first tracked hand (for backward compatibility)
+  const activeHand = trackedHands.length > 0 ? trackedHands[0] : null;
+  const activeHandPose = activeHand ? activeHand.pose : HandPose.NONE;
+  const pinchMidpoint = activeHand ? activeHand.pinchMidpoint : null;
 
   return {
     videoRef,
     landmarkCanvasRef,
     handPosition,
     handTrackingStatus,
-    activeHandPose, // Added
+    activeHandPose, // Add for compatibility with existing components
+    pinchMidpoint,  // Add for compatibility with existing components
+    trackedHands,   // For components that need access to all tracked hands
   };
 }

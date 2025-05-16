@@ -4,6 +4,7 @@ export enum HandPose {
   TWO_FINGER_V = "Two-Finger V",
   FLAT_HAND = "Flat Hand",
   OPEN_HAND = "Open Hand",
+  PINCH_CLOSED = "Pinch Closed", // Thumb and index finger are close together
   NONE = "None",
 }
 
@@ -16,3 +17,12 @@ export interface Landmark {
 }
 
 export type HandLandmarks = Landmark[];
+
+// For use with the pinch gesture
+export interface PinchCoordinates {
+  x: number;
+  y: number;
+  z?: number; // Optional depth
+  normalizedMidX?: number; // Added for canvas drawing
+  normalizedMidY?: number; // Added for canvas drawing
+}
