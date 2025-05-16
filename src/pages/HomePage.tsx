@@ -36,7 +36,7 @@ function DynamicPointer({ handPosition, vec = new THREE.Vector3() }: { handPosit
       // Invert X to match mirrored hand tracking, shift Y to match viewport
       const x = (1 - handPosition.x) * viewport.width - viewport.width / 2;
       const y = (1 - handPosition.y) * viewport.height - viewport.height / 2;
-      
+
       vec.set(x, y, 0);
       ref.current.setNextKinematicTranslation(vec);
       invalidate();
@@ -65,7 +65,7 @@ function MousePointer({ vec = new THREE.Vector3() }: { vec?: THREE.Vector3 }) {
       // Map mouse position to viewport coordinates
       const x = (mouse.x * viewport.width) / 2;
       const y = (mouse.y * viewport.height) / 2;
-      
+
       vec.set(x, y, 0);
       ref.current.setNextKinematicTranslation(vec);
       invalidate();
@@ -82,7 +82,7 @@ function MousePointer({ vec = new THREE.Vector3() }: { vec?: THREE.Vector3 }) {
 // Memoized Canvas component without postprocessing effects to prevent conflicts
 const R3FBackground = React.memo(({ handPosition }: { handPosition: { x: number, y: number } | null }) => {
   const { invalidate } = useThree();
-  
+
   // Request frames on mouse move
   useEffect(() => {
     const handleMouseMove = () => invalidate();
@@ -93,10 +93,10 @@ const R3FBackground = React.memo(({ handPosition }: { handPosition: { x: number,
   return (
     <>
       <color attach="background" args={['#000000']} />
-      
+
       {/* Environment for reflections with a preset that's more likely to be available */}
       <Environment preset="sunset" />
-      
+
       <Physics colliders={undefined} gravity={[6.4, 6.4, 4.4]}>
         {/* Use hand position for the pointer if available, otherwise use mouse */}
         {handPosition ? (
@@ -104,20 +104,20 @@ const R3FBackground = React.memo(({ handPosition }: { handPosition: { x: number,
         ) : (
           <MousePointer />
         )}
-        
+
         {/* Scene objects */}
         {Array.from({ length: 16 }).map((_, i) => (
-          <RigidBody 
-            key={i} 
-            linearDamping={4} 
-            angularDamping={1} 
-            friction={0.1} 
+          <RigidBody
+            key={i}
+            linearDamping={4}
+            angularDamping={1}
+            friction={0.1}
             position={[THREE.MathUtils.randFloatSpread(10), THREE.MathUtils.randFloatSpread(10), THREE.MathUtils.randFloatSpread(10)]}
           >
             <CuboidCollider args={[0.5, 0.5, 0.5]} />
             <mesh castShadow receiveShadow>
               <boxGeometry args={[1, 1, 1]} />
-              <meshStandardMaterial 
+              <meshStandardMaterial
                 color="#ffffff"
                 roughness={0.1}
                 metalness={0.9}
@@ -220,19 +220,23 @@ export default function HomePage() {
           });
         }
 
+        console.log(landmarks)
+
         // Draw landmarks and connectors with enhanced visibility
         drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS as LandmarkConnectionArray, {
-          color: isRightHand ? '#00FF00' : '#FF0000',
-          lineWidth: 5
+          color: "#3f3f46", // isRightHand ? '#00FF00' : '#FF0000',
+          lineWidth: 1
         });
 
         drawLandmarks(canvasCtx, landmarks, {
-          color: isRightHand ? '#FFFFFF' : '#CCCCCC',
-          lineWidth: 3,
-          radius: (landmarkData) => {
-            // Make thumb and index fingertips larger for better visibility
-            return (landmarkData.index === 4 || landmarkData.index === 8) ? 10 : 6;
-          }
+          color: "#a1a1aa", // isRightHand ? '#FFFFFF' : '#CCCCCC',
+          lineWidth: 2,
+          fillColor: '#000',
+          radius: 5
+          // radius: (landmarkData) => {
+          //   // Make thumb and index fingertips larger for better visibility
+          //   return (landmarkData.index === 4 || landmarkData.index === 8) ? 6 : 3;
+          // }
         });
       }
     }
@@ -331,7 +335,7 @@ export default function HomePage() {
   // Ensure canvas dimensions match video dimensions
   useEffect(() => {
     if (!showHandTracking) return;
-    
+
     const updateCanvasDimensions = () => {
       if (videoRef.current && landmarkCanvasRef.current) {
         const videoWidth = videoRef.current.videoWidth || videoRef.current.clientWidth;
@@ -612,7 +616,7 @@ export default function HomePage() {
     <div className="flex flex-col h-full w-full relative">
       {/* Three.js scene with hand position tracking */}
       <div className="fixed inset-0" style={{ pointerEvents: 'auto' }}>
-        <ThreeScene handPosition={handPosition} />
+        {/* <ThreeScene handPosition={handPosition} /> */}
       </div>
 
       {/* UI Overlay - use pointer-events: none to let clicks pass through to the canvas
@@ -622,14 +626,14 @@ export default function HomePage() {
         {/* Hand tracking controls */}
         <div className="absolute top-5 right-5 flex flex-col gap-3 z-30" style={{ pointerEvents: 'auto' }}>
           <div className="flex items-center space-x-2 bg-black bg-opacity-50 p-2 rounded">
-            <Switch 
+            <Switch
               id="hand-tracking"
               checked={showHandTracking}
               onCheckedChange={setShowHandTracking}
             />
             <Label htmlFor="hand-tracking" className="text-white">Hand Tracking</Label>
           </div>
-          
+
           {showHandTracking && (
             <p className="text-white bg-black bg-opacity-50 p-2 rounded">
               {handTrackingStatus}
