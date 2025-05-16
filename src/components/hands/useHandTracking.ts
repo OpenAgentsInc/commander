@@ -157,39 +157,43 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
             // 2. Draw the coordinate text with CORRECT orientation
             const coordText = `Pinch: ${Math.round(screenPinchX)}, ${Math.round(screenPinchY)} px`;
             
-            // We need to:
-            // 1. Draw text in correct orientation (not mirrored)
-            // 2. Position it to the left of the pinch point (not right)
-            
             ctx.save(); // Save context state
             ctx.scale(-1, 1); // Flip context to counter the CSS transform scale-x[-1]
             
-            // In flipped canvas context, right = left and vice versa
-            // So to put text on LEFT of pinch, calculate position to RIGHT of midpoint
-            // But in the flipped context, X coordinates are negative
-            const canvasDrawXFlipped = -(canvasWidth - canvasDrawX); // Convert to flipped coordinates
-            const textOffset = 20; // Distance from pinch point
-            const textX = canvasDrawXFlipped + textOffset; // RIGHT of pinch in flipped context = LEFT in visual space
-            const textY = canvasDrawY;
+            // In flipped context, convert canvas coordinates
+            const canvasDrawXFlipped = -(canvasWidth - canvasDrawX);
             
+            // Position text to LEFT of pinch in visual space
+            // In flipped context, setting textAlign to "right" and positioning
+            // to the LEFT of our reference point will put text visually left
+            const circleRadius = 10;
+            const padding = 5;
+            
+            // Set text alignment to right in the flipped context
+            ctx.textAlign = "right";
             ctx.font = "bold 12px Arial";
             
-            // Background for text readability
+            // Position text's right edge to left of circle
+            const textAnchorX = canvasDrawXFlipped - circleRadius - padding;
+            const textY = canvasDrawY;
+            
+            // Measure text for background
             const textMetrics = ctx.measureText(coordText);
             const textWidth = textMetrics.width;
             const textHeight = 14;
             
+            // Draw background (using textAlign:right positioning)
             ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
             ctx.fillRect(
-                textX - 2, 
-                textY - textHeight - 2,
+                textAnchorX - textWidth, // Left edge with right alignment 
+                textY - textHeight,
                 textWidth + 4,
                 textHeight + 4
             );
             
             // Draw text in bright green
             ctx.fillStyle = "rgba(50, 205, 50, 1)"; // Lime green text
-            ctx.fillText(coordText, textX, textY - 4);
+            ctx.fillText(coordText, textAnchorX, textY);
             
             ctx.restore(); // Restore context
           }
