@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier';
+import { Environment } from '@react-three/drei';
 import { Button } from "@/components/ui/button";
 import { Hands, Results as HandResults, LandmarkConnectionArray, HAND_CONNECTIONS } from '@mediapipe/hands';
 import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
@@ -93,6 +94,9 @@ const R3FBackground = React.memo(({ handPosition }: { handPosition: { x: number,
     <>
       <color attach="background" args={['#000000']} />
       
+      {/* Environment for reflections with a preset that's more likely to be available */}
+      <Environment preset="sunset" />
+      
       <Physics colliders={undefined} gravity={[6.4, 6.4, 4.4]}>
         {/* Use hand position for the pointer if available, otherwise use mouse */}
         {handPosition ? (
@@ -114,20 +118,19 @@ const R3FBackground = React.memo(({ handPosition }: { handPosition: { x: number,
             <mesh castShadow receiveShadow>
               <boxGeometry args={[1, 1, 1]} />
               <meshStandardMaterial 
-                color="#111111"
-                emissive="#ffffff"
-                emissiveIntensity={0.0001}
-                roughness={0.95}
-                metalness={0.05}
+                color="#ffffff"
+                roughness={0.1}
+                metalness={0.9}
+                envMapIntensity={1}
               />
             </mesh>
           </RigidBody>
         ))}
       </Physics>
 
-      {/* Simplified lighting */}
+      {/* Enhanced lighting */}
       <ambientLight intensity={0.4} />
-      <directionalLight position={[5, 5, 5]} intensity={0.1} />
+      <directionalLight position={[5, 5, 5]} intensity={0.5} castShadow />
       <pointLight position={[10, 10, 10]} intensity={1} />
     </>
   );
@@ -138,8 +141,8 @@ const ThreeScene = ({ handPosition }: { handPosition: { x: number, y: number } |
   return (
     <Canvas
       camera={{ position: [0, 0, 30], fov: 17.5, near: 10, far: 40 }}
-      flat
-      gl={{ antialias: false, alpha: true }}
+      shadows
+      gl={{ antialias: true, alpha: true }}
       dpr={[1, 1.5]}
       frameloop="demand"
       performance={{ min: 0.5 }}
