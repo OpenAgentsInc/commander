@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera } from '@mediapipe/camera_utils';
-import { Hands, Results as HandResults, LandmarkConnectionArray, HAND_CONNECTIONS } from '@mediapipe/hands';
+import { Hands, Results as HandResults, LandmarkConnectionArray, HAND_CONNECTIONS, NormalizedLandmarkList } from '@mediapipe/hands';
 import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
+import { HandPose, type HandLandmarks } from './handPoseTypes'; // Added
+import { recognizeHandPose } from './handPoseRecognition'; // Added
 
 // Fix for the WebAssembly issues in Electron
 declare global {
@@ -26,17 +28,17 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
   const handsRef = useRef<Hands | null>(null);
   const [handTrackingStatus, setHandTrackingStatus] = useState('Inactive');
   const [handPosition, setHandPosition] = useState<HandPosition | null>(null);
+  const [activeHandPose, setActiveHandPose] = useState<HandPose>(HandPose.NONE); // Added
 
   // Process MediaPipe results
   const onHandTrackingResults = useCallback((results: HandResults) => {
     if (!landmarkCanvasRef.current || !enabled) {
-      // If hand tracking is disabled, just clear the canvas
       if (landmarkCanvasRef.current) {
         const canvasCtx = landmarkCanvasRef.current.getContext('2d')!;
         canvasCtx.clearRect(0, 0, landmarkCanvasRef.current.width, landmarkCanvasRef.current.height);
       }
-      // Also clear hand position when tracking is disabled
       setHandPosition(null);
+      setActiveHandPose(HandPose.NONE); // Reset pose when not enabled
       return;
     }
 
@@ -45,34 +47,33 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
     canvasCtx.clearRect(0, 0, landmarkCanvasRef.current.width, landmarkCanvasRef.current.height);
 
     let handsDetected = 0;
-    let rightHandIndex = null;
+    let rightHandLandmarks: HandLandmarks | null = null; // Changed type
 
     if (results.multiHandLandmarks && results.multiHandedness) {
       handsDetected = results.multiHandLandmarks.length;
       for (let index = 0; index < results.multiHandLandmarks.length; index++) {
         const classification = results.multiHandedness[index];
-        // Fix hand orientation by flipping the labels (since camera is mirrored)
-        const isRightHand = classification.label !== 'Right'; // Invert label
-        const landmarks = results.multiHandLandmarks[index];
+        const isRightHand = classification.label !== 'Right';
+        const landmarks = results.multiHandLandmarks[index] as HandLandmarks; // Cast to HandLandmarks
 
-        // Track right hand index finger position for 3D interaction
-        if (isRightHand && landmarks.length > 8) {
-          rightHandIndex = landmarks[8]; // INDEX_FINGER_TIP
-          // Update hand position for 3D scene interaction
-          setHandPosition({
-            x: rightHandIndex.x,
-            y: rightHandIndex.y
-          });
+        if (isRightHand) {
+          rightHandLandmarks = landmarks;
+          if (landmarks.length > 8) {
+            const rightHandIndexFingerTip = landmarks[8];
+            setHandPosition({
+              x: rightHandIndexFingerTip.x,
+              y: rightHandIndexFingerTip.y
+            });
+          }
         }
 
-        // Draw landmarks and connectors with enhanced visibility
         drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS as LandmarkConnectionArray, {
-          color: "#3f3f46", // isRightHand ? '#00FF00' : '#FF0000',
+          color: "#3f3f46",
           lineWidth: 1
         });
 
         drawLandmarks(canvasCtx, landmarks, {
-          color: "#fff", // isRightHand ? '#FFFFFF' : '#CCCCCC',
+          color: "#fff",
           lineWidth: 1,
           fillColor: '#000',
           radius: 4
@@ -80,9 +81,12 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
       }
     }
 
-    // If no right hand detected, clear hand position
-    if (!rightHandIndex) {
+    if (rightHandLandmarks) {
+      const pose = recognizeHandPose(rightHandLandmarks);
+      setActiveHandPose(pose);
+    } else {
       setHandPosition(null);
+      setActiveHandPose(HandPose.NONE);
     }
 
     if (enabled) {
@@ -94,7 +98,6 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
   // Initialize hand tracking
   useEffect(() => {
     if (!enabled) {
-      // Clean up existing tracking if it's being disabled
       if (cameraRef.current) {
         try {
           cameraRef.current.stop();
@@ -106,27 +109,25 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
         }
       }
       setHandTrackingStatus('Inactive');
+      setActiveHandPose(HandPose.NONE); // Reset pose on disable
       return;
     }
 
     if (!videoRef.current || !landmarkCanvasRef.current) return;
 
-    // Set a global flag to prevent MediaPipe from reloading its WebAssembly module
     window.moduleInitialized = false;
 
     try {
       setHandTrackingStatus('Initializing MediaPipe...');
 
-      // Initialize hands with shorter timeout
       handsRef.current = new Hands({
         locateFile: (file) => {
           return `/mediapipe/hands/${file}`;
         }
       });
 
-      // Use model complexity 0 (lite) for better performance
       handsRef.current.setOptions({
-        selfieMode: false, // Changed to false for corrected mirroring
+        selfieMode: false,
         maxNumHands: 2,
         modelComplexity: 0,
         minDetectionConfidence: 0.7,
@@ -142,7 +143,6 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
             try {
               await handsRef.current.send({ image: videoRef.current });
             } catch (err) {
-              // Silently ignore frame errors - they don't affect overall functionality
               console.log("Frame error (normal during tracking)");
             }
           }
@@ -171,7 +171,7 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
     };
   }, [enabled, onHandTrackingResults]);
 
-  // Ensure canvas dimensions match video dimensions
+  // Canvas dimensions effect
   useEffect(() => {
     if (!enabled) return;
 
@@ -212,6 +212,7 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
     videoRef,
     landmarkCanvasRef,
     handPosition,
-    handTrackingStatus
+    handTrackingStatus,
+    activeHandPose, // Added
   };
 }

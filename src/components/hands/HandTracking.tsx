@@ -1,5 +1,6 @@
 import React from 'react';
 import { useHandTracking } from './useHandTracking';
+import { HandPose } from './handPoseTypes'; // Explicit import
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import ThreeScene from './ThreeScene';
@@ -14,7 +15,8 @@ export default function HandTracking({ showHandTracking, setShowHandTracking }: 
     videoRef,
     landmarkCanvasRef,
     handPosition,
-    handTrackingStatus
+    handTrackingStatus,
+    activeHandPose, // Added
   } = useHandTracking({ enabled: showHandTracking });
 
   return (
@@ -36,9 +38,15 @@ export default function HandTracking({ showHandTracking, setShowHandTracking }: 
         </div>
 
         {showHandTracking && (
-          <p className="text-white bg-black bg-opacity-50 p-2 rounded">
-            {handTrackingStatus}
-          </p>
+          <>
+            <p className="text-white bg-black bg-opacity-50 p-2 rounded text-xs">
+              Status: {handTrackingStatus}
+            </p>
+            {/* Display active hand pose */}
+            <p className="text-white bg-black bg-opacity-50 p-2 rounded text-xs">
+              Pose: {activeHandPose === HandPose.NONE ? 'N/A' : activeHandPose}
+            </p>
+          </>
         )}
       </div>
 
