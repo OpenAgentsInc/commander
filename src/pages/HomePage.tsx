@@ -102,17 +102,26 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
       const deltaX = pinchMidpoint.x - pinchDragStartRef.current.x;
       const deltaY = pinchMidpoint.y - pinchDragStartRef.current.y;
       
-      // Calculate new position directly from pixel coordinates
-      const newX = initialElementPosRef.current.x + deltaX;
-      const newY = initialElementPosRef.current.y + deltaY;
-      
-      const bounds = document.getElementById(chatWindowId)?.getBoundingClientRect();
-      console.log(`%cMOVING WITH PINCH%c Delta: ${Math.round(deltaX)},${Math.round(deltaY)}px | New: ${Math.round(newX)},${Math.round(newY)}px | Bounds: L${bounds ? Math.round(bounds.left) : '?'} T${bounds ? Math.round(bounds.top) : '?'} R${bounds ? Math.round(bounds.right) : '?'} B${bounds ? Math.round(bounds.bottom) : '?'}`, 
-        "color: blue; font-weight: bold;", 
-        "color: blue;");
-      
-      // Apply the movement delta to the initial position
-      setPosition(chatWindowId, { x: newX, y: newY });
+      // Only update position if there's meaningful movement to prevent infinite loops
+      if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
+        // Calculate new position directly from pixel coordinates
+        const newX = initialElementPosRef.current.x + deltaX;
+        const newY = initialElementPosRef.current.y + deltaY;
+        
+        const bounds = document.getElementById(chatWindowId)?.getBoundingClientRect();
+        console.log(`%cMOVING WITH PINCH%c Delta: ${Math.round(deltaX)},${Math.round(deltaY)}px | New: ${Math.round(newX)},${Math.round(newY)}px | Bounds: L${bounds ? Math.round(bounds.left) : '?'} T${bounds ? Math.round(bounds.top) : '?'} R${bounds ? Math.round(bounds.right) : '?'} B${bounds ? Math.round(bounds.bottom) : '?'}`, 
+          "color: blue; font-weight: bold;", 
+          "color: blue;");
+        
+        // Update the start position to current position to prevent jitter
+        pinchDragStartRef.current = { ...pinchMidpoint };
+        
+        // Apply the movement delta to the initial position
+        setPosition(chatWindowId, { x: newX, y: newY });
+        
+        // Update the initial position ref to match the new position
+        initialElementPosRef.current = { x: newX, y: newY };
+      }
     }
     else if (isPinchDragging && !isPinching) {
       // End pinch drag
@@ -307,19 +316,23 @@ export default function HomePage() {
       {/* Main R3F Canvas - ALWAYS rendered, not conditional on showHandTracking */}
       <div ref={mainCanvasContainerRef} className="fixed inset-0 z-0">
         <Canvas
-          frameloop="demand"
-          camera={{ position: [0, 0, 30], fov: 17.5, near: 10, far: 40 }}
-          shadows
+          frameloop="always" // Changed from "demand" to ensure continual updates
+          camera={{ position: [0, 0, 15], fov: 45, near: 0.1, far: 1000 }}
           gl={{ 
             antialias: true, 
-            alpha: true,
-            powerPreference: "high-performance",
-            failIfMajorPerformanceCaveat: false
+            alpha: false, // Set to false for better performance
+            powerPreference: "default", // Less aggressive than high-performance
+            failIfMajorPerformanceCaveat: false,
+            depth: true,
+            stencil: false,
+            preserveDrawingBuffer: true // Can help with context issues
           }}
-          dpr={[1, 1.5]}
-          performance={{ min: 0.5 }}
-          onCreated={({ gl }) => {
+          dpr={1} // Fixed DPR instead of range for more stability
+          onCreated={({ gl, scene }) => {
             console.log("[HomePage] Main R3F Canvas CREATED");
+            // Set clear color and clear buffers
+            gl.setClearColor(0x000000, 1);
+            gl.clear();
             
             // Add WebGL context listeners directly to the gl object
             gl.domElement.addEventListener('webglcontextlost', (event) => {

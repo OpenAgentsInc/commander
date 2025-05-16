@@ -1,74 +1,93 @@
-import React, { useEffect } from 'react';
-import { useThree } from '@react-three/fiber';
-import { Physics, RigidBody } from '@react-three/rapier';
-import { Environment } from '@react-three/drei';
+import React, { useEffect, useRef } from 'react';
+import { useThree, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { HandPosition } from './useHandTracking';
-import { DynamicPointer } from './DynamicPointer';
-import { MousePointer } from './MousePointer';
 
 interface MainSceneContentProps {
   handPosition: HandPosition | null;
 }
 
-// Main content for the R3F scene without the Canvas wrapper
+// Super simplified scene content - absolute minimum to work reliably
 const MainSceneContent = React.memo(({ handPosition }: MainSceneContentProps) => {
-  const { invalidate } = useThree();
+  const { invalidate, camera, scene } = useThree();
+  const boxesRef = useRef<THREE.Group>(null);
+  const handSphereRef = useRef<THREE.Mesh>(null);
 
-  // Request frames on mouse move
+  // Set up scene when first mounted
   useEffect(() => {
-    const handleMouseMove = () => invalidate();
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, [invalidate]);
+    // Set black background to scene
+    scene.background = new THREE.Color('#000000');
+    // Set up camera
+    camera.position.set(0, 0, 15);
+    camera.lookAt(0, 0, 0);
+    invalidate();
+    
+    console.log("[MainSceneContent] Scene initialized with black background");
+  }, [camera, scene, invalidate]);
 
   useEffect(() => {
-    // Log initial render of main scene
-    console.log("[MainSceneContent] Rendering with handPosition:", handPosition);
+    // Log hand position for debugging
+    console.log("[MainSceneContent] Hand position updated:", handPosition);
   }, [handPosition]);
+
+  // Animation loop for rotating the boxes
+  useFrame((state, delta) => {
+    if (boxesRef.current) {
+      boxesRef.current.rotation.x += delta * 0.1;
+      boxesRef.current.rotation.y += delta * 0.2;
+      invalidate();
+    }
+    
+    // Update hand position visualization if available
+    if (handPosition && handSphereRef.current) {
+      // Map normalized hand position to scene coordinates
+      // X is mirrored (1-x) to match camera view, scaled to scene size
+      const x = (1 - handPosition.x) * 10 - 5; // Range from -5 to 5
+      const y = (1 - handPosition.y) * 10 - 5; // Range from -5 to 5
+      
+      handSphereRef.current.position.x = x;
+      handSphereRef.current.position.y = y;
+      invalidate();
+    }
+  });
 
   return (
     <>
-      {/* Black background */}
-      <color attach="background" args={['#000000']} />
-
-      {/* Environment for reflections */}
-      <Environment preset="sunset" />
-
-      <Physics colliders={undefined} gravity={[6.4, 6.4, 4.4]}>
-        {/* Use hand position for the pointer if available, otherwise use mouse */}
-        {handPosition ? (
-          <DynamicPointer handPosition={handPosition} />
-        ) : (
-          <MousePointer />
-        )}
-
-        {/* Scene objects */}
-        {Array.from({ length: 16 }).map((_, i) => (
-          <RigidBody
-            key={i}
-            linearDamping={4}
-            angularDamping={1}
-            friction={0.1}
-            position={[THREE.MathUtils.randFloatSpread(10), THREE.MathUtils.randFloatSpread(10), THREE.MathUtils.randFloatSpread(10)]}
-          >
-            <mesh castShadow receiveShadow>
+      {/* Group of boxes - static cubes instead of physics */}
+      <group ref={boxesRef}>
+        {Array.from({ length: 16 }).map((_, i) => {
+          const position = [
+            THREE.MathUtils.randFloatSpread(10),
+            THREE.MathUtils.randFloatSpread(10),
+            THREE.MathUtils.randFloatSpread(10)
+          ];
+          
+          return (
+            <mesh 
+              key={i} 
+              position={position as [number, number, number]} 
+            >
               <boxGeometry args={[1, 1, 1]} />
-              <meshStandardMaterial
-                color="#ffffff"
-                roughness={0.1}
-                metalness={0.9}
-                envMapIntensity={1}
-              />
+              <meshBasicMaterial color="#ffffff" /> 
             </mesh>
-          </RigidBody>
-        ))}
-      </Physics>
+          );
+        })}
+      </group>
 
-      {/* Enhanced lighting */}
-      <ambientLight intensity={0.4} />
-      <directionalLight position={[5, 5, 5]} intensity={0.5} castShadow />
-      <pointLight position={[10, 10, 10]} intensity={1} />
+      {/* Hand position visualization */}
+      {handPosition && (
+        <mesh 
+          ref={handSphereRef}
+          position={[0, 0, 3]} // Default position updated in useFrame
+        >
+          <sphereGeometry args={[0.5, 16, 16]} />
+          <meshBasicMaterial color="hotpink" />
+        </mesh>
+      )}
+
+      {/* Simple lighting */}
+      <ambientLight intensity={1.0} />
+      <directionalLight position={[0, 10, 10]} intensity={1.0} />
     </>
   );
 });

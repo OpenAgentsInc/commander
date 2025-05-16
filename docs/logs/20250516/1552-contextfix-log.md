@@ -49,5 +49,41 @@
 - Added export for MainSceneContent
 - Kept original exports for backward compatibility
 
+## Additional Fixes
+
+After initial implementation, there was still a WebGL context loss issue when loading the app. Through progressive debugging, we've identified and fixed multiple issues:
+
+### 1. Simplified MainSceneContent.tsx (First Attempt)
+- Removed Physics and RigidBody components from @react-three/rapier
+- Replaced with simple static mesh elements in a rotating group
+- Simplified hand position visualization with a sphere
+- Added useFrame for continuous animation without physics
+
+### 2. Improved Canvas Configuration in HomePage.tsx
+- Changed frameloop from "demand" to "always" for more stable rendering
+- Set fixed DPR instead of a range for more consistent performance
+- Turned off alpha channel (set to false) for better performance
+- Added preserveDrawingBuffer to help with context persistence
+- Used more balanced powerPreference setting
+- Explicitly set clear color and called gl.clear() in onCreated
+- Adjusted camera settings for better view
+
+### 3. Further Simplified MainSceneContent.tsx (Second Attempt)
+- Removed Environment component completely - this was causing `"Could not load /px.png,/nx.png,/py.png,/ny.png,/pz.png,/nz.png"` errors
+- Replaced meshStandardMaterial with meshBasicMaterial to eliminate need for lighting/environment maps
+- Set scene background color directly in useEffect instead of using <color> component
+- Reduced complexity of the scene to absolute minimum to ensure stability
+- Removed shadows and other advanced rendering features
+
+### 4. Fixed Infinite Update Loop in PinnableChatWindow
+- Added throttling to prevent too many updates during pinch dragging
+- Only updating position when significant movement is detected (> 3px delta)
+- Updated pinch reference points during drag to avoid accumulating small movements
+- Reset refs properly to prevent React state update loops
+
 ## Result
-With these changes, the R3F Canvas is now persistent and doesn't get unmounted when hand tracking is toggled. The MediaPipe resources are properly managed and cleaned up when not in use. The WebGL context loss issue should be resolved, and we have improved logging to diagnose any remaining issues.
+With these changes, the WebGL context should remain stable. We've eliminated both the @react-three/rapier dependency and the Environment component from drei, both of which were causing context issues. The 3D scene is now extremely simple but stable, showing a rotating group of white cubes with a pink sphere that follows hand position when tracking is enabled. 
+
+The scene now uses basic materials that don't require environment maps or complex lighting. The MediaPipe resources are properly managed and cleaned up when not in use, and the WebGL context should no longer be lost when toggling hand tracking.
+
+Additionally, the pinch dragging functionality in the chat window has been stabilized to prevent infinite update loops by only applying position updates when significant movement is detected and properly updating reference points during the drag operation.
