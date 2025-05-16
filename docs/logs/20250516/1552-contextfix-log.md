@@ -81,9 +81,21 @@ After initial implementation, there was still a WebGL context loss issue when lo
 - Updated pinch reference points during drag to avoid accumulating small movements
 - Reset refs properly to prevent React state update loops
 
+### 5. Fixed UI Issues Based on User Feedback
+- Restricted pinch dragging to only work when pinching directly on the chat window
+- Removed the large pink sphere that was following the hand position
+- Changed random box positions to a stable, predictable grid pattern
+- Made rotation gentler and only on Y axis to avoid chaotic movement
+- Removed debugging output that was causing confusion
+
 ## Result
-With these changes, the WebGL context should remain stable. We've eliminated both the @react-three/rapier dependency and the Environment component from drei, both of which were causing context issues. The 3D scene is now extremely simple but stable, showing a rotating group of white cubes with a pink sphere that follows hand position when tracking is enabled. 
+With these changes, the WebGL context should remain stable. We've eliminated both the @react-three/rapier dependency and the Environment component from drei, both of which were causing context issues. The 3D scene is now extremely simple but stable, showing a neatly arranged grid of white cubes that rotate gently on a black background. 
 
-The scene now uses basic materials that don't require environment maps or complex lighting. The MediaPipe resources are properly managed and cleaned up when not in use, and the WebGL context should no longer be lost when toggling hand tracking.
+The scene now uses basic materials that don't require environment maps or complex lighting. The pink hand position sphere has been removed, and the boxes are arranged in a predictable pattern with gentle rotation to avoid chaotic movement.
 
-Additionally, the pinch dragging functionality in the chat window has been stabilized to prevent infinite update loops by only applying position updates when significant movement is detected and properly updating reference points during the drag operation.
+The pinch dragging functionality in the chat window has been significantly improved:
+1. It now only activates when the user pinches directly on the chat window element
+2. It prevents infinite update loops by only applying position updates when significant movement is detected
+3. It properly updates reference points during the drag operation to provide smooth movement
+
+The MediaPipe resources are properly managed and cleaned up when not in use, and the WebGL context should no longer be lost when toggling hand tracking.

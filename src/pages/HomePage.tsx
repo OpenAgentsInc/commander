@@ -85,16 +85,16 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
           intersection: ${isCurrentlyPinchOverWindow}
         `);
         
-        // Temporarily comment out the check to allow pinch from anywhere
-        // if (isCurrentlyPinchOverWindow) {
-          console.log(`%cSTARTING PINCH DRAG (OVERRIDE)%c @ ${Math.round(pinchMidpoint.x)},${Math.round(pinchMidpoint.y)}px. Window: L${Math.round(bounds.left)} T${Math.round(bounds.top)} R${Math.round(bounds.right)} B${Math.round(bounds.bottom)}`, "color: purple; font-weight: bold;", "color: purple;");
+        // Now we ONLY allow dragging when pinch is over the window
+        if (isCurrentlyPinchOverWindow) {
+          console.log(`%cSTARTING PINCH DRAG%c @ ${Math.round(pinchMidpoint.x)},${Math.round(pinchMidpoint.y)}px. Window: L${Math.round(bounds.left)} T${Math.round(bounds.top)} R${Math.round(bounds.right)} B${Math.round(bounds.bottom)}`, "color: purple; font-weight: bold;", "color: purple;");
           setIsPinchDragging(true);
           pinchDragStartRef.current = { ...pinchMidpoint }; // Store a copy
           initialElementPosRef.current = { ...elementState.position }; // Store a copy
           pinElement(chatWindowId, elementState.position);
-        // } else if (pinchMidpoint) {
-        //   console.warn(`Pinch Closed DETECTED BUT NOT OVER WINDOW. Pinch @ ${Math.round(pinchMidpoint.x)},${Math.round(pinchMidpoint.y)}px. Window Rect: L${Math.round(bounds.left)} T${Math.round(bounds.top)} R${Math.round(bounds.right)} B${Math.round(bounds.bottom)}`);
-        // }
+        } else if (pinchMidpoint) {
+          console.warn(`Pinch Closed DETECTED BUT NOT OVER WINDOW. Pinch @ ${Math.round(pinchMidpoint.x)},${Math.round(pinchMidpoint.y)}px. Window Rect: L${Math.round(bounds.left)} T${Math.round(bounds.top)} R${Math.round(bounds.right)} B${Math.round(bounds.bottom)}`);
+        }
       }
     } 
     else if (isPinchDragging && isPinching && pinchMidpoint && pinchDragStartRef.current && initialElementPosRef.current) {
