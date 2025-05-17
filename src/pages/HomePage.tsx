@@ -4,6 +4,9 @@ import * as THREE from 'three';
 import { HandTrackingUIControls, MainSceneContent, HandPose, type PinchCoordinates, useHandTracking } from "@/components/hands";
 import { ChatContainer } from "@/components/chat";
 import { useUIElementsStore, UIPosition } from "@/stores/uiElementsStore";
+import { Effect, Exit, Cause } from "effect";
+import { BIP39Service, BIP39ServiceLive } from "@/services/bip39";
+import { Button } from "@/components/ui/button";
 
 // Pinnable Chat Window Component
 interface PinnableChatWindowProps {
@@ -241,6 +244,7 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
 
 export default function HomePage() {
   const [showHandTracking, setShowHandTracking] = useState(false);
+  const [mnemonicResult, setMnemonicResult] = useState<string | null>(null);
   const mainCanvasContainerRef = useRef<HTMLDivElement>(null);
 
   // Use hand tracking hook directly in HomePage
@@ -252,6 +256,30 @@ export default function HomePage() {
     activeHandPose,
     pinchMidpoint,
   } = useHandTracking({ enabled: showHandTracking });
+  
+  // Handler for generating a mnemonic using the BIP39Service
+  const handleGenerateMnemonicClick = async () => {
+    const program = Effect.gen(function* (_) {
+      // Access the BIP39Service
+      const bip39Service = yield* _(BIP39Service);
+      // Call the generateMnemonic method
+      return yield* _(bip39Service.generateMnemonic());
+    }).pipe(Effect.provide(BIP39ServiceLive));
+    
+    // Run the program and handle the result
+    const result = await Effect.runPromiseExit(program);
+    
+    Exit.match(result, {
+      onSuccess: (mnemonic) => {
+        console.log("Generated Mnemonic:", mnemonic);
+        setMnemonicResult(mnemonic);
+      },
+      onFailure: (cause) => {
+        console.error("Failed to generate mnemonic:", Cause.pretty(cause));
+        setMnemonicResult("Error generating mnemonic. See console for details.");
+      }
+    });
+  };
 
   // Add WebGL context lost/restored event listeners
   useEffect(() => {
@@ -343,6 +371,19 @@ export default function HomePage() {
           activeHandPose={activeHandPose}
           pinchMidpoint={pinchMidpoint}
         />
+        
+        {/* BIP39 Test Button */}
+        <div className="absolute bottom-4 right-4" style={{ pointerEvents: 'auto' }}>
+          <Button onClick={handleGenerateMnemonicClick} variant="secondary">
+            Generate Test Mnemonic
+          </Button>
+          
+          {mnemonicResult && (
+            <div className="mt-2 p-2 bg-background/80 backdrop-blur-sm rounded-md text-sm max-w-96 overflow-hidden text-ellipsis whitespace-nowrap">
+              {mnemonicResult}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

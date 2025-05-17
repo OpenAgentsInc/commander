@@ -76,18 +76,24 @@ describe('BIP39Service', () => {
       expect(mnemonic.split(' ')).toHaveLength(24);
     });
 
-    it('should fail with GenerateMnemonicError for invalid options', async () => {
+    it('should fail with GenerateMnemonicError for invalid options (schema validation error)', async () => {
       const program = Effect.gen(function* (_) {
         const bip39Service = yield* _(BIP39Service);
         // @ts-expect-error Testing invalid strength value
         return yield* _(bip39Service.generateMnemonic({ strength: 100 }));
       }).pipe(Effect.provide(BIP39ServiceLive));
 
-      await expectEffectFailure(
+      // This should fail at the schema validation step with "Invalid options format"
+      const error = await expectEffectFailure(
         program,
         GenerateMnemonicError,
-        /Invalid options format|Failed to generate mnemonic/
+        /Invalid options format/
       );
+      
+      // Verify the error cause is a schema parse error
+      expect(error.cause).toBeDefined();
+      // @ts-ignore
+      expect(error.cause._tag).toBe('ParseError');
     });
   });
 

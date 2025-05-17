@@ -16,6 +16,13 @@ export const BIP39MnemonicOptionsSchema = Schema.Struct({
 
 export type BIP39MnemonicOptions = Schema.Schema.Type<typeof BIP39MnemonicOptionsSchema>;
 
+// Schemas for mnemonicToSeed parameters
+export const MnemonicSchema = Schema.String;
+export type MnemonicType = Schema.Schema.Type<typeof MnemonicSchema>;
+
+export const PassphraseSchema = Schema.String;
+export type PassphraseType = Schema.Schema.Type<typeof PassphraseSchema>;
+
 // --- Custom Error Types ---
 export class BIP39Error extends Error {
   constructor(message: string, readonly cause?: unknown) {

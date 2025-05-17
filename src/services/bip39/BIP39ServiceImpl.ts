@@ -4,6 +4,8 @@ import { wordlist as englishWordlist } from "@scure/bip39/wordlists/english";
 import {
   BIP39Service,
   BIP39MnemonicOptionsSchema,
+  MnemonicSchema,
+  PassphraseSchema,
   type BIP39MnemonicOptions,
   GenerateMnemonicError,
   ValidateMnemonicError,
@@ -72,7 +74,7 @@ export function createBIP39Service(): BIP39Service {
     passphrase?: string
   ): Effect.Effect<Uint8Array, MnemonicToSeedError> => {
     return Effect.gen(function* (_) {
-      // Validate inputs
+      // Validate inputs with manual type checks as we were doing before
       if (typeof mnemonic !== 'string') {
         return yield* _(Effect.fail(
           new MnemonicToSeedError("Failed to convert mnemonic to seed: mnemonic must be a string", 
