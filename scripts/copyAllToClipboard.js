@@ -87,6 +87,7 @@ const dirsToExclude = [
   "src/assets/fonts",
   "docs/logs/20250514",
   "docs/logs/20250515",
+  "docs/logs/20250516",
   "src/components/ui",
 ];
 
