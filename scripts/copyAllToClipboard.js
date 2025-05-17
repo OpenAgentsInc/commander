@@ -21,6 +21,8 @@ const rootFilesToInclude = [
   // 'node_modules/@effect/platform/dist/dts/HttpClientRequest.d.ts',
   // 'node_modules/@effect/platform/dist/dts/HttpClientResponse.d.ts',
   // 'node_modules/@effect/platform/dist/dts/HttpBody.d.ts',
+  "node_modules/@scure/bip39/index.d.ts",
+  "node_modules/@scure/bip39/src/index.ts",
   "README.md",
   "README-template.md",
   "forge.config.ts",
@@ -87,6 +89,7 @@ const dirsToExclude = [
   "src/assets/fonts",
   "docs/logs/20250514",
   "docs/logs/20250515",
+  "docs/logs/20250516",
   "src/components/ui",
 ];
 
