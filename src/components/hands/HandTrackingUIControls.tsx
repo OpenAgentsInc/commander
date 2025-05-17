@@ -6,8 +6,8 @@ import { Label } from "@/components/ui/label";
 interface HandTrackingUIControlsProps {
   showHandTracking: boolean;
   setShowHandTracking: (show: boolean) => void;
-  videoRef: React.RefObject<HTMLVideoElement>;
-  landmarkCanvasRef: React.RefObject<HTMLCanvasElement>;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  landmarkCanvasRef: React.RefObject<HTMLCanvasElement | null>;
   handTrackingStatus: string;
   activeHandPose: HandPose;
   pinchMidpoint: PinchCoordinates | null;
