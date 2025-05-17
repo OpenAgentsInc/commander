@@ -90,4 +90,147 @@ describe('BIP39Service', () => {
       );
     });
   });
+
+  describe('validateMnemonic', () => {
+    it('should return true for a valid mnemonic', async () => {
+      const program = Effect.gen(function* (_) {
+        const bip39Service = yield* _(BIP39Service);
+        // First generate a valid mnemonic
+        const validMnemonic = yield* _(bip39Service.generateMnemonic());
+        // Then validate it
+        return yield* _(bip39Service.validateMnemonic(validMnemonic));
+      }).pipe(Effect.provide(BIP39ServiceLive));
+
+      const isValid = await Effect.runPromise(program);
+      expect(isValid).toBe(true);
+    });
+
+    it('should return false for an invalid mnemonic (incorrect word)', async () => {
+      const program = Effect.gen(function* (_) {
+        const bip39Service = yield* _(BIP39Service);
+        // Use a mnemonic with an invalid word
+        const invalidMnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon INVALID";
+        return yield* _(bip39Service.validateMnemonic(invalidMnemonic));
+      }).pipe(Effect.provide(BIP39ServiceLive));
+
+      const isValid = await Effect.runPromise(program);
+      expect(isValid).toBe(false);
+    });
+
+    it('should return false for an invalid mnemonic (wrong checksum)', async () => {
+      const program = Effect.gen(function* (_) {
+        const bip39Service = yield* _(BIP39Service);
+        // Use a mnemonic with incorrect checksum
+        const invalidMnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon";
+        return yield* _(bip39Service.validateMnemonic(invalidMnemonic));
+      }).pipe(Effect.provide(BIP39ServiceLive));
+
+      const isValid = await Effect.runPromise(program);
+      expect(isValid).toBe(false);
+    });
+
+    it('should return false for mnemonic with incorrect word count', async () => {
+      const program = Effect.gen(function* (_) {
+        const bip39Service = yield* _(BIP39Service);
+        // Use a mnemonic with too few words
+        const shortMnemonic = "abandon abandon abandon";
+        return yield* _(bip39Service.validateMnemonic(shortMnemonic));
+      }).pipe(Effect.provide(BIP39ServiceLive));
+
+      const isValid = await Effect.runPromise(program);
+      expect(isValid).toBe(false);
+    });
+
+    it('should fail with ValidateMnemonicError for non-string input', async () => {
+      const program = Effect.gen(function* (_) {
+        const bip39Service = yield* _(BIP39Service);
+        // @ts-expect-error Testing invalid input type
+        return yield* _(bip39Service.validateMnemonic(12345));
+      }).pipe(Effect.provide(BIP39ServiceLive));
+
+      await expectEffectFailure(
+        program,
+        ValidateMnemonicError,
+        /Failed to validate mnemonic/
+      );
+    });
+  });
+
+  describe('mnemonicToSeed', () => {
+    it('should derive a 64-byte seed from a valid mnemonic', async () => {
+      const program = Effect.gen(function* (_) {
+        const bip39Service = yield* _(BIP39Service);
+        // First generate a valid mnemonic
+        const validMnemonic = yield* _(bip39Service.generateMnemonic());
+        // Then convert to seed
+        return yield* _(bip39Service.mnemonicToSeed(validMnemonic));
+      }).pipe(Effect.provide(BIP39ServiceLive));
+
+      const seed = await Effect.runPromise(program);
+      expect(seed).toBeInstanceOf(Uint8Array);
+      expect(seed.length).toBe(64); // 512 bits = 64 bytes
+    });
+
+    it('should produce the official BIP39 test vector seed', async () => {
+      // Official BIP39 test vector from the specification
+      const testMnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+      const testPassphrase = "TREZOR";
+      const expectedSeedHex = "c55257c360c07c72029aebc1b53c05ed0362ada38ead3e3e9efa3708e53495531f09a6987599d18264c1e1c92f2cf141630c7a3c4ab7c81b2f001698e7463b04";
+
+      const program = Effect.gen(function* (_) {
+        const bip39Service = yield* _(BIP39Service);
+        return yield* _(bip39Service.mnemonicToSeed(testMnemonic, testPassphrase));
+      }).pipe(Effect.provide(BIP39ServiceLive));
+
+      const seed = await Effect.runPromise(program);
+      const seedHex = Buffer.from(seed).toString('hex');
+      expect(seedHex).toBe(expectedSeedHex);
+    });
+
+    it('should produce different seeds with different passphrases', async () => {
+      const mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+      
+      const program = Effect.gen(function* (_) {
+        const bip39Service = yield* _(BIP39Service);
+        const seed1 = yield* _(bip39Service.mnemonicToSeed(mnemonic, "passphrase1"));
+        const seed2 = yield* _(bip39Service.mnemonicToSeed(mnemonic, "passphrase2"));
+        return { seed1, seed2 };
+      }).pipe(Effect.provide(BIP39ServiceLive));
+
+      const { seed1, seed2 } = await Effect.runPromise(program);
+      const seed1Hex = Buffer.from(seed1).toString('hex');
+      const seed2Hex = Buffer.from(seed2).toString('hex');
+      
+      expect(seed1Hex).not.toBe(seed2Hex);
+    });
+
+    it('should fail with MnemonicToSeedError for invalid mnemonic', async () => {
+      const invalidMnemonic = "invalid mnemonic words that shouldn't work";
+      
+      const program = Effect.gen(function* (_) {
+        const bip39Service = yield* _(BIP39Service);
+        return yield* _(bip39Service.mnemonicToSeed(invalidMnemonic));
+      }).pipe(Effect.provide(BIP39ServiceLive));
+
+      await expectEffectFailure(
+        program,
+        MnemonicToSeedError,
+        /Failed to convert mnemonic to seed/
+      );
+    });
+
+    it('should fail with MnemonicToSeedError for non-string input', async () => {
+      const program = Effect.gen(function* (_) {
+        const bip39Service = yield* _(BIP39Service);
+        // @ts-expect-error Testing invalid input type
+        return yield* _(bip39Service.mnemonicToSeed(12345));
+      }).pipe(Effect.provide(BIP39ServiceLive));
+
+      await expectEffectFailure(
+        program,
+        MnemonicToSeedError,
+        /Failed to convert mnemonic to seed/
+      );
+    });
+  });
 });
