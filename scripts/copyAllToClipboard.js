@@ -24,8 +24,8 @@ const rootFilesToInclude = [
   // 'node_modules/@effect/platform/dist/dts/HttpClientResponse.d.ts',
   // 'node_modules/@effect/platform/dist/dts/HttpBody.d.ts',
   "node_modules/nostr-tools/README.md",
-  "node_modules/nostr-tools/lib/types/nip19.d.ts",
-  "node_modules/nostr-tools/lib/esm/nip19.js",
+  // "node_modules/nostr-tools/lib/types/nip19.d.ts",
+  // "node_modules/nostr-tools/lib/esm/nip19.js",
   "node_modules/nostr-tools/lib/types/core.d.ts",
   "node_modules/nostr-tools/lib/types/relay.d.ts",
   "node_modules/nostr-tools/lib/types/abstract-pool.d.ts",
@@ -101,6 +101,7 @@ const dirsToExclude = [
   "docs/logs/20250514",
   "docs/logs/20250515",
   "docs/logs/20250516",
+  "docs/logs/20250517",
   "src/components/ui",
 ];
 
