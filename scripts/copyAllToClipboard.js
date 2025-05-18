@@ -8,9 +8,11 @@
  *   --docs: Only copy files from the docs/ directory and its subdirectories
  */
 
-const fs = require("fs");
-const path = require("path");
-const { execSync } = require("child_process");
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+
+// In CommonJS, __dirname is available globally
 
 // Directories to recursively scan
 const dirsToScan = ["docs", "src"];
@@ -35,10 +37,10 @@ const rootFilesToInclude = [
   "index.html",
   "package.json",
   "tsconfig.json",
-  "vite.main.config.ts",
-  "vite.preload.config.ts",
+  "vite.main.config.mts",
+  "vite.preload.config.mts",
   "vite.renderer.config.mts",
-  "vitest.config.ts",
+  "vitest.config.mts",
   "playwright.config.ts",
   "components.json",
   "eslint.config.mjs",

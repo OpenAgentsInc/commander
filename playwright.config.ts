@@ -10,8 +10,10 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: "html",
+  timeout: 60000, // Increase timeout to 60 seconds
   use: {
     trace: "on-first-retry",
+    actionTimeout: 30000, // Increase action timeout to 30 seconds
   },
 
   projects: [

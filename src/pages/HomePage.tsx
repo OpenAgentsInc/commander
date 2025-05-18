@@ -8,6 +8,7 @@ import { Effect, Exit, Cause } from "effect";
 import { BIP39Service, BIP39ServiceLive } from "@/services/bip39";
 import { BIP32Service, BIP32ServiceLive } from "@/services/bip32";
 import { NIP19Service, NIP19ServiceLive } from "@/services/nip19";
+import { TelemetryService, TelemetryServiceLive } from "@/services/telemetry";
 import { hexToBytes } from "@noble/hashes/utils";
 import { Button } from "@/components/ui/button";
 
@@ -250,6 +251,8 @@ export default function HomePage() {
   const [mnemonicResult, setMnemonicResult] = useState<string | null>(null);
   const [bip32Result, setBip32Result] = useState<string | null>(null);
   const [nip19Result, setNip19Result] = useState<string | null>(null);
+  const [telemetryResult, setTelemetryResult] = useState<string | null>(null);
+  const [telemetryEnabled, setTelemetryEnabled] = useState<boolean>(false);
   const mainCanvasContainerRef = useRef<HTMLDivElement>(null);
 
   // Use hand tracking hook directly in HomePage
@@ -430,6 +433,55 @@ export default function HomePage() {
     });
   };
 
+  // Handler for testing telemetry service
+  const handleTestTelemetryClick = async () => {
+    const program = Effect.gen(function* (_) {
+      const telemetryService = yield* _(TelemetryService);
+      
+      // 1. Get current state
+      const initiallyEnabled = yield* _(telemetryService.isEnabled());
+      
+      // 2. Toggle telemetry state
+      const newState = !initiallyEnabled;
+      yield* _(telemetryService.setEnabled(newState));
+      
+      // 3. Confirm the change
+      const updatedEnabled = yield* _(telemetryService.isEnabled());
+      
+      // 4. Track a test event if enabled
+      if (updatedEnabled) {
+        yield* _(telemetryService.trackEvent({
+          category: 'test',
+          action: 'telemetry_test',
+          value: Date.now(),
+          label: 'from_homepage'
+        }));
+      }
+      
+      // Update UI state
+      setTelemetryEnabled(updatedEnabled);
+      
+      return {
+        initialState: initiallyEnabled,
+        newState: updatedEnabled,
+        eventTracked: updatedEnabled
+      };
+    }).pipe(Effect.provide(TelemetryServiceLive));
+    
+    const result = await Effect.runPromiseExit(program);
+    
+    Exit.match(result, {
+      onSuccess: (details) => {
+        console.log("Telemetry test complete:", details);
+        setTelemetryResult(JSON.stringify(details, null, 2));
+      },
+      onFailure: (cause) => {
+        console.error("Telemetry test failed:", Cause.pretty(cause));
+        setTelemetryResult(`Error testing telemetry. See console for details.`);
+      }
+    });
+  };
+
   // Add WebGL context lost/restored event listeners
   useEffect(() => {
     const canvas = mainCanvasContainerRef.current?.querySelector('canvas');
@@ -555,6 +607,18 @@ export default function HomePage() {
             {nip19Result && (
               <div className="p-2 bg-background/80 backdrop-blur-sm rounded-md text-sm max-w-96 overflow-auto whitespace-pre-wrap" style={{ maxHeight: '12rem' }}>
                 {nip19Result}
+              </div>
+            )}
+          </div>
+          
+          <div>
+            <Button onClick={handleTestTelemetryClick} variant={telemetryEnabled ? "destructive" : "secondary"} className="mb-1">
+              {telemetryEnabled ? "Disable Telemetry" : "Enable Telemetry"}
+            </Button>
+            
+            {telemetryResult && (
+              <div className="p-2 bg-background/80 backdrop-blur-sm rounded-md text-sm max-w-96 overflow-auto whitespace-pre-wrap" style={{ maxHeight: '12rem' }}>
+                {telemetryResult}
               </div>
             )}
           </div>
