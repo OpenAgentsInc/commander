@@ -89,3 +89,111 @@ const fullLayer = Layer.mergeAll(
 For all cases, I've added proper error handling for the telemetry calls themselves, with fallback console.error calls marked with `// TELEMETRY_IGNORE_THIS_CONSOLE_CALL` to prevent these from being replaced.
 
 Now, let me move on to the next file.
+
+### 2. HomePage.tsx
+
+This file had numerous console.log and console.error calls that needed to be replaced, including:
+
+1. Error handling for the BIP39 mnemonic generation:
+   - Replaced `console.error("Failed to generate mnemonic:", exit.cause)` with telemetry tracking
+
+2. Error handling for BIP32 and NIP19 tests:
+   - Replaced `console.error("Failed BIP32 test:", exit.cause)` with telemetry tracking
+   - Replaced `console.error("Failed NIP19 test:", exit.cause)` with telemetry tracking
+
+3. Telemetry test logging:
+   - Replaced `console.log("Telemetry test complete:", details)` with telemetry tracking
+   - Replaced `console.error("Telemetry test failed:", cause)` with telemetry tracking
+
+4. Nostr relay connection testing (several console.log calls):
+   - Replaced each with appropriate telemetry tracking events
+   - Used more structured telemetry events with categories, actions, and proper labels
+   - Used stringification for complex objects
+
+5. WebGL context event listeners:
+   - Replaced console.log and console.error with telemetry tracking for WebGL context loss and restoration
+   - Enhanced with more detailed action names ("webgl_context_lost", "webgl_context_restored")
+
+6. Error handling in catch blocks:
+   - Added proper error object handling for better telemetry
+
+For all cases, I ensured that appropriate error handling was added to the telemetry calls themselves, with fallback console.error calls marked with `// TELEMETRY_IGNORE_THIS_CONSOLE_CALL` to prevent these from being replaced. 
+
+The overall approach was consistent with what I did for the first file, creating appropriate TelemetryEvent objects with proper categorization and providing the necessary error handling.
+
+### 3. NostrServiceImpl.ts
+
+This file contained several console.log, console.warn, and console.error calls for logging various Nostr-related operations. I replaced all of them with telemetry tracking:
+
+1. Added imports for telemetry:
+   ```typescript
+   import { Effect, Layer, Context, Cause } from "effect";
+   import { TelemetryService, TelemetryServiceLive, type TelemetryEvent } from "@/services/telemetry";
+   ```
+
+2. Pool initialization:
+   - Replaced `console.log("[Nostr] Pool initialized with relays:", config.relays)` with telemetry tracking with action "nostr_pool_initialize"
+
+3. Event fetching operations:
+   - Replaced logging at start of fetch with telemetry using action "nostr_fetch_begin"
+   - Replaced success log with telemetry using action "nostr_fetch_success"
+   - Replaced error log with telemetry using action "nostr_fetch_error"
+
+4. Event publishing operations:
+   - Replaced logging at start of publish with telemetry using action "nostr_publish_begin"
+   - Replaced partial failure warning with telemetry using action "nostr_publish_partial_failure" and category "log:warn"
+   - Replaced success log with telemetry using action "nostr_publish_success"
+   - Replaced error log with telemetry using action "nostr_publish_error"
+
+5. Pool cleanup:
+   - Replaced logging of pool connection closure with telemetry using action "nostr_pool_close"
+
+For the telemetry tracking in the Effect context, I used the pattern:
+```typescript
+yield* _(Effect.gen(function* (_) {
+  const telemetryService = yield* _(TelemetryService);
+  yield* _(telemetryService.trackEvent(telemetryEventData));
+}));
+```
+
+For tracking outside the Effect context (in the cleanup function), I used the pattern with `.pipe()` and Effect.runPromise with error handling.
+
+## Phase 4: Documentation Update
+
+As per the instructions, I updated the documentation in `docs/AGENTS.md` to include a new section on Logging and Telemetry (section 11). This documentation covers:
+
+1. Key principles of the telemetry system:
+   - Development mode: Telemetry logs to console
+   - Production mode: Telemetry is silent by default
+   - User control: Can be toggled with setEnabled
+
+2. Usage guidelines:
+   - DO NOT use console.* directly
+   - Use TelemetryService.trackEvent() instead
+   - Exceptions where console.* is still used
+
+3. How to use the TelemetryService, with code examples for:
+   - Importing necessary modules
+   - Constructing TelemetryEvent data
+   - Creating and running the Effect program
+   - Error handling
+   - Usage inside and outside Effect contexts
+
+## Summary
+
+I've completed all the tasks specified in the instructions:
+
+1. Modified `TelemetryServiceImpl.ts` to enable telemetry by default in development mode and disable it in production mode, using Vite's `import.meta.env.MODE`.
+
+2. Replaced console.* calls in the codebase with TelemetryService.trackEvent() in:
+   - Nip90RequestForm.tsx
+   - HomePage.tsx
+   - NostrServiceImpl.ts
+   
+   I made sure to add special handling for the NIP-90 publish failure case, capturing the detailed error information.
+
+3. Added proper documentation in AGENTS.md explaining the new telemetry system and how to use it correctly.
+
+All the replacements follow a consistent pattern, with proper error handling and structured telemetry events. The events include appropriate categorization (log:info, log:warn, log:error), actions (often more specific than "generic_console_replacement"), and structured data as values.
+
+The implementation should now handle all console.* calls properly while ensuring the telemetry system behaves correctly in both development and production environments.

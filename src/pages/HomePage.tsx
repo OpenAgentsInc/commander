@@ -506,15 +506,86 @@ export default function HomePage() {
           })
         );
         const events = await pool.querySync(relays, filter, {maxWait: 5000});
-        console.log("[Direct Test] Direct pool query result:", events);
+        // Log the query result via telemetry
+        const queryResultEvent: TelemetryEvent = {
+          category: "log:info",
+          action: "generic_console_replacement",
+          label: "[Direct Test] Direct pool query result",
+          value: JSON.stringify(events.length) // Just log the count for brevity
+        };
+        
+        Effect.gen(function* (_) {
+          const telemetryService = yield* _(TelemetryService);
+          yield* _(telemetryService.trackEvent(queryResultEvent));
+        }).pipe(
+          Effect.provide(TelemetryServiceLive),
+          (effect) => Effect.runPromise(effect).catch(err => {
+            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+            console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+          })
+        );
         if (events.length === 0) {
-          console.log("[Direct Test] No events found with kinds 5000, 5001. Trying a more common kind (1)...");
+          // Log the empty result and fallback attempt via telemetry
+          const emptyResultEvent: TelemetryEvent = {
+            category: "log:info",
+            action: "generic_console_replacement",
+            label: "[Direct Test] No events found with kinds 5000, 5001. Trying a more common kind (1)..."
+          };
+          
+          Effect.gen(function* (_) {
+            const telemetryService = yield* _(TelemetryService);
+            yield* _(telemetryService.trackEvent(emptyResultEvent));
+          }).pipe(
+            Effect.provide(TelemetryServiceLive),
+            (effect) => Effect.runPromise(effect).catch(err => {
+              // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+              console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+            })
+          );
+          
           const eventsKind1 = await pool.querySync(relays, { kinds: [1], limit: 3 }, {maxWait: 5000});
-          console.log("[Direct Test] Found", eventsKind1.length, "events of kind 1");
+          
+          // Log the fallback query results via telemetry
+          const fallbackResultEvent: TelemetryEvent = {
+            category: "log:info",
+            action: "generic_console_replacement",
+            label: `[Direct Test] Found ${eventsKind1.length} events of kind 1`
+          };
+          
+          Effect.gen(function* (_) {
+            const telemetryService = yield* _(TelemetryService);
+            yield* _(telemetryService.trackEvent(fallbackResultEvent));
+          }).pipe(
+            Effect.provide(TelemetryServiceLive),
+            (effect) => Effect.runPromise(effect).catch(err => {
+              // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+              console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+            })
+          );
         }
         pool.close(relays);
       } catch (e) {
-        console.error("[Direct Test] Direct pool query error:", e);
+        // Log the error via telemetry
+        const errorEvent: TelemetryEvent = {
+          category: "log:error",
+          action: "generic_console_replacement",
+          label: "[Direct Test] Direct pool query error",
+          value: e instanceof Error ? 
+            JSON.stringify({ message: e.message, stack: e.stack }) : 
+            String(e)
+        };
+        
+        Effect.gen(function* (_) {
+          const telemetryService = yield* _(TelemetryService);
+          yield* _(telemetryService.trackEvent(errorEvent));
+        }).pipe(
+          Effect.provide(TelemetryServiceLive),
+          (effect) => Effect.runPromise(effect).catch(err => {
+            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+            console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+          })
+        );
+        
         pool.close(relays);
       }
     };
@@ -533,12 +604,47 @@ export default function HomePage() {
     if (!canvas) return;
 
     const handleContextLost = (event: Event) => {
-      console.error('[HomePage] WebGL Context Lost:', event);
+      // Log WebGL context loss via telemetry
+      const contextLostEvent: TelemetryEvent = {
+        category: "log:error",
+        action: "webgl_context_lost",
+        label: "[HomePage] WebGL Context Lost",
+        value: String(event.type)
+      };
+      
+      Effect.gen(function* (_) {
+        const telemetryService = yield* _(TelemetryService);
+        yield* _(telemetryService.trackEvent(contextLostEvent));
+      }).pipe(
+        Effect.provide(TelemetryServiceLive),
+        (effect) => Effect.runPromise(effect).catch(err => {
+          // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+          console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+        })
+      );
+      
       event.preventDefault(); // Try to prevent default behavior
     };
 
     const handleContextRestored = (event: Event) => {
-      console.log('[HomePage] WebGL Context Restored:', event);
+      // Log WebGL context restoration via telemetry
+      const contextRestoredEvent: TelemetryEvent = {
+        category: "log:info",
+        action: "webgl_context_restored",
+        label: "[HomePage] WebGL Context Restored",
+        value: String(event.type)
+      };
+      
+      Effect.gen(function* (_) {
+        const telemetryService = yield* _(TelemetryService);
+        yield* _(telemetryService.trackEvent(contextRestoredEvent));
+      }).pipe(
+        Effect.provide(TelemetryServiceLive),
+        (effect) => Effect.runPromise(effect).catch(err => {
+          // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+          console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+        })
+      );
     };
 
     canvas.addEventListener('webglcontextlost', handleContextLost, false);
@@ -586,12 +692,44 @@ export default function HomePage() {
 
               // Add WebGL context listeners directly to the gl object
               gl.domElement.addEventListener('webglcontextlost', (event) => {
-                console.error('[HomePage] WebGL Context Lost (from onCreated):', event);
+                const contextLostEvent: TelemetryEvent = {
+                  category: "log:error",
+                  action: "webgl_context_lost",
+                  label: "[HomePage] WebGL Context Lost (from onCreated)",
+                  value: String(event.type)
+                };
+                
+                Effect.gen(function* (_) {
+                  const telemetryService = yield* _(TelemetryService);
+                  yield* _(telemetryService.trackEvent(contextLostEvent));
+                }).pipe(
+                  Effect.provide(TelemetryServiceLive),
+                  (effect) => Effect.runPromise(effect).catch(err => {
+                    // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+                    console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+                  })
+                );
+                
                 event.preventDefault();
               }, false);
 
               gl.domElement.addEventListener('webglcontextrestored', () => {
-                console.log('[HomePage] WebGL Context Restored (from onCreated)');
+                const contextRestoredEvent: TelemetryEvent = {
+                  category: "log:info",
+                  action: "webgl_context_restored",
+                  label: "[HomePage] WebGL Context Restored (from onCreated)"
+                };
+                
+                Effect.gen(function* (_) {
+                  const telemetryService = yield* _(TelemetryService);
+                  yield* _(telemetryService.trackEvent(contextRestoredEvent));
+                }).pipe(
+                  Effect.provide(TelemetryServiceLive),
+                  (effect) => Effect.runPromise(effect).catch(err => {
+                    // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+                    console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+                  })
+                );
               }, false);
             }}
           >

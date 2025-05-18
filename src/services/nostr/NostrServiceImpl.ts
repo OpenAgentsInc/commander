@@ -1,4 +1,5 @@
-import { Effect, Layer, Context } from "effect";
+import { Effect, Layer, Context, Cause } from "effect";
+import { TelemetryService, TelemetryServiceLive, type TelemetryEvent } from "@/services/telemetry";
 import { SimplePool } from "nostr-tools/pool";
 import {
   NostrService,
@@ -21,7 +22,25 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
       if (!poolInstance) {
         // Create a new SimplePool instance
         poolInstance = new SimplePool();
-        console.log("[Nostr] Pool initialized with relays:", config.relays);
+        
+        // Log pool initialization via telemetry
+        const initEvent: TelemetryEvent = {
+          category: "log:info",
+          action: "nostr_pool_initialize",
+          label: "[Nostr] Pool initialized with relays",
+          value: JSON.stringify(config.relays)
+        };
+        
+        Effect.gen(function* (_) {
+          const telemetryService = yield* _(TelemetryService);
+          yield* _(telemetryService.trackEvent(initEvent));
+        }).pipe(
+          Effect.provide(TelemetryServiceLive),
+          (effect) => Effect.runPromise(effect).catch(err => {
+            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+            console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+          })
+        );
       }
       return poolInstance;
     },
@@ -44,7 +63,26 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
           }))
         );
         
-        console.log("[Nostr] Fetching events with filters:", JSON.stringify(filters));
+        // Log event fetching via telemetry outside the Effect chain
+        // to avoid adding TelemetryService dependency
+        const fetchingEvent: TelemetryEvent = {
+          category: "log:info",
+          action: "nostr_fetch_begin",
+          label: "[Nostr] Fetching events with filters",
+          value: JSON.stringify(filters)
+        };
+        
+        // Fire-and-forget telemetry event
+        Effect.gen(function* (_) {
+          const telemetryService = yield* _(TelemetryService);
+          yield* _(telemetryService.trackEvent(fetchingEvent));
+        }).pipe(
+          Effect.provide(TelemetryServiceLive),
+          (effect) => Effect.runPromise(effect).catch(err => {
+            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+            console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+          })
+        );
         
         try {
           // Use querySync to fetch events with timeout protection
@@ -62,12 +100,50 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
             })
           );
           
-          console.log(`[Nostr] Fetched ${events.length} events`);
+          // Log fetch success via telemetry
+          const fetchSuccessEvent: TelemetryEvent = {
+            category: "log:info",
+            action: "nostr_fetch_success",
+            label: `[Nostr] Fetched ${events.length} events`
+          };
+          
+          // Fire-and-forget telemetry event
+          Effect.gen(function* (_) {
+            const telemetryService = yield* _(TelemetryService);
+            yield* _(telemetryService.trackEvent(fetchSuccessEvent));
+          }).pipe(
+            Effect.provide(TelemetryServiceLive),
+            (effect) => Effect.runPromise(effect).catch(err => {
+              // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+              console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+            })
+          );
           
           // Sort events by created_at descending and return
           return events.sort((a, b) => b.created_at - a.created_at) as NostrEvent[];
         } catch (error) {
-          console.error("[Nostr] Error fetching events:", error);
+          // Log error via telemetry
+          const fetchErrorEvent: TelemetryEvent = {
+            category: "log:error",
+            action: "nostr_fetch_error",
+            label: "[Nostr] Error fetching events",
+            value: error instanceof Error ? 
+              JSON.stringify({ message: error.message, stack: error.stack }) : 
+              String(error)
+          };
+          
+          // Fire-and-forget telemetry event
+          Effect.gen(function* (_) {
+            const telemetryService = yield* _(TelemetryService);
+            yield* _(telemetryService.trackEvent(fetchErrorEvent));
+          }).pipe(
+            Effect.provide(TelemetryServiceLive),
+            (effect) => Effect.runPromise(effect).catch(err => {
+              // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+              console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+            })
+          );
+          
           throw new NostrRequestError({ 
             message: error instanceof Error ? error.message : "Unknown error fetching events",
             cause: error
@@ -86,7 +162,25 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
           }))
         );
         
-        console.log("[Nostr] Publishing event:", event.id);
+        // Log publish attempt via telemetry
+        const publishEventTelemetry: TelemetryEvent = {
+          category: "log:info",
+          action: "nostr_publish_begin",
+          label: "[Nostr] Publishing event",
+          value: event.id
+        };
+        
+        // Fire-and-forget telemetry event
+        Effect.gen(function* (_) {
+          const telemetryService = yield* _(TelemetryService);
+          yield* _(telemetryService.trackEvent(publishEventTelemetry));
+        }).pipe(
+          Effect.provide(TelemetryServiceLive),
+          (effect) => Effect.runPromise(effect).catch(err => {
+            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+            console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+          })
+        );
         
         try {
           // Publish the event to all relays
@@ -98,16 +192,73 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
           // Check if there were any failures
           const failedRelays = results.filter(r => r.status === 'rejected');
           if (failedRelays.length > 0) {
-            console.warn(`[Nostr] Failed to publish to ${failedRelays.length} relays`);
+            // Log warning via telemetry
+            const publishWarningEvent: TelemetryEvent = {
+              category: "log:warn",
+              action: "nostr_publish_partial_failure",
+              label: `[Nostr] Failed to publish to ${failedRelays.length} relays`,
+              value: failedRelays.map(fr => (fr as PromiseRejectedResult).reason).join(", ")
+            };
+            
+            // Fire-and-forget telemetry event
+            Effect.gen(function* (_) {
+              const telemetryService = yield* _(TelemetryService);
+              yield* _(telemetryService.trackEvent(publishWarningEvent));
+            }).pipe(
+              Effect.provide(TelemetryServiceLive),
+              (effect) => Effect.runPromise(effect).catch(err => {
+                // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+                console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+              })
+            );
+            
             return yield* _(Effect.fail(new NostrPublishError({
               message: `Failed to publish to ${failedRelays.length} out of ${config.relays.length} relays`,
               cause: failedRelays.map(fr => (fr as PromiseRejectedResult).reason).join(", ")
             })));
           }
           
-          console.log("[Nostr] Successfully published event to all relays");
+          // Log success via telemetry
+          const publishSuccessEvent: TelemetryEvent = {
+            category: "log:info",
+            action: "nostr_publish_success",
+            label: "[Nostr] Successfully published event to all relays"
+          };
+          
+          // Fire-and-forget telemetry event
+          Effect.gen(function* (_) {
+            const telemetryService = yield* _(TelemetryService);
+            yield* _(telemetryService.trackEvent(publishSuccessEvent));
+          }).pipe(
+            Effect.provide(TelemetryServiceLive),
+            (effect) => Effect.runPromise(effect).catch(err => {
+              // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+              console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+            })
+          );
         } catch (error) {
-          console.error("[Nostr] Error publishing event:", error);
+          // Log error via telemetry
+          const publishErrorEvent: TelemetryEvent = {
+            category: "log:error",
+            action: "nostr_publish_error",
+            label: "[Nostr] Error publishing event",
+            value: error instanceof Error ? 
+              JSON.stringify({ message: error.message, stack: error.stack }) : 
+              String(error)
+          };
+          
+          // Fire-and-forget telemetry event
+          Effect.gen(function* (_) {
+            const telemetryService = yield* _(TelemetryService);
+            yield* _(telemetryService.trackEvent(publishErrorEvent));
+          }).pipe(
+            Effect.provide(TelemetryServiceLive),
+            (effect) => Effect.runPromise(effect).catch(err => {
+              // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+              console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+            })
+          );
+          
           throw new NostrPublishError({ 
             message: error instanceof Error ? error.message : "Unknown error publishing event",
             cause: error
@@ -122,7 +273,24 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
           if (poolInstance) {
             poolInstance.close(config.relays as string[]);
             poolInstance = null;
-            console.log("[Nostr] Pool connections closed");
+            
+            // Log pool closure via telemetry
+            const poolCloseEvent: TelemetryEvent = {
+              category: "log:info",
+              action: "nostr_pool_close",
+              label: "[Nostr] Pool connections closed"
+            };
+            
+            Effect.gen(function* (_) {
+              const telemetryService = yield* _(TelemetryService);
+              yield* _(telemetryService.trackEvent(poolCloseEvent));
+            }).pipe(
+              Effect.provide(TelemetryServiceLive),
+              (effect) => Effect.runPromise(effect).catch(err => {
+                // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+                console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+              })
+            );
           }
         },
         catch: (error) => new NostrPoolError({ message: "Failed to clean up Nostr pool", cause: error }),

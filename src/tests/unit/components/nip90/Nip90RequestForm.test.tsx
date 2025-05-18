@@ -5,38 +5,68 @@ import Nip90RequestForm from '@/components/nip90/Nip90RequestForm';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Mock Effect and other dependencies first, before any imports happen
-vi.mock('effect', () => ({
-  Effect: {
-    gen: () => ({ pipe: vi.fn() }),
-    flatMap: vi.fn(),
-    succeed: vi.fn(),
-    fail: vi.fn(),
-    provide: vi.fn(),
-    runPromiseExit: vi.fn().mockResolvedValue({
-      _tag: 'Success',
-      value: 'mockEventId123',
-    }),
-  },
-  Layer: {
-    succeed: vi.fn(),
-    provide: vi.fn(),
-    mergeAll: vi.fn(),
-  },
-  Exit: {
-    isSuccess: vi.fn(() => true),
-    isFailure: vi.fn(() => false), 
-  },
-  Cause: {
-    pretty: vi.fn(),
-    failureOption: vi.fn(() => ({
-      _tag: 'Some',
-      value: { message: 'Test error' }
-    })),
-  },
-  Option: {
-    getOrThrow: vi.fn(x => x),
-  },
-}));
+vi.mock('effect', () => {
+  // Create a fixed Effect succeed implementation that doesn't depend on importing the actual module
+  const mockSucceed = vi.fn().mockImplementation((value) => ({
+    _tag: 'Success',
+    value
+  }));
+  
+  return {
+    Effect: {
+      gen: () => ({ pipe: vi.fn() }),
+      flatMap: vi.fn(),
+      succeed: mockSucceed,
+      fail: vi.fn(),
+      provide: vi.fn(),
+      runPromise: vi.fn().mockResolvedValue({}),
+      runPromiseExit: vi.fn().mockResolvedValue({
+        _tag: 'Success',
+        value: 'mockEventId123',
+      }),
+      mapError: vi.fn(),
+      timeout: vi.fn(),
+      tryPromise: vi.fn(),
+    },
+    Layer: {
+      succeed: vi.fn(),
+      provide: vi.fn(),
+      mergeAll: vi.fn(),
+    },
+    Exit: {
+      isSuccess: vi.fn(() => true),
+      isFailure: vi.fn(() => false), 
+    },
+    Cause: {
+      pretty: vi.fn(),
+      failureOption: vi.fn(() => ({
+        _tag: 'Some',
+        value: { message: 'Test error' }
+      })),
+      isCause: vi.fn(() => false),
+    },
+    Option: {
+      getOrThrow: vi.fn(x => x),
+    },
+    // Add Schema mock to fix the error
+    Schema: {
+      String: Symbol('String'),
+      Number: Symbol('Number'),
+      Boolean: Symbol('Boolean'),
+      Undefined: Symbol('Undefined'),
+      optional: vi.fn(),
+      Union: vi.fn(),
+      Struct: vi.fn(() => Symbol('SchemaStruct')),
+      decodeUnknown: vi.fn(() => mockSucceed({})),
+    },
+    Context: {
+      GenericTag: vi.fn(() => Symbol('GenericServiceTag')),
+    },
+    Data: {
+      TaggedError: vi.fn(() => class {} ),
+    },
+  };
+});
 
 // Mock all other dependencies
 vi.mock('@/services/nip04', () => ({
@@ -50,6 +80,16 @@ vi.mock('@/services/nostr', () => ({
   NostrService: vi.fn(),
   NostrServiceLive: vi.fn(),
   DefaultNostrServiceConfigLayer: vi.fn(),
+}));
+
+vi.mock('@/services/telemetry', () => ({
+  TelemetryService: {
+    pipe: vi.fn(),
+  },
+  TelemetryServiceLive: {
+    pipe: vi.fn(),
+  },
+  // Don't need 'type' as it's not a runtime export
 }));
 
 vi.mock('@/helpers/nip90/event_creation', () => ({

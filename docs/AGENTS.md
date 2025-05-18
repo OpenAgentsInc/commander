@@ -141,3 +141,71 @@ Welcome to the OpenAgents Commander codebase! This document provides a concise o
 *   **Custom Title Bar**: The application uses a custom, frameless window title bar.
 
 This document should provide a solid foundation for understanding and working with the OpenAgents Commander codebase. For more specific details, refer to the individual configuration files mentioned and the original `README-template.md`.
+
+## 11. Logging and Telemetry
+
+For all application logging, event tracking, and diagnostics, the **`TelemetryService` MUST be used**. This ensures a centralized and controllable way to manage diagnostic data.
+
+**Key Principles:**
+
+*   **Development Mode:** By default, the `TelemetryService` logs its events to the `console.log`. This provides immediate visibility for developers.
+*   **Production Mode:** By default, the `TelemetryService` is silent and performs no logging operations.
+*   **User Control:** The `setEnabled` method on the service allows for UI controls to override the default behavior if needed.
+
+**Usage Guidelines:**
+
+*   **DO NOT USE `console.log()`, `console.warn()`, `console.error()`, `console.info()`, or `console.debug()` directly for application-level logging or diagnostics.**
+    *   These methods bypass our telemetry system.
+    *   They may be used for *temporary, local debugging only* and **MUST be removed** before committing code.
+*   **USE `TelemetryService.trackEvent()` for all logging purposes.**
+    *   This includes informational messages, warnings, errors, and tracking of feature usage or significant application events.
+
+*   **Exceptions (Where `console.*` is still used):**
+    *   Inside `src/services/telemetry/TelemetryServiceImpl.ts` itself, for its own operational logging (e.g., the `[Telemetry]` prefix, or logging explicit calls to `setEnabled`).
+    *   In the fallback `.catch()` block when an attempt to call `TelemetryService.trackEvent()` itself fails. These specific calls are marked with `// TELEMETRY_IGNORE_THIS_CONSOLE_CALL`.
+    *   In `src/tests/vitest.setup.ts` for test environment setup.
+
+**How to Use `TelemetryService.trackEvent()`:**
+
+1.  **Import necessary modules:**
+    ```typescript
+    import { Effect, Layer, Cause, Exit } from 'effect';
+    import { TelemetryService, TelemetryServiceLive, type TelemetryEvent } from '@/services/telemetry';
+    ```
+
+2.  **Construct your `TelemetryEvent` data:**
+    When replacing old `console.*` calls, use the `category` mapping:
+    *   `console.log`/`console.info` -> `"log:info"`
+    *   `console.warn` -> `"log:warn"`
+    *   `console.error` -> `"log:error"`
+    *   `console.debug` -> `"log:debug"`
+
+    ```typescript
+    const eventData: TelemetryEvent = {
+      category: "log:error", // e.g., for a console.error replacement
+      action: "user_login_failure", // Or "generic_console_replacement"
+      label: "User login failed for user_xyz", // Main message or context
+      value: JSON.stringify({ reason: "Invalid password", attempt: 3 }) // Additional structured data, stringified
+    };
+    ```
+
+3.  **Create and run the Effect program:**
+    ```typescript
+    Effect.gen(function* (_) {
+      const telemetryService = yield* _(TelemetryService);
+      yield* _(telemetryService.trackEvent(eventData));
+    }).pipe(
+      Effect.provide(TelemetryServiceLive), // Provide the service layer
+      (effect) => Effect.runPromise(effect).catch(err => {
+        // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+        console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err), Cause.pretty(err)); // Fallback for telemetry system errors
+      })
+    );
+    ```
+    *   For code already running in an Effect context with `TelemetryServiceLive` provided, you can use:
+    ```typescript
+    yield* _(Effect.gen(function* (_) {
+      const telemetryService = yield* _(TelemetryService);
+      yield* _(telemetryService.trackEvent(eventData));
+    }));
+    ```
