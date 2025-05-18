@@ -646,4 +646,51 @@ This approach provides multiple significant benefits:
 
 3. **Type safety**: The mock implementation maintains proper types and error handling, ensuring the tests accurately reflect the real service's behavior.
 
-Running the full test suite now produces no unwanted telemetry logs, while still thoroughly verifying the behavior of the service.
+Running the telemetry tests now produces no logs, while still thoroughly verifying the behavior of the service.
+
+## Update 3: Global Solution for All Test Logs
+
+While our changes to the telemetry service silenced its own logs during test runs, we noticed that logs from other services (like OllamaService and BIP32Service) were still appearing. To create a more comprehensive solution, we updated the global vitest.setup.ts file:
+
+```typescript
+// Store original console methods
+const originalConsoleLog = console.log;
+const originalConsoleInfo = console.info;
+const originalConsoleWarn = console.warn;
+const originalConsoleError = console.error;
+const originalConsoleDebug = console.debug;
+
+// Setup mock server
+beforeAll(() => {
+  // Start mock server
+  server.listen({ onUnhandledRequest: 'error' });
+  
+  // Silence all console output during tests
+  // Replace all console methods with no-ops
+  console.log = () => {};
+  console.info = () => {};
+  console.warn = () => {};
+  console.error = () => {};
+  console.debug = () => {};
+});
+
+afterAll(() => {
+  // Close server
+  server.close();
+  
+  // Restore console functionality
+  console.log = originalConsoleLog;
+  console.info = originalConsoleInfo;
+  console.warn = originalConsoleWarn;
+  console.error = originalConsoleError;
+  console.debug = originalConsoleDebug;
+});
+```
+
+This approach:
+
+1. **Completely silences all test output** by replacing all console methods with empty functions during test runs
+2. **Preserves functionality outside tests** by restoring the original console methods after tests complete
+3. **Works globally** across all services without requiring individual changes to each implementation
+
+Now the entire test suite runs without any log outputs from any service, creating a clean, focused testing experience while maintaining thorough test coverage.
