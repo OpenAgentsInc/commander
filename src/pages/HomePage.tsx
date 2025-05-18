@@ -3,7 +3,7 @@ import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 import { HandTrackingUIControls, MainSceneContent, HandPose, type PinchCoordinates, useHandTracking } from "@/components/hands";
 import { ChatContainer } from "@/components/chat";
-import { Nip90EventList } from "@/components/nip90";
+import { Nip90EventList, Nip90RequestForm } from "@/components/nip90";
 import { useUIElementsStore, UIPosition } from "@/stores/uiElementsStore";
 import { Effect, Exit, Cause } from "effect";
 import { SimplePool } from "nostr-tools/pool";
@@ -502,9 +502,14 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* NIP-90 Event List (right side) */}
-          <div className="absolute top-16 right-4 w-[calc(50%-2rem)] h-[calc(100%-8rem)] z-20" style={{ pointerEvents: 'auto' }}>
-            <div className="h-full border rounded-md shadow-lg bg-background/80 backdrop-blur-sm overflow-hidden text-foreground">
+          {/* NIP-90 Request Form and Event List (right side) */}
+          <div className="absolute top-16 right-4 w-[calc(50%-2rem)] h-[calc(100%-8rem)] z-20 flex flex-col gap-4" style={{ pointerEvents: 'auto' }}>
+            {/* NIP-90 Request Form */}
+            <div className="border rounded-md shadow-lg bg-background/80 backdrop-blur-sm text-foreground p-4">
+              <Nip90RequestForm />
+            </div>
+            {/* NIP-90 Event List */}
+            <div className="flex-grow border rounded-md shadow-lg bg-background/80 backdrop-blur-sm overflow-hidden text-foreground min-h-0">
               <Nip90EventList />
             </div>
           </div>
