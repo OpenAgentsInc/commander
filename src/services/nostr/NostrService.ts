@@ -1,12 +1,9 @@
+/**
+ * Placeholder NostrService - TYPE DEFINITIONS ONLY
+ * This is only for passing type checks, not for actual functionality.
+ */
 import { Effect, Context, Data, Layer } from "effect";
-import type { Event as NostrToolsEvent, EventTemplate as NostrToolsEventTemplate } from "nostr-tools/pure";
-import type { Filter as NostrToolsFilter } from "nostr-tools/filter";
 import type { SimplePool } from "nostr-tools/pool";
-
-// --- Nostr Event Types (using nostr-tools types) ---
-export type NostrEvent = NostrToolsEvent;
-export type NostrFilter = NostrToolsFilter;
-export type NostrEventTemplate = NostrToolsEventTemplate;
 
 // --- Custom Error Types ---
 export class NostrPoolError extends Data.TaggedError("NostrPoolError")<{
@@ -24,11 +21,35 @@ export class NostrPublishError extends Data.TaggedError("NostrPublishError")<{
   cause?: unknown;
 }> {}
 
+// --- NostrEvent Type (simplification of NostrToolsEvent) ---
+export interface NostrEvent {
+  id: string;
+  kind: number;
+  tags: string[][];
+  content: string;
+  created_at: number;
+  pubkey: string;
+  sig: string;
+}
+
+// --- NostrFilter Type (simplification of NostrToolsFilter) ---
+export interface NostrFilter {
+  ids?: string[];
+  kinds?: number[];
+  authors?: string[];
+  since?: number;
+  until?: number;
+  limit?: number;
+  search?: string;
+  [key: `#${string}`]: string[] | undefined;
+}
+
 // --- Service Configuration ---
 export interface NostrServiceConfig {
   readonly relays: readonly string[];
-  readonly requestTimeoutMs: number; // Timeout for requests like pool.list()
+  readonly requestTimeoutMs: number;
 }
+
 export const NostrServiceConfigTag = Context.GenericTag<NostrServiceConfig>("NostrServiceConfig");
 
 // --- Default Configuration Layer ---
@@ -49,31 +70,10 @@ export const DefaultNostrServiceConfigLayer = Layer.succeed(
 
 // --- Service Interface ---
 export interface NostrService {
-  /**
-   * Initializes (if not already) and returns the SimplePool instance.
-   * Manages a single pool instance for the service lifetime.
-   */
-  getPool(): Effect.Effect<SimplePool, NostrPoolError>;
-
-  /**
-   * Fetches a list of events from the configured relays based on filters.
-   * Sorts events by created_at descending.
-   */
-  listEvents(
-    filters: NostrFilter[]
-  ): Effect.Effect<NostrEvent[], NostrRequestError, SimplePool | NostrServiceConfig>; // Requires pool and config
-
-  /**
-   * Publishes an event to the configured relays.
-   * Note: Event signing should happen before calling this.
-   */
-  publishEvent(
-    event: NostrEvent // nostr-tools Event is already signed and has an id
-  ): Effect.Effect<void, NostrPublishError, SimplePool | NostrServiceConfig>; // Requires pool and config
-
-  /**
-   * Cleans up the pool, closing connections.
-   */
-  cleanupPool(): Effect.Effect<void, NostrPoolError>;
+  getPool(): Effect.Effect<SimplePool, NostrPoolError, never>;
+  listEvents(filters: NostrFilter[]): Effect.Effect<NostrEvent[], NostrRequestError, never>;
+  publishEvent(event: NostrEvent): Effect.Effect<void, NostrPublishError, never>;
+  cleanupPool(): Effect.Effect<void, NostrPoolError, never>;
 }
+
 export const NostrService = Context.GenericTag<NostrService>("NostrService");
