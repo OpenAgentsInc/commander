@@ -6,6 +6,7 @@ import { ChatContainer } from "@/components/chat";
 import { Nip90EventList } from "@/components/nip90";
 import { useUIElementsStore, UIPosition } from "@/stores/uiElementsStore";
 import { Effect, Exit, Cause } from "effect";
+import { SimplePool } from "nostr-tools/pool";
 import { BIP39Service, BIP39ServiceLive } from "@/services/bip39";
 import { BIP32Service, BIP32ServiceLive } from "@/services/bip32";
 import { NIP19Service, NIP19ServiceLive } from "@/services/nip19";
@@ -372,6 +373,38 @@ export default function HomePage() {
       }
     });
   };
+
+  // Direct test for Nostr connection
+  useEffect(() => {
+    const testDirectNostrConnection = async () => {
+      console.log("[HomePage] Testing direct Nostr relay connection...");
+      const pool = new SimplePool();
+      const relays = ["wss://relay.damus.io/"]; // Test with one reliable relay
+      const filter = { kinds: [5000, 5001], limit: 5 };
+      
+      try {
+        console.log("[Direct Test] Querying relay directly...");
+        const events = await pool.querySync(relays, filter, {maxWait: 5000});
+        console.log("[Direct Test] Direct pool query result:", events);
+        if (events.length === 0) {
+          console.log("[Direct Test] No events found with kinds 5000, 5001. Trying a more common kind (1)...");
+          const eventsKind1 = await pool.querySync(relays, { kinds: [1], limit: 3 }, {maxWait: 5000});
+          console.log("[Direct Test] Found", eventsKind1.length, "events of kind 1");
+        }
+        pool.close(relays);
+      } catch (e) {
+        console.error("[Direct Test] Direct pool query error:", e);
+        pool.close(relays);
+      }
+    };
+    
+    // Run the test after a short delay to allow the app to initialize
+    const timer = setTimeout(() => {
+      testDirectNostrConnection();
+    }, 2000);
+    
+    return () => clearTimeout(timer);
+  }, []);
 
   // Add WebGL context lost/restored event listeners
   useEffect(() => {

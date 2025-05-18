@@ -27,7 +27,7 @@ async function fetchNip90JobRequests(): Promise<NostrEvent[]> {
   );
   const filters: NostrFilter[] = [{
     kinds: nip90RequestKinds,
-    limit: 20
+    limit: 100 // Increased from 20 to get more historical events
   }];
 
   // Define the Effect program
@@ -35,6 +35,18 @@ async function fetchNip90JobRequests(): Promise<NostrEvent[]> {
     const nostrService = yield* _(NostrService); // Use the Tag
     const events = yield* _(nostrService.listEvents(filters));
     console.log(`[Nip90Component] Fetched ${events.length} NIP-90 events`);
+    
+    // Log the first few events for debugging
+    if (events.length > 0) {
+      console.log("[Nip90Component] First event:", JSON.stringify(events[0], null, 2));
+      console.log("[Nip90Component] Event kinds distribution:", 
+        events.reduce((acc, ev) => {
+          acc[ev.kind] = (acc[ev.kind] || 0) + 1;
+          return acc;
+        }, {} as Record<number, number>)
+      );
+    }
+    
     return events;
   });
 
@@ -200,7 +212,7 @@ export default function Nip90EventList() {
   );
 
   return (
-    <div className="p-2 h-full flex flex-col">
+    <div className="p-2 h-full flex flex-col overflow-hidden">
       <div className="flex justify-between items-center mb-2">
         <h2 className="text-lg font-semibold">NIP-90 Job Requests ({nip90Events.length})</h2>
         <Button 
@@ -211,7 +223,7 @@ export default function Nip90EventList() {
           {isRefetching ? "Refreshing..." : "Refresh"}
         </Button>
       </div>
-      <ScrollArea className="flex-grow">
+      <ScrollArea className="flex-grow h-[calc(100%-3rem)]">
         <div className="pr-4">
           {Object.entries(eventsByKind).map(([kind, events]) => (
             <div key={kind} className="mb-4">
