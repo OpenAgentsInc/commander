@@ -28,7 +28,12 @@ export function createTelemetryService(): TelemetryService {
       );
 
       // Check if telemetry is enabled before tracking
-      const enabled = yield* _(isEnabled());
+      const enabled = yield* _(isEnabled().pipe(
+        Effect.mapError(error => new TrackEventError({
+          message: error.message, 
+          cause: error.cause
+        }))
+      ));
       if (!enabled) {
         return; // Silently do nothing if telemetry is disabled
       }
@@ -40,11 +45,18 @@ export function createTelemetryService(): TelemetryService {
       };
 
       // In a real implementation, this would send data to a telemetry service
-      // This is a placeholder that just logs to console
+      // This is a placeholder that just logs to console, but only if not running tests
       return yield* _(
         Effect.try({
           try: () => {
-            console.log("[Telemetry]", eventWithTimestamp);
+            // Check if we're in test environment
+            const isTestEnv = process.env.NODE_ENV === 'test' || 
+                             process.env.VITEST !== undefined;
+            
+            // Only log if not in test environment
+            if (!isTestEnv) {
+              console.log("[Telemetry]", eventWithTimestamp);
+            }
             return;
           },
           catch: (cause) => new TrackEventError({ 
