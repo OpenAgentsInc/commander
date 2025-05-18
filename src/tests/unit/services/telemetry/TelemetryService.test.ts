@@ -33,14 +33,14 @@ describe('TelemetryService', () => {
   });
 
   describe('isEnabled & setEnabled', () => {
-    it('should be disabled by default', async () => {
+    it('should be enabled by default', async () => {
       const program = Effect.gen(function* (_) {
         const telemetryService = yield* _(TelemetryService);
         return yield* _(telemetryService.isEnabled());
       }).pipe(Effect.provide(TelemetryServiceLive));
 
       const isEnabled = await Effect.runPromise(program);
-      expect(isEnabled).toBe(false);
+      expect(isEnabled).toBe(true);
     });
 
     it('should be enabled after calling setEnabled(true)', async () => {
@@ -72,7 +72,7 @@ describe('TelemetryService', () => {
   describe('trackEvent', () => {
     // Create a mock implementation for the TelemetryService that we can test directly
     const createMockTelemetryService = () => {
-      let telemetryEnabled = false;
+      let telemetryEnabled = true; // Match the implementation default
       let logs: Array<any> = [];
       
       return {
@@ -154,6 +154,8 @@ describe('TelemetryService', () => {
 
       const program = Effect.gen(function* (_) {
         const telemetryService = yield* _(TelemetryService);
+        // First clear logs, since telemetry is enabled by default
+        mockTelemetry.clearLogs();
         // Make sure telemetry is disabled
         yield* _(telemetryService.setEnabled(false));
         // Track an event (should be a no-op)

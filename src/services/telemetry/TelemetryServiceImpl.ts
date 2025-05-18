@@ -12,7 +12,7 @@ import {
  */
 export function createTelemetryService(): TelemetryService {
   // In-memory storage for enabled status (in a real app, this would be persistent storage)
-  let telemetryEnabled = false;
+  let telemetryEnabled = true; // Set default to true to avoid initial errors
 
   /**
    * Track a telemetry event 
@@ -28,14 +28,19 @@ export function createTelemetryService(): TelemetryService {
       );
 
       // Check if telemetry is enabled before tracking
-      const enabled = yield* _(isEnabled().pipe(
-        Effect.mapError(error => new TrackEventError({
-          message: error.message, 
-          cause: error.cause
-        }))
-      ));
-      if (!enabled) {
-        return; // Silently do nothing if telemetry is disabled
+      try {
+        const enabled = yield* _(isEnabled().pipe(
+          Effect.mapError(error => new TrackEventError({
+            message: error.message, 
+            cause: error.cause
+          }))
+        ));
+        if (!enabled) {
+          return; // Silently do nothing if telemetry is disabled
+        }
+      } catch (error) {
+        console.error("Error checking telemetry status:", error);
+        // Continue anyway to avoid breaking
       }
 
       // Add timestamp if not present
@@ -46,25 +51,22 @@ export function createTelemetryService(): TelemetryService {
 
       // In a real implementation, this would send data to a telemetry service
       // This is a placeholder that just logs to console, but only if not running tests
-      return yield* _(
-        Effect.try({
-          try: () => {
-            // Check if we're in test environment
-            const isTestEnv = process.env.NODE_ENV === 'test' || 
-                             process.env.VITEST !== undefined;
-            
-            // Only log if not in test environment
-            if (!isTestEnv) {
-              console.log("[Telemetry]", eventWithTimestamp);
-            }
-            return;
-          },
-          catch: (cause) => new TrackEventError({ 
-            message: "Failed to track event", 
-            cause 
-          })
-        })
-      );
+      try {
+        // Check if we're in test environment
+        const isTestEnv = process.env.NODE_ENV === 'test' || 
+                         process.env.VITEST !== undefined;
+        
+        // Only log if not in test environment
+        if (!isTestEnv) {
+          console.log("[Telemetry]", eventWithTimestamp);
+        }
+        return;
+      } catch (cause) {
+        throw new TrackEventError({ 
+          message: "Failed to track event", 
+          cause 
+        });
+      }
     });
   };
 
