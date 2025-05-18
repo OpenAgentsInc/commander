@@ -17,6 +17,13 @@ describe('BIP32Service', () => {
   // Known test vectors for deterministic testing
   const TEST_MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
   
+  // Helper function to convert Uint8Array to hex string (browser-safe replacement for Buffer)
+  const toHexString = (bytes: Uint8Array): string => {
+    return Array.from(bytes)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  };
+
   // Helper function to create a seed from the test mnemonic
   const createSeedFromMnemonic = async (): Promise<Uint8Array> => {
     return Effect.runPromise(
@@ -42,7 +49,7 @@ describe('BIP32Service', () => {
       // Log the seed for debugging
       console.log('Seed type:', Object.prototype.toString.call(seed));
       console.log('Seed length:', seed.length);
-      console.log('Seed buffer:', Buffer.from(seed).toString('hex').substring(0, 64) + '...');
+      console.log('Seed buffer:', toHexString(seed).substring(0, 64) + '...');
       
       const node = await runWithServices(
         Effect.gen(function* (_) {

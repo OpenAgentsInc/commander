@@ -16,6 +16,15 @@ import {
  */
 export function createBIP32Service(): BIP32Service {
   /**
+   * Helper to convert Uint8Array to hex string (browser-safe replacement for Buffer)
+   */
+  const toHexString = (bytes: Uint8Array): string => {
+    return Array.from(bytes)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  };
+
+  /**
    * Helper to serialize a bip32.HDKey to our BIP32Node format
    */
   const serializeNode = (node: bip32.HDKey, path: string): BIP32Node => {
@@ -29,9 +38,9 @@ export function createBIP32Service(): BIP32Service {
     }
     
     return {
-      privateKey: node.privateKey ? Buffer.from(node.privateKey).toString('hex') : undefined,
-      publicKey: Buffer.from(node.publicKey).toString('hex'),
-      chainCode: Buffer.from(node.chainCode).toString('hex'),
+      privateKey: node.privateKey ? toHexString(node.privateKey) : undefined,
+      publicKey: toHexString(node.publicKey),
+      chainCode: toHexString(node.chainCode),
       depth: node.depth,
       index: node.index,
       path
@@ -59,7 +68,7 @@ export function createBIP32Service(): BIP32Service {
       try {
         // Using debug logs to understand what's happening with the seed
         console.debug("BIP32: Seed length:", seed.length, "bytes");
-        console.debug("BIP32: Seed hex:", Buffer.from(seed).toString('hex').substring(0, 32) + '...');
+        console.debug("BIP32: Seed hex:", toHexString(seed).substring(0, 32) + '...');
         node = bip32.HDKey.fromMasterSeed(seed);
       } catch (error) {
         console.error("BIP32 Error:", error);
@@ -141,7 +150,7 @@ export function createBIP32Service(): BIP32Service {
       try {
         // Using debug logs to understand what's happening with the seed
         console.debug("BIP32 deriveBIP44: Seed length:", seed.length, "bytes");
-        console.debug("BIP32 deriveBIP44: Seed hex:", Buffer.from(seed).toString('hex').substring(0, 32) + '...');
+        console.debug("BIP32 deriveBIP44: Seed hex:", toHexString(seed).substring(0, 32) + '...');
         console.debug("BIP32 deriveBIP44: Path:", path);
         
         node = bip32.HDKey.fromMasterSeed(seed);
@@ -163,8 +172,8 @@ export function createBIP32Service(): BIP32Service {
       // Return the address details
       return {
         path,
-        privateKey: node.privateKey ? Buffer.from(node.privateKey).toString('hex') : undefined,
-        publicKey: Buffer.from(node.publicKey).toString('hex')
+        privateKey: node.privateKey ? toHexString(node.privateKey) : undefined,
+        publicKey: toHexString(node.publicKey)
       };
     });
   };

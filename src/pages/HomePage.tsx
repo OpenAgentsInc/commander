@@ -283,6 +283,13 @@ export default function HomePage() {
     });
   };
   
+  // Helper function to convert Uint8Array to hex string (browser-safe replacement for Buffer)
+  const toHexString = (bytes: Uint8Array): string => {
+    return Array.from(bytes)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  };
+  
   // Handler for testing the BIP32 derivation process
   const handleTestBIP32Click = async () => {
     // Create a program that:
@@ -300,7 +307,8 @@ export default function HomePage() {
       
       // 2. Convert the mnemonic to a seed
       const seed = yield* _(bip39Service.mnemonicToSeed(mnemonic));
-      console.log("Generated seed (hex):", Buffer.from(seed).toString('hex'));
+      const seedHex = toHexString(seed);
+      console.log("Generated seed (hex):", seedHex);
       
       // 3. Derive a BIP44 address path (m/44'/0'/0'/0/0)
       const addressDetails = yield* _(bip32Service.deriveBIP44Address(seed, 0, 0, false));
@@ -308,7 +316,7 @@ export default function HomePage() {
       
       return {
         mnemonic,
-        seedHex: Buffer.from(seed).toString('hex').substring(0, 8) + '...',
+        seedHex: seedHex.substring(0, 8) + '...',
         path: addressDetails.path,
         publicKey: addressDetails.publicKey.substring(0, 8) + '...',
         privateKey: addressDetails.privateKey ? 
