@@ -54,8 +54,8 @@ describe('NIP04Service', () => {
       const errorCause = new Error("Encryption library error");
       mockNip04Encrypt.mockRejectedValue(errorCause);
 
-      const program = Effect.service(NIP04Service).pipe(
-        Effect.flatMap(service => service.encrypt(ourSk, theirPkHex, plaintext))
+      const program = Effect.flatMap(NIP04Service, service => 
+        service.encrypt(ourSk, theirPkHex, plaintext)
       );
       const exit = await runWithLayer(program);
 
@@ -73,8 +73,8 @@ describe('NIP04Service', () => {
     it('should decrypt ciphertext successfully', async () => {
       mockNip04Decrypt.mockResolvedValue(plaintext);
 
-      const program = Effect.service(NIP04Service).pipe(
-        Effect.flatMap(service => service.decrypt(ourSk, theirPkHex, ciphertextWithIv))
+      const program = Effect.flatMap(NIP04Service, service => 
+        service.decrypt(ourSk, theirPkHex, ciphertextWithIv)
       );
       const exit = await runWithLayer(program);
 
@@ -89,8 +89,8 @@ describe('NIP04Service', () => {
       const errorCause = new Error("Decryption library error");
       mockNip04Decrypt.mockRejectedValue(errorCause);
 
-      const program = Effect.service(NIP04Service).pipe(
-        Effect.flatMap(service => service.decrypt(ourSk, theirPkHex, ciphertextWithIv))
+      const program = Effect.flatMap(NIP04Service, service => 
+        service.decrypt(ourSk, theirPkHex, ciphertextWithIv)
       );
       const exit = await runWithLayer(program);
 
