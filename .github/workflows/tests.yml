@@ -33,8 +33,11 @@ jobs:
         run: pnpm test:unit
 
   test-e2e:
-    timeout-minutes: 10
+    timeout-minutes: 15
     runs-on: windows-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      ELECTRON_EXTRA_LAUNCH_ARGS: "--disable-gpu --no-sandbox"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -57,11 +60,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
       - name: Install Playwright Browsers
-        run: pnpm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps chromium
       - name: Create Executable
         run: pnpm make
       - name: Run Playwright tests
         run: pnpm test:e2e
+        env:
+          ELECTRON_ENABLE_LOGGING: 1
+          DEBUG: pw:api
       - uses: actions/upload-artifact@v4
         if: always()
         with:
