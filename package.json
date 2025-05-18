@@ -1,7 +1,7 @@
 {
   "name": "commander",
   "productName": "Commander",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "Command agents, earn bitcoin.",
   "main": ".vite/build/main.js",
   "private": true,
