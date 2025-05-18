@@ -14,16 +14,35 @@ export function createTelemetryService(): TelemetryService {
   // Determine if telemetry should be enabled based on environment
   // In actual client code, we'd use import.meta.env.MODE but 
   // for CommonJS compatibility in tests, we need to use process.env
-  const isDevelopmentMode = 
-    // In test environment, default to enabled (tests expect this behavior)
-    (typeof process !== 'undefined' && 
-      (process.env.NODE_ENV === 'test' || process.env.VITEST !== undefined)) ||
-    // In development environment
-    (typeof process !== 'undefined' && process.env.NODE_ENV === 'development') ||
-    // In Electron's renderer process running with Vite:
-    (typeof process === 'undefined' && 
-     typeof window !== 'undefined' && 
-     window.location?.hostname === 'localhost');
+  // We need to be careful with environment detection to avoid errors in different contexts
+  let isDevelopmentMode = false;
+  
+  // Try to determine if we're in development mode
+  try {
+    // Check for browser/Electron renderer environment
+    if (typeof window !== 'undefined' && window.location) {
+      // Consider localhost or 127.0.0.1 to be development
+      isDevelopmentMode = window.location.hostname === 'localhost' || 
+                        window.location.hostname === '127.0.0.1' ||
+                        window.location.protocol === 'file:';
+    }
+    
+    // Try to check Node.js environment, but handle if process is not defined
+    if (typeof process !== 'undefined' && process.env) {
+      if (process.env.NODE_ENV === 'development' || 
+          process.env.NODE_ENV === 'test' || 
+          process.env.VITEST) {
+        isDevelopmentMode = true;
+      }
+    }
+  } catch (e) {
+    // If there's any error in environment detection, default to enabled
+    // to avoid breaking anything in unexpected environments
+    isDevelopmentMode = true;
+    
+    // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+    console.warn('[TelemetryService] Error detecting environment, defaulting to enabled:', e);
+  }
   
   // Default behavior: enabled in test/dev, disabled in prod
   let telemetryEnabled = isDevelopmentMode;
@@ -63,18 +82,34 @@ export function createTelemetryService(): TelemetryService {
       };
 
       try {
-        const isTestEnv = process.env.NODE_ENV === 'test' || process.env.VITEST !== undefined;
+        // Check for test environment in a safe way that works in browser
+        let isTestEnv = false;
+        try {
+          if (typeof process !== 'undefined' && process.env) {
+            isTestEnv = process.env.NODE_ENV === 'test' || process.env.VITEST !== undefined;
+          }
+        } catch (e) {
+          // Ignore error checking test environment, assume not test
+        }
+        
         if (!isTestEnv) {
-          // TELEMETRY_IGNORE_THIS_CONSOLE_CALL (This is the service's own logging mechanism)
-          console.log("[Telemetry]", eventWithTimestamp);
+          try {
+            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL (This is the service's own logging mechanism)
+            console.log("[Telemetry]", eventWithTimestamp);
+          } catch (consoleError) {
+            // Silently handle console.log errors - this can happen in certain environments
+            // where console is limited or in certain test scenarios
+            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+            console.error("Failed to log telemetry event to console, continuing silently:", consoleError);
+          }
         }
         return;
       } catch (cause) {
-        // This throw will be caught by the Effect runtime if trackEvent is run within an Effect
-        throw new TrackEventError({
-          message: "Failed to track event via console.log",
-          cause
-        });
+        // In case other errors occur, we still want to avoid breaking the application
+        // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+        console.error("Error in telemetry trackEvent:", cause);
+        // Return instead of throwing to make telemetry more resilient
+        return;
       }
     });
   };
