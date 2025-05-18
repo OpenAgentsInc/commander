@@ -1,0 +1,49 @@
+import { Effect, Context, Data, Schema } from "effect";
+
+// --- Event Schema ---
+export const TelemetryEventSchema = Schema.Struct({
+  category: Schema.String,
+  action: Schema.String,
+  value: Schema.optional(Schema.Union(Schema.String, Schema.Number, Schema.Boolean, Schema.Undefined)),
+  label: Schema.optional(Schema.String),
+  timestamp: Schema.optional(Schema.Number)
+});
+
+export type TelemetryEvent = Schema.Schema.Type<typeof TelemetryEventSchema>;
+
+// --- Custom Error Types ---
+export class TelemetryError extends Data.TaggedError("TelemetryError")<{
+  readonly cause?: unknown;
+  readonly message: string;
+}> {}
+
+export class TrackEventError extends Data.TaggedError("TrackEventError")<{
+  readonly cause?: unknown;
+  readonly message: string;
+}> {}
+
+// --- Service Interface ---
+export interface TelemetryService {
+  /**
+   * Track a telemetry event
+   * @param event The event to track
+   * @returns Effect with void on success or an error
+   */
+  trackEvent(event: TelemetryEvent): Effect.Effect<void, TrackEventError>;
+  
+  /**
+   * Check if telemetry is enabled
+   * @returns Effect with boolean indicating if telemetry is enabled
+   */
+  isEnabled(): Effect.Effect<boolean, TelemetryError>;
+  
+  /**
+   * Enable or disable telemetry
+   * @param enabled Whether to enable or disable telemetry
+   * @returns Effect with void on success or an error
+   */
+  setEnabled(enabled: boolean): Effect.Effect<void, TelemetryError>;
+}
+
+// --- Service Tag ---
+export const TelemetryService = Context.GenericTag<TelemetryService>("TelemetryService");
