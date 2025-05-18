@@ -1,37 +1,65 @@
 import { finalizeEvent, type EventTemplate } from 'nostr-tools/pure';
+import { nip04 } from 'nostr-tools'; // Import NIP-04 utilities
 import type { NostrEvent } from '@/services/nostr';
 
 /**
- * Creates a NIP-90 job request event
- * 
- * @param sk - Secret key to sign the event
- * @param inputs - Array of inputs in the format [content, type, format?, url?, alt?]
+ * Creates an encrypted NIP-90 job request event.
+ * The job inputs and specified params will be NIP-04 encrypted.
+ *
+ * @param requesterSk - Customer's (ephemeral) secret key (Uint8Array)
+ * @param targetDvmPkHex - Target DVM's public key (hex string)
+ * @param inputs - Array of unencrypted inputs [data, type, relay_hint?, marker?]
  * @param outputMimeType - Expected output MIME type
  * @param bidMillisats - Optional bid amount in millisatoshis
- * @param jobKind - Kind code for the specific NIP-90 job (5000-5999)
- * @returns A finalized NostrEvent
+ * @param jobKind - Kind code for the NIP-90 job (5000-5999)
+ * @param additionalParams - Optional array of unencrypted ['param', 'key', 'value'] tags to be included in encryption
+ * @returns A Promise resolving to the finalized, encrypted NostrEvent
  */
-export function createNip90JobRequest(
-  sk: Uint8Array,
+export async function createNip90JobRequest(
+  requesterSk: Uint8Array,
+  targetDvmPkHex: string,
   inputs: Array<[string, string, string?, string?, string?]>,
   outputMimeType: string = 'text/plain',
   bidMillisats?: number,
-  jobKind: number = 5100 // Default to Text Generation
-): NostrEvent {
+  jobKind: number = 5100, // Default to Text Generation
+  additionalParams?: Array<[string, string, string]> // e.g., ['param', 'model', 'gpt-4']
+): Promise<NostrEvent> {
+  // Prepare the job parameters that will be encrypted
+  // These are the 'i' tags and any 'param' tags
+  const jobParametersToEncrypt: Array<[string, ...string[]]> = [
+    ...inputs.map(inputParams => ['i', ...inputParams.filter(p => p !== undefined)] as [string, ...string[]])
+  ];
+
+  if (additionalParams) {
+    jobParametersToEncrypt.push(...additionalParams);
+  }
+
+  // Stringify the parameters for encryption
+  const stringifiedParams = JSON.stringify(jobParametersToEncrypt);
+
+  // Encrypt the stringified parameters using NIP-04
+  // The DVM will use its secret key and the requester's pubkey (from the event) to decrypt
+  const encryptedContent = await nip04.encrypt(requesterSk, targetDvmPkHex, stringifiedParams);
+
   const template: EventTemplate = {
     kind: jobKind,
     created_at: Math.floor(Date.now() / 1000),
     tags: [
-      ...inputs.map(inputParams => ['i', ...inputParams.filter(p => p !== undefined)] as [string, ...string[]]),
+      ['p', targetDvmPkHex],      // Tag the DVM's public key so it knows the request is for it
+      ['encrypted'],             // Standard tag to indicate content is NIP-04 encrypted
       ['output', outputMimeType],
+      // Note: The 'i' and 'param' tags are now *inside* the encrypted content.
+      // Do NOT add them unencrypted here if they contain sensitive information.
+      // Only non-sensitive 'param' tags (if any) could be added unencrypted.
     ],
-    content: 'Job request content placeholder', // This could be made configurable if needed
+    content: encryptedContent,    // The NIP-04 encrypted string
   };
 
   if (bidMillisats !== undefined && bidMillisats > 0) {
     template.tags.push(['bid', bidMillisats.toString()]);
   }
+  // Optional: ['relays', 'wss://your.preferred.relay.for.results.com']
 
-  // finalizeEvent will add pubkey, id, and sig
-  return finalizeEvent(template, sk) as NostrEvent;
+  // finalizeEvent will add pubkey (derived from requesterSk), id, and sig
+  return finalizeEvent(template, requesterSk) as NostrEvent;
 }
