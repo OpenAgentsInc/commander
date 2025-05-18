@@ -6,6 +6,7 @@ import { ChatContainer } from "@/components/chat";
 import { useUIElementsStore, UIPosition } from "@/stores/uiElementsStore";
 import { Effect, Exit, Cause } from "effect";
 import { BIP39Service, BIP39ServiceLive } from "@/services/bip39";
+import { BIP32Service, BIP32ServiceLive } from "@/services/bip32";
 import { Button } from "@/components/ui/button";
 
 // Pinnable Chat Window Component
@@ -245,6 +246,7 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
 export default function HomePage() {
   const [showHandTracking, setShowHandTracking] = useState(false);
   const [mnemonicResult, setMnemonicResult] = useState<string | null>(null);
+  const [bip32Result, setBip32Result] = useState<string | null>(null);
   const mainCanvasContainerRef = useRef<HTMLDivElement>(null);
 
   // Use hand tracking hook directly in HomePage
@@ -277,6 +279,58 @@ export default function HomePage() {
       onFailure: (cause) => {
         console.error("Failed to generate mnemonic:", Cause.pretty(cause));
         setMnemonicResult("Error generating mnemonic. See console for details.");
+      }
+    });
+  };
+  
+  // Handler for testing the BIP32 derivation process
+  const handleTestBIP32Click = async () => {
+    // Create a program that:
+    // 1. Generates a mnemonic
+    // 2. Converts the mnemonic to a seed
+    // 3. Derives a BIP44 address from the seed
+    const program = Effect.gen(function* (_) {
+      // Access both services
+      const bip39Service = yield* _(BIP39Service);
+      const bip32Service = yield* _(BIP32Service);
+      
+      // 1. Generate a mnemonic phrase
+      const mnemonic = yield* _(bip39Service.generateMnemonic());
+      console.log("Generated mnemonic:", mnemonic);
+      
+      // 2. Convert the mnemonic to a seed
+      const seed = yield* _(bip39Service.mnemonicToSeed(mnemonic));
+      console.log("Generated seed (hex):", Buffer.from(seed).toString('hex'));
+      
+      // 3. Derive a BIP44 address path (m/44'/0'/0'/0/0)
+      const addressDetails = yield* _(bip32Service.deriveBIP44Address(seed, 0, 0, false));
+      console.log("Derived BIP44 address:", addressDetails);
+      
+      return {
+        mnemonic,
+        seedHex: Buffer.from(seed).toString('hex').substring(0, 8) + '...',
+        path: addressDetails.path,
+        publicKey: addressDetails.publicKey.substring(0, 8) + '...',
+        privateKey: addressDetails.privateKey ? 
+          addressDetails.privateKey.substring(0, 8) + '...' : 
+          '(no private key)'
+      };
+    }).pipe(
+      Effect.provide(BIP39ServiceLive),
+      Effect.provide(BIP32ServiceLive)
+    );
+    
+    // Run the program and handle the result
+    const result = await Effect.runPromiseExit(program);
+    
+    Exit.match(result, {
+      onSuccess: (details) => {
+        console.log("BIP32 Derivation Process Complete:", details);
+        setBip32Result(JSON.stringify(details, null, 2));
+      },
+      onFailure: (cause) => {
+        console.error("Failed to derive BIP32 address:", Cause.pretty(cause));
+        setBip32Result("Error in BIP32 derivation process. See console for details.");
       }
     });
   };
@@ -372,17 +426,31 @@ export default function HomePage() {
           pinchMidpoint={pinchMidpoint}
         />
         
-        {/* BIP39 Test Button */}
-        <div className="absolute bottom-4 right-4" style={{ pointerEvents: 'auto' }}>
-          <Button onClick={handleGenerateMnemonicClick} variant="secondary">
-            Generate Test Mnemonic
-          </Button>
+        {/* Test Buttons */}
+        <div className="absolute bottom-4 right-4 flex flex-col gap-2" style={{ pointerEvents: 'auto' }}>
+          <div>
+            <Button onClick={handleGenerateMnemonicClick} variant="secondary" className="mb-1">
+              Generate Test Mnemonic
+            </Button>
+            
+            {mnemonicResult && (
+              <div className="p-2 bg-background/80 backdrop-blur-sm rounded-md text-sm max-w-96 overflow-hidden text-ellipsis whitespace-nowrap">
+                {mnemonicResult}
+              </div>
+            )}
+          </div>
           
-          {mnemonicResult && (
-            <div className="mt-2 p-2 bg-background/80 backdrop-blur-sm rounded-md text-sm max-w-96 overflow-hidden text-ellipsis whitespace-nowrap">
-              {mnemonicResult}
-            </div>
-          )}
+          <div>
+            <Button onClick={handleTestBIP32Click} variant="secondary" className="mb-1">
+              Test BIP32 Derivation
+            </Button>
+            
+            {bip32Result && (
+              <div className="p-2 bg-background/80 backdrop-blur-sm rounded-md text-sm max-w-96 overflow-auto whitespace-pre-wrap" style={{ maxHeight: '12rem' }}>
+                {bip32Result}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
