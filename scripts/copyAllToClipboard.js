@@ -8,9 +8,9 @@
  *   --docs: Only copy files from the docs/ directory and its subdirectories
  */
 
-const fs = require('fs');
-const path = require('path');
-const { execSync } = require('child_process');
+const fs = require("fs");
+const path = require("path");
+const { execSync } = require("child_process");
 
 // In CommonJS, __dirname is available globally
 
@@ -26,6 +26,10 @@ const rootFilesToInclude = [
   "node_modules/nostr-tools/README.md",
   "node_modules/nostr-tools/lib/types/nip19.d.ts",
   "node_modules/nostr-tools/lib/esm/nip19.js",
+  "node_modules/nostr-tools/lib/types/core.d.ts",
+  "node_modules/nostr-tools/lib/types/relay.d.ts",
+  "node_modules/nostr-tools/lib/types/abstract-pool.d.ts",
+  "node_modules/nostr-tools/lib/types/abstract-relay.d.ts",
   // "node_modules/@scure/bip32/lib/index.d.ts",
   // "node_modules/@scure/bip32/index.ts",
   // "node_modules/@scure/bip39/index.d.ts",
