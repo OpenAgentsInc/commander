@@ -388,8 +388,13 @@ export default function HomePage() {
       console.log("Encoded nprofile:", nprofile);
       
       // 5. Decode the npub back to a public key
-      const decoded = yield* _(nip19Service.decode(npub)) as { type: 'npub', data: string };
+      const decoded = yield* _(nip19Service.decode(npub));
       console.log("Decoded npub:", decoded);
+      
+      // Type assertion after unwrapping from Effect
+      if (decoded.type !== 'npub') {
+        throw new Error(`Expected npub type but got ${decoded.type}`);
+      }
       
       return {
         original: {
@@ -411,7 +416,7 @@ export default function HomePage() {
       Effect.provide(NIP19ServiceLive)
     );
     
-    const result = await Effect.runPromiseExit(program);
+    const result = await Effect.runPromiseExit(program as Effect.Effect<unknown, unknown, never>);
     
     Exit.match(result, {
       onSuccess: (details) => {
