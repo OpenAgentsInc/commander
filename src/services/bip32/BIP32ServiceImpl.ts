@@ -19,6 +19,15 @@ export function createBIP32Service(): BIP32Service {
    * Helper to serialize a bip32.HDKey to our BIP32Node format
    */
   const serializeNode = (node: bip32.HDKey, path: string): BIP32Node => {
+    // Assert that publicKey and chainCode are not null
+    // (HDKey will always have these properties in valid cases)
+    if (!node.publicKey) {
+      throw new Error("HDKey node must have a public key");
+    }
+    if (!node.chainCode) {
+      throw new Error("HDKey node must have a chain code");
+    }
+    
     return {
       privateKey: node.privateKey ? Buffer.from(node.privateKey).toString('hex') : undefined,
       publicKey: Buffer.from(node.publicKey).toString('hex'),
@@ -144,6 +153,13 @@ export function createBIP32Service(): BIP32Service {
         ));
       }
 
+      // Check that publicKey is not null
+      if (!node.publicKey) {
+        return yield* _(Effect.fail(
+          new DeriveBIP44AddressError(`Node at path ${path} has no public key`, new Error("HDKey node missing public key"))
+        ));
+      }
+      
       // Return the address details
       return {
         path,
