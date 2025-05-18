@@ -7,6 +7,8 @@ import { useUIElementsStore, UIPosition } from "@/stores/uiElementsStore";
 import { Effect, Exit, Cause } from "effect";
 import { BIP39Service, BIP39ServiceLive } from "@/services/bip39";
 import { BIP32Service, BIP32ServiceLive } from "@/services/bip32";
+import { NIP19Service, NIP19ServiceLive } from "@/services/nip19";
+import { hexToBytes } from "@noble/hashes/utils";
 import { Button } from "@/components/ui/button";
 
 // Pinnable Chat Window Component
@@ -247,6 +249,7 @@ export default function HomePage() {
   const [showHandTracking, setShowHandTracking] = useState(false);
   const [mnemonicResult, setMnemonicResult] = useState<string | null>(null);
   const [bip32Result, setBip32Result] = useState<string | null>(null);
+  const [nip19Result, setNip19Result] = useState<string | null>(null);
   const mainCanvasContainerRef = useRef<HTMLDivElement>(null);
 
   // Use hand tracking hook directly in HomePage
@@ -300,6 +303,7 @@ export default function HomePage() {
       // Access both services
       const bip39Service = yield* _(BIP39Service);
       const bip32Service = yield* _(BIP32Service);
+      const nip19Service = yield* _(NIP19Service); // Access NIP19Service
       
       // 1. Generate a mnemonic phrase
       const mnemonic = yield* _(bip39Service.generateMnemonic());
@@ -314,18 +318,31 @@ export default function HomePage() {
       const addressDetails = yield* _(bip32Service.deriveBIP44Address(seed, 0, 0, false));
       console.log("Derived BIP44 address:", addressDetails);
       
+      // 4. Encode the public key as npub (Nostr public key)
+      const npub = yield* _(nip19Service.encodeNpub(addressDetails.publicKey));
+      
+      // 5. Encode the private key as nsec if available 
+      let nsec = "Not available";
+      if (addressDetails.privateKey) {
+        const privateKeyBytes = hexToBytes(addressDetails.privateKey);
+        nsec = yield* _(nip19Service.encodeNsec(privateKeyBytes));
+      }
+      
       return {
         mnemonic,
-        seedHex: seedHex.substring(0, 8) + '...',
+        seedHex: seedHex.substring(0, 16) + '...',
         path: addressDetails.path,
-        publicKey: addressDetails.publicKey.substring(0, 8) + '...',
-        privateKey: addressDetails.privateKey ? 
-          addressDetails.privateKey.substring(0, 8) + '...' : 
-          '(no private key)'
+        publicKeyHex: addressDetails.publicKey.substring(0, 16) + '...',
+        privateKeyHex: addressDetails.privateKey ?
+          addressDetails.privateKey.substring(0, 16) + '...' :
+          '(no private key)',
+        npub: npub.substring(0, 16) + '...',
+        nsec: nsec.substring(0, 16) + '...'
       };
     }).pipe(
       Effect.provide(BIP39ServiceLive),
-      Effect.provide(BIP32ServiceLive)
+      Effect.provide(BIP32ServiceLive),
+      Effect.provide(NIP19ServiceLive) // Provide NIP19ServiceLive layer
     );
     
     // Run the program and handle the result
@@ -333,12 +350,77 @@ export default function HomePage() {
     
     Exit.match(result, {
       onSuccess: (details) => {
-        console.log("BIP32 Derivation Process Complete:", details);
+        console.log("BIP32/NIP19 Derivation Process Complete:", details);
         setBip32Result(JSON.stringify(details, null, 2));
       },
       onFailure: (cause) => {
-        console.error("Failed to derive BIP32 address:", Cause.pretty(cause));
-        setBip32Result("Error in BIP32 derivation process. See console for details.");
+        const prettyError = Cause.pretty(cause);
+        console.error("Failed to derive BIP32/NIP19 details:", prettyError);
+        setBip32Result(`Error in BIP32/NIP19 derivation. See console. Error: ${prettyError.split('\n')[0]}`);
+      }
+    });
+  };
+
+  // Handler for testing NIP19 encoding/decoding
+  const handleTestNIP19Click = async () => {
+    const program = Effect.gen(function* (_) {
+      const nip19Service = yield* _(NIP19Service);
+      
+      // 1. Generate a test public key (fixed for demonstration)
+      const testPublicKey = "17162c921dc4d2518f9a101db33695df1afb56ab82f5ff3e5da6eec3ca5cd917";
+      console.log("Test Public Key (hex):", testPublicKey);
+      
+      // 2. Encode as npub
+      const npub = yield* _(nip19Service.encodeNpub(testPublicKey));
+      console.log("Encoded npub:", npub);
+      
+      // 3. Encode as note
+      const testEventId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      const noteId = yield* _(nip19Service.encodeNote(testEventId));
+      console.log("Encoded note ID:", noteId);
+      
+      // 4. Create a profile pointer and encode as nprofile
+      const profilePointer = {
+        pubkey: testPublicKey,
+        relays: ["wss://relay.example.com"]
+      };
+      const nprofile = yield* _(nip19Service.encodeNprofile(profilePointer));
+      console.log("Encoded nprofile:", nprofile);
+      
+      // 5. Decode the npub back to a public key
+      const decoded = yield* _(nip19Service.decode(npub)) as { type: 'npub', data: string };
+      console.log("Decoded npub:", decoded);
+      
+      return {
+        original: {
+          publicKey: testPublicKey,
+          eventId: testEventId,
+          profile: profilePointer
+        },
+        encoded: {
+          npub,
+          noteId,
+          nprofile
+        },
+        decoded: {
+          type: decoded.type,
+          data: decoded.data
+        }
+      };
+    }).pipe(
+      Effect.provide(NIP19ServiceLive)
+    );
+    
+    const result = await Effect.runPromiseExit(program);
+    
+    Exit.match(result, {
+      onSuccess: (details) => {
+        console.log("NIP19 Encoding/Decoding Complete:", details);
+        setNip19Result(JSON.stringify(details, null, 2));
+      },
+      onFailure: (cause) => {
+        console.error("Failed to encode/decode NIP19:", Cause.pretty(cause));
+        setNip19Result(`Error in NIP19 encoding/decoding. See console for details.`);
       }
     });
   };
@@ -450,12 +532,24 @@ export default function HomePage() {
           
           <div>
             <Button onClick={handleTestBIP32Click} variant="secondary" className="mb-1">
-              Test BIP32 Derivation
+              Test BIP32 & NIP19
             </Button>
             
             {bip32Result && (
               <div className="p-2 bg-background/80 backdrop-blur-sm rounded-md text-sm max-w-96 overflow-auto whitespace-pre-wrap" style={{ maxHeight: '12rem' }}>
                 {bip32Result}
+              </div>
+            )}
+          </div>
+          
+          <div>
+            <Button onClick={handleTestNIP19Click} variant="secondary" className="mb-1">
+              Test NIP19 Encoding
+            </Button>
+            
+            {nip19Result && (
+              <div className="p-2 bg-background/80 backdrop-blur-sm rounded-md text-sm max-w-96 overflow-auto whitespace-pre-wrap" style={{ maxHeight: '12rem' }}>
+                {nip19Result}
               </div>
             )}
           </div>
