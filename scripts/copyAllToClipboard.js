@@ -24,6 +24,8 @@ const rootFilesToInclude = [
   // 'node_modules/@effect/platform/dist/dts/HttpClientResponse.d.ts',
   // 'node_modules/@effect/platform/dist/dts/HttpBody.d.ts',
   "node_modules/nostr-tools/README.md",
+  "node_modules/nostr-tools/lib/types/nip04.d.ts",
+  "node_modules/nostr-tools/lib/esm/nip04.js",
   // "node_modules/nostr-tools/lib/types/nip19.d.ts",
   // "node_modules/nostr-tools/lib/esm/nip19.js",
   "node_modules/nostr-tools/lib/types/core.d.ts",
