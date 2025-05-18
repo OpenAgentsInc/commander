@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Either } from "effect";
 import {
   NostrService,
   NostrServiceLive,
@@ -20,43 +20,40 @@ const NIP90_REQUEST_KINDS_MAX = 5999;
 // Function to fetch NIP-90 events using the NostrService
 async function fetchNip90JobRequests(): Promise<NostrEvent[]> {
   console.log("[Nip90Component] Fetching NIP-90 job requests...");
-  
-  try {
-    // Create the array of event kinds from the min/max range
-    const nip90RequestKinds = Array.from(
-      { length: NIP90_REQUEST_KINDS_MAX - NIP90_REQUEST_KINDS_MIN + 1 },
-      (_, i) => NIP90_REQUEST_KINDS_MIN + i
-    );
 
-    // Create filter for NIP-90 job requests
-    const filters: NostrFilter[] = [{ 
-      kinds: nip90RequestKinds, 
-      limit: 20  // Get latest 20 NIP-90 job requests
-    }];
-    
-    // Create the Effect program
-    const program = Effect.gen(function* (_) {
-      // Get the NostrService
-      const nostrService = yield* _(NostrService);
-      
-      // Fetch events from relays
-      const events = yield* _(nostrService.listEvents(filters));
-      
-      console.log(`[Nip90Component] Fetched ${events.length} NIP-90 events`);
-      return events;
-    });
-    
-    // Compose and provide layers
-    const allLayers = Layer.provide(
-      NostrServiceLive,
-      DefaultNostrServiceConfigLayer
-    );
-    
-    // Run the program with all required layers
-    return await Effect.runPromise(Effect.provide(program, allLayers));
-  } catch (err) {
-    console.error("[Nip90Component] Error fetching NIP-90 events:", err);
-    return [];
+  const nip90RequestKinds = Array.from(
+    { length: NIP90_REQUEST_KINDS_MAX - NIP90_REQUEST_KINDS_MIN + 1 },
+    (_, i) => NIP90_REQUEST_KINDS_MIN + i
+  );
+  const filters: NostrFilter[] = [{
+    kinds: nip90RequestKinds,
+    limit: 20
+  }];
+
+  // Define the Effect program
+  const program = Effect.gen(function* (_) {
+    const nostrService = yield* _(NostrService); // Use the Tag
+    const events = yield* _(nostrService.listEvents(filters));
+    console.log(`[Nip90Component] Fetched ${events.length} NIP-90 events`);
+    return events;
+  });
+
+  // Compose and provide layers
+  const fullLayer = Layer.provide(NostrServiceLive, DefaultNostrServiceConfigLayer);
+
+  // Run the program with all required layers
+  // Use runPromiseExit to handle potential errors gracefully
+  const result = await Effect.runPromise(
+    Effect.either(Effect.provide(program, fullLayer))
+  );
+
+  if (Either.isRight(result)) {
+    return result.right;
+  } else {
+    // Log the error cause for debugging
+    console.error("[Nip90Component] Error fetching NIP-90 events:", result.left);
+    // Rethrow error for useQuery error handling
+    throw new Error(`Failed to fetch NIP-90 events: ${result.left.message || 'Unknown error'}`);
   }
 }
 

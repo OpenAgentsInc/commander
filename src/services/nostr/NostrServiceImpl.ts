@@ -36,7 +36,13 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
     listEvents: (filters: NostrFilter[]) =>
       Effect.gen(function*(_) {
         // Get the pool instance
-        const pool = yield* _(getPoolEffect);
+        const pool = yield* _(
+          getPoolEffect,
+          Effect.mapError(error => new NostrRequestError({ 
+            message: `Failed to initialize pool: ${error.message}`, 
+            cause: error.cause 
+          }))
+        );
         
         console.log("[Nostr] Fetching events with filters:", JSON.stringify(filters));
         
@@ -72,7 +78,13 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
     // Publish an event to relays
     publishEvent: (event: NostrEvent) =>
       Effect.gen(function*(_) {
-        const pool = yield* _(getPoolEffect);
+        const pool = yield* _(
+          getPoolEffect,
+          Effect.mapError(error => new NostrPublishError({ 
+            message: `Failed to initialize pool: ${error.message}`, 
+            cause: error.cause 
+          }))
+        );
         
         console.log("[Nostr] Publishing event:", event.id);
         
