@@ -21,6 +21,8 @@ const rootFilesToInclude = [
   // 'node_modules/@effect/platform/dist/dts/HttpClientRequest.d.ts',
   // 'node_modules/@effect/platform/dist/dts/HttpClientResponse.d.ts',
   // 'node_modules/@effect/platform/dist/dts/HttpBody.d.ts',
+  "node_modules/@scure/bip32/lib/index.d.ts",
+  "node_modules/@scure/bip32/index.ts",
   "node_modules/@scure/bip39/index.d.ts",
   "node_modules/@scure/bip39/src/index.ts",
   "README.md",
