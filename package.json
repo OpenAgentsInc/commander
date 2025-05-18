@@ -101,6 +101,7 @@
     "i18next": "^25.0.1",
     "lucide-react": "^0.510.0",
     "maath": "^0.10.8",
+    "nostr-tools": "^2.13.0",
     "postprocessing": "^6.37.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
