@@ -12,6 +12,7 @@ import {
   DefaultNostrServiceConfigLayer, 
   type NostrEvent
 } from '@/services/nostr';
+import { NIP04ServiceLive } from '@/services/nip04';
 import { Effect, Layer, Exit, Cause } from 'effect';
 
 // Define the DVM's public key (replace with actual key in a real application)
@@ -58,11 +59,12 @@ export default function Nip90RequestForm() {
         return;
       }
 
+      const currentOutputMimeType = outputMimeType.trim() || "text/plain";
       if (!outputMimeType.trim()) {
-        setOutputMimeType("text/plain"); // Default if empty
+        setOutputMimeType(currentOutputMimeType);
       }
 
-      let bid: number | undefined = undefined;
+      let bidNum: number | undefined = undefined;
       if (bidAmount) {
         const parsedBid = parseInt(bidAmount, 10);
         if (isNaN(parsedBid) || parsedBid < 0) {
@@ -70,7 +72,7 @@ export default function Nip90RequestForm() {
           setIsPublishing(false);
           return;
         }
-        bid = parsedBid;
+        bidNum = parsedBid;
       }
 
       // 1. Generate ephemeral keys for this request
@@ -78,7 +80,8 @@ export default function Nip90RequestForm() {
       
       // Store the ephemeral secret key (hex) for later decryption of responses
       const { bytesToHex } = await import('@noble/hashes/utils'); // Dynamic import
-      setEphemeralSkHex(bytesToHex(requesterSkUint8Array));
+      const currentEphemeralSkHex = bytesToHex(requesterSkUint8Array);
+      setEphemeralSkHex(currentEphemeralSkHex);
 
       // 2. Prepare inputs and any additional parameters for encryption
       const inputsForEncryption: Array<[string, string, string?, string?, string?]> = [[inputData.trim(), 'text']];
@@ -87,27 +90,37 @@ export default function Nip90RequestForm() {
       //   ['param', 'model', 'default-dvm-model']
       // ];
 
-      // 3. Construct the NIP-90 Job Request Event (now encrypted)
-      const requestEvent: NostrEvent = await createNip90JobRequest(
+      // 3. Create an Effect for the NIP-90 Job Request Event
+      const createRequestEventEffect = createNip90JobRequest(
         requesterSkUint8Array,
         OUR_DVM_PUBKEY_HEX,
         inputsForEncryption,
-        outputMimeType.trim() || "text/plain",
-        bid,
+        currentOutputMimeType,
+        bidNum,
         kind
         // additionalParamsForEncryption // Pass if you have them
       );
 
-      console.log("Generated Encrypted NIP-90 Request Event:", JSON.stringify(requestEvent, null, 2));
-
-      // 4. Publish the Event using NostrService via Effect
+      // 4. Create a program that uses both NostrService and NIP04Service
       const program = Effect.gen(function* (_) {
+        // First, resolve the effect to create the request event
+        const requestEvent = yield* _(createRequestEventEffect);
+        console.log("Generated Encrypted NIP-90 Request Event:", JSON.stringify(requestEvent, null, 2));
+        
+        // Then publish it using NostrService
         const nostrService = yield* _(NostrService);
         yield* _(nostrService.publishEvent(requestEvent));
+        
         return requestEvent.id;
       });
 
-      const fullLayer = Layer.provide(NostrServiceLive, DefaultNostrServiceConfigLayer);
+      // 5. Create a combined Layer with both services
+      const fullLayer = Layer.mergeAll(
+        Layer.provide(NostrServiceLive, DefaultNostrServiceConfigLayer),
+        NIP04ServiceLive
+      );
+      
+      // 6. Run the program with the combined Layer
       const exit = await Effect.runPromiseExit(Effect.provide(program, fullLayer));
 
       if (Exit.isSuccess(exit)) {
@@ -115,14 +128,14 @@ export default function Nip90RequestForm() {
         setPublishedEventId(exit.value);
         
         // Store the event ID and secret key in localStorage for later decryption
-        if (ephemeralSkHex) {
+        if (currentEphemeralSkHex) {
           try {
             // Get existing requests from localStorage or initialize empty object
             const storedRequests = JSON.parse(localStorage.getItem('nip90_requests') || '{}');
             
             // Add this request to the stored requests
             storedRequests[exit.value] = {
-              secretKey: ephemeralSkHex,
+              secretKey: currentEphemeralSkHex,
               createdAt: Date.now(),
               kind: kind
             };
