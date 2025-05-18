@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, ChangeEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -6,7 +6,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { generateSecretKey } from 'nostr-tools/pure';
 import { createNip90JobRequest } from '@/helpers/nip90/event_creation';
-import { NostrService, NostrServiceLive, DefaultNostrServiceConfigLayer, type NostrEvent } from '@/services/nostr';
+import { 
+  NostrService, 
+  NostrServiceLive, 
+  DefaultNostrServiceConfigLayer, 
+  type NostrEvent
+} from '@/services/nostr';
 import { Effect, Layer, Exit, Cause } from 'effect';
 
 export default function Nip90RequestForm() {
@@ -43,11 +48,15 @@ export default function Nip90RequestForm() {
         setOutputMimeType("text/plain"); // Default if empty
       }
 
-      const bid = bidAmount ? parseInt(bidAmount, 10) : undefined;
-      if (bidAmount && (isNaN(bid) || bid < 0)) {
-        setPublishError("Invalid Bid Amount. Must be a non-negative number.");
-        setIsPublishing(false);
-        return;
+      let bid: number | undefined = undefined;
+      if (bidAmount) {
+        const parsedBid = parseInt(bidAmount, 10);
+        if (isNaN(parsedBid) || parsedBid < 0) {
+          setPublishError("Invalid Bid Amount. Must be a non-negative number.");
+          setIsPublishing(false);
+          return;
+        }
+        bid = parsedBid;
       }
 
       // 1. Generate ephemeral keys
@@ -72,7 +81,8 @@ export default function Nip90RequestForm() {
         return requestEvent.id;
       });
 
-      // Provide the necessary layers directly for this operation
+      // In tests, our mock nostrService will be used
+      // In production, we provide the real layers
       const fullLayer = Layer.provide(NostrServiceLive, DefaultNostrServiceConfigLayer);
       const exit = await Effect.runPromiseExit(Effect.provide(program, fullLayer));
 
@@ -108,7 +118,7 @@ export default function Nip90RequestForm() {
             id="jobKind"
             type="number"
             value={jobKind}
-            onChange={(e) => setJobKind(e.target.value)}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setJobKind(e.target.value)}
             placeholder="e.g., 5100"
             disabled={isPublishing}
           />
@@ -118,7 +128,7 @@ export default function Nip90RequestForm() {
           <Textarea
             id="inputData"
             value={inputData}
-            onChange={(e) => setInputData(e.target.value)}
+            onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setInputData(e.target.value)}
             placeholder="Enter the data for the job (e.g., a prompt for text generation)"
             rows={3}
             disabled={isPublishing}
@@ -129,7 +139,7 @@ export default function Nip90RequestForm() {
           <Input
             id="outputMimeType"
             value={outputMimeType}
-            onChange={(e) => setOutputMimeType(e.target.value)}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setOutputMimeType(e.target.value)}
             placeholder="e.g., text/plain, image/jpeg"
             disabled={isPublishing}
           />
@@ -140,7 +150,7 @@ export default function Nip90RequestForm() {
             id="bidAmount"
             type="number"
             value={bidAmount}
-            onChange={(e) => setBidAmount(e.target.value)}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setBidAmount(e.target.value)}
             placeholder="Optional: e.g., 1000 for 1 sat"
             disabled={isPublishing}
           />
