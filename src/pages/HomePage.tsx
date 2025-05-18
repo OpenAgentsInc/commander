@@ -10,7 +10,7 @@ import { SimplePool } from "nostr-tools/pool";
 import { BIP39Service, BIP39ServiceLive } from "@/services/bip39";
 import { BIP32Service, BIP32ServiceLive } from "@/services/bip32";
 import { NIP19Service, NIP19ServiceLive } from "@/services/nip19";
-import { TelemetryService, TelemetryServiceLive } from "@/services/telemetry";
+import { TelemetryService, TelemetryServiceLive, type TelemetryEvent } from "@/services/telemetry";
 import { hexToBytes } from "@noble/hashes/utils";
 import { Button } from "@/components/ui/button";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -265,8 +265,25 @@ export default function HomePage() {
       if (Exit.isSuccess(exit)) {
         setMnemonicResult(exit.value);
       } else {
-        console.error("Failed to generate mnemonic:", exit.cause);
-        setMnemonicResult("Error generating mnemonic. See console for details.");
+        const telemetryEventData: TelemetryEvent = {
+          category: "log:error",
+          action: "generic_console_replacement",
+          label: "Failed to generate mnemonic",
+          value: Cause.pretty(exit.cause)
+        };
+        
+        Effect.gen(function* (_) {
+          const telemetryService = yield* _(TelemetryService);
+          yield* _(telemetryService.trackEvent(telemetryEventData));
+        }).pipe(
+          Effect.provide(TelemetryServiceLive),
+          (effect) => Effect.runPromise(effect).catch(err => {
+            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+            console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+          })
+        );
+        
+        setMnemonicResult("Error generating mnemonic. See logs for details.");
       }
     });
   };
@@ -292,8 +309,25 @@ export default function HomePage() {
       if (Exit.isSuccess(exit)) {
         setBip32Result(JSON.stringify(exit.value, null, 2));
       } else {
-        console.error("Failed BIP32 test:", exit.cause);
-        setBip32Result("Error in BIP32 test. See console for details.");
+        const telemetryEventData: TelemetryEvent = {
+          category: "log:error",
+          action: "generic_console_replacement",
+          label: "Failed BIP32 test",
+          value: Cause.pretty(exit.cause)
+        };
+        
+        Effect.gen(function* (_) {
+          const telemetryService = yield* _(TelemetryService);
+          yield* _(telemetryService.trackEvent(telemetryEventData));
+        }).pipe(
+          Effect.provide(TelemetryServiceLive),
+          (effect) => Effect.runPromise(effect).catch(err => {
+            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+            console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+          })
+        );
+        
+        setBip32Result("Error in BIP32 test. See logs for details.");
       }
     });
   };
@@ -321,8 +355,25 @@ export default function HomePage() {
       if (Exit.isSuccess(exit)) {
         setNip19Result(JSON.stringify(exit.value, null, 2));
       } else {
-        console.error("Failed NIP19 test:", exit.cause);
-        setNip19Result("Error in NIP19 test. See console for details.");
+        const telemetryEventData: TelemetryEvent = {
+          category: "log:error",
+          action: "generic_console_replacement",
+          label: "Failed NIP19 test",
+          value: Cause.pretty(exit.cause)
+        };
+        
+        Effect.gen(function* (_) {
+          const telemetryService = yield* _(TelemetryService);
+          yield* _(telemetryService.trackEvent(telemetryEventData));
+        }).pipe(
+          Effect.provide(TelemetryServiceLive),
+          (effect) => Effect.runPromise(effect).catch(err => {
+            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+            console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+          })
+        );
+        
+        setNip19Result("Error in NIP19 test. See logs for details.");
       }
     });
   };
@@ -364,12 +415,50 @@ export default function HomePage() {
       if (Exit.isSuccess(exit)) {
         const details = exit.value;
         setTelemetryEnabled(details.enabled);
-        console.log("Telemetry test complete:", details);
+        
+        // Track the telemetry test completion
+        const telemetryTestEvent: TelemetryEvent = {
+          category: "log:info",
+          action: "generic_console_replacement",
+          label: "Telemetry test complete",
+          value: JSON.stringify(details)
+        };
+        
+        Effect.gen(function* (_) {
+          const telemetryService = yield* _(TelemetryService);
+          yield* _(telemetryService.trackEvent(telemetryTestEvent));
+        }).pipe(
+          Effect.provide(TelemetryServiceLive),
+          (effect) => Effect.runPromise(effect).catch(err => {
+            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+            console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+          })
+        );
+        
         setTelemetryResult(JSON.stringify(details, null, 2));
       } else {
         const cause = exit.cause;
-        console.error("Telemetry test failed:", cause);
-        setTelemetryResult(`Error testing telemetry. See console for details.`);
+        
+        // Track the telemetry test failure
+        const telemetryFailureEvent: TelemetryEvent = {
+          category: "log:error",
+          action: "generic_console_replacement",
+          label: "Telemetry test failed",
+          value: Cause.pretty(cause)
+        };
+        
+        Effect.gen(function* (_) {
+          const telemetryService = yield* _(TelemetryService);
+          yield* _(telemetryService.trackEvent(telemetryFailureEvent));
+        }).pipe(
+          Effect.provide(TelemetryServiceLive),
+          (effect) => Effect.runPromise(effect).catch(err => {
+            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+            console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+          })
+        );
+        
+        setTelemetryResult(`Error testing telemetry. See logs for details.`);
       }
     });
   };
@@ -377,13 +466,45 @@ export default function HomePage() {
   // Direct test for Nostr connection
   useEffect(() => {
     const testDirectNostrConnection = async () => {
-      console.log("[HomePage] Testing direct Nostr relay connection...");
+      // Log the start of Nostr relay connection test via telemetry
+      const startTestEvent: TelemetryEvent = {
+        category: "log:info",
+        action: "generic_console_replacement",
+        label: "[HomePage] Testing direct Nostr relay connection..."
+      };
+      
+      Effect.gen(function* (_) {
+        const telemetryService = yield* _(TelemetryService);
+        yield* _(telemetryService.trackEvent(startTestEvent));
+      }).pipe(
+        Effect.provide(TelemetryServiceLive),
+        (effect) => Effect.runPromise(effect).catch(err => {
+          // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+          console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+        })
+      );
       const pool = new SimplePool();
       const relays = ["wss://relay.damus.io/"]; // Test with one reliable relay
       const filter = { kinds: [5000, 5001], limit: 5 };
       
       try {
-        console.log("[Direct Test] Querying relay directly...");
+        // Log the relay query start via telemetry
+        const queryStartEvent: TelemetryEvent = {
+          category: "log:info",
+          action: "generic_console_replacement",
+          label: "[Direct Test] Querying relay directly..."
+        };
+        
+        Effect.gen(function* (_) {
+          const telemetryService = yield* _(TelemetryService);
+          yield* _(telemetryService.trackEvent(queryStartEvent));
+        }).pipe(
+          Effect.provide(TelemetryServiceLive),
+          (effect) => Effect.runPromise(effect).catch(err => {
+            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+            console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+          })
+        );
         const events = await pool.querySync(relays, filter, {maxWait: 5000});
         console.log("[Direct Test] Direct pool query result:", events);
         if (events.length === 0) {

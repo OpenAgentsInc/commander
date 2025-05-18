@@ -11,15 +11,14 @@ import {
  * Create the Telemetry service implementation
  */
 export function createTelemetryService(): TelemetryService {
-  // In-memory storage for enabled status (in a real app, this would be persistent storage)
-  let telemetryEnabled = true; // Set default to true to avoid initial errors
+  // Determine if telemetry should be enabled based on environment
+  // Vite uses import.meta.env.MODE for 'development' or 'production' in client-side code.
+  const isDevelopmentMode = import.meta.env.MODE === 'development';
+  // Default behavior: full telemetry in dev, no telemetry in prod.
+  let telemetryEnabled = isDevelopmentMode;
 
-  /**
-   * Track a telemetry event 
-   */
   const trackEvent = (event: TelemetryEvent): Effect.Effect<void, TrackEventError> => {
     return Effect.gen(function* (_) {
-      // Validate the event using Schema
       yield* _(
         Schema.decodeUnknown(TelemetryEventSchema)(event),
         Effect.mapError(
@@ -27,74 +26,69 @@ export function createTelemetryService(): TelemetryService {
         )
       );
 
-      // Check if telemetry is enabled before tracking
+      let currentIsEnabled = false;
       try {
-        const enabled = yield* _(isEnabled().pipe(
+        // Use a local variable to avoid race conditions if isEnabled() was async from storage
+        currentIsEnabled = yield* _(isEnabled().pipe(
           Effect.mapError(error => new TrackEventError({
-            message: error.message, 
+            message: `Error checking telemetry status: ${error.message}`,
             cause: error.cause
           }))
         ));
-        if (!enabled) {
-          return; // Silently do nothing if telemetry is disabled
-        }
       } catch (error) {
-        console.error("Error checking telemetry status:", error);
-        // Continue anyway to avoid breaking
+         // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+        console.error("TelemetryService: Error checking telemetry status in trackEvent:", error);
+        // Default to not tracking if status check fails, but don't break the app
+        currentIsEnabled = false;
       }
 
-      // Add timestamp if not present
+      if (!currentIsEnabled) {
+        return; // Silently do nothing if telemetry is disabled
+      }
+
       const eventWithTimestamp = {
         ...event,
         timestamp: event.timestamp || Date.now()
       };
 
-      // In a real implementation, this would send data to a telemetry service
-      // This is a placeholder that just logs to console, but only if not running tests
       try {
-        // Check if we're in test environment
-        const isTestEnv = process.env.NODE_ENV === 'test' || 
-                         process.env.VITEST !== undefined;
-        
-        // Only log if not in test environment
+        const isTestEnv = process.env.NODE_ENV === 'test' || process.env.VITEST !== undefined;
         if (!isTestEnv) {
+          // TELEMETRY_IGNORE_THIS_CONSOLE_CALL (This is the service's own logging mechanism)
           console.log("[Telemetry]", eventWithTimestamp);
         }
         return;
       } catch (cause) {
-        throw new TrackEventError({ 
-          message: "Failed to track event", 
-          cause 
+        // This throw will be caught by the Effect runtime if trackEvent is run within an Effect
+        throw new TrackEventError({
+          message: "Failed to track event via console.log",
+          cause
         });
       }
     });
   };
 
-  /**
-   * Check if telemetry is enabled
-   */
   const isEnabled = (): Effect.Effect<boolean, TelemetryError> => {
     return Effect.try({
       try: () => telemetryEnabled,
-      catch: (cause) => new TelemetryError({ 
-        message: "Failed to check if telemetry is enabled", 
-        cause 
+      catch: (cause) => new TelemetryError({
+        message: "Failed to check if telemetry is enabled",
+        cause
       })
     });
   };
 
-  /**
-   * Enable or disable telemetry
-   */
   const setEnabled = (enabled: boolean): Effect.Effect<void, TelemetryError> => {
     return Effect.try({
       try: () => {
         telemetryEnabled = enabled;
+        // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+        console.log(`[TelemetryService] Telemetry explicitly set to: ${enabled}`);
         return;
       },
-      catch: (cause) => new TelemetryError({ 
-        message: "Failed to set telemetry enabled state", 
-        cause 
+      catch: (cause) => new TelemetryError({
+        message: "Failed to set telemetry enabled state",
+        cause
       })
     });
   };
@@ -106,9 +100,6 @@ export function createTelemetryService(): TelemetryService {
   };
 }
 
-/**
- * Live implementation of the Telemetry service
- */
 export const TelemetryServiceLive = Layer.succeed(
   TelemetryService,
   createTelemetryService()
