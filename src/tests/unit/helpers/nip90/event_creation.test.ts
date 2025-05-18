@@ -23,7 +23,7 @@ vi.mock('nostr-tools/pure', async (importOriginal) => {
     }),
   };
 });
-const mockedFinalizeEvent = finalizeEvent as vi.Mock;
+const mockedFinalizeEvent = finalizeEvent as ReturnType<typeof vi.fn>;
 
 describe('createNip90JobRequest', () => {
   it('module can be imported', () => {
@@ -91,7 +91,7 @@ describe('createNip90JobRequest', () => {
     const jobKind = 5100;
 
     const encryptError = new NIP04EncryptError({ message: "Test encrypt error" });
-    const mockNip04Encrypt = vi.fn(() => Effect.fail(encryptError));
+    const mockNip04Encrypt = vi.fn(() => Effect.fail(encryptError) as any);
     
     const MockNIP04ServiceLayer = Layer.succeed(NIP04Service, {
       encrypt: mockNip04Encrypt,

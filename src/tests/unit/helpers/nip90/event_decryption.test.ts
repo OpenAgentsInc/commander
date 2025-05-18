@@ -52,7 +52,7 @@ describe('decryptNip04Content', () => {
 
   it('should propagate NIP04DecryptError if decryption fails in service', async () => {
     const decryptError = new NIP04DecryptError({ message: "Test decrypt error from service" });
-    mockNip04Decrypt.mockReturnValueOnce(Effect.fail(decryptError));
+    mockNip04Decrypt.mockReturnValueOnce(Effect.fail(decryptError) as any);
 
     const program = decryptNip04Content(ourSkHex, theirPkHex, encryptedContent);
     const exit = await Effect.runPromiseExit(Effect.provide(program, MockNIP04ServiceLayer));

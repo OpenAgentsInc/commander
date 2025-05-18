@@ -18,8 +18,8 @@ vi.mock('nostr-tools', async (importOriginal) => {
 });
 
 // Typed mock functions
-const mockNip04Encrypt = nip04.encrypt as vi.MockedFunction<typeof nip04.encrypt>;
-const mockNip04Decrypt = nip04.decrypt as vi.MockedFunction<typeof nip04.decrypt>;
+const mockNip04Encrypt = nip04.encrypt as ReturnType<typeof vi.fn>;
+const mockNip04Decrypt = nip04.decrypt as ReturnType<typeof vi.fn>;
 
 describe('NIP04Service', () => {
   const ourSk = generateSecretKey();
