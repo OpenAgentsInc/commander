@@ -130,12 +130,65 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
             DEMO_USER_SK,
             (newEvent) => {
               console.log("[Hook] Received new message via subscription:", newEvent);
-              // Add the new message to the state
+              // Add the new message to the state if it's not already there
               setMessages(prev => {
-                // Skip if we already have this message (duplicates can happen)
-                if (prev.some(m => m.id === newEvent.id)) return prev;
+                // Enhanced duplicate detection:
+                // 1. Check if we already have this exact message ID
+                // 2. Check if we have a contentHash match (for messages we sent that now come back as published)
+                // 3. Check if we have an in-progress message with matching content (within last 10 seconds)
                 
-                // Otherwise add the new message
+                // Case 1: We already have this exact message ID
+                if (prev.some(m => m.id === newEvent.id)) {
+                  console.log("[Hook] Skipping duplicate message with ID:", newEvent.id);
+                  return prev;
+                }
+                
+                // Case 2: Check for temporary message with matching content (recently sent by this user)
+                // This handles the case where our temp message is already displayed but we're getting the real event now
+                const msgTimestamp = newEvent.created_at * 1000;
+                const recentTimeFrame = Date.now() - 10000; // Last 10 seconds
+                const matchingTempMessage = prev.find(m => 
+                  // If it's a recent message with matching content from the same user
+                  m.id && m.id.startsWith('temp-') && 
+                  m.content === newEvent.decryptedContent &&
+                  m.timestamp && m.timestamp > recentTimeFrame && 
+                  newEvent.pubkey === DEMO_USER_PK
+                );
+                
+                if (matchingTempMessage && matchingTempMessage.id) {
+                  console.log("[Hook] Replacing temp message with real message:", newEvent.id);
+                  // Replace the temp message with the real one
+                  return prev.map(m => 
+                    m.id === matchingTempMessage.id ? 
+                    {
+                      id: newEvent.id,
+                      role: 'user' as const,
+                      content: newEvent.decryptedContent,
+                      author: formatPubkeyForDisplay(newEvent.pubkey),
+                      timestamp: newEvent.created_at * 1000,
+                      publishedSuccessfully: true
+                    } : 
+                    m
+                  ).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+                }
+                
+                // Case 3: Check for any message with matching content hash 
+                // (handles messages we deliberately marked with contentHash)
+                const matchingHashMessage = prev.find(m => 
+                  'contentHash' in m && 
+                  newEvent.pubkey === DEMO_USER_PK && 
+                  m.content === newEvent.decryptedContent
+                );
+                
+                if (matchingHashMessage) {
+                  console.log("[Hook] Found message with matching content hash, no need to add:", newEvent.id);
+                  // If we have a message with matching content hash already properly displayed, 
+                  // just keep what we have without adding duplicates
+                  return prev;
+                }
+                
+                // Default: This is a genuinely new message, add it
+                console.log("[Hook] Adding new message from subscription:", newEvent.id);
                 const newMsg = mapEventToMessage(newEvent);
                 return [...prev.filter(m => m.role !== 'system'), newMsg]
                   .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
@@ -192,18 +245,22 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
     }
     
     const contentToSend = userInput.trim();
+    // Create a more reliable content hash for tracking the message across temp and real versions
+    const contentHash = `${contentToSend}-${Date.now()}`;
+    
     // Clear the input field immediately for better UX
     setUserInput('');
     setIsLoading(true);
     
     // Create a temporary message to show immediately
-    const tempMessageId = `temp-${Date.now()}`;
+    const tempMessageId = `temp-${contentHash}`;
     const tempMessage: ChatMessageProps = {
       id: tempMessageId,
       role: 'user',
       content: contentToSend,
-      author: formatPubkeyForDisplay(DEMO_USER_PK) + ' (sending...)',
+      author: formatPubkeyForDisplay(DEMO_USER_PK),
       timestamp: Date.now(),
+      contentHash, // Store hash for matching with real message later
     };
     
     // Add the temp message to the UI
@@ -236,39 +293,49 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
     // Run the Effect using mainRuntime
     Effect.runPromiseExit(Effect.provide(sendMessageEffect, mainRuntime))
       .then((exitResult: Exit.Exit<any, NostrRequestError | NostrPublishError | NIP28InvalidInputError | NIP04EncryptError>) => {
+        // Release the text input immediately when we get any result
         setIsLoading(false);
         
-        // Remove the temporary message
-        setMessages(prev => prev.filter(m => m.id !== tempMessageId));
-        
         if (Exit.isSuccess(exitResult)) {
-          // If successful, the message should appear via subscription
-          // We can also manually add it if needed for better UX
+          // If successful, update the temp message with the real message ID
           console.log("[Hook] Message sent successfully:", exitResult.value);
           
-          // The subscription will add this message, but we can also add it manually
-          // for immediate feedback (the subscription might be slow)
-          const sentMessage: ChatMessageProps = {
-            id: exitResult.value.id,
-            role: 'user',
-            content: contentToSend,
-            author: formatPubkeyForDisplay(DEMO_USER_PK),
-            timestamp: exitResult.value.created_at * 1000,
-          };
-          
+          // Replace the temporary message with the real one
           setMessages(prev => {
-            // If we don't already have this message (from the subscription)
-            if (!prev.some(m => m.id === sentMessage.id)) {
-              return [...prev, sentMessage].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-            }
-            return prev;
+            const realEvent = exitResult.value;
+            // Find the temp message by contentHash and replace it
+            return prev.map(m => 
+              m.id === tempMessageId ? 
+              {
+                id: realEvent.id,
+                role: 'user',
+                content: contentToSend,
+                author: formatPubkeyForDisplay(DEMO_USER_PK),
+                timestamp: realEvent.created_at * 1000,
+                contentHash, // Maintain the contentHash for deduplication
+                publishedSuccessfully: true // Mark as successfully published
+              } : 
+              m
+            ).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
           });
         } else {
-          // If failed, show an error
+          // If failed, update the temp message to show error
           const error = Cause.squash(exitResult.cause);
           console.error("[Hook] Error sending message:", error);
           
-          // Add an error message with proper type checking
+          // Update the temp message to show error
+          setMessages(prev => prev.map(m => 
+            m.id === tempMessageId ? 
+            {
+              ...m,
+              content: `${contentToSend} (Error: Failed to send)`,
+              author: formatPubkeyForDisplay(DEMO_USER_PK) + " (failed)",
+              error: true
+            } : 
+            m
+          ));
+          
+          // Add detailed error message
           const errorMessage = error instanceof Error ? error.message : String(error);
           setMessages(prev => [...prev, { 
             id: `error-send-${Date.now()}`, 
@@ -283,8 +350,17 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
         setIsLoading(false);
         console.error("[Hook] Critical error sending message:", error);
         
-        // Remove the temporary message
-        setMessages(prev => prev.filter(m => m.id !== tempMessageId));
+        // Update the temp message to show error
+        setMessages(prev => prev.map(m => 
+          m.id === tempMessageId ? 
+          {
+            ...m,
+            content: `${contentToSend} (Critical error)`,
+            author: formatPubkeyForDisplay(DEMO_USER_PK) + " (failed)",
+            error: true
+          } : 
+          m
+        ));
         
         // Add an error message with proper type checking
         const errorMessage = error instanceof Error ? error.message : String(error);
