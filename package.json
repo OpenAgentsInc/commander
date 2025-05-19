@@ -95,7 +95,7 @@
     "@types/three": "^0.176.0",
     "@use-gesture/react": "^10.3.1",
     "@vitejs/plugin-react": "^4.4.1",
-    "babel-plugin-react-compiler": "^19.0.0-beta-e993439-20250328",
+    "babel-plugin-react-compiler": "^19.0.0-beta-714736e-20250131",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "effect": "^3.15.2",
