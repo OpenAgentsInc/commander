@@ -1,5 +1,5 @@
 import { Effect, Layer, Context, Cause } from "effect";
-import { TelemetryService, TelemetryServiceLive, type TelemetryEvent } from "@/services/telemetry";
+import { TelemetryService, TelemetryServiceLive, DefaultTelemetryConfigLayer, type TelemetryEvent } from "@/services/telemetry";
 import { SimplePool } from "nostr-tools/pool";
 import {
   NostrService,

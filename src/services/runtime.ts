@@ -13,15 +13,13 @@ import { BIP39Service, BIP39ServiceLive } from '@/services/bip39';
 import { BIP32Service, BIP32ServiceLive } from '@/services/bip32';
 import { NIP28Service, NIP28ServiceLive } from '@/services/nip28';
 import { TelemetryService, TelemetryServiceLive, DefaultTelemetryConfigLayer, TelemetryServiceConfig, TelemetryServiceConfigTag } from '@/services/telemetry';
-import { OllamaService, OllamaServiceConfigTag, UiOllamaConfigLive } from '@/services/ollama/OllamaService';
-import { OllamaServiceLive } from '@/services/ollama/OllamaServiceImpl';
-
-// Import Browser HTTP Client for renderer environment
-import * as BrowserHttpClient from "@effect/platform-browser/BrowserHttpClient";
-import * as HttpClient from '@effect/platform/HttpClient';
+import { OllamaService, OllamaServiceLive, UiOllamaConfigLive } from '@/services/ollama';
+import { BrowserHttpClient } from "@effect/platform-browser";
+import { HttpClient } from '@effect/platform';
 
 // Helper function to create a runtime from a layer
-const createRuntime = <R>(layer: Layer.Layer<R, any, never>): Runtime.Runtime<R> => {
+// Change generic parameter R to ROut to reflect it's the output context of the layer
+const createRuntime = <ROut, E = any>(layer: Layer.Layer<ROut, E, never>): Runtime.Runtime<ROut> => {
   const runtimeContext = Effect.runSync(Layer.toRuntime(layer).pipe(Effect.scoped));
   return Runtime.make(runtimeContext, Runtime.defaultRuntimeFlags);
 };

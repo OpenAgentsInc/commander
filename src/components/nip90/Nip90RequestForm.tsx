@@ -14,7 +14,7 @@ import {
 } from '@/services/nostr';
 import { NIP04ServiceLive } from '@/services/nip04';
 import { Effect, Layer, Exit, Cause } from 'effect';
-import { TelemetryService, TelemetryServiceLive, type TelemetryEvent } from '@/services/telemetry';
+import { TelemetryService, TelemetryServiceLive, DefaultTelemetryConfigLayer, type TelemetryEvent } from '@/services/telemetry';
 
 // Define the DVM's public key (replace with actual key in a real application)
 const OUR_DVM_PUBKEY_HEX = "32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245"; // Example key
@@ -205,7 +205,7 @@ export default function Nip90RequestForm() {
               const telemetryService = yield* _(TelemetryService);
               yield* _(telemetryService.trackEvent(storeErrorTelemetryEvent));
             }).pipe(
-              Effect.provide(TelemetryServiceLive),
+              Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
               (effect) => Effect.runPromise(effect).catch(err => {
                 // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
                 console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));

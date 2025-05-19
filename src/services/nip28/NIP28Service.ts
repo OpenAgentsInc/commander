@@ -3,6 +3,12 @@ import { Effect, Context, Data, Schema, Option } from "effect";
 import type { NostrEvent, NostrFilter, NostrPublishError, NostrRequestError } from "@/services/nostr";
 import type { NIP04DecryptError, NIP04EncryptError } from "@/services/nip04";
 
+// --- Custom Error Types ---
+export class NIP28InvalidInputError extends Data.TaggedError("NIP28InvalidInputError")<{
+  message: string;
+  cause?: unknown;
+}> {}
+
 // --- Schemas for NIP-28 Content ---
 export const ChannelMetadataContentSchema = Schema.Struct({
     name: Schema.String, // NIP-28 implies name is required for kind 40 content
@@ -69,7 +75,7 @@ export interface NIP28Service {
      */
     createChannel(
         params: CreateChannelParams
-    ): Effect.Effect<NostrEvent, NostrRequestError | NostrPublishError>;
+    ): Effect.Effect<NostrEvent, NIP28InvalidInputError | NostrRequestError | NostrPublishError>;
 
     /**
      * Gets metadata for a channel from its creation event (Kind 40).
@@ -79,12 +85,25 @@ export interface NIP28Service {
     ): Effect.Effect<ChannelMetadata, NostrRequestError>;
 
     /**
+     * Updates metadata for a channel (Kind 41).
+     */
+    setChannelMetadata(
+        params: {
+            channelCreateEventId: string;
+            name?: string;
+            about?: string;
+            picture?: string;
+            secretKey: Uint8Array;
+        }
+    ): Effect.Effect<NostrEvent, NIP28InvalidInputError | NostrRequestError | NostrPublishError>;
+
+    /**
      * Sends a message to a channel (Kind 42).
      * The message is encrypted to the channel creator's public key using NIP-04.
      */
     sendChannelMessage(
         params: SendChannelMessageParams
-    ): Effect.Effect<NostrEvent, NostrRequestError | NostrPublishError | NIP04EncryptError>;
+    ): Effect.Effect<NostrEvent, NIP28InvalidInputError | NostrRequestError | NostrPublishError | NIP04EncryptError>;
 
     /**
      * Fetches and decrypts messages for a channel (Kind 42).

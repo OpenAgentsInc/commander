@@ -4,7 +4,7 @@ import { finalizeEvent, type EventTemplate } from "nostr-tools/pure";
 import { NostrEvent, NostrFilter, NostrPublishError, NostrRequestError, NostrService, Subscription } from '@/services/nostr';
 import { NIP04Service, NIP04EncryptError, NIP04DecryptError } from '@/services/nip04';
 import { CreateChannelParams, type SendChannelMessageParams, type ChannelMetadata, NIP28Service, DecryptedChannelMessage } from './NIP28Service';
-import { TelemetryService, TelemetryServiceLive } from '@/services/telemetry';
+import { TelemetryService, TelemetryServiceLive, DefaultTelemetryConfigLayer } from '@/services/telemetry';
 
 // Layer for NIP28Service with dependencies on NostrService and NIP04Service
 export const NIP28ServiceLive = Layer.effect(
@@ -60,7 +60,7 @@ export const NIP28ServiceLive = Layer.effect(
       createChannel: (params: CreateChannelParams) => Effect.gen(function*(_) {
         // Validate params
         if (!params.name || params.name.trim() === "") {
-          return yield* _(Effect.fail(new NostrRequestError({ message: "Channel name is required." })));
+          return yield* _(Effect.fail(new NIP28InvalidInputError({ message: "Channel name is required." })));
         }
         
         // Track telemetry for this operation
@@ -127,7 +127,58 @@ export const NIP28ServiceLive = Layer.effect(
 
       getChannelMetadata: getChannelMetadataFn,
 
+      setChannelMetadata: (params) => Effect.gen(function*(_) {
+        // Validate that at least one metadata field is provided to update
+        if (!params.name && !params.about && !params.picture) {
+          return yield* _(Effect.fail(new NIP28InvalidInputError({ 
+            message: "At least one metadata field (name, about, picture) must be provided to update" 
+          })));
+        }
+        
+        // Get the current channel metadata
+        const channelMetadata = yield* _(getChannelMetadataFn(params.channelCreateEventId));
+        
+        // Create updated metadata content
+        const content = JSON.stringify({
+          name: params.name || channelMetadata.name,
+          about: params.about || channelMetadata.about,
+          picture: params.picture || channelMetadata.picture,
+        });
+        
+        // Create the channel metadata update event (Kind 41)
+        const template = {
+          kind: 41,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [
+            ["e", params.channelCreateEventId], // Reference the original Kind 40 event
+            ["p", channelMetadata.creatorPk]    // Reference the channel creator
+          ],
+          content: content,
+        };
+        
+        // Sign and finalize the event
+        const event = finalizeEvent(template, params.secretKey) as NostrEvent;
+        console.log("[NIP28ServiceLive] Publishing Kind 41 channel metadata update event:", event);
+        
+        // Publish the event
+        try {
+          yield* _(nostr.publishEvent(event));
+          return event;
+        } catch (error) {
+          return yield* _(Effect.fail(new NostrPublishError({ 
+            message: "Failed to publish channel metadata update event", 
+            cause: error 
+          })));
+        }
+      }),
+
       sendChannelMessage: (params: SendChannelMessageParams) => Effect.gen(function* (_) {
+        // Validate message content
+        if (!params.content || params.content.trim() === "") {
+          return yield* _(Effect.fail(new NIP28InvalidInputError({ 
+            message: "Message content cannot be empty" 
+          })));
+        }
         // Get the channel metadata to find the creator's pubkey
         const channelMetadata = yield* _(getChannelMetadataFn(params.channelCreateEventId));
         const channelCreatorPk = channelMetadata.creatorPk;
