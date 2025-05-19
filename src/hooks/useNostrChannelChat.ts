@@ -1,6 +1,7 @@
 // src/hooks/useNostrChannelChat.ts
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Effect, Exit, Cause } from 'effect';
+import { runPromiseExit } from 'effect/Effect';
 import { NIP28Service, DecryptedChannelMessage } from '@/services/nip28';
 import { type ChatMessageProps } from '@/components/chat/ChatMessage';
 import { hexToBytes } from '@noble/hashes/utils';
@@ -87,7 +88,7 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
     );
 
     // Run the Effect
-    rt.runPromiseExit(getMessagesEffect)
+    runPromiseExit(getMessagesEffect)
       .then((exitResult: Exit.Exit<DecryptedChannelMessage[], NostrRequestError | NIP04DecryptError>) => {
         setIsLoading(false);
         
@@ -145,7 +146,7 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
         );
         
         // Run the subscription Effect
-        rt.runPromiseExit(subscribeEffect)
+        runPromiseExit(subscribeEffect)
           .then((subExit: Exit.Exit<{ unsub: () => void }, NostrRequestError>) => {
             if (Exit.isSuccess(subExit)) {
               console.log("[Hook] Subscribed to channel messages");
@@ -234,7 +235,7 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
     );
     
     // Run the Effect
-    rt.runPromiseExit(sendMessageEffect)
+    runPromiseExit(sendMessageEffect)
       .then((exitResult: Exit.Exit<any, NostrRequestError | NostrPublishError | NIP04EncryptError>) => {
         setIsLoading(false);
         

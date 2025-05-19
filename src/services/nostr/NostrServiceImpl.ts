@@ -282,7 +282,7 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
         try {
           // Create a subscription to the relays
           console.log(`[NostrServiceImpl] Subscribing to filters:`, filters, "on relays:", config.relays);
-          const sub = pool.sub(config.relays as string[], filters as any[]);
+          const sub = pool.subscribe(config.relays as string[], filters as any[]);
           
           // Create a telemetry event for subscription creation
           const subTelemetryEvent: TelemetryEvent = {

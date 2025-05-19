@@ -71,7 +71,7 @@ const createTestProgram = <A, E>(program: (service: NIP28Service) => Effect.Effe
         const service = yield* _(NIP28Service);
         return yield* _(program(service));
     }).pipe(
-        Effect.provide(Layer.mergeAll(
+        Effect.provideLayer(Layer.mergeAll(
             MockNostrServiceLayer,
             MockTelemetryServiceLayer,
             NIP28ServiceLive
@@ -123,10 +123,8 @@ describe('NIP28Service', () => {
                 service.createChannel({ name: "", secretKey: testSk })
             );
             
-            // Provide DefaultTelemetryConfigLayer here to satisfy requirements
-            const exit = await Effect.runPromiseExit(
-                Effect.provide(program, DefaultTelemetryConfigLayer)
-            );
+            // Run the program directly without additional provide
+            const exit = await Effect.runPromiseExit(program);
 
             expect(Exit.isFailure(exit)).toBe(true);
             const error = getFailure(exit);
@@ -145,10 +143,8 @@ describe('NIP28Service', () => {
                 })
             );
             
-            // Provide DefaultTelemetryConfigLayer here to satisfy requirements
-            const exit = await Effect.runPromiseExit(
-                Effect.provide(program, DefaultTelemetryConfigLayer)
-            );
+            // Run the program directly without additional provide
+            const exit = await Effect.runPromiseExit(program);
 
             expect(Exit.isFailure(exit)).toBe(true);
             const error = getFailure(exit);
@@ -168,10 +164,8 @@ describe('NIP28Service', () => {
                 })
             );
             
-            // Provide DefaultTelemetryConfigLayer here to satisfy requirements
-            const exit = await Effect.runPromiseExit(
-                Effect.provide(program, DefaultTelemetryConfigLayer)
-            );
+            // Run the program directly without additional provide
+            const exit = await Effect.runPromiseExit(program);
 
             expect(Exit.isFailure(exit)).toBe(true);
             const error = getFailure(exit);
