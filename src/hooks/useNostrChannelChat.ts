@@ -308,7 +308,7 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
               m.id === tempMessageId ? 
               {
                 id: realEvent.id,
-                role: 'user',
+                role: 'user' as const,
                 content: contentToSend,
                 author: formatPubkeyForDisplay(DEMO_USER_PK),
                 timestamp: realEvent.created_at * 1000,
