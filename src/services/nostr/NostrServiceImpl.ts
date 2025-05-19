@@ -35,7 +35,7 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
           const telemetryService = yield* _(TelemetryService);
           yield* _(telemetryService.trackEvent(initEvent));
         }).pipe(
-          Effect.provide(TelemetryServiceLive),
+          Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
           (effect) => Effect.runPromise(effect).catch(err => {
             // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
             console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
@@ -175,7 +175,7 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
           const telemetryService = yield* _(TelemetryService);
           yield* _(telemetryService.trackEvent(publishEventTelemetry));
         }).pipe(
-          Effect.provide(TelemetryServiceLive),
+          Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
           (effect) => Effect.runPromise(effect).catch(err => {
             // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
             console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
@@ -205,7 +205,7 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
               const telemetryService = yield* _(TelemetryService);
               yield* _(telemetryService.trackEvent(publishWarningEvent));
             }).pipe(
-              Effect.provide(TelemetryServiceLive),
+              Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
               (effect) => Effect.runPromise(effect).catch(err => {
                 // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
                 console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
@@ -230,7 +230,7 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
             const telemetryService = yield* _(TelemetryService);
             yield* _(telemetryService.trackEvent(publishSuccessEvent));
           }).pipe(
-            Effect.provide(TelemetryServiceLive),
+            Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
             (effect) => Effect.runPromise(effect).catch(err => {
               // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
               console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
@@ -252,7 +252,7 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
             const telemetryService = yield* _(TelemetryService);
             yield* _(telemetryService.trackEvent(publishErrorEvent));
           }).pipe(
-            Effect.provide(TelemetryServiceLive),
+            Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
             (effect) => Effect.runPromise(effect).catch(err => {
               // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
               console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
@@ -266,6 +266,71 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
         }
       }),
 
+    // Subscribe to events
+    subscribeToEvents: (filters, onEvent, onEOSE) => 
+      Effect.gen(function* (_) {
+        const pool = yield* _(
+          getPoolEffect,
+          Effect.mapError(error => new NostrRequestError({ 
+            message: `Failed to initialize pool for subscription: ${error.message}`, 
+            cause: error.cause 
+          }))
+        );
+        
+        try {
+          // Create a subscription to the relays
+          console.log(`[NostrServiceImpl] Subscribing to filters:`, filters, "on relays:", config.relays);
+          const sub = pool.sub(config.relays as string[], filters as any[]);
+          
+          // Create a telemetry event for subscription creation
+          const subTelemetryEvent: TelemetryEvent = {
+            category: "log:info",
+            action: "nostr_sub_created",
+            label: "[Nostr] Created subscription",
+            value: JSON.stringify({ filters, relays: config.relays })
+          };
+          
+          // Fire-and-forget telemetry
+          Effect.gen(function* (_) {
+            const telemetryService = yield* _(TelemetryService);
+            yield* _(telemetryService.trackEvent(subTelemetryEvent));
+          }).pipe(
+            Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
+            (effect) => Effect.runPromise(effect).catch(err => {
+              // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+              console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+            })
+          );
+          
+          // Set up the event handler
+          sub.on('event', (event: any) => {
+            console.log(`[NostrServiceImpl] Received event:`, event.id);
+            onEvent(event as NostrEvent);
+          });
+          
+          // Set up the EOSE handler if provided
+          if (onEOSE) {
+            sub.on('eose', () => {
+              console.log(`[NostrServiceImpl] EOSE (End of Stored Events) reached`);
+              onEOSE();
+            });
+          }
+          
+          // Return a subscription object
+          return { 
+            unsub: () => {
+              console.log(`[NostrServiceImpl] Unsubscribing from filters:`, filters);
+              sub.unsub();
+            } 
+          };
+        } catch (error) {
+          return yield* _(Effect.fail(new NostrRequestError({ 
+            message: "Failed to create subscription", 
+            cause: error 
+          })));
+        }
+      }),
+      
     // Clean up resources
     cleanupPool: () =>
       Effect.try({
@@ -285,7 +350,7 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
               const telemetryService = yield* _(TelemetryService);
               yield* _(telemetryService.trackEvent(poolCloseEvent));
             }).pipe(
-              Effect.provide(TelemetryServiceLive),
+              Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
               (effect) => Effect.runPromise(effect).catch(err => {
                 // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
                 console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));

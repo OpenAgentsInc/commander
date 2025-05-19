@@ -4,6 +4,7 @@
  */
 import { Effect, Context, Data, Layer } from "effect";
 import type { SimplePool } from "nostr-tools/pool";
+import type { Sub as NostrToolsSub } from "nostr-tools";
 
 // --- Custom Error Types ---
 export class NostrPoolError extends Data.TaggedError("NostrPoolError")<{
@@ -44,6 +45,11 @@ export interface NostrFilter {
   [key: `#${string}`]: string[] | undefined;
 }
 
+// --- Subscription Type ---
+export interface Subscription {
+  unsub: () => void;
+}
+
 // --- Service Configuration ---
 export interface NostrServiceConfig {
   readonly relays: readonly string[];
@@ -74,6 +80,19 @@ export interface NostrService {
   listEvents(filters: NostrFilter[]): Effect.Effect<NostrEvent[], NostrRequestError, never>;
   publishEvent(event: NostrEvent): Effect.Effect<void, NostrPublishError, never>;
   cleanupPool(): Effect.Effect<void, NostrPoolError, never>;
+  
+  /**
+   * Subscribe to events matching the given filters
+   * @param filters The filters to subscribe to
+   * @param onEvent Callback for each event received
+   * @param onEOSE Optional callback for when end of stored events is reached
+   * @returns A subscription that can be used to unsubscribe
+   */
+  subscribeToEvents(
+    filters: NostrFilter[],
+    onEvent: (event: NostrEvent) => void,
+    onEOSE?: () => void
+  ): Effect.Effect<Subscription, NostrRequestError, never>;
 }
 
 export const NostrService = Context.GenericTag<NostrService>("NostrService");

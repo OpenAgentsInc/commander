@@ -27,7 +27,7 @@ export const NIP28ServiceLive = Layer.effect(
             label: `Getting channel metadata for: ${channelCreateEventId}`,
             value: `Found ${events.length} events`
           })),
-          TelemetryServiceLive
+          Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)
         ).pipe(Effect.catchAllCause(() => Effect.void)));
         
         if (events.length === 0) {
@@ -70,7 +70,7 @@ export const NIP28ServiceLive = Layer.effect(
             action: "nip28_create_channel",
             label: `Creating channel: ${params.name}`
           })),
-          TelemetryServiceLive
+          Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)
         ).pipe(Effect.catchAllCause(() => Effect.void)));
         
         // Create the channel metadata
@@ -103,7 +103,7 @@ export const NIP28ServiceLive = Layer.effect(
               action: "nip28_create_channel_success",
               label: `Channel created successfully: ${event.id}`
             })),
-            TelemetryServiceLive
+            Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)
           ).pipe(Effect.catchAllCause(() => Effect.void)));
           
           return event;
@@ -115,7 +115,7 @@ export const NIP28ServiceLive = Layer.effect(
               action: "nip28_create_channel_error",
               label: `Failed to create channel: ${error instanceof Error ? error.message : String(error)}`
             })),
-            TelemetryServiceLive
+            Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)
           ).pipe(Effect.catchAllCause(() => Effect.void)));
           
           return yield* _(Effect.fail(new NostrPublishError({ 

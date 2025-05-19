@@ -113,10 +113,11 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
           // If failed, show an error
           const error = Cause.squash(exitResult.cause);
           console.error("[Hook] Error fetching channel messages:", error);
+          const errorMessage = error instanceof Error ? error.message : String(error);
           setMessages([{ 
             id: 'error-fetch', 
             role: 'system', 
-            content: `Error loading messages: ${error.message || String(error)}`,
+            content: `Error loading messages: ${errorMessage}`,
             timestamp: Date.now() 
           }]);
         }
@@ -153,10 +154,11 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
             } else {
               const error = Cause.squash(subExit.cause);
               console.error("[Hook] Error subscribing to channel messages:", error);
+              const errorMessage = error instanceof Error ? error.message : String(error);
               setMessages(prev => [...prev, { 
                 id: 'sub-error', 
                 role: 'system', 
-                content: `Error subscribing: ${error.message || String(error)}`,
+                content: `Error subscribing: ${errorMessage}`,
                 timestamp: Date.now() 
               }]);
             }
@@ -171,8 +173,9 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
         try {
           subscriptionRef.current.unsub();
           console.log("[Hook] Unsubscribed from channel messages");
-        } catch (error) {
-          console.error("[Hook] Error unsubscribing:", error);
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error("[Hook] Error unsubscribing:", errorMessage);
         }
         subscriptionRef.current = null;
       }
@@ -265,28 +268,30 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
           const error = Cause.squash(exitResult.cause);
           console.error("[Hook] Error sending message:", error);
           
-          // Add an error message
+          // Add an error message with proper type checking
+          const errorMessage = error instanceof Error ? error.message : String(error);
           setMessages(prev => [...prev, { 
             id: `error-send-${Date.now()}`, 
             role: 'system', 
-            content: `Failed to send: ${error.message || String(error)}`,
+            content: `Failed to send: ${errorMessage}`,
             timestamp: Date.now() 
           }]);
         }
       })
-      .catch(error => {
-        // Handle unexpected errors
+      .catch((error: unknown) => {
+        // Handle unexpected errors with proper typing
         setIsLoading(false);
         console.error("[Hook] Critical error sending message:", error);
         
         // Remove the temporary message
         setMessages(prev => prev.filter(m => m.id !== tempMessageId));
         
-        // Add an error message
+        // Add an error message with proper type checking
+        const errorMessage = error instanceof Error ? error.message : String(error);
         setMessages(prev => [...prev, { 
           id: `error-critical-${Date.now()}`, 
           role: 'system', 
-          content: `Critical error: ${error instanceof Error ? error.message : String(error)}`,
+          content: `Critical error: ${errorMessage}`,
           timestamp: Date.now() 
         }]);
       });

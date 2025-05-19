@@ -14,7 +14,7 @@ import { OllamaService, OllamaServiceConfigTag, UiOllamaConfigLive } from '@/ser
 import { OllamaServiceLive } from '@/services/ollama/OllamaServiceImpl';
 
 // Import Browser HTTP Client for renderer environment
-import { BrowserHttpClientLive } from "@effect/platform-browser";
+import { BrowserHttpClient } from "@effect/platform-browser";
 import { HttpClient } from '@effect/platform';
 
 // Helper function to create a runtime from a layer
@@ -58,26 +58,30 @@ try {
     Layer.provide(DefaultNostrServiceConfigLayer),
     Layer.provide(DefaultTelemetryConfigLayer),
     Layer.provide(UiOllamaConfigLive),
-    Layer.provide(BrowserHttpClientLive) // Provide BrowserHttpClient for renderer
+    Layer.provide(BrowserHttpClient.layer) // Provide BrowserHttpClient for renderer
   );
   
   // Create the runtime with the full layer
   mainRuntime = createRuntime(FullAppLayer);
   console.log("Production-ready Effect runtime for renderer created successfully");
-} catch (e) {
+} catch (e: unknown) {
   console.error("CRITICAL: Failed to create Effect runtime for renderer:", e);
   // Create a fallback minimal runtime that will at least not crash the application
   console.log("Creating fallback runtime for renderer...");
   
   // Fallback layer should be minimal and guaranteed to work
-  const FallbackLayer = Layer.mergeAll(
-    TelemetryServiceLive
-  ).pipe(
+  // Start with an empty layer and add configs first, then services that depend on those configs
+  const FallbackLayer = Layer.empty.pipe(
+    // First provide configs
     Layer.provide(DefaultTelemetryConfigLayer),
-    Layer.succeed(NostrServiceConfigTag, DefaultNostrServiceConfigLayer.context.unsafeGet(NostrServiceConfigTag)) // Provide config directly
+    // Then provide services that depend on those configs
+    Layer.provide(TelemetryServiceLive)
+    // Optionally add NostrServiceLive if needed and its dependencies are minimal
+    // Layer.provide(DefaultNostrServiceConfigLayer),
+    // Layer.provide(NostrServiceLive)
   );
   
-  // Create the fallback runtime
+  // Create the fallback runtime with explicit type assertion
   mainRuntime = createRuntime(FallbackLayer as Layer.Layer<FullAppContext, any, never>);
   console.log("Fallback runtime for renderer created");
 }

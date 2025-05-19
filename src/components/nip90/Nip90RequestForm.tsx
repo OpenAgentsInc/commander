@@ -129,7 +129,7 @@ export default function Nip90RequestForm() {
       const fullLayer = Layer.mergeAll(
         Layer.provide(NostrServiceLive, DefaultNostrServiceConfigLayer),
         NIP04ServiceLive,
-        TelemetryServiceLive
+        Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)
       );
       
       // 6. Run the program with the combined Layer
@@ -148,7 +148,7 @@ export default function Nip90RequestForm() {
           const telemetryService = yield* _(TelemetryService);
           yield* _(telemetryService.trackEvent(successTelemetryEvent));
         }).pipe(
-          Effect.provide(TelemetryServiceLive),
+          Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
           (effect) => Effect.runPromise(effect).catch(err => {
             // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
             console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err), Cause.pretty(err));

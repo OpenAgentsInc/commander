@@ -55,7 +55,7 @@ export const PaneManager = () => {
           titleBarButtons={
             pane.type === 'chats' ? (
               <Button
-                size="xs"
+                size="sm"
                 variant="ghost"
                 onClick={(e) => {
                   e.stopPropagation(); // Prevent pane activation when clicking button
