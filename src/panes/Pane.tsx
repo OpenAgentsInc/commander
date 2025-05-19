@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useDrag, type HandlerParams } from '@use-gesture/react'; // Updated import for HandlerParams
+import { useDrag, type HandlerParams } from '@use-gesture/react';
 import { X as IconX } from 'lucide-react';
 import { Pane as PaneType } from '@/types/pane';
 import { usePaneStore } from "@/stores/pane";
@@ -17,23 +17,39 @@ const useResizeHandlers = (
   initialSize: { width: number; height: number },
   updatePanePosition: (id: string, x: number, y: number) => void,
   updatePaneSize: (id: string, width: number, height: number) => void,
-  isCurrentlyInteracting: boolean, // Added
-  setIsResizing: (isResizing: boolean) => void // Added
+  isCurrentlyInteracting: boolean,
+  setIsResizing: (isResizing: boolean) => void
 ) => {
   const [position, setPosition] = useState(initialPosition);
   const [size, setSize] = useState(initialSize);
+  
+  // Using refs to keep track of prev values to avoid unnecessary state updates
+  const prevPositionRef = useRef(initialPosition);
+  const prevSizeRef = useRef(initialSize);
 
   useEffect(() => {
-    if (!isCurrentlyInteracting && (initialPosition.x !== position.x || initialPosition.y !== position.y)) {
-      setPosition(initialPosition);
+    if (!isCurrentlyInteracting) {
+      // Only update if initialPosition has actually changed from what we already know
+      if (initialPosition.x !== prevPositionRef.current.x || 
+          initialPosition.y !== prevPositionRef.current.y) {
+        
+        setPosition(initialPosition);
+        prevPositionRef.current = initialPosition;
+      }
     }
-  }, [initialPosition.x, initialPosition.y, isCurrentlyInteracting, position.x, position.y]);
+  }, [initialPosition.x, initialPosition.y, isCurrentlyInteracting]);
 
   useEffect(() => {
-    if (!isCurrentlyInteracting && (initialSize.width !== size.width || initialSize.height !== size.height)) {
-      setSize(initialSize);
+    if (!isCurrentlyInteracting) {
+      // Only update if initialSize has actually changed from what we already know
+      if (initialSize.width !== prevSizeRef.current.width || 
+          initialSize.height !== prevSizeRef.current.height) {
+        
+        setSize(initialSize);
+        prevSizeRef.current = initialSize;
+      }
     }
-  }, [initialSize.width, initialSize.height, isCurrentlyInteracting, size.width, size.height]);
+  }, [initialSize.width, initialSize.height, isCurrentlyInteracting]);
 
   const minWidth = 200;
   const minHeight = 100;
@@ -42,14 +58,14 @@ const useResizeHandlers = (
   const resizeStartRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
 
   const makeResizeHandler = (corner: ResizeCorner) => {
-    // Type for useDrag state: HandlerParams['drag'] (or specific type if known)
-    // For simplicity, using 'any' for state, but ideally, type it based on useDrag's state
     return ({ active, movement: [deltaX, deltaY], first, last, memo }: any) => {
       setIsResizing(active);
       let currentMemo = memo;
 
       if (first) {
         currentMemo = { x: position.x, y: position.y, width: size.width, height: size.height };
+        // Store starting values in ref for future use if needed
+        resizeStartRef.current = currentMemo;
       }
 
       let newX = currentMemo.x;
@@ -114,6 +130,10 @@ const useResizeHandlers = (
       if (last) {
         updatePanePosition(id, newX, newY);
         updatePaneSize(id, newWidth, newHeight);
+        
+        // Update refs with final position/size
+        prevPositionRef.current = { x: newX, y: newY };
+        prevSizeRef.current = { width: newWidth, height: newHeight };
       }
       return currentMemo;
     };
@@ -130,7 +150,7 @@ const useResizeHandlers = (
     left: useDrag(makeResizeHandler('left')),
   };
 
-  return { position, size, setPosition, resizeHandlers }; // Removed setSize from return if not used externally
+  return { position, size, setPosition, resizeHandlers };
 };
 
 
@@ -157,7 +177,10 @@ export const Pane: React.FC<PaneProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const isInteracting = isDragging || isResizing;
-
+  
+  // Refs to track state during activation
+  const activationPendingRef = useRef(false);
+  const initialGrabPositionRef = useRef({ x: 0, y: 0 });
 
   const { position, size, setPosition, resizeHandlers } = useResizeHandlers(
     id,
@@ -185,24 +208,38 @@ export const Pane: React.FC<PaneProps> = ({
   }, [size.width, size.height]);
 
   const bindDrag = useDrag(
-    ({ active, offset: [ox, oy], first, last, event }) => {
+    ({ active, offset: [ox, oy], movement: [mx, my], first, last, event }) => {
       setIsDragging(active);
       event.stopPropagation();
+      
       if (first) {
-        bringPaneToFront(id);
-        setActivePane(id);
+        // Store the initial values
+        initialGrabPositionRef.current = { x: position.x, y: position.y };
+        
+        if (!isActive) {
+          activationPendingRef.current = true;
+          bringPaneToFront(id);
+          setActivePane(id);
+        }
       }
+      
       const newX = Math.max(bounds.left, Math.min(ox, bounds.right));
       const newY = Math.max(bounds.top, Math.min(oy, bounds.bottom));
 
-      setPosition({ x: newX, y: newY }); // Update local state for immediate feedback
+      // If we're becoming active for the first time in this drag, handle it carefully
+      if (activationPendingRef.current && mx !== 0 && my !== 0) {
+        activationPendingRef.current = false;
+      }
+
+      setPosition({ x: newX, y: newY });
 
       if (last) {
-        updatePanePosition(id, newX, newY); // Update store on drag end
+        updatePanePosition(id, newX, newY);
+        activationPendingRef.current = false;
       }
     },
     {
-      from: () => [position.x, position.y], // Use local state for 'from'
+      from: () => [position.x, position.y],
       bounds: bounds,
     }
   );
@@ -217,10 +254,10 @@ export const Pane: React.FC<PaneProps> = ({
     if (target.classList.contains('resize-handle') || target.closest('.title-bar-button-container')) {
         return;
     }
-    if (!isActive) { // Only bring to front if not already active, to avoid issues with `from`
+    if (!isActive) {
         bringPaneToFront(id);
     }
-    setActivePane(id); // Always set active on click
+    setActivePane(id);
   };
 
   const resizeHandleClasses = "absolute bg-transparent pointer-events-auto";
@@ -243,6 +280,7 @@ export const Pane: React.FC<PaneProps> = ({
       <div
         {...bindDrag()}
         className="pane-title-bar select-none touch-none bg-black text-white/90 border-b border-border/20 font-bold py-1.5 px-3 cursor-grab active:cursor-grabbing flex justify-between items-center h-8"
+        style={{ touchAction: 'none' }} // Add this to fix the touch-action warning
       >
         <span className="text-xs truncate">{title}</span>
         <div className="flex items-center space-x-1 title-bar-button-container">
@@ -263,14 +301,14 @@ export const Pane: React.FC<PaneProps> = ({
         {children}
       </div>
       {/* Resize Handles */}
-      <div {...resizeHandlers.topleft()} style={{ top: resizeHandleOffset, left: resizeHandleOffset, width: resizeHandleSize, height: resizeHandleSize, cursor: 'nwse-resize' }} className={resizeHandleClasses + " resize-handle"} />
-      <div {...resizeHandlers.top()} style={{ top: resizeHandleOffset, left: resizeHandleSize, right: resizeHandleSize, height: resizeHandleSize, cursor: 'ns-resize' }} className={resizeHandleClasses + " resize-handle"} />
-      <div {...resizeHandlers.topright()} style={{ top: resizeHandleOffset, right: resizeHandleOffset, width: resizeHandleSize, height: resizeHandleSize, cursor: 'nesw-resize' }} className={resizeHandleClasses + " resize-handle"} />
-      <div {...resizeHandlers.right()} style={{ top: resizeHandleSize, right: resizeHandleOffset, bottom: resizeHandleSize, width: resizeHandleSize, cursor: 'ew-resize' }} className={resizeHandleClasses + " resize-handle"} />
-      <div {...resizeHandlers.bottomright()} style={{ bottom: resizeHandleOffset, right: resizeHandleOffset, width: resizeHandleSize, height: resizeHandleSize, cursor: 'nwse-resize' }} className={resizeHandleClasses + " resize-handle"} />
-      <div {...resizeHandlers.bottom()} style={{ bottom: resizeHandleOffset, left: resizeHandleSize, right: resizeHandleSize, height: resizeHandleSize, cursor: 'ns-resize' }} className={resizeHandleClasses + " resize-handle"} />
-      <div {...resizeHandlers.bottomleft()} style={{ bottom: resizeHandleOffset, left: resizeHandleOffset, width: resizeHandleSize, height: resizeHandleSize, cursor: 'nesw-resize' }} className={resizeHandleClasses + " resize-handle"} />
-      <div {...resizeHandlers.left()} style={{ top: resizeHandleSize, left: resizeHandleOffset, bottom: resizeHandleSize, width: resizeHandleSize, cursor: 'ew-resize' }} className={resizeHandleClasses + " resize-handle"} />
+      <div {...resizeHandlers.topleft()} style={{ top: resizeHandleOffset, left: resizeHandleOffset, width: resizeHandleSize, height: resizeHandleSize, cursor: 'nwse-resize', touchAction: 'none' }} className={resizeHandleClasses + " resize-handle"} />
+      <div {...resizeHandlers.top()} style={{ top: resizeHandleOffset, left: resizeHandleSize, right: resizeHandleSize, height: resizeHandleSize, cursor: 'ns-resize', touchAction: 'none' }} className={resizeHandleClasses + " resize-handle"} />
+      <div {...resizeHandlers.topright()} style={{ top: resizeHandleOffset, right: resizeHandleOffset, width: resizeHandleSize, height: resizeHandleSize, cursor: 'nesw-resize', touchAction: 'none' }} className={resizeHandleClasses + " resize-handle"} />
+      <div {...resizeHandlers.right()} style={{ top: resizeHandleSize, right: resizeHandleOffset, bottom: resizeHandleSize, width: resizeHandleSize, cursor: 'ew-resize', touchAction: 'none' }} className={resizeHandleClasses + " resize-handle"} />
+      <div {...resizeHandlers.bottomright()} style={{ bottom: resizeHandleOffset, right: resizeHandleOffset, width: resizeHandleSize, height: resizeHandleSize, cursor: 'nwse-resize', touchAction: 'none' }} className={resizeHandleClasses + " resize-handle"} />
+      <div {...resizeHandlers.bottom()} style={{ bottom: resizeHandleOffset, left: resizeHandleSize, right: resizeHandleSize, height: resizeHandleSize, cursor: 'ns-resize', touchAction: 'none' }} className={resizeHandleClasses + " resize-handle"} />
+      <div {...resizeHandlers.bottomleft()} style={{ bottom: resizeHandleOffset, left: resizeHandleOffset, width: resizeHandleSize, height: resizeHandleSize, cursor: 'nesw-resize', touchAction: 'none' }} className={resizeHandleClasses + " resize-handle"} />
+      <div {...resizeHandlers.left()} style={{ top: resizeHandleSize, left: resizeHandleOffset, bottom: resizeHandleSize, width: resizeHandleSize, cursor: 'ew-resize', touchAction: 'none' }} className={resizeHandleClasses + " resize-handle"} />
     </div>
   );
 };

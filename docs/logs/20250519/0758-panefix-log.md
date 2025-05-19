@@ -63,12 +63,28 @@ These changes should eliminate both the non-active pane drag stopping issue and 
 
 ## Testing - 8:20 AM
 
-Testing the implemented changes to verify the fixes work as expected:
+Testing the implemented changes exposed additional issues:
 
-1. Non-active pane drag issue (20px stop bug):
-   - When dragging a non-active pane, it should now continue to follow the cursor smoothly
-   - The local state won't reset during dragging because we've added the isInteracting check
+1. There's still an intermittent drag stopping issue, particularly when starting to drag a non-active pane
+2. Getting warnings about touch-action in the console
 
-2. Choppy drag for active panes:
-   - Active panes should now move smoothly with the cursor without any lag or choppiness
-   - This is achieved by removing the CSS transitions during interaction
+## Additional Fixes - 8:35 AM
+
+I've made more robust fixes to address the remaining issues:
+
+1. **Fixed touch-action warnings:**
+   - Added `style={{ touchAction: 'none' }}` to all interactive elements (title bar and resize handles)
+   - This ensures proper touch behavior and eliminates the console warnings
+
+2. **Enhanced state management:**
+   - Added refs to track previous position and size values to avoid unnecessary state updates
+   - Added activation tracking with `activationPendingRef` to better handle the transition between inactive and active states
+   - Added initial grab position tracking for more stable drag operations
+   - Updated how dragging handles the first movement after activation
+
+3. **Improved position consistency:**
+   - When a drag or resize completes, the refs are updated with final position values
+   - This ensures that the next time the component re-renders, it won't try to reset position/size based on outdated initialPosition/initialSize values
+   - Added additional bounds checking to ensure panes stay within the designated area
+
+The changes provide much more robust interaction handling, ensuring smooth dragging even when panes transition from inactive to active states.
