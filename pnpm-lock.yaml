@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       '@buildonspark/spark-sdk':
-        specifier: ^0.1.23
+        specifier: 0.1.23
         version: 0.1.23(@babel/core@7.27.1)(@types/react@19.1.4)(react@19.1.0)(ws@8.18.2)
       '@effect/platform':
         specifier: ^0.82.2
@@ -17,9 +17,6 @@ importers:
       '@effect/platform-browser':
         specifier: ^0.62.3
         version: 0.62.3(@effect/platform@0.82.2(effect@3.15.2))(effect@3.15.2)
-      '@effect/schema':
-        specifier: ^0.75.5
-        version: 0.75.5(effect@3.15.2)
       '@icons-pack/react-simple-icons':
         specifier: ^12.7.0
         version: 12.8.0(react@19.1.0)
@@ -605,12 +602,6 @@ packages:
     peerDependencies:
       '@effect/platform': ^0.82.2
       effect: ^3.15.1
-
-  '@effect/schema@0.75.5':
-    resolution: {integrity: sha512-TQInulTVCuF+9EIbJpyLP6dvxbQJMphrnRqgexm/Ze39rSjfhJuufF7XvU3SxTgg3HnL7B/kpORTJbHhlE6thw==}
-    deprecated: this package has been merged into the main effect package
-    peerDependencies:
-      effect: ^3.9.2
 
   '@effect/sql@0.35.2':
     resolution: {integrity: sha512-IO4VSF7+B1tcQ8ytCPKBsekKWiITOHKROPbLaxBMSdrixjarnY+C75+BEeC3c5Eg3Uc3yIC1dKN1YdxcG1aGbw==}
@@ -6626,11 +6617,6 @@ snapshots:
     dependencies:
       '@effect/platform': 0.82.2(effect@3.15.2)
       effect: 3.15.2
-
-  '@effect/schema@0.75.5(effect@3.15.2)':
-    dependencies:
-      effect: 3.15.2
-      fast-check: 3.23.2
 
   '@effect/sql@0.35.2(@effect/experimental@0.46.2(@effect/platform@0.82.2(effect@3.15.2))(effect@3.15.2))(@effect/platform@0.82.2(effect@3.15.2))(effect@3.15.2)':
     dependencies:
