@@ -17,13 +17,27 @@ const { execSync } = require("child_process");
 // Directories to recursively scan
 const dirsToScan = ["docs", "src"];
 
+// Directories to exclude
+const dirsToExclude = [
+  "src/assets/fonts",
+  "docs/logs/20250514",
+  "docs/logs/20250515",
+  "docs/logs/20250516",
+  "docs/logs/20250517",
+  "docs/logs/20250518",
+  "docs",
+  "src/services/",
+  "src/tests/",
+  "src/components/ui",
+];
+
 // Files to explicitly include from root
 const rootFilesToInclude = [
   // 'node_modules/@effect/platform/dist/dts/HttpClient.d.ts',
   // 'node_modules/@effect/platform/dist/dts/HttpClientRequest.d.ts',
   // 'node_modules/@effect/platform/dist/dts/HttpClientResponse.d.ts',
   // 'node_modules/@effect/platform/dist/dts/HttpBody.d.ts',
-  "node_modules/nostr-tools/README.md",
+  // "node_modules/nostr-tools/README.md",
   // "node_modules/nostr-tools/lib/types/nip04.d.ts",
   // "node_modules/nostr-tools/lib/esm/nip04.js",
   // "node_modules/nostr-tools/lib/types/nip19.d.ts",
@@ -37,19 +51,19 @@ const rootFilesToInclude = [
   // "node_modules/@scure/bip39/index.d.ts",
   // "node_modules/@scure/bip39/src/index.ts",
   "README.md",
-  "README-template.md",
-  "forge.config.ts",
-  "forge.env.d.ts",
+  // "README-template.md",
+  // "forge.config.ts",
+  // "forge.env.d.ts",
   "index.html",
   "package.json",
   "tsconfig.json",
-  "vite.main.config.mts",
-  "vite.preload.config.mts",
-  "vite.renderer.config.mts",
-  "vitest.config.mts",
-  "playwright.config.ts",
-  "components.json",
-  "eslint.config.mjs",
+  // "vite.main.config.mts",
+  // "vite.preload.config.mts",
+  // "vite.renderer.config.mts",
+  // "vitest.config.mts",
+  // "playwright.config.ts",
+  // "components.json",
+  // "eslint.config.mjs",
 ];
 
 // Files to explicitly exclude from root
@@ -96,16 +110,6 @@ const copyToClipboard = (text) => {
     console.error("Failed to copy to clipboard:", error);
   }
 };
-
-// Directories to exclude
-const dirsToExclude = [
-  "src/assets/fonts",
-  "docs/logs/20250514",
-  "docs/logs/20250515",
-  "docs/logs/20250516",
-  "docs/logs/20250517",
-  "src/components/ui",
-];
 
 // Function to check if a path should be excluded
 const shouldExclude = (filePath) => {
