@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useDrag } from '@use-gesture/react';
+import { useDrag, type HandlerParams } from '@use-gesture/react'; // Updated import for HandlerParams
 import { X as IconX } from 'lucide-react';
 import { Pane as PaneType } from '@/types/pane';
 import { usePaneStore } from "@/stores/pane";
@@ -9,123 +9,130 @@ type PaneProps = PaneType & {
   titleBarButtons?: React.ReactNode;
 };
 
+type ResizeCorner = 'topleft' | 'top' | 'topright' | 'right' | 'bottomright' | 'bottom' | 'bottomleft' | 'left';
+
 const useResizeHandlers = (
   id: string,
   initialPosition: { x: number; y: number },
   initialSize: { width: number; height: number },
   updatePanePosition: (id: string, x: number, y: number) => void,
-  updatePaneSize: (id: string, width: number, height: number) => void
+  updatePaneSize: (id: string, width: number, height: number) => void,
+  isCurrentlyInteracting: boolean, // Added
+  setIsResizing: (isResizing: boolean) => void // Added
 ) => {
   const [position, setPosition] = useState(initialPosition);
   const [size, setSize] = useState(initialSize);
 
   useEffect(() => {
-    setPosition(initialPosition);
-  }, [initialPosition.x, initialPosition.y]);
+    if (!isCurrentlyInteracting && (initialPosition.x !== position.x || initialPosition.y !== position.y)) {
+      setPosition(initialPosition);
+    }
+  }, [initialPosition.x, initialPosition.y, isCurrentlyInteracting, position.x, position.y]);
 
   useEffect(() => {
-    setSize(initialSize);
-  }, [initialSize.width, initialSize.height]);
+    if (!isCurrentlyInteracting && (initialSize.width !== size.width || initialSize.height !== size.height)) {
+      setSize(initialSize);
+    }
+  }, [initialSize.width, initialSize.height, isCurrentlyInteracting, size.width, size.height]);
 
   const minWidth = 200;
   const minHeight = 100;
 
-  const resizeHandlers = {
-    topleft: useDrag(({ movement: [deltaX, deltaY], memo = { x: position.x, y: position.y, width: size.width, height: size.height }, first, last }) => {
-      if (first) memo = { x: position.x, y: position.y, width: size.width, height: size.height };
-      const newWidth = Math.max(minWidth, memo.width - deltaX);
-      const newHeight = Math.max(minHeight, memo.height - deltaY);
-      const newX = memo.x + (memo.width - newWidth);
-      const newY = memo.y + (memo.height - newHeight);
+  // Memo ref for resize start state
+  const resizeStartRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
+
+  const makeResizeHandler = (corner: ResizeCorner) => {
+    // Type for useDrag state: HandlerParams['drag'] (or specific type if known)
+    // For simplicity, using 'any' for state, but ideally, type it based on useDrag's state
+    return ({ active, movement: [deltaX, deltaY], first, last, memo }: any) => {
+      setIsResizing(active);
+      let currentMemo = memo;
+
+      if (first) {
+        currentMemo = { x: position.x, y: position.y, width: size.width, height: size.height };
+      }
+
+      let newX = currentMemo.x;
+      let newY = currentMemo.y;
+      let newWidth = currentMemo.width;
+      let newHeight = currentMemo.height;
+
+      switch (corner) {
+        case 'topleft':
+          newWidth = Math.max(minWidth, currentMemo.width - deltaX);
+          newHeight = Math.max(minHeight, currentMemo.height - deltaY);
+          newX = currentMemo.x + (currentMemo.width - newWidth);
+          newY = currentMemo.y + (currentMemo.height - newHeight);
+          break;
+        case 'top':
+          newHeight = Math.max(minHeight, currentMemo.height - deltaY);
+          newY = currentMemo.y + (currentMemo.height - newHeight);
+          newX = currentMemo.x; // Ensure x doesn't change
+          newWidth = currentMemo.width; // Ensure width doesn't change
+          break;
+        case 'topright':
+          newWidth = Math.max(minWidth, currentMemo.width + deltaX);
+          newHeight = Math.max(minHeight, currentMemo.height - deltaY);
+          newY = currentMemo.y + (currentMemo.height - newHeight);
+          newX = currentMemo.x; // Ensure x doesn't change
+          break;
+        case 'right':
+          newWidth = Math.max(minWidth, currentMemo.width + deltaX);
+          newX = currentMemo.x; // Ensure x doesn't change
+          newY = currentMemo.y; // Ensure y doesn't change
+          newHeight = currentMemo.height; // Ensure height doesn't change
+          break;
+        case 'bottomright':
+          newWidth = Math.max(minWidth, currentMemo.width + deltaX);
+          newHeight = Math.max(minHeight, currentMemo.height + deltaY);
+          newX = currentMemo.x; // Ensure x doesn't change
+          newY = currentMemo.y; // Ensure y doesn't change
+          break;
+        case 'bottom':
+          newHeight = Math.max(minHeight, currentMemo.height + deltaY);
+          newX = currentMemo.x; // Ensure x doesn't change
+          newY = currentMemo.y; // Ensure y doesn't change
+          newWidth = currentMemo.width; // Ensure width doesn't change
+          break;
+        case 'bottomleft':
+          newWidth = Math.max(minWidth, currentMemo.width - deltaX);
+          newX = currentMemo.x + (currentMemo.width - newWidth);
+          newHeight = Math.max(minHeight, currentMemo.height + deltaY);
+          newY = currentMemo.y; // Ensure y doesn't change
+          break;
+        case 'left':
+          newWidth = Math.max(minWidth, currentMemo.width - deltaX);
+          newX = currentMemo.x + (currentMemo.width - newWidth);
+          newY = currentMemo.y; // Ensure y doesn't change
+          newHeight = currentMemo.height; // Ensure height doesn't change
+          break;
+      }
 
       setPosition({ x: newX, y: newY });
       setSize({ width: newWidth, height: newHeight });
-      if (last) {
-          updatePanePosition(id, newX, newY);
-          updatePaneSize(id, newWidth, newHeight);
-      }
-      return { x: newX, y: newY, width: newWidth, height: newHeight }; // Return memo for next event
-    }),
-    top: useDrag(({ movement: [, deltaY], memo = { y: position.y, height: size.height }, first, last }) => {
-      if (first) memo = { y: position.y, height: size.height };
-      const newHeight = Math.max(minHeight, memo.height - deltaY);
-      const newY = memo.y + (memo.height - newHeight);
 
-      setPosition({ ...position, y: newY });
-      setSize({ ...size, height: newHeight });
-       if (last) {
-          updatePanePosition(id, position.x, newY);
-          updatePaneSize(id, size.width, newHeight);
-      }
-      return { y: newY, height: newHeight };
-    }),
-    topright: useDrag(({ movement: [deltaX, deltaY], memo = { y: position.y, width: size.width, height: size.height }, first, last }) => {
-      if (first) memo = { y: position.y, width: size.width, height: size.height };
-      const newWidth = Math.max(minWidth, memo.width + deltaX);
-      const newHeight = Math.max(minHeight, memo.height - deltaY);
-      const newY = memo.y + (memo.height - newHeight);
-
-      setPosition({ ...position, y: newY });
-      setSize({ width: newWidth, height: newHeight });
       if (last) {
-          updatePanePosition(id, position.x, newY);
-          updatePaneSize(id, newWidth, newHeight);
+        updatePanePosition(id, newX, newY);
+        updatePaneSize(id, newWidth, newHeight);
       }
-      return { y: newY, width: newWidth, height: newHeight };
-    }),
-    right: useDrag(({ movement: [deltaX], memo = { width: size.width }, first, last }) => {
-      if (first) memo = { width: size.width };
-      const newWidth = Math.max(minWidth, memo.width + deltaX);
-      setSize({ ...size, width: newWidth });
-      if (last) updatePaneSize(id, newWidth, size.height);
-      return { width: newWidth };
-    }),
-    bottomright: useDrag(({ movement: [deltaX, deltaY], memo = { width: size.width, height: size.height }, first, last }) => {
-      if (first) memo = { width: size.width, height: size.height };
-      const newWidth = Math.max(minWidth, memo.width + deltaX);
-      const newHeight = Math.max(minHeight, memo.height + deltaY);
-      setSize({ width: newWidth, height: newHeight });
-      if (last) updatePaneSize(id, newWidth, newHeight);
-      return { width: newWidth, height: newHeight };
-    }),
-    bottom: useDrag(({ movement: [, deltaY], memo = { height: size.height }, first, last }) => {
-      if (first) memo = { height: size.height };
-      const newHeight = Math.max(minHeight, memo.height + deltaY);
-      setSize({ ...size, height: newHeight });
-      if (last) updatePaneSize(id, size.width, newHeight);
-      return { height: newHeight };
-    }),
-    bottomleft: useDrag(({ movement: [deltaX, deltaY], memo = { x: position.x, width: size.width, height: size.height }, first, last }) => {
-      if (first) memo = { x: position.x, width: size.width, height: size.height };
-      const newWidth = Math.max(minWidth, memo.width - deltaX);
-      const newX = memo.x + (memo.width - newWidth);
-      const newHeight = Math.max(minHeight, memo.height + deltaY);
-
-      setPosition({ ...position, x: newX });
-      setSize({ width: newWidth, height: newHeight });
-      if (last) {
-          updatePanePosition(id, newX, position.y);
-          updatePaneSize(id, newWidth, newHeight);
-      }
-      return { x: newX, width: newWidth, height: newHeight };
-    }),
-    left: useDrag(({ movement: [deltaX], memo = { x: position.x, width: size.width }, first, last }) => {
-      if (first) memo = { x: position.x, width: size.width };
-      const newWidth = Math.max(minWidth, memo.width - deltaX);
-      const newX = memo.x + (memo.width - newWidth);
-
-      setPosition({ ...position, x: newX });
-      setSize({ ...size, width: newWidth });
-      if (last) {
-          updatePanePosition(id, newX, position.y);
-          updatePaneSize(id, newWidth, size.height);
-      }
-      return { x: newX, width: newWidth };
-    }),
+      return currentMemo;
+    };
   };
 
-  return { position, size, setPosition, resizeHandlers };
+  const resizeHandlers = {
+    topleft: useDrag(makeResizeHandler('topleft')),
+    top: useDrag(makeResizeHandler('top')),
+    topright: useDrag(makeResizeHandler('topright')),
+    right: useDrag(makeResizeHandler('right')),
+    bottomright: useDrag(makeResizeHandler('bottomright')),
+    bottom: useDrag(makeResizeHandler('bottom')),
+    bottomleft: useDrag(makeResizeHandler('bottomleft')),
+    left: useDrag(makeResizeHandler('left')),
+  };
+
+  return { position, size, setPosition, resizeHandlers }; // Removed setSize from return if not used externally
 };
+
 
 export const Pane: React.FC<PaneProps> = ({
   id,
@@ -147,12 +154,19 @@ export const Pane: React.FC<PaneProps> = ({
   const bringPaneToFront = usePaneStore(state => state.bringPaneToFront);
   const setActivePane = usePaneStore(state => state.setActivePane);
 
+  const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const isInteracting = isDragging || isResizing;
+
+
   const { position, size, setPosition, resizeHandlers } = useResizeHandlers(
     id,
     { x: initialX, y: initialY },
     { width: initialWidth, height: initialHeight },
     updatePanePosition,
-    updatePaneSize
+    updatePaneSize,
+    isInteracting,
+    setIsResizing
   );
 
   useEffect(() => {
@@ -170,22 +184,28 @@ export const Pane: React.FC<PaneProps> = ({
     return () => window.removeEventListener('resize', updateBounds);
   }, [size.width, size.height]);
 
-  const bindDrag = useDrag(({ offset: [ox, oy], first, last, event }) => {
-    event.stopPropagation();
-    if (first) {
-      bringPaneToFront(id);
-      setActivePane(id);
+  const bindDrag = useDrag(
+    ({ active, offset: [ox, oy], first, last, event }) => {
+      setIsDragging(active);
+      event.stopPropagation();
+      if (first) {
+        bringPaneToFront(id);
+        setActivePane(id);
+      }
+      const newX = Math.max(bounds.left, Math.min(ox, bounds.right));
+      const newY = Math.max(bounds.top, Math.min(oy, bounds.bottom));
+
+      setPosition({ x: newX, y: newY }); // Update local state for immediate feedback
+
+      if (last) {
+        updatePanePosition(id, newX, newY); // Update store on drag end
+      }
+    },
+    {
+      from: () => [position.x, position.y], // Use local state for 'from'
+      bounds: bounds,
     }
-    const newX = Math.max(bounds.left, Math.min(ox, bounds.right));
-    const newY = Math.max(bounds.top, Math.min(oy, bounds.bottom));
-    setPosition({ x: newX, y: newY });
-    if (last) {
-      updatePanePosition(id, newX, newY);
-    }
-  }, {
-    from: () => [position.x, position.y],
-    bounds: bounds,
-  });
+  );
 
   const handleClose = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -197,8 +217,10 @@ export const Pane: React.FC<PaneProps> = ({
     if (target.classList.contains('resize-handle') || target.closest('.title-bar-button-container')) {
         return;
     }
-    bringPaneToFront(id);
-    setActivePane(id);
+    if (!isActive) { // Only bring to front if not already active, to avoid issues with `from`
+        bringPaneToFront(id);
+    }
+    setActivePane(id); // Always set active on click
   };
 
   const resizeHandleClasses = "absolute bg-transparent pointer-events-auto";
@@ -215,7 +237,7 @@ export const Pane: React.FC<PaneProps> = ({
         height: size.height,
         zIndex: isActive ? 50 : 49,
       }}
-      className={`pane-container pointer-events-auto flex flex-col bg-black/90 border rounded-lg overflow-hidden shadow-lg transition-all duration-100 ease-out ${isActive ? 'border-primary ring-1 ring-primary' : 'border-border/20'}`}
+      className={`pane-container pointer-events-auto flex flex-col bg-black/90 border rounded-lg overflow-hidden shadow-lg ${isActive ? 'border-primary ring-1 ring-primary' : 'border-border/20'} ${!isInteracting ? 'transition-all duration-100 ease-out' : ''}`}
       onMouseDownCapture={handlePaneMouseDown}
     >
       <div
@@ -240,6 +262,7 @@ export const Pane: React.FC<PaneProps> = ({
       <div className="pane-content flex-grow text-white h-[calc(100%-2rem)] overflow-auto p-1">
         {children}
       </div>
+      {/* Resize Handles */}
       <div {...resizeHandlers.topleft()} style={{ top: resizeHandleOffset, left: resizeHandleOffset, width: resizeHandleSize, height: resizeHandleSize, cursor: 'nwse-resize' }} className={resizeHandleClasses + " resize-handle"} />
       <div {...resizeHandlers.top()} style={{ top: resizeHandleOffset, left: resizeHandleSize, right: resizeHandleSize, height: resizeHandleSize, cursor: 'ns-resize' }} className={resizeHandleClasses + " resize-handle"} />
       <div {...resizeHandlers.topright()} style={{ top: resizeHandleOffset, right: resizeHandleOffset, width: resizeHandleSize, height: resizeHandleSize, cursor: 'nesw-resize' }} className={resizeHandleClasses + " resize-handle"} />
