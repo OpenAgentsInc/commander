@@ -24,3 +24,6 @@ export type SetPaneStore = {
   (partial: PaneStoreType | Partial<PaneStoreType> | ((state: PaneStoreType) => PaneStoreType | Partial<PaneStoreType>), replace?: boolean): void;
   (state: PaneStoreType | ((state: PaneStoreType) => PaneStoreType), replace: true): void;
 };
+
+// Add GetPaneStore type for completeness
+export type GetPaneStore = () => PaneStoreType;

@@ -49,7 +49,7 @@ const initialState: PaneState = {
 
 export const usePaneStore = create<PaneStoreType>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       ...initialState,
       addPane: (newPaneInput: PaneInput, shouldTile?: boolean) => addPaneAction(set, newPaneInput, shouldTile),
       removePane: (id: string) => removePaneAction(set, id),
@@ -58,7 +58,7 @@ export const usePaneStore = create<PaneStoreType>()(
       openChatPane: (newPaneInput: PaneInput, isCommandKeyHeld?: boolean) => openChatPaneAction(set, newPaneInput, isCommandKeyHeld),
       bringPaneToFront: (id: string) => bringPaneToFrontAction(set, id),
       setActivePane: (id: string | null) => setActivePaneAction(set, id),
-      createNip28ChannelPane: (channelName?: string) => createNip28ChannelPaneAction(set, channelName),
+      createNip28ChannelPane: (channelName?: string) => createNip28ChannelPaneAction(set, get, channelName),
       resetHUDState: () => set(initialState),
     }),
     {

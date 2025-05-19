@@ -1,6 +1,6 @@
 // src/stores/panes/actions/createNip28ChannelPane.ts
 import { PaneInput } from "@/types/pane";
-import { PaneStoreType, SetPaneStore } from "../types";
+import { PaneStoreType, SetPaneStore, GetPaneStore } from "../types";
 import { Effect, Exit, Cause } from "effect";
 import { NIP28Service, type CreateChannelParams } from '@/services/nip28';
 import { type NostrEvent, NostrRequestError, NostrPublishError } from '@/services/nostr';
@@ -20,6 +20,7 @@ const DEMO_CHANNEL_CREATOR_PK = getPublicKey(DEMO_CHANNEL_CREATOR_SK);
  */
 export function createNip28ChannelPaneAction(
   set: SetPaneStore,
+  get: GetPaneStore,
   channelNameInput?: string,
 ) {
   const rt = mainRuntime;
@@ -99,12 +100,13 @@ export function createNip28ChannelPaneAction(
             },
           };
           usePaneStore.getState().addPane(channelPaneInput, true);
-        } catch (error) {
+        } catch (error: unknown) {
           console.error("[Action] Error creating channel pane:", error);
+          const errorMessage = error instanceof Error ? error.message : String(error);
           const errorPaneInput: PaneInput = {
             type: 'default',
             title: 'Channel Creation Error',
-            content: { message: `Error creating channel pane: ${error instanceof Error ? error.message : String(error)}` }
+            content: { message: `Error creating channel pane: ${errorMessage}` }
           };
           usePaneStore.getState().addPane(errorPaneInput);
         }
@@ -112,22 +114,24 @@ export function createNip28ChannelPaneAction(
         // If failed, show an error pane
         const error = Cause.squash(exitResult.cause);
         console.error("[Action] Error creating NIP28 channel:", error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         const errorPaneInput: PaneInput = {
           type: 'default',
           title: 'Channel Creation Failed',
-          content: { message: `Failed to create channel on Nostr: ${error.message || "Unknown error"}` }
+          content: { message: `Failed to create channel on Nostr: ${errorMessage}` }
         };
         usePaneStore.getState().addPane(errorPaneInput);
       }
     })
-    .catch(error => {
+    .catch((error: unknown) => {
       // Handle unexpected errors outside the Effect
       usePaneStore.getState().removePane(tempPaneId);
       console.error("[Action] Critical error in channel creation:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       const errorPaneInput: PaneInput = {
         type: 'default',
         title: 'Channel Creation Critical Error',
-        content: { message: `Runtime error: ${error instanceof Error ? error.message : String(error)}` }
+        content: { message: `Runtime error: ${errorMessage}` }
       };
       usePaneStore.getState().addPane(errorPaneInput);
     });

@@ -25,10 +25,10 @@ const dirsToExclude = [
   "docs/logs/20250516",
   "docs/logs/20250517",
   "docs/logs/20250518",
-  "docs",
-  "src/services/",
-  "src/tests/",
-  "src/components/ui",
+  // "docs",
+  // "src/services/",
+  // "src/tests/",
+  // "src/components/ui",
 ];
 
 // Files to explicitly include from root

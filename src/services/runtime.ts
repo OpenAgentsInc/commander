@@ -1,5 +1,8 @@
 // src/services/runtime.ts
-import { Layer, Runtime, Effect, Context } from 'effect';
+import { Layer } from "effect/Layer";
+import { Runtime } from "effect/Runtime";
+import { Effect } from "effect/Effect";
+import { Context } from "effect/Context";
 import {
   NostrService, NostrServiceLive,
   DefaultNostrServiceConfigLayer, NostrServiceConfig, NostrServiceConfigTag
@@ -14,8 +17,8 @@ import { OllamaService, OllamaServiceConfigTag, UiOllamaConfigLive } from '@/ser
 import { OllamaServiceLive } from '@/services/ollama/OllamaServiceImpl';
 
 // Import Browser HTTP Client for renderer environment
-import { BrowserHttpClient } from "@effect/platform-browser";
-import { HttpClient } from '@effect/platform';
+import * as BrowserHttpClient from "@effect/platform-browser/BrowserHttpClient";
+import * as HttpClient from '@effect/platform/HttpClient';
 
 // Helper function to create a runtime from a layer
 const createRuntime = <R>(layer: Layer.Layer<R, any, never>): Runtime.Runtime<R> => {
@@ -23,8 +26,8 @@ const createRuntime = <R>(layer: Layer.Layer<R, any, never>): Runtime.Runtime<R>
   return Runtime.make(runtimeContext, Runtime.defaultRuntimeFlags);
 };
 
-// Define the full context type for the runtime
-type FullAppContext =
+// Define the full context type for the runtime - services provided to the app
+export type FullAppContext =
   NostrService |
   NIP04Service |
   NIP19Service |
@@ -32,10 +35,19 @@ type FullAppContext =
   BIP32Service |
   TelemetryService |
   NIP28Service |
-  NostrServiceConfig |
-  TelemetryServiceConfig |
   OllamaService |
-  HttpClient.HttpClient; // Add HttpClient to the context
+  HttpClient.HttpClient; // HttpClient is a provided service
+
+// Compose individual services with their direct dependencies
+const nostrLayer = NostrServiceLive.pipe(Layer.provide(DefaultNostrServiceConfigLayer));
+const telemetryLayer = TelemetryServiceLive.pipe(Layer.provide(DefaultTelemetryConfigLayer));
+const ollamaLayer = OllamaServiceLive.pipe(
+  Layer.provide(Layer.merge(UiOllamaConfigLive, BrowserHttpClient.layer))
+);
+const nip04Layer = NIP04ServiceLive; // Assuming no direct external config tags needed by NIP04ServiceLive itself
+const nip28Layer = NIP28ServiceLive.pipe(
+  Layer.provide(Layer.merge(nostrLayer, nip04Layer)) // Provide configured NostrService and NIP04Service
+);
 
 // Build the full layer with all services
 let mainRuntime: Runtime.Runtime<FullAppContext>;
@@ -45,45 +57,34 @@ try {
   
   // Merge all the service layers
   const FullAppLayer = Layer.mergeAll(
-    NostrServiceLive,
-    NIP04ServiceLive,
+    nostrLayer,
+    nip04Layer,
     NIP19ServiceLive,
     BIP39ServiceLive,
     BIP32ServiceLive,
-    TelemetryServiceLive,
-    NIP28ServiceLive,
-    OllamaServiceLive
-  ).pipe(
-    // Provide necessary configurations
-    Layer.provide(DefaultNostrServiceConfigLayer),
-    Layer.provide(DefaultTelemetryConfigLayer),
-    Layer.provide(UiOllamaConfigLive),
-    Layer.provide(BrowserHttpClient.layer) // Provide BrowserHttpClient for renderer
-  );
+    telemetryLayer,
+    nip28Layer,
+    ollamaLayer
+  ); // This layer should now have RIn = never if all dependencies are correctly satisfied.
   
   // Create the runtime with the full layer
-  mainRuntime = createRuntime(FullAppLayer);
+  mainRuntime = createRuntime(FullAppLayer as Layer.Layer<FullAppContext, any, never>);
   console.log("Production-ready Effect runtime for renderer created successfully");
 } catch (e: unknown) {
   console.error("CRITICAL: Failed to create Effect runtime for renderer:", e);
   // Create a fallback minimal runtime that will at least not crash the application
   console.log("Creating fallback runtime for renderer...");
   
-  // Fallback layer should be minimal and guaranteed to work
-  // Start with an empty layer and add configs first, then services that depend on those configs
-  const FallbackLayer = Layer.empty.pipe(
-    // First provide configs
-    Layer.provide(DefaultTelemetryConfigLayer),
-    // Then provide services that depend on those configs
-    Layer.provide(TelemetryServiceLive)
-    // Optionally add NostrServiceLive if needed and its dependencies are minimal
-    // Layer.provide(DefaultNostrServiceConfigLayer),
-    // Layer.provide(NostrServiceLive)
-  );
+  // Create a minimal fallback Layer with just telemetry
+  const minimalTelemetryLayer = Layer.succeed(TelemetryService, TelemetryService.of({
+    trackEvent: () => Effect.succeed(undefined),
+    isEnabled: () => Effect.succeed(false),
+    setEnabled: () => Effect.succeed(undefined)
+  }));
   
   // Create the fallback runtime with explicit type assertion
-  mainRuntime = createRuntime(FallbackLayer as Layer.Layer<FullAppContext, any, never>);
-  console.log("Fallback runtime for renderer created");
+  mainRuntime = createRuntime(minimalTelemetryLayer as Layer.Layer<FullAppContext, any, never>);
+  console.log("Fallback runtime created with minimal functionality. Some services may be unavailable.");
 }
 
 export { mainRuntime };
