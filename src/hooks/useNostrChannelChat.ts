@@ -1,8 +1,7 @@
 // src/hooks/useNostrChannelChat.ts
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Effect, Exit, Cause } from 'effect';
-import { runPromiseExit } from 'effect/Effect';
-import { NIP28Service, DecryptedChannelMessage } from '@/services/nip28';
+import { NIP28Service, DecryptedChannelMessage, NIP28InvalidInputError } from '@/services/nip28';
 import { type ChatMessageProps } from '@/components/chat/ChatMessage';
 import { hexToBytes } from '@noble/hashes/utils';
 import { getPublicKey } from 'nostr-tools/pure';
@@ -87,8 +86,8 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
       nip28Service => nip28Service.getChannelMessages(channelId, DEMO_USER_SK)
     );
 
-    // Run the Effect
-    runPromiseExit(getMessagesEffect)
+    // Run the Effect using mainRuntime
+    Effect.runPromiseExit(Effect.provide(getMessagesEffect, mainRuntime))
       .then((exitResult: Exit.Exit<DecryptedChannelMessage[], NostrRequestError | NIP04DecryptError>) => {
         setIsLoading(false);
         
@@ -145,8 +144,8 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
           )
         );
         
-        // Run the subscription Effect
-        runPromiseExit(subscribeEffect)
+        // Run the subscription Effect using mainRuntime
+        Effect.runPromiseExit(Effect.provide(subscribeEffect, mainRuntime))
           .then((subExit: Exit.Exit<{ unsub: () => void }, NostrRequestError>) => {
             if (Exit.isSuccess(subExit)) {
               console.log("[Hook] Subscribed to channel messages");
@@ -234,9 +233,9 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
       })
     );
     
-    // Run the Effect
-    runPromiseExit(sendMessageEffect)
-      .then((exitResult: Exit.Exit<any, NostrRequestError | NostrPublishError | NIP04EncryptError>) => {
+    // Run the Effect using mainRuntime
+    Effect.runPromiseExit(Effect.provide(sendMessageEffect, mainRuntime))
+      .then((exitResult: Exit.Exit<any, NostrRequestError | NostrPublishError | NIP28InvalidInputError | NIP04EncryptError>) => {
         setIsLoading(false);
         
         // Remove the temporary message

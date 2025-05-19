@@ -2,8 +2,7 @@
 import { PaneInput } from "@/types/pane";
 import { PaneStoreType, SetPaneStore, GetPaneStore } from "../types";
 import { Effect, Exit, Cause } from "effect";
-import { runPromiseExit } from "effect/Effect";
-import { NIP28Service, type CreateChannelParams } from '@/services/nip28';
+import { NIP28Service, type CreateChannelParams, NIP28InvalidInputError } from '@/services/nip28';
 import { type NostrEvent, NostrRequestError, NostrPublishError } from '@/services/nostr';
 import { hexToBytes } from "@noble/hashes/utils";
 import { getPublicKey } from "nostr-tools/pure";
@@ -69,9 +68,9 @@ export function createNip28ChannelPaneAction(
     nip28Service => nip28Service.createChannel(channelParams)
   );
   
-  // Run the Effect using runPromiseExit
-  runPromiseExit(createChannelEffect)
-    .then((exitResult: Exit.Exit<NostrEvent, NostrRequestError | NostrPublishError>) => {
+  // Run the Effect using Effect.runPromiseExit
+  Effect.runPromiseExit(Effect.provide(createChannelEffect, mainRuntime))
+    .then((exitResult: Exit.Exit<NostrEvent, NostrRequestError | NostrPublishError | NIP28InvalidInputError>) => {
       // Remove the temporary "creating" pane
       usePaneStore.getState().removePane(tempPaneId);
       

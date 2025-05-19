@@ -282,7 +282,21 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
         try {
           // Create a subscription to the relays
           console.log(`[NostrServiceImpl] Subscribing to filters:`, filters, "on relays:", config.relays);
-          const sub = pool.subscribe(config.relays as string[], filters as any[]);
+          
+          // Create subscription parameters with event handlers
+          const subParams = {
+            onevent: (event: any) => {
+              console.log(`[NostrServiceImpl] Received event:`, event.id);
+              onEvent(event as NostrEvent);
+            },
+            oneose: onEOSE ? () => {
+              console.log(`[NostrServiceImpl] EOSE (End of Stored Events) reached`);
+              onEOSE();
+            } : undefined
+          };
+          
+          // Use the subscribe method with the required parameters
+          const subCloser = pool.subscribe(config.relays as string[], filters as any[], subParams);
           
           // Create a telemetry event for subscription creation
           const subTelemetryEvent: TelemetryEvent = {
@@ -304,25 +318,11 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
             })
           );
           
-          // Set up the event handler
-          sub.on('event', (event: any) => {
-            console.log(`[NostrServiceImpl] Received event:`, event.id);
-            onEvent(event as NostrEvent);
-          });
-          
-          // Set up the EOSE handler if provided
-          if (onEOSE) {
-            sub.on('eose', () => {
-              console.log(`[NostrServiceImpl] EOSE (End of Stored Events) reached`);
-              onEOSE();
-            });
-          }
-          
-          // Return a subscription object
+          // Return a subscription object with an unsub function
           return { 
             unsub: () => {
               console.log(`[NostrServiceImpl] Unsubscribing from filters:`, filters);
-              sub.unsub();
+              subCloser.close();
             } 
           };
         } catch (error) {
