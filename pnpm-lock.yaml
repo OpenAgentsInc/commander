@@ -93,8 +93,8 @@ importers:
         specifier: ^4.4.1
         version: 4.4.1(vite@6.3.5(@types/node@22.15.19)(jiti@2.4.2)(lightningcss@1.29.2))
       babel-plugin-react-compiler:
-        specifier: ^19.0.0-beta-e993439-20250328
-        version: 19.0.0-beta-ebf51a3-20250411
+        specifier: ^19.0.0-beta-714736e-20250131
+        version: 19.0.0-beta-714736e-20250131
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -2131,8 +2131,8 @@ packages:
     resolution: {integrity: sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==}
     engines: {node: '>= 0.4'}
 
-  babel-plugin-react-compiler@19.0.0-beta-ebf51a3-20250411:
-    resolution: {integrity: sha512-q84bNR9JG1crykAlJUt5Ud0/5BUyMFuQww/mrwIQDFBaxsikqBDj3f/FNDsVd2iR26A1HvXKWPEIfgJDv8/V2g==}
+  babel-plugin-react-compiler@19.0.0-beta-714736e-20250131:
+    resolution: {integrity: sha512-frj2l6fRWVi26iw9WthFKyFyE4u5ZSHH3KdKiscOOwpz210seTtwnp0QbJmi8Zoa5HK7Fk2fH40JffN2y8GvLg==}
 
   balanced-match@1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
@@ -7343,7 +7343,7 @@ snapshots:
     dependencies:
       possible-typed-array-names: 1.1.0
 
-  babel-plugin-react-compiler@19.0.0-beta-ebf51a3-20250411:
+  babel-plugin-react-compiler@19.0.0-beta-714736e-20250131:
     dependencies:
       '@babel/types': 7.27.1
 
