@@ -17,6 +17,17 @@ const { execSync } = require("child_process");
 // Directories to recursively scan
 const dirsToScan = ["docs", "src"];
 
+// Directories to exclude
+const dirsToExclude = [
+  "src/assets/fonts",
+  "docs/logs/20250514",
+  "docs/logs/20250515",
+  "docs/logs/20250516",
+  "docs/logs/20250517",
+  "docs/logs/20250518",
+  "src/components/ui",
+];
+
 // Files to explicitly include from root
 const rootFilesToInclude = [
   // 'node_modules/@effect/platform/dist/dts/HttpClient.d.ts',
@@ -96,16 +107,6 @@ const copyToClipboard = (text) => {
     console.error("Failed to copy to clipboard:", error);
   }
 };
-
-// Directories to exclude
-const dirsToExclude = [
-  "src/assets/fonts",
-  "docs/logs/20250514",
-  "docs/logs/20250515",
-  "docs/logs/20250516",
-  "docs/logs/20250517",
-  "src/components/ui",
-];
 
 // Function to check if a path should be excluded
 const shouldExclude = (filePath) => {
