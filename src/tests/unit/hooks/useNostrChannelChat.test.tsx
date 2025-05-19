@@ -9,15 +9,27 @@ vi.mock('@/hooks/useNostrChannelChat', () => {
   return {
     useNostrChannelChat: ({ channelId }: { channelId: string }) => {
       const { useState } = require('react');
+      // Don't add type arguments to useState
       const [messages, setMessages] = useState([]);
       const [isLoading, setIsLoading] = useState(false);
       const [userInput, setUserInput] = useState('');
       
       // Simplified mock implementation
       const sendMessage = vi.fn(() => {
-        // Clear input and return loading state to false
+        // Clear input without changing loading state
         setUserInput('');
-        setIsLoading(false);
+        // Note: we no longer set isLoading to true when sending
+        
+        // Add a temporary message
+        setMessages([
+          ...messages,
+          {
+            id: `temp-${Date.now()}`,
+            content: userInput,
+            role: 'user',
+            timestamp: Date.now()
+          }
+        ]);
       });
       
       return {
@@ -49,13 +61,14 @@ describe('useNostrChannelChat hook', () => {
     // Setup
     const { result } = renderHook(() => useNostrChannelChat({ channelId }));
     
+    // Verify initial state
+    expect(result.current.isLoading).toBe(false);
+    
     // Set initial user input
     act(() => {
       result.current.setUserInput(testMessage);
     });
     
-    // Verify initial state
-    expect(result.current.isLoading).toBe(false);
     expect(result.current.userInput).toBe(testMessage);
     
     // Send the message
@@ -65,7 +78,7 @@ describe('useNostrChannelChat hook', () => {
       await new Promise(resolve => setTimeout(resolve, 10));
     });
     
-    // Verify the input was cleared and loading state is reset
+    // Verify the input was cleared but loading state remains false
     expect(result.current.userInput).toBe('');
     expect(result.current.isLoading).toBe(false);
   });

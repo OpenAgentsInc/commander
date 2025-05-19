@@ -250,7 +250,6 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
     
     // Clear the input field immediately for better UX
     setUserInput('');
-    setIsLoading(true);
     
     // Create a temporary message to show immediately
     const tempMessageId = `temp-${contentHash}`;
@@ -293,9 +292,6 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
     // Run the Effect using mainRuntime
     Effect.runPromiseExit(Effect.provide(sendMessageEffect, mainRuntime))
       .then((exitResult: Exit.Exit<any, NostrRequestError | NostrPublishError | NIP28InvalidInputError | NIP04EncryptError>) => {
-        // Release the text input immediately when we get any result
-        setIsLoading(false);
-        
         if (Exit.isSuccess(exitResult)) {
           // If successful, update the temp message with the real message ID
           console.log("[Hook] Message sent successfully:", exitResult.value);
@@ -347,7 +343,6 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
       })
       .catch((error: unknown) => {
         // Handle unexpected errors with proper typing
-        setIsLoading(false);
         console.error("[Hook] Critical error sending message:", error);
         
         // Update the temp message to show error
