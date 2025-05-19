@@ -1,10 +1,13 @@
+// src/hooks/useNostrChannelChat.ts
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Effect } from 'effect';
-import { NIP28Service } from '@/services/nip28';
+import { Effect, Exit, Cause } from 'effect';
+import { NIP28Service, DecryptedChannelMessage } from '@/services/nip28';
 import { type ChatMessageProps } from '@/components/chat/ChatMessage';
 import { hexToBytes } from '@noble/hashes/utils';
 import { getPublicKey } from 'nostr-tools/pure';
 import { mainRuntime } from '@/services/runtime';
+import { NostrRequestError, NostrPublishError } from '@/services/nostr';
+import { NIP04DecryptError, NIP04EncryptError } from '@/services/nip04';
 
 // Demo user key for testing - in a real app this would come from user identity management
 const DEMO_USER_SK_HEX = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -22,215 +25,272 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
   
   // Store the runtime reference
   const runtimeRef = useRef(mainRuntime);
+  // Store the subscription reference for cleanup
+  const subscriptionRef = useRef<{ unsub: () => void } | null>(null);
   
   // Format a pubkey as a shorter display string
   const formatPubkeyForDisplay = useCallback((pubkey: string): string => {
+    if (!pubkey || pubkey.length < 10) return "anon";
     return pubkey.substring(0, 6) + "..." + pubkey.substring(pubkey.length - 4);
   }, []);
 
-  // Load messages for the channel
+  // Map a NostrEvent with decrypted content to a ChatMessageProps
+  const mapEventToMessage = useCallback((event: DecryptedChannelMessage): ChatMessageProps => ({
+    id: event.id,
+    content: event.decryptedContent,
+    role: event.pubkey === DEMO_USER_PK ? 'user' : 'assistant',
+    author: formatPubkeyForDisplay(event.pubkey),
+    timestamp: event.created_at * 1000,
+  }), [formatPubkeyForDisplay]);
+
+  // Load messages for the channel and subscribe to new ones
   useEffect(() => {
-    if (!channelId) return;
+    // Ignore invalid or fallback channel IDs
+    if (!channelId || channelId.startsWith('fallback-')) {
+      console.warn("[Hook] Invalid or fallback channelId, skipping Nostr operations:", channelId);
+      setMessages([{ 
+        id: 'fallback-info', 
+        role: 'system', 
+        content: `Using fallback channel: ${channelId}. Not connected to Nostr.`, 
+        timestamp: Date.now() 
+      }]);
+      setIsLoading(false);
+      return;
+    }
     
-    console.log("Loading messages for channel:", channelId);
+    console.log("[Hook] Initializing chat for channel:", channelId);
     setIsLoading(true);
     setMessages([{ 
-      id: 'system-message', 
+      id: 'system-init', 
       role: 'system', 
-      content: 'Loading channel messages...',
+      content: `Loading messages for channel ${formatPubkeyForDisplay(channelId)}...`,
       timestamp: Date.now() 
     }]);
 
-    // Use the runtime to get channel messages if available
     const rt = runtimeRef.current;
-    if (rt) {
-      try {
-        const getMessagesEffect = Effect.gen(function*(_) {
-          const nip28Service = yield* _(NIP28Service);
-          console.log("[Hook] Fetching messages for channel:", channelId);
-          return yield* _(nip28Service.getChannelMessages(channelId, { limit: 50 }));
-        });
+    if (!rt) {
+      console.error("[Hook] Runtime not available for loading messages.");
+      setIsLoading(false);
+      setMessages([{ 
+        id: 'error-runtime', 
+        role: 'system', 
+        content: 'Runtime not available. Cannot load messages.',
+        timestamp: Date.now() 
+      }]);
+      return;
+    }
 
-        rt.runPromise(getMessagesEffect)
-          .then((events: any[]) => {
-            console.log("[Hook] Received channel messages:", events);
-            if (events && events.length > 0) {
-              // Map the events to ChatMessageProps
-              const mappedMessages = events.map(event => ({
-                id: event.id,
-                content: event.content,
-                role: event.pubkey === DEMO_USER_PK ? 'user' : 'assistant',
-                author: formatPubkeyForDisplay(event.pubkey),
-                timestamp: event.created_at * 1000,
-              }));
-              setMessages(mappedMessages);
+    // Create an Effect to get the channel messages
+    const getMessagesEffect = Effect.flatMap(
+      NIP28Service,
+      nip28Service => nip28Service.getChannelMessages(channelId, DEMO_USER_SK)
+    );
+
+    // Run the Effect
+    rt.runPromiseExit(getMessagesEffect)
+      .then((exitResult: Exit.Exit<DecryptedChannelMessage[], NostrRequestError | NIP04DecryptError>) => {
+        setIsLoading(false);
+        
+        if (Exit.isSuccess(exitResult)) {
+          // If successful, process the messages
+          const events = exitResult.value;
+          console.log(`[Hook] Received ${events.length} channel messages:`, events);
+          
+          if (events.length > 0) {
+            // Map the decrypted events to chat messages
+            const mappedMessages = events.map(mapEventToMessage);
+            setMessages(mappedMessages);
+          } else {
+            // No messages yet
+            setMessages([{
+              id: 'no-messages',
+              role: 'system',
+              content: 'No messages yet. Be the first to say something!',
+              timestamp: Date.now()
+            }]);
+          }
+        } else {
+          // If failed, show an error
+          const error = Cause.squash(exitResult.cause);
+          console.error("[Hook] Error fetching channel messages:", error);
+          setMessages([{ 
+            id: 'error-fetch', 
+            role: 'system', 
+            content: `Error loading messages: ${error.message || String(error)}`,
+            timestamp: Date.now() 
+          }]);
+        }
+        
+        // Subscribe to new messages regardless of initial fetch success
+        const subscribeEffect = Effect.flatMap(
+          NIP28Service,
+          nip28Service => nip28Service.subscribeToChannelMessages(
+            channelId,
+            DEMO_USER_SK,
+            (newEvent) => {
+              console.log("[Hook] Received new message via subscription:", newEvent);
+              // Add the new message to the state
+              setMessages(prev => {
+                // Skip if we already have this message (duplicates can happen)
+                if (prev.some(m => m.id === newEvent.id)) return prev;
+                
+                // Otherwise add the new message
+                const newMsg = mapEventToMessage(newEvent);
+                return [...prev.filter(m => m.role !== 'system'), newMsg]
+                  .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+              });
+            }
+          )
+        );
+        
+        // Run the subscription Effect
+        rt.runPromiseExit(subscribeEffect)
+          .then((subExit: Exit.Exit<{ unsub: () => void }, NostrRequestError>) => {
+            if (Exit.isSuccess(subExit)) {
+              console.log("[Hook] Subscribed to channel messages");
+              // Store the subscription for cleanup
+              subscriptionRef.current = subExit.value;
             } else {
-              // No messages yet
-              setMessages([{
-                id: 'no-messages',
-                role: 'system',
-                content: 'No messages yet. Be the first to say something!',
-                timestamp: Date.now()
+              const error = Cause.squash(subExit.cause);
+              console.error("[Hook] Error subscribing to channel messages:", error);
+              setMessages(prev => [...prev, { 
+                id: 'sub-error', 
+                role: 'system', 
+                content: `Error subscribing: ${error.message || String(error)}`,
+                timestamp: Date.now() 
               }]);
             }
-            setIsLoading(false);
-          })
-          .catch(error => {
-            console.error("Error fetching channel messages:", error);
-            setIsLoading(false);
-            setMessages([{ 
-              id: 'error-message', 
-              role: 'system', 
-              content: `Error loading messages: ${error instanceof Error ? error.message : String(error)}`,
-              timestamp: Date.now() 
-            }]);
           });
-      } catch (error) {
-        console.error("Critical error in channel message loading:", error);
-        setIsLoading(false);
-        setMessages([{ 
-          id: 'error-message', 
-          role: 'system', 
-          content: `Error loading messages: ${error instanceof Error ? error.message : String(error)}`,
-          timestamp: Date.now() 
-        }]);
-      }
-    } else {
-      // Fallback for when runtime is not available
-      console.log("Runtime not available, using demo messages");
-      setTimeout(() => {
-        const welcomeMessage: ChatMessageProps = {
-          id: `welcome-${channelId}`,
-          role: 'assistant',
-          content: `Welcome to the channel! This is a demo of the NIP28 channel chat functionality.`,
-          author: 'Channel Creator',
-          timestamp: Date.now() - 60000, // 1 minute ago
-        };
-        setMessages([welcomeMessage]);
-        setIsLoading(false);
-      }, 500);
-    }
+      });
 
     // Cleanup function
     return () => {
-      // Nothing to clean up for now
+      console.log("[Hook] Cleaning up subscription for channel:", channelId);
+      // Unsubscribe if we have a subscription
+      if (subscriptionRef.current) {
+        try {
+          subscriptionRef.current.unsub();
+          console.log("[Hook] Unsubscribed from channel messages");
+        } catch (error) {
+          console.error("[Hook] Error unsubscribing:", error);
+        }
+        subscriptionRef.current = null;
+      }
     };
-  }, [channelId, formatPubkeyForDisplay]);
+  }, [channelId, formatPubkeyForDisplay, mapEventToMessage]);
 
   // Send a message to the channel
   const sendMessage = useCallback(() => {
-    if (!userInput.trim() || !channelId) return;
-
+    if (!userInput.trim() || !channelId || channelId.startsWith('fallback-')) {
+      if (channelId.startsWith('fallback-')) {
+        console.warn("[Hook] Cannot send message to fallback channel:", channelId);
+      }
+      return;
+    }
+    
+    const contentToSend = userInput.trim();
+    // Clear the input field immediately for better UX
+    setUserInput('');
+    setIsLoading(true);
+    
     // Create a temporary message to show immediately
     const tempMessageId = `temp-${Date.now()}`;
     const tempMessage: ChatMessageProps = {
       id: tempMessageId,
       role: 'user',
-      content: userInput.trim(),
-      author: 'Me',
-      timestamp: Date.now()
+      content: contentToSend,
+      author: formatPubkeyForDisplay(DEMO_USER_PK) + ' (sending...)',
+      timestamp: Date.now(),
     };
     
-    // Add the temp message
+    // Add the temp message to the UI
     setMessages(prev => [...prev.filter(m => m.role !== 'system'), tempMessage]);
-    setIsLoading(true);
     
-    // Store the input and clear the input field
-    const content = userInput.trim();
-    setUserInput('');
-
-    // Use the runtime to send a message if available
     const rt = runtimeRef.current;
-    if (rt) {
-      try {
-        const sendMessageEffect = Effect.gen(function*(_) {
-          const nip28Service = yield* _(NIP28Service);
-          return yield* _(nip28Service.sendChannelMessage({
-            channelCreateEventId: channelId,
-            content,
-            secretKey: DEMO_USER_SK
-          }));
-        });
-
-        rt.runPromise(sendMessageEffect)
-          .then((event: any) => {
-            console.log("[Hook] Message sent successfully:", event);
-            // Replace the temporary message with the real one
-            const sentMessage: ChatMessageProps = {
-              id: event.id,
-              role: 'user',
-              content,
-              author: 'Me',
-              timestamp: event.created_at * 1000
-            };
-            
-            setMessages(prev => prev.map(m => m.id === tempMessageId ? sentMessage : m));
-            setIsLoading(false);
-            
-            // Simulate a response in the demo
-            setTimeout(() => {
-              const responseMessage: ChatMessageProps = {
-                id: `response-${Date.now()}`,
-                role: 'assistant',
-                content: `Got your message: "${content}"`,
-                author: 'Channel Bot',
-                timestamp: Date.now(),
-              };
-              
-              setMessages(prev => [...prev, responseMessage]);
-            }, 1000);
-          })
-          .catch(error => {
-            console.error("Error sending message:", error);
-            // Update the temporary message to show the error
-            setMessages(prev => prev.map(m => 
-              m.id === tempMessageId ? 
-              {...m, content: `${m.content} (Error: ${error instanceof Error ? error.message : 'Unknown error'})`, author: "Me (error)" } : 
-              m
-            ));
-            setIsLoading(false);
-          });
-      } catch (error) {
-        console.error("Critical error sending message:", error);
-        // Update the temporary message to show the error
-        setMessages(prev => prev.map(m => 
-          m.id === tempMessageId ? 
-          {...m, content: `${m.content} (Error: ${error instanceof Error ? error.message : 'Unknown error'})`, author: "Me (error)" } : 
-          m
-        ));
-        setIsLoading(false);
-      }
-    } else {
-      // Fallback for when runtime is not available
-      console.log("Runtime not available, using demo message flow");
-      setTimeout(() => {
-        // Replace the temp message with a "sent" message
-        const sentMessage: ChatMessageProps = {
-          id: `sent-${Date.now()}`,
-          role: 'user',
-          content,
-          author: 'Me',
-          timestamp: Date.now()
-        };
-        
-        setMessages(prev => prev.map(m => m.id === tempMessageId ? sentMessage : m));
+    if (!rt) {
+      console.error("[Hook] Runtime not available for sending message.");
+      setIsLoading(false);
+      
+      // Update the temp message to show error
+      setMessages(prev => prev.map(m => 
+        m.id === tempMessageId ? 
+        {...m, content: `${m.content} (Error: Runtime not available)`, author: "Me (error)" } : 
+        m
+      ));
+      return;
+    }
+    
+    // Create an Effect to send the message
+    const sendMessageEffect = Effect.flatMap(
+      NIP28Service,
+      nip28Service => nip28Service.sendChannelMessage({
+        channelCreateEventId: channelId,
+        content: contentToSend,
+        secretKey: DEMO_USER_SK,
+      })
+    );
+    
+    // Run the Effect
+    rt.runPromiseExit(sendMessageEffect)
+      .then((exitResult: Exit.Exit<any, NostrRequestError | NostrPublishError | NIP04EncryptError>) => {
         setIsLoading(false);
         
-        // Simulate a response in the demo
-        setTimeout(() => {
-          const responseMessage: ChatMessageProps = {
-            id: `response-${Date.now()}`,
-            role: 'assistant',
-            content: `Got your message: "${content}"`,
-            author: 'Channel Bot',
-            timestamp: Date.now(),
+        // Remove the temporary message
+        setMessages(prev => prev.filter(m => m.id !== tempMessageId));
+        
+        if (Exit.isSuccess(exitResult)) {
+          // If successful, the message should appear via subscription
+          // We can also manually add it if needed for better UX
+          console.log("[Hook] Message sent successfully:", exitResult.value);
+          
+          // The subscription will add this message, but we can also add it manually
+          // for immediate feedback (the subscription might be slow)
+          const sentMessage: ChatMessageProps = {
+            id: exitResult.value.id,
+            role: 'user',
+            content: contentToSend,
+            author: formatPubkeyForDisplay(DEMO_USER_PK),
+            timestamp: exitResult.value.created_at * 1000,
           };
           
-          setMessages(prev => [...prev, responseMessage]);
-        }, 1000);
-      }, 500);
-    }
-  }, [userInput, channelId]);
+          setMessages(prev => {
+            // If we don't already have this message (from the subscription)
+            if (!prev.some(m => m.id === sentMessage.id)) {
+              return [...prev, sentMessage].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+            }
+            return prev;
+          });
+        } else {
+          // If failed, show an error
+          const error = Cause.squash(exitResult.cause);
+          console.error("[Hook] Error sending message:", error);
+          
+          // Add an error message
+          setMessages(prev => [...prev, { 
+            id: `error-send-${Date.now()}`, 
+            role: 'system', 
+            content: `Failed to send: ${error.message || String(error)}`,
+            timestamp: Date.now() 
+          }]);
+        }
+      })
+      .catch(error => {
+        // Handle unexpected errors
+        setIsLoading(false);
+        console.error("[Hook] Critical error sending message:", error);
+        
+        // Remove the temporary message
+        setMessages(prev => prev.filter(m => m.id !== tempMessageId));
+        
+        // Add an error message
+        setMessages(prev => [...prev, { 
+          id: `error-critical-${Date.now()}`, 
+          role: 'system', 
+          content: `Critical error: ${error instanceof Error ? error.message : String(error)}`,
+          timestamp: Date.now() 
+        }]);
+      });
+  }, [userInput, channelId, formatPubkeyForDisplay]);
 
   return { 
     messages, 
