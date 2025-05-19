@@ -7,39 +7,68 @@ export function bringPaneToFrontAction(set: SetPaneStore, idToBringToFront: stri
 
     const paneToMove = state.panes[paneIndex];
 
-    // Determine if any isActive flags need to change or if reordering is needed
-    const needsActivation = !paneToMove.isActive || state.activePaneId !== idToBringToFront;
+    const needsActivationChange = !paneToMove.isActive || state.activePaneId !== idToBringToFront;
     const needsReordering = paneIndex !== state.panes.length - 1;
 
-    if (!needsActivation && !needsReordering) {
-      // Already frontmost and active, just update lastPanePosition for consistency
-      return {
-        ...state,
-        lastPanePosition: { x: paneToMove.x, y: paneToMove.y, width: paneToMove.width, height: paneToMove.height }
-      };
+    if (!needsActivationChange && !needsReordering) {
+      // Check if lastPanePosition actually needs an update
+      if (state.lastPanePosition?.x !== paneToMove.x || 
+          state.lastPanePosition?.y !== paneToMove.y ||
+          state.lastPanePosition?.width !== paneToMove.width || 
+          state.lastPanePosition?.height !== paneToMove.height) {
+        return {
+          ...state,
+          lastPanePosition: { 
+            x: paneToMove.x, 
+            y: paneToMove.y, 
+            width: paneToMove.width, 
+            height: paneToMove.height 
+          }
+        };
+      }
+      return state; // Absolutely no change needed
     }
 
-    // Create new array, updating isActive flags minimally
-    // Only create new objects for panes whose isActive status changes
-    const newPanesArray = state.panes.map(pane => {
+    let panesArrayIdentityChanged = false;
+    const newPanesArrayWithActivation = state.panes.map(pane => {
       const shouldBeActive = pane.id === idToBringToFront;
       if (pane.isActive !== shouldBeActive) {
+        panesArrayIdentityChanged = true;
         return { ...pane, isActive: shouldBeActive };
       }
-      return pane; // Return original object reference
+      return pane;
     });
 
-    // The target pane instance in newPanesArray (might be new or old object)
-    const targetPaneInstance = newPanesArray.find(p => p.id === idToBringToFront)!;
-    // Filter out the target pane to re-insert it at the end
-    const otherPanesInstances = newPanesArray.filter(p => p.id !== idToBringToFront);
+    const targetPaneInstanceInNewArray = newPanesArrayWithActivation.find(p => p.id === idToBringToFront)!;
 
-    const finalOrderedPanes = [...otherPanesInstances, targetPaneInstance];
+    // If only activation changed but not order, and it's already the last element (frontmost).
+    // This means newPanesArrayWithActivation is the final state for panes array.
+    if (panesArrayIdentityChanged && !needsReordering) {
+       return {
+          panes: newPanesArrayWithActivation,
+          activePaneId: idToBringToFront,
+          lastPanePosition: { 
+            x: targetPaneInstanceInNewArray.x, 
+            y: targetPaneInstanceInNewArray.y, 
+            width: targetPaneInstanceInNewArray.width, 
+            height: targetPaneInstanceInNewArray.height 
+          }
+       };
+    }
+
+    // If reordering is needed (or if activation changed and it wasn't already last):
+    const otherPanesInstances = newPanesArrayWithActivation.filter(p => p.id !== idToBringToFront);
+    const finalOrderedPanes = [...otherPanesInstances, targetPaneInstanceInNewArray];
 
     return {
       panes: finalOrderedPanes,
       activePaneId: idToBringToFront,
-      lastPanePosition: { x: targetPaneInstance.x, y: targetPaneInstance.y, width: targetPaneInstance.width, height: targetPaneInstance.height }
+      lastPanePosition: { 
+        x: targetPaneInstanceInNewArray.x, 
+        y: targetPaneInstanceInNewArray.y, 
+        width: targetPaneInstanceInNewArray.width, 
+        height: targetPaneInstanceInNewArray.height 
+      }
     };
   });
 }
