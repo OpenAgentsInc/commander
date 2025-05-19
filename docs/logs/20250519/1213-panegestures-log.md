@@ -310,3 +310,34 @@ import React, { useEffect, useRef } from 'react';
 ```
 
 All the changes have been tested and the application now runs without any "Maximum update depth exceeded" errors. The hand tracking toggle button works properly and the pinch-to-drag functionality operates smoothly without causing infinite update loops.
+
+## UI Refinements
+
+Based on user feedback, we made the following UI refinements:
+
+1. **Removed UI Controls from HandTracking Component**:
+   - Eliminated all status, pose, and switch controls from the top corners
+   - Removed pinch coordinate displays
+   - Simplified to just rely on the toggle button in the bottom left
+
+2. **Simplified HandTrackingToggleButton**:
+   - Changed the icon color to use a neutral black foreground color instead of green
+   - Simplified the icon appearance to be more subtle
+
+The interface is now much cleaner with just a single toggle button in the bottom left corner, eliminating all the additional debugging UI elements that were previously visible.
+
+## Additional Transparency Improvements
+
+Further improved the UI based on user feedback:
+
+1. **Removed 3D Scene**:
+   - Completely removed the ThreeScene component to show only the hand tracking
+   - Eliminated all the 3D boxes/visuals from the interface
+
+2. **Increased Pane Transparency**:
+   - Made panes semi-transparent (90% opacity) and added backdrop blur
+   - Added `bg-black/60` to pane content for better transparency
+   - Changed title bar to `bg-black/80` for improved visibility of hands
+   - These changes allow users to see hand tracking through panes
+
+These transparency improvements make it easier to see the hand tracking feature while still maintaining the usability of the panes. The semi-transparent design creates a more immersive experience where users can see their hands behind the panes they're manipulating.

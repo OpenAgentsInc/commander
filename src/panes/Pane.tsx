@@ -310,12 +310,12 @@ export const Pane: React.FC<PaneProps> = ({
         height: size.height,
         ...style, // Apply styles from props (including zIndex from PaneManager)
       }}
-      className={`pane-container pointer-events-auto flex flex-col bg-black/90 border rounded-lg overflow-hidden shadow-lg ${isActive ? 'border-primary ring-1 ring-primary' : 'border-border/20'} ${!isInteracting ? 'transition-all duration-100 ease-out' : ''}`}
+      className={`pane-container pointer-events-auto flex flex-col bg-black/90 border rounded-lg overflow-hidden shadow-lg backdrop-blur-sm ${isActive ? 'border-primary ring-1 ring-primary' : 'border-border/20'} ${!isInteracting ? 'transition-all duration-100 ease-out' : ''}`}
       onMouseDownCapture={handlePaneMouseDown}
     >
       <div
         {...bindDrag()}
-        className="pane-title-bar select-none touch-none bg-black text-white/90 border-b border-border/20 font-bold py-1.5 px-3 cursor-grab active:cursor-grabbing flex justify-between items-center h-8"
+        className="pane-title-bar select-none touch-none bg-black/80 text-white/90 border-b border-border/20 font-bold py-1.5 px-3 cursor-grab active:cursor-grabbing flex justify-between items-center h-8"
         style={{ touchAction: 'none' }} // Add this to fix the touch-action warning
       >
         <span className="text-xs truncate">{title}</span>
@@ -333,7 +333,7 @@ export const Pane: React.FC<PaneProps> = ({
           )}
         </div>
       </div>
-      <div className="pane-content flex-grow text-white h-[calc(100%-2rem)] overflow-auto p-1">
+      <div className="pane-content flex-grow text-white h-[calc(100%-2rem)] overflow-auto p-1 bg-black/60">
         {children}
       </div>
       {/* Resize Handles */}

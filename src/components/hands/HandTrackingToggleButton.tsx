@@ -24,7 +24,7 @@ const HandTrackingToggleButton: React.FC<HandTrackingToggleButtonProps> = ({
       aria-label={isHandTrackingActive ? "Disable Hand Tracking" : "Enable Hand Tracking"}
       title={isHandTrackingActive ? "Disable Hand Tracking" : "Enable Hand Tracking"}
     >
-      <Hand className={`h-4 w-4 ${isHandTrackingActive ? 'text-green-400' : 'text-muted-foreground'}`} />
+      <Hand className="h-4 w-4 text-foreground" />
     </Button>
   );
 };
