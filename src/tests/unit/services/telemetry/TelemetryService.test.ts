@@ -29,12 +29,9 @@ describe('TelemetryService', () => {
       return "success";
     }).pipe(Effect.provide(TelemetryServiceLive));
 
-    const result = await Effect.runPromise(
-      Effect.provide(
-        program,
-        Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)
-      )
-    );
+    // Create a runtime with just the DefaultTelemetryConfigLayer
+    const testRuntime = Effect.provide(program, DefaultTelemetryConfigLayer);
+    const result = await Effect.runPromise(testRuntime);
     expect(result).toBe("success");
   });
 
@@ -45,12 +42,9 @@ describe('TelemetryService', () => {
         return yield* _(telemetryService.isEnabled());
       }).pipe(Effect.provide(TelemetryServiceLive));
 
-      const isEnabled = await Effect.runPromise(
-        Effect.provide(
-          program,
-          Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)
-        )
-      );
+      // Create a runtime with just the DefaultTelemetryConfigLayer
+      const testRuntime = Effect.provide(program, DefaultTelemetryConfigLayer);
+      const isEnabled = await Effect.runPromise(testRuntime);
       expect(isEnabled).toBe(true);
     });
 
@@ -61,12 +55,9 @@ describe('TelemetryService', () => {
         return yield* _(telemetryService.isEnabled());
       }).pipe(Effect.provide(TelemetryServiceLive));
 
-      const isEnabled = await Effect.runPromise(
-        Effect.provide(
-          program,
-          Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)
-        )
-      );
+      // Create a runtime with just the DefaultTelemetryConfigLayer
+      const testRuntime = Effect.provide(program, DefaultTelemetryConfigLayer);
+      const isEnabled = await Effect.runPromise(testRuntime);
       expect(isEnabled).toBe(true);
     });
 
@@ -80,12 +71,9 @@ describe('TelemetryService', () => {
         return yield* _(telemetryService.isEnabled());
       }).pipe(Effect.provide(TelemetryServiceLive));
 
-      const isEnabled = await Effect.runPromise(
-        Effect.provide(
-          program,
-          Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)
-        )
-      );
+      // Create a runtime with just the DefaultTelemetryConfigLayer
+      const testRuntime = Effect.provide(program, DefaultTelemetryConfigLayer);
+      const isEnabled = await Effect.runPromise(testRuntime);
       expect(isEnabled).toBe(false);
     });
   });
