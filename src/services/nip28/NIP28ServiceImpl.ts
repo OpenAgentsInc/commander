@@ -3,7 +3,7 @@ import { Effect, Layer } from "effect";
 import { finalizeEvent, type EventTemplate } from "nostr-tools/pure";
 import { NostrEvent, NostrFilter, NostrPublishError, NostrRequestError, NostrService, Subscription } from '@/services/nostr';
 import { NIP04Service, NIP04EncryptError, NIP04DecryptError } from '@/services/nip04';
-import { CreateChannelParams, type SendChannelMessageParams, type ChannelMetadata, NIP28Service, DecryptedChannelMessage } from './NIP28Service';
+import { CreateChannelParams, type SendChannelMessageParams, type ChannelMetadata, NIP28Service, DecryptedChannelMessage, NIP28InvalidInputError, NIP28PublishError, NIP28FetchError } from './NIP28Service';
 import { TelemetryService, TelemetryServiceLive, DefaultTelemetryConfigLayer } from '@/services/telemetry';
 
 // Layer for NIP28Service with dependencies on NostrService and NIP04Service

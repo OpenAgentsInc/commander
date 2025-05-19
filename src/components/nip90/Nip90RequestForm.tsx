@@ -14,6 +14,8 @@ import {
 } from '@/services/nostr';
 import { NIP04ServiceLive } from '@/services/nip04';
 import { Effect, Layer, Exit, Cause } from 'effect';
+import { runPromise } from 'effect/Effect';
+import { provide } from 'effect/Layer';
 import { TelemetryService, TelemetryServiceLive, DefaultTelemetryConfigLayer, type TelemetryEvent } from '@/services/telemetry';
 
 // Define the DVM's public key (replace with actual key in a real application)
@@ -184,8 +186,8 @@ export default function Nip90RequestForm() {
               const telemetryService = yield* _(TelemetryService);
               yield* _(telemetryService.trackEvent(storeTelemetryEvent));
             }).pipe(
-              Effect.provide(TelemetryServiceLive),
-              (effect) => Effect.runPromise(effect).catch(err => {
+              Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
+              (effect) => runPromise(effect).catch((err: unknown) => {
                 // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
                 console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
               })
@@ -206,7 +208,7 @@ export default function Nip90RequestForm() {
               yield* _(telemetryService.trackEvent(storeErrorTelemetryEvent));
             }).pipe(
               Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
-              (effect) => Effect.runPromise(effect).catch(err => {
+              (effect) => runPromise(effect).catch((err: unknown) => {
                 // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
                 console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
               })
@@ -230,8 +232,8 @@ export default function Nip90RequestForm() {
           const telemetry = yield* _(TelemetryService);
           yield* _(telemetry.trackEvent(telemetryDataForPublishFailure));
         }).pipe(
-          Effect.provide(TelemetryServiceLive),
-          (effect) => Effect.runPromise(effect).catch(telemetryErr => {
+          Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
+          (effect) => runPromise(effect).catch((telemetryErr: unknown) => {
             // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
             console.error("TelemetryService.trackEvent failed for NIP-90 publish error:", telemetryErr);
           })
@@ -255,8 +257,8 @@ export default function Nip90RequestForm() {
         const telemetryService = yield* _(TelemetryService);
         yield* _(telemetryService.trackEvent(generalErrorTelemetryEvent));
       }).pipe(
-        Effect.provide(TelemetryServiceLive),
-        (effect) => Effect.runPromise(effect).catch(err => {
+        Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
+        (effect) => runPromise(effect).catch((err: unknown) => {
           // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
           console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
         })

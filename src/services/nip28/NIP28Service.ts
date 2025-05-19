@@ -9,6 +9,16 @@ export class NIP28InvalidInputError extends Data.TaggedError("NIP28InvalidInputE
   cause?: unknown;
 }> {}
 
+export class NIP28PublishError extends Data.TaggedError("NIP28PublishError")<{
+  message: string;
+  cause?: unknown;
+}> {}
+
+export class NIP28FetchError extends Data.TaggedError("NIP28FetchError")<{
+  message: string;
+  cause?: unknown;
+}> {}
+
 // --- Schemas for NIP-28 Content ---
 export const ChannelMetadataContentSchema = Schema.Struct({
     name: Schema.String, // NIP-28 implies name is required for kind 40 content

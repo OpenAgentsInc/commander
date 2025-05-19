@@ -19,11 +19,10 @@ export interface PaneStoreType extends PaneState {
   resetHUDState: () => void;
 }
 
-// Make it more permissive to accommodate the actual Zustand's set function 
-export type SetPaneStore = {
-  (partial: PaneStoreType | Partial<PaneStoreType> | ((state: PaneStoreType) => PaneStoreType | Partial<PaneStoreType>), replace?: boolean): void;
-  (state: PaneStoreType | ((state: PaneStoreType) => PaneStoreType), replace: true): void;
-};
+// Use Zustand's own type for better compatibility
+import type { StoreApi } from 'zustand';
+
+export type SetPaneStore = StoreApi<PaneStoreType>['setState'];
 
 // Add GetPaneStore type for completeness
 export type GetPaneStore = () => PaneStoreType;

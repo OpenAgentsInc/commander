@@ -4,7 +4,10 @@
  */
 import { Effect, Context, Data, Layer } from "effect";
 import type { SimplePool } from "nostr-tools/pool";
-import type { Sub as NostrToolsSub } from "nostr-tools";
+// Define our own Sub type similar to nostr-tools
+interface NostrToolsSub {
+  unsub: () => void;
+}
 
 // --- Custom Error Types ---
 export class NostrPoolError extends Data.TaggedError("NostrPoolError")<{

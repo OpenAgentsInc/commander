@@ -7,9 +7,9 @@ import {
     NIP28ServiceLive,
     NIP28InvalidInputError,
     NIP28PublishError,
-    NIP28FetchError,
-    createNIP28Service 
+    NIP28FetchError
 } from '@/services/nip28';
+import { DefaultTelemetryConfigLayer } from '@/services/telemetry';
 import {
     NostrService,
     type NostrEvent
@@ -47,11 +47,14 @@ const mockListEvents = vi.fn();
 const mockTrackEvent = vi.fn();
 
 // Mock NostrService Layer
+const mockSubscribeToEvents = vi.fn(() => Effect.succeed({ unsub: vi.fn() }));
+
 const MockNostrServiceLayer = Layer.succeed(NostrService, {
     getPool: () => Effect.succeed({} as any),
     publishEvent: mockPublishEvent,
     listEvents: mockListEvents,
-    cleanupPool: () => Effect.succeed(undefined as void)
+    cleanupPool: () => Effect.succeed(undefined as void),
+    subscribeToEvents: mockSubscribeToEvents
 });
 
 // Mock TelemetryService Layer
@@ -63,9 +66,17 @@ const MockTelemetryServiceLayer = Layer.succeed(TelemetryService, {
 
 // Helper function to create a test program
 const createTestProgram = <A, E>(program: (service: NIP28Service) => Effect.Effect<A, E, NostrService>) => {
-    const nip28Service = createNIP28Service();
-    const effect = program(nip28Service);
-    return Effect.provide(effect, MockNostrServiceLayer);
+    // Use NIP28ServiceLive instead of createNIP28Service
+    return Effect.gen(function* (_) {
+        const service = yield* _(NIP28Service);
+        return yield* _(program(service));
+    }).pipe(
+        Effect.provide(Layer.mergeAll(
+            MockNostrServiceLayer,
+            MockTelemetryServiceLayer,
+            NIP28ServiceLive
+        ))
+    );
 };
 
 // Helper to extract success value
@@ -112,7 +123,10 @@ describe('NIP28Service', () => {
                 service.createChannel({ name: "", secretKey: testSk })
             );
             
-            const exit = await Effect.runPromiseExit(program);
+            // Provide DefaultTelemetryConfigLayer here to satisfy requirements
+            const exit = await Effect.runPromiseExit(
+                Effect.provide(program, DefaultTelemetryConfigLayer)
+            );
 
             expect(Exit.isFailure(exit)).toBe(true);
             const error = getFailure(exit);
@@ -131,7 +145,10 @@ describe('NIP28Service', () => {
                 })
             );
             
-            const exit = await Effect.runPromiseExit(program);
+            // Provide DefaultTelemetryConfigLayer here to satisfy requirements
+            const exit = await Effect.runPromiseExit(
+                Effect.provide(program, DefaultTelemetryConfigLayer)
+            );
 
             expect(Exit.isFailure(exit)).toBe(true);
             const error = getFailure(exit);
@@ -151,7 +168,10 @@ describe('NIP28Service', () => {
                 })
             );
             
-            const exit = await Effect.runPromiseExit(program);
+            // Provide DefaultTelemetryConfigLayer here to satisfy requirements
+            const exit = await Effect.runPromiseExit(
+                Effect.provide(program, DefaultTelemetryConfigLayer)
+            );
 
             expect(Exit.isFailure(exit)).toBe(true);
             const error = getFailure(exit);
