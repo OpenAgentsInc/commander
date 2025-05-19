@@ -71,7 +71,7 @@ const createTestProgram = <A, E>(program: (service: NIP28Service) => Effect.Effe
         const service = yield* _(NIP28Service);
         return yield* _(program(service));
     }).pipe(
-        Effect.provideLayer(Layer.mergeAll(
+        Effect.provide(Layer.mergeAll(
             MockNostrServiceLayer,
             MockTelemetryServiceLayer,
             NIP28ServiceLive
@@ -123,13 +123,15 @@ describe('NIP28Service', () => {
                 service.createChannel({ name: "", secretKey: testSk })
             );
             
-            // Run the program directly without additional provide
+            // Run the program directly
             const exit = await Effect.runPromiseExit(program);
 
             expect(Exit.isFailure(exit)).toBe(true);
             const error = getFailure(exit);
             expect(error).toBeInstanceOf(NIP28InvalidInputError);
-            expect(error.message).toContain("Channel name is required");
+            if (error instanceof NIP28InvalidInputError) {
+                expect(error.message).toContain("Channel name is required");
+            }
             expect(mockPublishEvent).not.toHaveBeenCalled();
         });
     });
@@ -143,12 +145,15 @@ describe('NIP28Service', () => {
                 })
             );
             
-            // Run the program directly without additional provide
+            // Run the program directly
             const exit = await Effect.runPromiseExit(program);
 
             expect(Exit.isFailure(exit)).toBe(true);
             const error = getFailure(exit);
             expect(error).toBeInstanceOf(NIP28InvalidInputError);
+            if (error instanceof NIP28InvalidInputError) {
+                expect(error.message).toContain("Channel name is required");
+            }
             expect(error.message).toContain("At least one metadata field");
             expect(mockPublishEvent).not.toHaveBeenCalled();
         });
@@ -164,12 +169,15 @@ describe('NIP28Service', () => {
                 })
             );
             
-            // Run the program directly without additional provide
+            // Run the program directly
             const exit = await Effect.runPromiseExit(program);
 
             expect(Exit.isFailure(exit)).toBe(true);
             const error = getFailure(exit);
             expect(error).toBeInstanceOf(NIP28InvalidInputError);
+            if (error instanceof NIP28InvalidInputError) {
+                expect(error.message).toContain("Channel name is required");
+            }
             expect(error.message).toContain("Message content cannot be empty");
             expect(mockPublishEvent).not.toHaveBeenCalled();
         });
