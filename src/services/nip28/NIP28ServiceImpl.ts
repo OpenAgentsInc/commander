@@ -22,59 +22,64 @@ function signAndPublishEvent(
     template: EventTemplate,
     secretKey: Uint8Array
 ): Effect.Effect<NostrEvent, NIP28PublishError, NostrService> {
+    // Create a helper function to safely run telemetry operations
+    const runTelemetry = (eventData: TelemetryEvent) =>
+        Effect.provide(
+            Effect.flatMap(TelemetryService, ts => ts.trackEvent(eventData)),
+            TelemetryServiceLive
+        ).pipe(Effect.catchAllCause(() => Effect.void)); // Ignore any telemetry errors
+
     return Effect.gen(function*(_) {
+        // Log attempt (with isolated telemetry)
+        yield* _(runTelemetry({
+            category: "feature",
+            action: `nip28_create_kind_${template.kind}`,
+            label: `Creating NIP-28 event kind ${template.kind}`
+        }));
+
+        // Sign the event
+        let signedEvent: NostrEvent;
         try {
-            // Track telemetry for event creation
-            const telemetryService = yield* _(TelemetryService);
-            yield* _(telemetryService.trackEvent({
-                category: "feature",
-                action: `nip28_create_kind_${template.kind}`,
-                label: `Creating NIP-28 event kind ${template.kind}`
+            signedEvent = finalizeEvent(template, secretKey) as NostrEvent;
+        } catch (e) {
+            // Log error (with isolated telemetry)
+            yield* _(runTelemetry({
+                category: "log:error",
+                action: "nip28_sign_error",
+                label: "Failed to sign NIP-28 event",
+                value: e instanceof Error ? e.message : String(e)
             }));
+            return yield* _(Effect.fail(new NIP28PublishError({ message: "Failed to sign event", cause: e })));
+        }
 
-            let signedEvent: NostrEvent;
-            try {
-                signedEvent = finalizeEvent(template, secretKey) as NostrEvent;
-            } catch (e) {
-                // Track error in telemetry
-                yield* _(telemetryService.trackEvent({
-                    category: "log:error",
-                    action: "nip28_sign_error",
-                    label: "Failed to sign NIP-28 event",
-                    value: e instanceof Error ? e.message : String(e)
-                }));
-                return yield* _(Effect.fail(new NIP28PublishError({ message: "Failed to sign event", cause: e })));
-            }
-
-            const nostrService = yield* _(NostrService);
-            yield* _(
-                nostrService.publishEvent(signedEvent),
-                Effect.tap(() => telemetryService.trackEvent({
-                    category: "log:info",
-                    action: "nip28_publish_success",
-                    label: `Successfully published NIP-28 kind ${template.kind} event`,
-                    value: signedEvent.id
-                })),
-                Effect.mapError(cause => {
-                    // Track publish error in telemetry
-                    Effect.runPromise(telemetryService.trackEvent({
+        // Publish the event
+        const nostrService = yield* _(NostrService);
+        yield* _(
+            nostrService.publishEvent(signedEvent).pipe(
+                Effect.tapError(cause => 
+                    // Log error (with isolated telemetry)
+                    runTelemetry({
                         category: "log:error",
                         action: "nip28_publish_error",
                         label: `Failed to publish NIP-28 kind ${template.kind} event`,
                         value: cause instanceof Error ? cause.message : String(cause)
-                    })).catch(() => {/* ignore telemetry errors */});
-                    
+                    })
+                ),
+                Effect.mapError(cause => {
                     return new NIP28PublishError({ message: "Failed to publish NIP-28 event", cause });
                 })
-            );
-            return signedEvent;
-        } catch (e) {
-            // Fallback if telemetry service fails
-            return yield* _(Effect.fail(new NIP28PublishError({ 
-                message: "Failed to publish NIP-28 event with telemetry error", 
-                cause: e 
-            })));
-        }
+            )
+        );
+
+        // Log success (with isolated telemetry)
+        yield* _(runTelemetry({
+            category: "log:info",
+            action: "nip28_publish_success",
+            label: `Successfully published NIP-28 kind ${template.kind} event`,
+            value: signedEvent.id
+        }));
+
+        return signedEvent;
     });
 }
 
@@ -110,18 +115,20 @@ export function createNIP28Service(): NIP28Service {
 
         setChannelMetadata: (params: SetChannelMetadataParams) =>
             Effect.gen(function*(_) {
-                const content: Partial<Schema.Schema.Type<typeof ChannelMetadataContentSchema>> = {};
-                if (params.name !== undefined) content.name = params.name;
-                if (params.about !== undefined) content.about = params.about;
-                if (params.picture !== undefined) content.picture = params.picture;
-                if (params.relays !== undefined) content.relays = params.relays;
+                // Create content object immutably using spreads
+                const content: Partial<Schema.Schema.Type<typeof ChannelMetadataContentSchema>> = {
+                    ...(params.name !== undefined ? { name: params.name } : {}),
+                    ...(params.about !== undefined ? { about: params.about } : {}),
+                    ...(params.picture !== undefined ? { picture: params.picture } : {}),
+                    ...(params.relays !== undefined ? { relays: params.relays } : {})
+                };
 
                 if (Object.keys(content).length === 0) {
                      return yield* _(Effect.fail(new NIP28InvalidInputError({ message: "At least one metadata field (name, about, picture, relays) must be provided." })));
                 }
 
                 // Validate content against schema (allow partial for updates)
-                yield* _(Schema.decodeUnknown(Schema.Partial(ChannelMetadataContentSchema))(content), Effect.mapError(
+                yield* _(Schema.decodeUnknown(Schema.partial(ChannelMetadataContentSchema))(content), Effect.mapError(
                     e => new NIP28InvalidInputError({ message: "Invalid channel metadata content", cause: e })
                 ));
 
@@ -208,10 +215,17 @@ export function createNIP28Service(): NIP28Service {
                 return yield* _(signAndPublishEvent(template, params.secretKey));
             }),
 
-        getChannel: (channelCreateEventId: string) =>
+        getChannel: (channelCreateEventId: string): Effect.Effect<Option.Option<NostrEvent>, NIP28FetchError, NostrService> =>
             Effect.gen(function*(_) {
-                const telemetryService = yield* _(TelemetryService);
-                yield* _(telemetryService.trackEvent({
+                // Create a helper function to safely run telemetry operations
+                const runTelemetry = (eventData: TelemetryEvent) =>
+                    Effect.provide(
+                        Effect.flatMap(TelemetryService, ts => ts.trackEvent(eventData)),
+                        TelemetryServiceLive
+                    ).pipe(Effect.catchAllCause(() => Effect.void));
+
+                // Log attempt (with isolated telemetry)
+                yield* _(runTelemetry({
                     category: "feature",
                     action: "nip28_get_channel",
                     label: "Fetching channel event",
@@ -221,32 +235,44 @@ export function createNIP28Service(): NIP28Service {
                 const nostrService = yield* _(NostrService);
                 const filters: NostrFilter[] = [{ ids: [channelCreateEventId], kinds: [40], limit: 1 }];
                 const events = yield* _(
-                    nostrService.listEvents(filters),
-                    Effect.tap(results => telemetryService.trackEvent({
-                        category: "log:info",
-                        action: "nip28_get_channel_result",
-                        label: "Channel fetch result",
-                        value: `Found ${results.length} channels`
-                    })),
-                    Effect.mapError(cause => {
-                        // Track error in telemetry
-                        Effect.runPromise(telemetryService.trackEvent({
-                            category: "log:error",
-                            action: "nip28_fetch_error",
-                            label: "Failed to fetch channel event",
-                            value: cause instanceof Error ? cause.message : String(cause)
-                        })).catch(() => {/* ignore telemetry errors */});
-                        
-                        return new NIP28FetchError({ message: "Failed to fetch channel event", cause });
-                    })
+                    nostrService.listEvents(filters).pipe(
+                        Effect.tap((results: NostrEvent[]) => 
+                            // Log success (with isolated telemetry)
+                            runTelemetry({
+                                category: "log:info",
+                                action: "nip28_get_channel_result",
+                                label: "Channel fetch result",
+                                value: `Found ${results.length} channels`
+                            })
+                        ),
+                        Effect.tapError(cause => 
+                            // Log error (with isolated telemetry)
+                            runTelemetry({
+                                category: "log:error",
+                                action: "nip28_fetch_error",
+                                label: "Failed to fetch channel event",
+                                value: cause instanceof Error ? cause.message : String(cause)
+                            })
+                        ),
+                        Effect.mapError(cause => 
+                            new NIP28FetchError({ message: "Failed to fetch channel event", cause })
+                        )
+                    )
                 );
                 return Option.fromNullable(events[0]);
             }),
 
-        getChannelMetadataHistory: (channelCreateEventId: string, limit: number = 10) =>
+        getChannelMetadataHistory: (channelCreateEventId: string, limit: number = 10): Effect.Effect<NostrEvent[], NIP28FetchError, NostrService> =>
             Effect.gen(function*(_) {
-                const telemetryService = yield* _(TelemetryService);
-                yield* _(telemetryService.trackEvent({
+                // Create a helper function to safely run telemetry operations
+                const runTelemetry = (eventData: TelemetryEvent) =>
+                    Effect.provide(
+                        Effect.flatMap(TelemetryService, ts => ts.trackEvent(eventData)),
+                        TelemetryServiceLive
+                    ).pipe(Effect.catchAllCause(() => Effect.void));
+
+                // Log attempt (with isolated telemetry)
+                yield* _(runTelemetry({
                     category: "feature",
                     action: "nip28_get_metadata_history",
                     label: "Fetching channel metadata history",
@@ -256,31 +282,43 @@ export function createNIP28Service(): NIP28Service {
                 const nostrService = yield* _(NostrService);
                 const filters: NostrFilter[] = [{ kinds: [41], "#e": [channelCreateEventId], limit }];
                 return yield* _(
-                    nostrService.listEvents(filters), // listEvents already sorts by created_at desc
-                    Effect.tap(results => telemetryService.trackEvent({
-                        category: "log:info",
-                        action: "nip28_metadata_history_result",
-                        label: "Metadata history fetch result",
-                        value: `Found ${results.length} metadata events`
-                    })),
-                    Effect.mapError(cause => {
-                        // Track error in telemetry
-                        Effect.runPromise(telemetryService.trackEvent({
-                            category: "log:error",
-                            action: "nip28_fetch_error",
-                            label: "Failed to fetch channel metadata history",
-                            value: cause instanceof Error ? cause.message : String(cause)
-                        })).catch(() => {/* ignore telemetry errors */});
-                        
-                        return new NIP28FetchError({ message: "Failed to fetch channel metadata history", cause });
-                    })
+                    nostrService.listEvents(filters).pipe( // listEvents already sorts by created_at desc
+                        Effect.tap((results: NostrEvent[]) => 
+                            // Log success (with isolated telemetry)
+                            runTelemetry({
+                                category: "log:info",
+                                action: "nip28_metadata_history_result",
+                                label: "Metadata history fetch result",
+                                value: `Found ${results.length} metadata events`
+                            })
+                        ),
+                        Effect.tapError(cause => 
+                            // Log error (with isolated telemetry)
+                            runTelemetry({
+                                category: "log:error",
+                                action: "nip28_fetch_error",
+                                label: "Failed to fetch channel metadata history",
+                                value: cause instanceof Error ? cause.message : String(cause)
+                            })
+                        ),
+                        Effect.mapError(cause => 
+                            new NIP28FetchError({ message: "Failed to fetch channel metadata history", cause })
+                        )
+                    )
                 );
             }),
 
-        getLatestChannelMetadata: (channelCreateEventId: string, channelCreatorPubkey?: string) =>
+        getLatestChannelMetadata: (channelCreateEventId: string, channelCreatorPubkey?: string): Effect.Effect<Option.Option<NostrEvent>, NIP28FetchError, NostrService> =>
             Effect.gen(function*(_) {
-                const telemetryService = yield* _(TelemetryService);
-                yield* _(telemetryService.trackEvent({
+                // Create a helper function to safely run telemetry operations
+                const runTelemetry = (eventData: TelemetryEvent) =>
+                    Effect.provide(
+                        Effect.flatMap(TelemetryService, ts => ts.trackEvent(eventData)),
+                        TelemetryServiceLive
+                    ).pipe(Effect.catchAllCause(() => Effect.void));
+
+                // Log attempt (with isolated telemetry)
+                yield* _(runTelemetry({
                     category: "feature",
                     action: "nip28_get_latest_metadata",
                     label: "Fetching latest channel metadata",
@@ -295,33 +333,45 @@ export function createNIP28Service(): NIP28Service {
                 // Fetch potentially multiple due to relay inconsistencies, then pick latest.
                 // More robust would be to fetch a few (e.g. limit 5) and pick the one with highest created_at.
                 const events = yield* _(
-                    nostrService.listEvents([filter]),
-                     Effect.tap(results => telemetryService.trackEvent({
-                        category: "log:info",
-                        action: "nip28_latest_metadata_result",
-                        label: "Latest metadata fetch result",
-                        value: `Found ${results.length} metadata events`
-                    })),
-                     Effect.mapError(cause => {
-                        // Track error in telemetry
-                        Effect.runPromise(telemetryService.trackEvent({
-                            category: "log:error",
-                            action: "nip28_fetch_error",
-                            label: "Failed to fetch latest channel metadata",
-                            value: cause instanceof Error ? cause.message : String(cause)
-                        })).catch(() => {/* ignore telemetry errors */});
-                        
-                        return new NIP28FetchError({ message: "Failed to fetch latest channel metadata", cause });
-                    })
+                    nostrService.listEvents([filter]).pipe(
+                        Effect.tap((results: NostrEvent[]) => 
+                            // Log success (with isolated telemetry)
+                            runTelemetry({
+                                category: "log:info",
+                                action: "nip28_latest_metadata_result",
+                                label: "Latest metadata fetch result",
+                                value: `Found ${results.length} metadata events`
+                            })
+                        ),
+                        Effect.tapError(cause => 
+                            // Log error (with isolated telemetry)
+                            runTelemetry({
+                                category: "log:error",
+                                action: "nip28_fetch_error",
+                                label: "Failed to fetch latest channel metadata",
+                                value: cause instanceof Error ? cause.message : String(cause)
+                            })
+                        ),
+                        Effect.mapError(cause => 
+                            new NIP28FetchError({ message: "Failed to fetch latest channel metadata", cause })
+                        )
+                    )
                 );
                 // listEvents should already sort by created_at descending, so events[0] is the latest.
                 return Option.fromNullable(events[0]);
             }),
 
-        getChannelMessages: (channelCreateEventId: string, options?: { limit?: number; since?: number; until?: number; }) =>
+        getChannelMessages: (channelCreateEventId: string, options?: { limit?: number; since?: number; until?: number; }): Effect.Effect<NostrEvent[], NIP28FetchError, NostrService> =>
             Effect.gen(function*(_) {
-                const telemetryService = yield* _(TelemetryService);
-                yield* _(telemetryService.trackEvent({
+                // Create a helper function to safely run telemetry operations
+                const runTelemetry = (eventData: TelemetryEvent) =>
+                    Effect.provide(
+                        Effect.flatMap(TelemetryService, ts => ts.trackEvent(eventData)),
+                        TelemetryServiceLive
+                    ).pipe(Effect.catchAllCause(() => Effect.void));
+
+                // Log attempt (with isolated telemetry)
+                yield* _(runTelemetry({
                     category: "feature",
                     action: "nip28_get_channel_messages",
                     label: "Fetching channel messages",
@@ -337,31 +387,43 @@ export function createNIP28Service(): NIP28Service {
                     until: options?.until
                 }];
                 return yield* _(
-                    nostrService.listEvents(filters),
-                    Effect.tap(results => telemetryService.trackEvent({
-                        category: "log:info",
-                        action: "nip28_channel_messages_result",
-                        label: "Channel messages fetch result",
-                        value: `Found ${results.length} messages`
-                    })),
-                    Effect.mapError(cause => {
-                        // Track error in telemetry
-                        Effect.runPromise(telemetryService.trackEvent({
-                            category: "log:error",
-                            action: "nip28_fetch_error",
-                            label: "Failed to fetch channel messages",
-                            value: cause instanceof Error ? cause.message : String(cause)
-                        })).catch(() => {/* ignore telemetry errors */});
-                        
-                        return new NIP28FetchError({ message: "Failed to fetch channel messages", cause });
-                    })
+                    nostrService.listEvents(filters).pipe(
+                        Effect.tap((results: NostrEvent[]) => 
+                            // Log success (with isolated telemetry)
+                            runTelemetry({
+                                category: "log:info",
+                                action: "nip28_channel_messages_result",
+                                label: "Channel messages fetch result",
+                                value: `Found ${results.length} messages`
+                            })
+                        ),
+                        Effect.tapError(cause => 
+                            // Log error (with isolated telemetry)
+                            runTelemetry({
+                                category: "log:error",
+                                action: "nip28_fetch_error",
+                                label: "Failed to fetch channel messages",
+                                value: cause instanceof Error ? cause.message : String(cause)
+                            })
+                        ),
+                        Effect.mapError(cause => 
+                            new NIP28FetchError({ message: "Failed to fetch channel messages", cause })
+                        )
+                    )
                 );
             }),
 
-        getUserHiddenMessages: (userPubkey: string, options?: { limit?: number; since?: number; until?: number; }) =>
+        getUserHiddenMessages: (userPubkey: string, options?: { limit?: number; since?: number; until?: number; }): Effect.Effect<NostrEvent[], NIP28FetchError, NostrService> =>
             Effect.gen(function*(_) {
-                const telemetryService = yield* _(TelemetryService);
-                yield* _(telemetryService.trackEvent({
+                // Create a helper function to safely run telemetry operations
+                const runTelemetry = (eventData: TelemetryEvent) =>
+                    Effect.provide(
+                        Effect.flatMap(TelemetryService, ts => ts.trackEvent(eventData)),
+                        TelemetryServiceLive
+                    ).pipe(Effect.catchAllCause(() => Effect.void));
+
+                // Log attempt (with isolated telemetry)
+                yield* _(runTelemetry({
                     category: "feature",
                     action: "nip28_get_hidden_messages",
                     label: "Fetching user hidden messages",
@@ -377,31 +439,43 @@ export function createNIP28Service(): NIP28Service {
                     until: options?.until
                 }];
                 return yield* _(
-                    nostrService.listEvents(filters),
-                    Effect.tap(results => telemetryService.trackEvent({
-                        category: "log:info",
-                        action: "nip28_hidden_messages_result",
-                        label: "Hidden messages fetch result",
-                        value: `Found ${results.length} hidden messages`
-                    })),
-                    Effect.mapError(cause => {
-                        // Track error in telemetry
-                        Effect.runPromise(telemetryService.trackEvent({
-                            category: "log:error",
-                            action: "nip28_fetch_error",
-                            label: "Failed to fetch user hidden messages",
-                            value: cause instanceof Error ? cause.message : String(cause)
-                        })).catch(() => {/* ignore telemetry errors */});
-                        
-                        return new NIP28FetchError({ message: "Failed to fetch user hidden messages", cause });
-                    })
+                    nostrService.listEvents(filters).pipe(
+                        Effect.tap((results: NostrEvent[]) => 
+                            // Log success (with isolated telemetry)
+                            runTelemetry({
+                                category: "log:info",
+                                action: "nip28_hidden_messages_result",
+                                label: "Hidden messages fetch result",
+                                value: `Found ${results.length} hidden messages`
+                            })
+                        ),
+                        Effect.tapError(cause => 
+                            // Log error (with isolated telemetry)
+                            runTelemetry({
+                                category: "log:error",
+                                action: "nip28_fetch_error",
+                                label: "Failed to fetch user hidden messages",
+                                value: cause instanceof Error ? cause.message : String(cause)
+                            })
+                        ),
+                        Effect.mapError(cause => 
+                            new NIP28FetchError({ message: "Failed to fetch user hidden messages", cause })
+                        )
+                    )
                 );
             }),
 
-        getUserMutedUsers: (userPubkey: string, options?: { limit?: number; since?: number; until?: number; }) =>
+        getUserMutedUsers: (userPubkey: string, options?: { limit?: number; since?: number; until?: number; }): Effect.Effect<NostrEvent[], NIP28FetchError, NostrService> =>
             Effect.gen(function*(_) {
-                const telemetryService = yield* _(TelemetryService);
-                yield* _(telemetryService.trackEvent({
+                // Create a helper function to safely run telemetry operations
+                const runTelemetry = (eventData: TelemetryEvent) =>
+                    Effect.provide(
+                        Effect.flatMap(TelemetryService, ts => ts.trackEvent(eventData)),
+                        TelemetryServiceLive
+                    ).pipe(Effect.catchAllCause(() => Effect.void));
+
+                // Log attempt (with isolated telemetry)
+                yield* _(runTelemetry({
                     category: "feature",
                     action: "nip28_get_muted_users",
                     label: "Fetching user muted users",
@@ -417,33 +491,36 @@ export function createNIP28Service(): NIP28Service {
                     until: options?.until
                 }];
                 return yield* _(
-                    nostrService.listEvents(filters),
-                    Effect.tap(results => telemetryService.trackEvent({
-                        category: "log:info",
-                        action: "nip28_muted_users_result",
-                        label: "Muted users fetch result",
-                        value: `Found ${results.length} muted users`
-                    })),
-                    Effect.mapError(cause => {
-                        // Track error in telemetry
-                        Effect.runPromise(telemetryService.trackEvent({
-                            category: "log:error",
-                            action: "nip28_fetch_error",
-                            label: "Failed to fetch user muted users",
-                            value: cause instanceof Error ? cause.message : String(cause)
-                        })).catch(() => {/* ignore telemetry errors */});
-                        
-                        return new NIP28FetchError({ message: "Failed to fetch user muted users", cause });
-                    })
+                    nostrService.listEvents(filters).pipe(
+                        Effect.tap((results: NostrEvent[]) => 
+                            // Log success (with isolated telemetry)
+                            runTelemetry({
+                                category: "log:info",
+                                action: "nip28_muted_users_result",
+                                label: "Muted users fetch result",
+                                value: `Found ${results.length} muted users`
+                            })
+                        ),
+                        Effect.tapError(cause => 
+                            // Log error (with isolated telemetry)
+                            runTelemetry({
+                                category: "log:error",
+                                action: "nip28_fetch_error",
+                                label: "Failed to fetch user muted users",
+                                value: cause instanceof Error ? cause.message : String(cause)
+                            })
+                        ),
+                        Effect.mapError(cause => 
+                            new NIP28FetchError({ message: "Failed to fetch user muted users", cause })
+                        )
+                    )
                 );
             }),
     };
 }
 
-// Layer for NIP28Service with dependency on TelemetryService
+// Layer for NIP28Service with dependency on NostrService only
 export const NIP28ServiceLive = Layer.effect(
     NIP28Service,
     Effect.succeed(createNIP28Service())
-).pipe(
-    Layer.provide(TelemetryServiceLive)
 );
