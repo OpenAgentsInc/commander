@@ -1,6 +1,23 @@
 // src/services/nip28/NIP28Service.ts
 import { Effect, Context, Data, Schema, Option } from "effect";
-import type { NostrEvent, NostrService } from "@/services/nostr"; // Assuming NostrEvent and NostrService types from your NostrService
+import type { NostrEvent, NostrFilter, NostrPublishError, NostrRequestError } from "@/services/nostr";
+import type { NIP04DecryptError, NIP04EncryptError } from "@/services/nip04";
+
+// --- Custom Error Types ---
+export class NIP28InvalidInputError extends Data.TaggedError("NIP28InvalidInputError")<{
+  message: string;
+  cause?: unknown;
+}> {}
+
+export class NIP28PublishError extends Data.TaggedError("NIP28PublishError")<{
+  message: string;
+  cause?: unknown;
+}> {}
+
+export class NIP28FetchError extends Data.TaggedError("NIP28FetchError")<{
+  message: string;
+  cause?: unknown;
+}> {}
 
 // --- Schemas for NIP-28 Content ---
 export const ChannelMetadataContentSchema = Schema.Struct({
@@ -18,7 +35,6 @@ export const ModerationReasonContentSchema = Schema.Struct({
 });
 export type ModerationReasonContent = Schema.Schema.Type<typeof ModerationReasonContentSchema>;
 
-
 // --- Parameter Types for Service Methods ---
 export interface CreateChannelParams {
     name: string;
@@ -28,25 +44,26 @@ export interface CreateChannelParams {
     secretKey: Uint8Array;
 }
 
-export interface SetChannelMetadataParams {
-    channelCreateEventId: string; // ID of the kind 40 event
-    name?: string;
-    about?: string;
-    picture?: string;
-    relays?: string[]; // Relays to include in the kind 41 content
-    categoryTags?: string[];    // For 't' tags
-    rootRelayUrl?: string;      // Recommended relay for the 'e' (root) tag
-    secretKey: Uint8Array;
+export interface ChannelMetadata {
+    name: string;
+    about: string;
+    picture: string;
+    creatorPk: string;
+    event_id: string; // Kind 40 event ID
 }
 
 export interface SendChannelMessageParams {
-    channelCreateEventId: string;
-    content: string;
-    rootRelayUrl?: string;      // Rec relay for channel 'e' (root) tag
-    replyToEventId?: string;    // ID of kind 42 this message is replying to
-    replyToPubkey?: string;     // Pubkey of the user being replied to
-    replyRelayUrl?: string;     // Rec relay for reply 'e' tag
-    secretKey: Uint8Array;
+    channelCreateEventId: string; // ID of the Kind 40 event
+    content: string; // Plaintext message content
+    secretKey: Uint8Array; // Sender's secret key
+    replyToEventId?: string; // Optional: for threaded replies (root 'e' tag still points to Kind 40)
+    replyToPubkey?: string; // Pubkey of the user being replied to
+    replyRelayUrl?: string; // Relay hint for the reply 'e' tag
+    relayHint?: string; // Optional: relay hint for the channel creation event
+}
+
+export interface DecryptedChannelMessage extends NostrEvent {
+    decryptedContent: string;
 }
 
 export interface HideMessageParams {
@@ -61,23 +78,6 @@ export interface MuteUserParams {
     secretKey: Uint8Array;
 }
 
-// --- Custom Error Types ---
-export class NIP28InvalidInputError extends Data.TaggedError("NIP28InvalidInputError")<{
-    message: string;
-    cause?: unknown;
-}> {}
-
-export class NIP28PublishError extends Data.TaggedError("NIP28PublishError")<{
-    message: string;
-    cause?: unknown; // Could be NostrPublishError from NostrService
-}> {}
-
-export class NIP28FetchError extends Data.TaggedError("NIP28FetchError")<{
-    message: string;
-    cause?: unknown; // Could be NostrRequestError from NostrService
-}> {}
-
-
 // --- Service Interface ---
 export interface NIP28Service {
     /**
@@ -85,88 +85,62 @@ export interface NIP28Service {
      */
     createChannel(
         params: CreateChannelParams
-    ): Effect.Effect<NostrEvent, NIP28InvalidInputError | NIP28PublishError, NostrService>;
+    ): Effect.Effect<NostrEvent, NIP28InvalidInputError | NostrRequestError | NostrPublishError>;
 
     /**
-     * Sets or updates the metadata for an existing channel (Kind 41).
-     * This event should be signed by the same pubkey that created the channel (Kind 40).
+     * Gets metadata for a channel from its creation event (Kind 40).
+     */
+    getChannelMetadata(
+        channelCreateEventId: string
+    ): Effect.Effect<ChannelMetadata, NostrRequestError>;
+
+    /**
+     * Updates metadata for a channel (Kind 41).
      */
     setChannelMetadata(
-        params: SetChannelMetadataParams
-    ): Effect.Effect<NostrEvent, NIP28InvalidInputError | NIP28PublishError, NostrService>;
+        params: {
+            channelCreateEventId: string;
+            name?: string;
+            about?: string;
+            picture?: string;
+            secretKey: Uint8Array;
+        }
+    ): Effect.Effect<NostrEvent, NIP28InvalidInputError | NostrRequestError | NostrPublishError>;
 
     /**
      * Sends a message to a channel (Kind 42).
+     * The message is encrypted to the channel creator's public key using NIP-04.
      */
     sendChannelMessage(
         params: SendChannelMessageParams
-    ): Effect.Effect<NostrEvent, NIP28InvalidInputError | NIP28PublishError, NostrService>;
+    ): Effect.Effect<NostrEvent, NIP28InvalidInputError | NostrRequestError | NostrPublishError | NIP04EncryptError>;
 
     /**
-     * Hides a message for the current user (Kind 43).
-     */
-    hideMessage(
-        params: HideMessageParams
-    ): Effect.Effect<NostrEvent, NIP28InvalidInputError | NIP28PublishError, NostrService>;
-
-    /**
-     * Mutes a user for the current user (Kind 44).
-     */
-    muteUser(
-        params: MuteUserParams
-    ): Effect.Effect<NostrEvent, NIP28InvalidInputError | NIP28PublishError, NostrService>;
-
-    /**
-     * Fetches a channel creation event (Kind 40).
-     */
-    getChannel(
-        channelCreateEventId: string
-    ): Effect.Effect<Option.Option<NostrEvent>, NIP28FetchError, NostrService>;
-
-    /**
-     * Fetches metadata events (Kind 41) for a given channel.
-     * Returns events sorted by created_at descending (latest first).
-     * Clients may want to filter these further, e.g., by author.
-     */
-    getChannelMetadataHistory(
-        channelCreateEventId: string,
-        limit?: number
-    ): Effect.Effect<NostrEvent[], NIP28FetchError, NostrService>;
-
-
-    /**
-     * Fetches the latest metadata event (Kind 41) for a given channel.
-     * Optionally filters by the channel creator's pubkey.
-     */
-    getLatestChannelMetadata(
-        channelCreateEventId: string,
-        channelCreatorPubkey?: string // Pubkey of the kind 40 event creator
-    ): Effect.Effect<Option.Option<NostrEvent>, NIP28FetchError, NostrService>;
-
-    /**
-     * Fetches messages for a channel (Kind 42).
-     * Options for pagination/filtering.
+     * Fetches and decrypts messages for a channel (Kind 42).
+     * Messages are sorted by created_at ascending (oldest first).
+     * 
+     * @param channelCreateEventId - The ID of the channel creation event (Kind 40)
+     * @param userSk - The user's secret key for decrypting messages
+     * @param filterOptions - Optional filter options to customize the query
      */
     getChannelMessages(
         channelCreateEventId: string,
-        options?: { limit?: number; since?: number; until?: number; }
-    ): Effect.Effect<NostrEvent[], NIP28FetchError, NostrService>;
+        userSk: Uint8Array,
+        filterOptions?: Partial<NostrFilter>
+    ): Effect.Effect<DecryptedChannelMessage[], NostrRequestError | NIP04DecryptError>;
 
     /**
-     * Fetches all "hide message" events (Kind 43) created by a specific user.
+     * Subscribes to new messages for a channel and provides them decrypted.
+     * 
+     * @param channelCreateEventId - The ID of the channel creation event (Kind 40)
+     * @param userSk - The user's secret key for decrypting messages
+     * @param onMessage - Callback function that receives new decrypted messages
      */
-    getUserHiddenMessages(
-        userPubkey: string,
-        options?: { limit?: number; since?: number; until?: number; }
-    ): Effect.Effect<NostrEvent[], NIP28FetchError, NostrService>;
-
-    /**
-     * Fetches all "mute user" events (Kind 44) created by a specific user.
-     */
-    getUserMutedUsers(
-        userPubkey: string,
-        options?: { limit?: number; since?: number; until?: number; }
-    ): Effect.Effect<NostrEvent[], NIP28FetchError, NostrService>;
+    subscribeToChannelMessages(
+        channelCreateEventId: string,
+        userSk: Uint8Array,
+        onMessage: (message: DecryptedChannelMessage) => void
+    ): Effect.Effect<{ unsub: () => void }, NostrRequestError>;
 }
 
 // --- Service Tag ---

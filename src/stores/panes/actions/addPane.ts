@@ -6,9 +6,8 @@ import { DEFAULT_PANE_WIDTH, DEFAULT_PANE_HEIGHT } from '../constants';
 
 let paneIdCounter = 2;
 
-// Use any to bypass strict type checking for this function
 export function addPaneAction(
-  set: any,
+  set: SetPaneStore,
   newPaneInput: PaneInput,
   shouldTile: boolean = false
 ) {

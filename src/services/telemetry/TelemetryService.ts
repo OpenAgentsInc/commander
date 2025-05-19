@@ -1,4 +1,4 @@
-import { Effect, Context, Data, Schema } from "effect";
+import { Effect, Context, Data, Schema, Layer } from "effect";
 
 // --- Event Schema ---
 export const TelemetryEventSchema = Schema.Struct({
@@ -10,6 +10,25 @@ export const TelemetryEventSchema = Schema.Struct({
 });
 
 export type TelemetryEvent = Schema.Schema.Type<typeof TelemetryEventSchema>;
+
+// --- Telemetry Configuration ---
+export interface TelemetryServiceConfig {
+  enabled: boolean;
+  logToConsole: boolean;
+  logLevel: 'debug' | 'info' | 'warn' | 'error';
+}
+
+export const TelemetryServiceConfigTag = Context.GenericTag<TelemetryServiceConfig>("TelemetryServiceConfig");
+
+// Default configuration layer
+export const DefaultTelemetryConfigLayer = Layer.succeed(
+  TelemetryServiceConfigTag,
+  {
+    enabled: true,
+    logToConsole: true,
+    logLevel: 'info'
+  }
+);
 
 // --- Custom Error Types ---
 export class TelemetryError extends Data.TaggedError("TelemetryError")<{

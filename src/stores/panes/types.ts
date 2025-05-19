@@ -15,11 +15,14 @@ export interface PaneStoreType extends PaneState {
   openChatPane: (newPane: PaneInput, isCommandKeyHeld?: boolean) => void; // Specific action for chat panes
   bringPaneToFront: (id: string) => void;
   setActivePane: (id: string | null) => void;
+  createNip28ChannelPane: (channelName?: string) => void; // Add a NIP28 channel pane
   resetHUDState: () => void;
 }
 
-// Make it more permissive to accommodate the actual Zustand's set function 
-export type SetPaneStore = {
-  (partial: PaneStoreType | Partial<PaneStoreType> | ((state: PaneStoreType) => PaneStoreType | Partial<PaneStoreType>), replace?: boolean): void;
-  (state: PaneStoreType | ((state: PaneStoreType) => PaneStoreType), replace: true): void;
-};
+// Use Zustand's own type for better compatibility
+import type { StoreApi } from 'zustand';
+
+export type SetPaneStore = StoreApi<PaneStoreType>['setState'];
+
+// Add GetPaneStore type for completeness
+export type GetPaneStore = () => PaneStoreType;
