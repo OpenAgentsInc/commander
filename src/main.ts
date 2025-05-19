@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, nativeTheme } from "electron"; // Add nativeTheme
 import registerListeners from "./helpers/ipc/listeners-register";
 // "electron-squirrel-startup" seems broken when packaging with vite
 //import started from "electron-squirrel-startup";
@@ -11,6 +11,9 @@ import {
 const inDevelopment = process.env.NODE_ENV === "development";
 
 function createWindow() {
+  // Force dark theme for native Electron elements
+  nativeTheme.themeSource = "dark";
+
   const preload = path.join(__dirname, "preload.js");
   const mainWindow = new BrowserWindow({
     width: 1200,

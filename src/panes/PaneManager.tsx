@@ -2,8 +2,6 @@ import React from 'react';
 import { usePaneStore } from '@/stores/pane';
 import { Pane as PaneComponent } from '@/panes/Pane';
 import { Pane as PaneType } from '@/types/pane';
-import { Button } from '@/components/ui/button';
-import { PlusCircle } from 'lucide-react';
 import { Nip28ChannelChat } from '@/components/nip28';
 
 // Placeholder Content Components
@@ -22,7 +20,7 @@ const PlaceholderDefaultComponent = ({ type }: { type: string }) => <div classNa
 
 export const PaneManager = () => {
   const { panes, activePaneId } = usePaneStore();
-  const createNip28Channel = usePaneStore((state) => state.createNip28ChannelPane);
+  // const createNip28Channel = usePaneStore((state) => state.createNip28ChannelPane); // No longer needed here
 
   const stripIdPrefix = (id: string): string => {
     return id.replace(/^chat-|^nip28-/, ''); // Updated to strip nip28 prefix too
@@ -50,27 +48,8 @@ export const PaneManager = () => {
           style={{
             zIndex: baseZIndex + index // Higher index = higher z-index
           }}
-          dismissable={pane.type !== 'chats' && pane.dismissable !== false}
+          dismissable={pane.dismissable !== false} // Use dismissable prop directly
           content={pane.content} // Pass content for 'diff' or other types
-          titleBarButtons={
-            pane.type === 'chats' ? (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={(e) => {
-                  e.stopPropagation(); // Prevent pane activation when clicking button
-                  // Generate a channel name with timestamp rather than using prompt() which isn't available in packaged app
-                  const timestamp = new Date().toLocaleTimeString().replace(/:/g, '');
-                  const defaultName = `Channel-${timestamp}`;
-                  createNip28Channel(defaultName);
-                }}
-                className="p-1 h-auto text-xs"
-                title="Create NIP-28 Channel"
-              >
-                <PlusCircle size={12} className="mr-1" /> New Chan
-              </Button>
-            ) : undefined
-          }
         >
           {pane.type === 'chat' && <PlaceholderChatComponent threadId={stripIdPrefix(pane.id)} />}
           {pane.type === 'chats' && <PlaceholderChatsPaneComponent />}

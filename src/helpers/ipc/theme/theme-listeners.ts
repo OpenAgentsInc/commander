@@ -9,25 +9,28 @@ import {
 } from "./theme-channels";
 
 export function addThemeEventListeners() {
-  ipcMain.handle(THEME_MODE_CURRENT_CHANNEL, () => nativeTheme.themeSource);
-  ipcMain.handle(THEME_MODE_TOGGLE_CHANNEL, () => {
-    if (nativeTheme.shouldUseDarkColors) {
-      nativeTheme.themeSource = "light";
-    } else {
-      nativeTheme.themeSource = "dark";
-    }
-    return nativeTheme.shouldUseDarkColors;
+  ipcMain.handle(THEME_MODE_CURRENT_CHANNEL, () => {
+    nativeTheme.themeSource = "dark"; // Enforce on query
+    return "dark"; // Report 'dark' to renderer
   });
-  ipcMain.handle(
-    THEME_MODE_DARK_CHANNEL,
-    () => (nativeTheme.themeSource = "dark"),
-  );
-  ipcMain.handle(
-    THEME_MODE_LIGHT_CHANNEL,
-    () => (nativeTheme.themeSource = "light"),
-  );
+
+  ipcMain.handle(THEME_MODE_TOGGLE_CHANNEL, () => {
+    nativeTheme.themeSource = "dark";
+    return true; // Tell renderer it's dark mode
+  });
+
+  ipcMain.handle(THEME_MODE_DARK_CHANNEL, () => {
+    nativeTheme.themeSource = "dark";
+  });
+
+  // If renderer attempts to set light mode, force dark mode.
+  ipcMain.handle(THEME_MODE_LIGHT_CHANNEL, () => {
+    nativeTheme.themeSource = "dark";
+  });
+
+  // If renderer attempts to set system theme, force dark mode.
   ipcMain.handle(THEME_MODE_SYSTEM_CHANNEL, () => {
-    nativeTheme.themeSource = "system";
-    return nativeTheme.shouldUseDarkColors;
+    nativeTheme.themeSource = "dark";
+    return true; // Tell renderer it's dark mode (as per forced setting)
   });
 }

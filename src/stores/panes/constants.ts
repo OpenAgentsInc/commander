@@ -2,5 +2,12 @@ export const DEFAULT_PANE_WIDTH = 400;
 export const DEFAULT_PANE_HEIGHT = 300;
 export const PANE_MARGIN = 20; // General margin or offset for tiling
 export const PANE_OFFSET = 45; // Specific offset for new panes when tiling, as used in openChatPane
+
+// Keep these for now as they're still used in openChatPane.ts and other files
 export const CHATS_PANE_ID = 'chats';
 export const CHANGELOG_PANE_ID = 'changelog';
+
+// Add new default NIP-28 channel constants
+export const DEFAULT_NIP28_CHANNEL_ID = 'ee7352c54c85004d3d994a48d87c488905795f956f88842394eb3c6edc615978';
+export const DEFAULT_NIP28_PANE_ID = `nip28-${DEFAULT_NIP28_CHANNEL_ID}`;
+export const DEFAULT_NIP28_CHANNEL_TITLE = 'Welcome Chat';

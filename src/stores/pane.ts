@@ -12,40 +12,55 @@ import {
   setActivePaneAction,
   createNip28ChannelPaneAction,
 } from "./panes/actions";
-import { CHATS_PANE_ID, CHANGELOG_PANE_ID, PANE_MARGIN, DEFAULT_PANE_WIDTH, DEFAULT_PANE_HEIGHT } from "./panes/constants";
+import { 
+  DEFAULT_NIP28_PANE_ID,
+  DEFAULT_NIP28_CHANNEL_ID,
+  DEFAULT_NIP28_CHANNEL_TITLE,
+  PANE_MARGIN, 
+  DEFAULT_PANE_WIDTH, 
+  DEFAULT_PANE_HEIGHT 
+} from "./panes/constants";
 
+// Function to get initial panes
 const getInitialPanes = (): Pane[] => {
-  let initialPanesSetup: Pane[] = [];
-  initialPanesSetup.push({
-    id: CHATS_PANE_ID,
-    type: 'chats',
-    title: 'Chats',
-    x: PANE_MARGIN,
-    y: PANE_MARGIN,
-    width: 300,
-    height: 500,
+  const initialPanes: Pane[] = [];
+
+  // Default NIP-28 Channel Pane
+  initialPanes.push({
+    id: DEFAULT_NIP28_PANE_ID,
+    type: 'nip28_channel',
+    title: DEFAULT_NIP28_CHANNEL_TITLE,
+    x: PANE_MARGIN + 50, // Example central positioning
+    y: PANE_MARGIN + 50,
+    width: 800, // Larger default size
+    height: 600,
     isActive: true,
-    dismissable: false,
+    dismissable: false, // This main pane should not be dismissable
+    content: {
+      channelId: DEFAULT_NIP28_CHANNEL_ID,
+      channelName: DEFAULT_NIP28_CHANNEL_TITLE,
+    },
   });
-  initialPanesSetup.push({
-    id: CHANGELOG_PANE_ID,
-    type: 'changelog',
-    title: 'Changelog',
-    x: PANE_MARGIN + 300 + PANE_MARGIN,
-    y: PANE_MARGIN,
-    width: 350,
-    height: 250,
-    isActive: false,
-    dismissable: true,
-  });
-  return initialPanesSetup;
+  
+  return initialPanes;
 };
 
 const initialState: PaneState = {
   panes: getInitialPanes(),
-  activePaneId: CHATS_PANE_ID,
-  lastPanePosition: null,
+  activePaneId: DEFAULT_NIP28_PANE_ID, // Default active pane is the NIP-28 channel
+  lastPanePosition: null, // Can be set based on the default pane's initial position if needed
 };
+
+// Set lastPanePosition based on the default pane
+if (initialState.panes.length > 0) {
+    const defaultPane = initialState.panes[0];
+    initialState.lastPanePosition = {
+        x: defaultPane.x,
+        y: defaultPane.y,
+        width: defaultPane.width,
+        height: defaultPane.height
+    };
+}
 
 export const usePaneStore = create<PaneStoreType>()(
   persist(
@@ -59,10 +74,33 @@ export const usePaneStore = create<PaneStoreType>()(
       bringPaneToFront: (id: string) => bringPaneToFrontAction(set, id),
       setActivePane: (id: string | null) => setActivePaneAction(set, id),
       createNip28ChannelPane: (channelName?: string) => createNip28ChannelPaneAction(set, get, channelName),
-      resetHUDState: () => set(initialState),
+      resetHUDState: () => {
+        const newInitialState: PaneState = {
+            panes: getInitialPanes(),
+            activePaneId: DEFAULT_NIP28_PANE_ID,
+            lastPanePosition: null,
+        };
+        
+        // Only update lastPanePosition if we have panes
+        if (newInitialState.panes.length > 0) {
+            const defaultPane = newInitialState.panes[0];
+            // Create a new object rather than modifying newInitialState directly
+            set({
+                ...newInitialState,
+                lastPanePosition: {
+                    x: defaultPane.x,
+                    y: defaultPane.y,
+                    width: defaultPane.width,
+                    height: defaultPane.height
+                }
+            });
+        } else {
+            set(newInitialState);
+        }
+      },
     }),
     {
-      name: 'commander-pane-storage', // Changed name to avoid conflicts
+      name: 'commander-pane-storage-v2', // Changed name to ensure fresh state
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         panes: state.panes,
@@ -70,29 +108,34 @@ export const usePaneStore = create<PaneStoreType>()(
         activePaneId: state.activePaneId,
       }),
       merge: (persistedState, currentState) => {
-        const merged = { ...currentState, ...(persistedState as Partial<PaneStoreType>) };
-        if (!merged.panes || merged.panes.length === 0) {
-          merged.panes = getInitialPanes();
-          merged.activePaneId = CHATS_PANE_ID;
-        } else {
-          const hasChats = merged.panes.some(p => p.id === CHATS_PANE_ID);
-          const hasChangelog = merged.panes.some(p => p.id === CHANGELOG_PANE_ID);
-          const defaultPanes = getInitialPanes();
-
-          if (!hasChats) {
-            const chatsPane = defaultPanes.find(p => p.id === CHATS_PANE_ID);
-            if (chatsPane) merged.panes.unshift(chatsPane);
-          }
-          if (!hasChangelog) {
-            const changelogPane = defaultPanes.find(p => p.id === CHANGELOG_PANE_ID);
-            if (changelogPane) {
-                const chatsIndex = merged.panes.findIndex(p => p.id === CHATS_PANE_ID);
-                if (chatsIndex !== -1) {
-                  merged.panes.splice(chatsIndex + 1, 0, changelogPane);
-                } else {
-                  merged.panes.push(changelogPane);
-                }
-            }
+        let merged = { ...currentState, ...(persistedState as Partial<PaneStoreType>) };
+        
+        // Ensure the default NIP-28 pane is always present if persisted state is empty or malformed
+        if (!merged.panes || merged.panes.length === 0 || !merged.panes.some(p => p.id === DEFAULT_NIP28_PANE_ID)) {
+          const newPanes = getInitialPanes();
+          const newActivePaneId = DEFAULT_NIP28_PANE_ID;
+          
+          // Create a new merged object to avoid type errors
+          if (newPanes.length > 0) {
+            const defaultPane = newPanes[0];
+            merged = {
+              ...merged,
+              panes: newPanes,
+              activePaneId: newActivePaneId,
+              lastPanePosition: {
+                x: defaultPane.x,
+                y: defaultPane.y,
+                width: defaultPane.width,
+                height: defaultPane.height
+              }
+            };
+          } else {
+            merged = {
+              ...merged,
+              panes: newPanes,
+              activePaneId: newActivePaneId,
+              lastPanePosition: null
+            };
           }
         }
         return merged;
