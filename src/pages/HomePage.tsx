@@ -3,6 +3,7 @@ import { PaneManager } from "@/panes/PaneManager";
 import { SimpleGrid } from "@/components/home/SimpleGrid";
 import ResetHUDButton from "@/components/ResetHUDButton";
 import HandTrackingToggleButton from "@/components/hands/HandTrackingToggleButton";
+import NewChannelButton from "@/components/hud/NewChannelButton";
 import { HandTracking, HandPose } from "@/components/hands";
 import { type PinchCoordinates, type HandLandmarks } from "@/components/hands/handPoseTypes";
 import { usePaneStore } from "@/stores/pane";
@@ -133,6 +134,7 @@ export default function HomePage() {
         isHandTrackingActive={isHandTrackingActive}
         onToggle={toggleHandTracking}
       />
+      <NewChannelButton />
     </div>
   );
 }
