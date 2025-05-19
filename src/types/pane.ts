@@ -11,7 +11,7 @@ export type Pane = {
   content?: { // Optional content, used by 'diff' type or other custom types.
     oldContent?: string;
     newContent?: string;
-    [key: string]: any; // Allows for other content properties
+    [key: string]: unknown; // Allows for other content properties
   };
   // Add any other pane-specific properties here, e.g.:
   // chatId?: string; // If the pane is associated with a chat

@@ -178,10 +178,6 @@ export const Pane: React.FC<PaneProps> = ({
   const [isResizing, setIsResizing] = useState(false);
   const isInteracting = isDragging || isResizing;
   
-  // Refs to track state during activation
-  const activationPendingRef = useRef(false);
-  const initialGrabPositionRef = useRef({ x: 0, y: 0 });
-
   const { position, size, setPosition, resizeHandlers } = useResizeHandlers(
     id,
     { x: initialX, y: initialY },
@@ -208,34 +204,25 @@ export const Pane: React.FC<PaneProps> = ({
   }, [size.width, size.height]);
 
   const bindDrag = useDrag(
-    ({ active, offset: [ox, oy], movement: [mx, my], first, last, event }) => {
+    ({ active, offset: [ox, oy], first, last, event }) => {
       setIsDragging(active);
       event.stopPropagation();
       
-      if (first) {
-        // Store the initial values
-        initialGrabPositionRef.current = { x: position.x, y: position.y };
-        
-        if (!isActive) {
-          activationPendingRef.current = true;
-          bringPaneToFront(id);
-          setActivePane(id);
-        }
+      if (first && !isActive) {
+        // Let bringPaneToFront handle the activation - it's more efficient now
+        bringPaneToFront(id);
       }
       
       const newX = Math.max(bounds.left, Math.min(ox, bounds.right));
       const newY = Math.max(bounds.top, Math.min(oy, bounds.bottom));
 
-      // If we're becoming active for the first time in this drag, handle it carefully
-      if (activationPendingRef.current && mx !== 0 && my !== 0) {
-        activationPendingRef.current = false;
-      }
-
-      setPosition({ x: newX, y: newY });
-
+      // No need for activationPendingRef or initialGrabPositionRef if store updates are minimal
+      // and `from` correctly uses the stable local `position`.
+      
+      setPosition({ x: newX, y: newY }); // Update local state for immediate feedback
+      
       if (last) {
-        updatePanePosition(id, newX, newY);
-        activationPendingRef.current = false;
+        updatePanePosition(id, newX, newY); // Update store on drag end
       }
     },
     {
@@ -254,10 +241,8 @@ export const Pane: React.FC<PaneProps> = ({
     if (target.classList.contains('resize-handle') || target.closest('.title-bar-button-container')) {
         return;
     }
-    if (!isActive) {
-        bringPaneToFront(id);
-    }
-    setActivePane(id);
+    // bringPaneToFront will also handle setting it as active and ensures correct z-index.
+    bringPaneToFront(id);
   };
 
   const resizeHandleClasses = "absolute bg-transparent pointer-events-auto";
