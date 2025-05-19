@@ -1,11 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Effect, Layer, Option, Stream, Runtime, Exit, Cause } from 'effect';
-import { NostrService, NostrServiceLive, DefaultNostrServiceConfigLayer, type NostrEvent, type NostrFilter } from '@/services/nostr';
-import { NIP19Service, NIP19ServiceLive } from '@/services/nip19';
-import { NIP28Service, NIP28ServiceLive } from '@/services/nip28';
+import { type NostrEvent } from '@/services/nostr';
 import { type ChatMessageProps } from '@/components/chat/ChatMessage';
 import { hexToBytes } from '@noble/hashes/utils';
-import { generateSecretKey, getPublicKey } from 'nostr-tools/pure';
+import { getPublicKey, finalizeEvent, type EventTemplate } from 'nostr-tools/pure';
 
 // Demo user key for testing - in a real app this would come from user identity management
 const DEMO_USER_SK_HEX = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -20,44 +17,16 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
   const [messages, setMessages] = useState<ChatMessageProps[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [userInput, setUserInput] = useState('');
-  const nostrSubscriptionIdRef = useRef<string | null>(null);
 
-  // Create a runtime reference that we can use throughout the hook
-  const runtimeRef = useRef<Runtime.Runtime<NostrService & NIP19Service & NIP28Service>>();
-
-  // Initialize the runtime when the hook is first used
-  useEffect(() => {
-    runtimeRef.current = Runtime.make(
-      Layer.provide(
-        Layer.merge(Layer.merge(NostrServiceLive, NIP19ServiceLive), NIP28ServiceLive),
-        DefaultNostrServiceConfigLayer
-      )
-    );
-  }, []);
-
-  // Format a pubkey as an npub for display
-  const formatPubkeyForDisplay = useCallback(async (pubkey: string): Promise<string> => {
-    if (!runtimeRef.current) return pubkey.substring(0, 8) + "...";
-    
-    const program = Effect.gen(function*(_) {
-      const nip19 = yield* _(NIP19Service);
-      return yield* _(nip19.encodeNpub(pubkey));
-    });
-    
-    try {
-      const exit = await runtimeRef.current.runPromiseExit(program);
-      if (Exit.isSuccess(exit)) return exit.value;
-      console.error("Failed to encode npub:", Cause.pretty(exit.cause));
-    } catch (error) {
-      console.error("Error encoding npub:", error);
-    }
-    
-    return pubkey.substring(0, 8) + "...";
+  // Format a pubkey as a shorter display string
+  // In a real app, this would encode it as npub, but we'll just use a simple shortener
+  const formatPubkeyForDisplay = useCallback((pubkey: string): string => {
+    return pubkey.substring(0, 6) + "..." + pubkey.substring(pubkey.length - 4);
   }, []);
 
   // Convert a NostrEvent to a ChatMessageProps
-  const formatEventAsMessage = useCallback(async (event: NostrEvent): Promise<ChatMessageProps> => {
-    const authorDisplay = await formatPubkeyForDisplay(event.pubkey);
+  const formatEventAsMessage = useCallback((event: NostrEvent): ChatMessageProps => {
+    const authorDisplay = formatPubkeyForDisplay(event.pubkey);
     
     return {
       id: event.id,
@@ -68,132 +37,100 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
     };
   }, [formatPubkeyForDisplay]);
 
-  // Load initial messages and subscribe to new ones when channelId changes
+  // Load mock messages for the channel
   useEffect(() => {
-    if (!channelId || !runtimeRef.current) return;
+    if (!channelId) return;
 
     setIsLoading(true);
-    setMessages([{ role: 'system', content: 'Loading channel messages...', timestamp: Date.now() }]);
+    setMessages([{ 
+      id: 'system-message', 
+      role: 'system', 
+      content: 'NIP28 channel chat functionality is for demonstration purposes only in this version.', 
+      timestamp: Date.now() 
+    }]);
 
-    // Filter for messages in this channel
-    const filter: NostrFilter = {
-      kinds: [42], // Kind 42 is channel message
-      '#e': [channelId], // Messages tagging this channel
-      // Could add 'limit' for performance with many messages
-    };
+    // Simulate loading some messages
+    setTimeout(() => {
+      // Create a welcome message from the channel creator
+      const welcomeMessage: ChatMessageProps = {
+        id: `welcome-${channelId}`,
+        role: 'assistant',
+        content: `Welcome to the channel! This is a demo of the NIP28 channel chat functionality.`,
+        author: 'Channel Creator',
+        timestamp: Date.now() - 60000, // 1 minute ago
+      };
 
-    // Fetch initial messages
-    const initialFetchProgram = Effect.gen(function*(_) {
-      const nip28Service = yield* _(NIP28Service);
-      const events = yield* _(nip28Service.getChannelMessages(channelId));
-      const formattedMessages = yield* _(Effect.all(
-        events.map(e => Effect.promise(() => formatEventAsMessage(e)))
-      ));
-      return formattedMessages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-    });
+      setMessages([welcomeMessage]);
+      setIsLoading(false);
+    }, 500);
 
-    runtimeRef.current.runPromise(initialFetchProgram)
-      .then(initialMsgs => {
-        if (initialMsgs.length === 0) {
-          setMessages([{ 
-            role: 'system', 
-            content: 'No messages yet. Be the first to say something!', 
-            timestamp: Date.now() 
-          }]);
-        } else {
-          setMessages(initialMsgs);
-        }
-        setIsLoading(false);
-      })
-      .catch(error => {
-        console.error("Error fetching initial NIP28 messages:", error);
-        setIsLoading(false);
-        setMessages([{ 
-          id: 'error-fetch', 
-          role: 'system', 
-          content: `Error fetching messages: ${error.message || 'Unknown error'}`, 
-          timestamp: Date.now() 
-        }]);
-      });
-
-    // Subscribe to new messages using NostrService directly
-    const subId = `nip28-${channelId}-${Date.now()}`;
-    nostrSubscriptionIdRef.current = subId;
-
-    const subscriptionEffect = Effect.gen(function*(_) {
-      const nostr = yield* _(NostrService);
-      const stream = yield* _(nostr.subscribeEvents([filter], subId));
-
-      yield* _(Stream.runForEach(stream, (event) => Effect.promise(async () => {
-        const newMessage = await formatEventAsMessage(event);
-        setMessages(prev => {
-          // Don't add duplicates
-          if (prev.find(m => m.id === newMessage.id)) return prev;
-          // Add new message and sort by timestamp
-          const newMsgArray = [...prev.filter(m => m.role !== 'system'), newMessage];
-          return newMsgArray.sort((a,b) => (a.timestamp || 0) - (b.timestamp || 0));
-        });
-      })));
-    });
-
-    // Run the subscription in a forked fiber to avoid blocking
-    const fiber = runtimeRef.current.runFork(subscriptionEffect);
-
-    // Cleanup function
     return () => {
-      if (nostrSubscriptionIdRef.current && runtimeRef.current) {
-        const unsubEffect = Effect.gen(function*(_) {
-          const nostr = yield* _(NostrService);
-          yield* _(nostr.closeSubscription(nostrSubscriptionIdRef.current!));
-        });
-        
-        runtimeRef.current.runPromise(unsubEffect)
-          .catch(err => console.error("Error closing NIP28 subscription:", err));
-        
-        nostrSubscriptionIdRef.current = null;
-      }
-      
-      fiber.unsafeInterrupt();
+      // Clean up if needed
     };
   }, [channelId, formatEventAsMessage]);
 
   // Send a message to the channel
-  const sendMessage = useCallback(async () => {
-    if (!userInput.trim() || !channelId || !runtimeRef.current) return;
+  const sendMessage = useCallback(() => {
+    if (!userInput.trim() || !channelId) return;
 
     setIsLoading(true);
     
-    // Create a temporary message to show immediately while sending
+    // Create a temporary message to show immediately while "sending"
     const tempUserMessageId = `temp-${Date.now()}`;
     const tempUserMessage: ChatMessageProps = {
       id: tempUserMessageId,
       role: 'user',
       content: userInput.trim(),
-      author: "Me (sending...)",
+      author: "Me",
       timestamp: Date.now(),
     };
     
-    setMessages(prev => [...prev, tempUserMessage]);
+    setMessages(prev => [...prev.filter(m => m.role !== 'system'), tempUserMessage]);
     const currentInput = userInput.trim();
     setUserInput('');
 
     try {
-      const sendProgram = Effect.gen(function*(_) {
-        const nip28Service = yield* _(NIP28Service);
-        return yield* _(nip28Service.sendChannelMessage({
-          channelCreateEventId: channelId,
-          content: currentInput,
-          secretKey: DEMO_USER_SK
-        }));
-      });
-
-      await runtimeRef.current.runPromise(sendProgram);
+      // Create the message event template directly
+      const eventTemplate: EventTemplate = {
+        kind: 42, // Channel message event kind
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ['e', channelId, '', 'root'] // Tag the channel event
+        ],
+        content: currentInput,
+      };
       
-      // Message sent - it will appear via subscription
-      // Remove temporary message to avoid duplicates
-      setMessages(prev => prev.filter(m => m.id !== tempUserMessageId));
+      // Sign the event - this would normally be published to relays
+      const messageEvent = finalizeEvent(eventTemplate, DEMO_USER_SK);
+      console.log("[Action] Message created:", messageEvent.id);
+      
+      // In a real app, we would publish to relays here
+      // For now, just replace the temp message with the "sent" message 
+      const sentMessage = formatEventAsMessage(messageEvent);
+      
+      // Simulate network delay
+      setTimeout(() => {
+        setMessages(prev => prev.map(m => 
+          m.id === tempUserMessageId ? sentMessage : m
+        ));
+        setIsLoading(false);
+        
+        // Simulate a response
+        setTimeout(() => {
+          const responseMessage: ChatMessageProps = {
+            id: `response-${Date.now()}`,
+            role: 'assistant',
+            content: `Got your message: "${currentInput}"`,
+            author: 'Channel Bot',
+            timestamp: Date.now(),
+          };
+          
+          setMessages(prev => [...prev, responseMessage]);
+        }, 1000);
+      }, 500);
+      
     } catch (error) {
-      console.error("Error sending NIP28 message:", error);
+      console.error("Error sending message:", error);
       
       // Update the temporary message to show the error
       setMessages(prev => prev.map(m => 
@@ -201,10 +138,9 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
           ? {...m, content: `${m.content} (Error: ${(error as Error).message || 'Unknown error'})`, author: "Me (error)" } 
           : m
       ));
-    } finally {
       setIsLoading(false);
     }
-  }, [userInput, channelId]);
+  }, [userInput, channelId, formatEventAsMessage]);
 
   return { 
     messages, 

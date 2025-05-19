@@ -59,7 +59,7 @@ export const PaneManager = () => {
                 variant="ghost"
                 onClick={(e) => {
                   e.stopPropagation(); // Prevent pane activation when clicking button
-                  // Using a default name with timestamp instead of prompt
+                  // Generate a channel name with timestamp rather than using prompt() which isn't available in packaged app
                   const timestamp = new Date().toLocaleTimeString().replace(/:/g, '');
                   const defaultName = `Channel-${timestamp}`;
                   createNip28Channel(defaultName);
