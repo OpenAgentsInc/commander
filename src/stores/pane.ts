@@ -10,6 +10,7 @@ import {
   openChatPaneAction,
   bringPaneToFrontAction,
   setActivePaneAction,
+  createNip28ChannelPaneAction,
 } from "./panes/actions";
 import { CHATS_PANE_ID, CHANGELOG_PANE_ID, PANE_MARGIN, DEFAULT_PANE_WIDTH, DEFAULT_PANE_HEIGHT } from "./panes/constants";
 
@@ -57,6 +58,7 @@ export const usePaneStore = create<PaneStoreType>()(
       openChatPane: (newPaneInput: PaneInput, isCommandKeyHeld?: boolean) => openChatPaneAction(set, newPaneInput, isCommandKeyHeld),
       bringPaneToFront: (id: string) => bringPaneToFrontAction(set, id),
       setActivePane: (id: string | null) => setActivePaneAction(set, id),
+      createNip28ChannelPane: (channelName?: string) => createNip28ChannelPaneAction(set, channelName),
       resetHUDState: () => set(initialState),
     }),
     {

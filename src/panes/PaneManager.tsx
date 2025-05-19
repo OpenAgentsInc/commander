@@ -2,6 +2,9 @@ import React from 'react';
 import { usePaneStore } from '@/stores/pane';
 import { Pane as PaneComponent } from '@/panes/Pane';
 import { Pane as PaneType } from '@/types/pane';
+import { Button } from '@/components/ui/button';
+import { PlusCircle } from 'lucide-react';
+import { Nip28ChannelChat } from '@/components/nip28';
 
 // Placeholder Content Components
 const PlaceholderChatComponent = ({ threadId }: { threadId?: string }) => <div className="p-2">Chat Pane Content {threadId && `for ${threadId}`}</div>;
@@ -19,9 +22,10 @@ const PlaceholderDefaultComponent = ({ type }: { type: string }) => <div classNa
 
 export const PaneManager = () => {
   const { panes, activePaneId } = usePaneStore();
+  const createNip28Channel = usePaneStore((state) => state.createNip28ChannelPane);
 
   const stripIdPrefix = (id: string): string => {
-    return id.replace(/^chat-/, ''); // Simplified
+    return id.replace(/^chat-|^nip28-/, ''); // Updated to strip nip28 prefix too
   };
 
   // No need to sort panes - the array order from the store already 
@@ -48,6 +52,24 @@ export const PaneManager = () => {
           }}
           dismissable={pane.type !== 'chats' && pane.dismissable !== false}
           content={pane.content} // Pass content for 'diff' or other types
+          titleBarButtons={
+            pane.type === 'chats' ? (
+              <Button
+                size="xs"
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent pane activation when clicking button
+                  const name = prompt("Enter new NIP-28 channel name (optional):");
+                  if (name === null) return; // User cancelled prompt
+                  createNip28Channel(name || undefined);
+                }}
+                className="p-1 h-auto text-xs"
+                title="Create NIP-28 Channel"
+              >
+                <PlusCircle size={12} className="mr-1" /> New Chan
+              </Button>
+            ) : undefined
+          }
         >
           {pane.type === 'chat' && <PlaceholderChatComponent threadId={stripIdPrefix(pane.id)} />}
           {pane.type === 'chats' && <PlaceholderChatsPaneComponent />}
@@ -55,6 +77,12 @@ export const PaneManager = () => {
           {pane.type === 'user' && <PlaceholderUserStatusComponent />}
           {pane.type === 'diff' && pane.content && (
             <PlaceholderDiffComponent oldContent={pane.content.oldContent} newContent={pane.content.newContent} />
+          )}
+          {pane.type === 'nip28_channel' && pane.content?.channelId && (
+            <Nip28ChannelChat
+              channelId={pane.content.channelId}
+              channelName={pane.content.channelName || pane.title}
+            />
           )}
           {pane.type === 'default' && <PlaceholderDefaultComponent type={pane.type} />}
           {/* Add other pane types here, or a more generic fallback */}
@@ -64,6 +92,7 @@ export const PaneManager = () => {
             pane.type === 'changelog' ||
             pane.type === 'user' ||
             pane.type === 'diff' ||
+            pane.type === 'nip28_channel' ||
             pane.type === 'default'
           ) && <PlaceholderDefaultComponent type={pane.type} />}
         </PaneComponent>

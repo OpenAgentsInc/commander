@@ -10,10 +10,14 @@ export interface ChatMessageProps {
   isStreaming?: boolean;
   // Allow dynamic update properties for streaming implementation
   _updateId?: number;
+  // Added properties for NIP28 channels and other custom usage
+  author?: string;
+  timestamp?: number;
+  id?: string;
   [key: string]: any; // Allow any additional properties
 }
 
-export function ChatMessage({ content, role, isStreaming }: ChatMessageProps) {
+export function ChatMessage({ content, role, isStreaming, author, timestamp }: ChatMessageProps) {
   return (
     <div className={cn(
       "flex",
@@ -30,7 +34,7 @@ export function ChatMessage({ content, role, isStreaming }: ChatMessageProps) {
         )}
       >
         <div className="text-[10px] font-semibold mb-0.5 text-foreground flex items-center">
-          <span>{role === "user" ? "Commander" : role === "assistant" ? "Agent" : "System"}</span>
+          <span>{author || (role === "user" ? "Commander" : role === "assistant" ? "Agent" : "System")}</span>
           {isStreaming && (
             <span className="ml-1 inline-flex items-center">
               <Loader2 className="h-3 w-3 animate-spin text-foreground" />

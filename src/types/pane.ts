@@ -1,6 +1,6 @@
 export type Pane = {
   id: string; // Unique identifier for the pane. For chat panes, this might be derived from a chat/thread ID.
-  type: 'default' | 'chat' | 'chats' | 'user' | 'diff' | 'changelog' | string; // Type of content the pane displays. Add more as needed.
+  type: 'default' | 'chat' | 'chats' | 'user' | 'diff' | 'changelog' | 'nip28_channel' | string; // Type of content the pane displays. Add more as needed.
   title: string; // Title displayed in the pane's title bar.
   x: number; // X-coordinate of the top-left corner.
   y: number; // Y-coordinate of the top-left corner.
@@ -11,6 +11,8 @@ export type Pane = {
   content?: { // Optional content, used by 'diff' type or other custom types.
     oldContent?: string;
     newContent?: string;
+    channelId?: string; // Added for NIP28 channels
+    channelName?: string; // Optional: for initial title for NIP28 channels
     [key: string]: unknown; // Allows for other content properties
   };
   // Add any other pane-specific properties here, e.g.:

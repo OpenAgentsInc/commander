@@ -15,6 +15,7 @@ export interface PaneStoreType extends PaneState {
   openChatPane: (newPane: PaneInput, isCommandKeyHeld?: boolean) => void; // Specific action for chat panes
   bringPaneToFront: (id: string) => void;
   setActivePane: (id: string | null) => void;
+  createNip28ChannelPane: (channelName?: string) => void; // Add a NIP28 channel pane
   resetHUDState: () => void;
 }
 

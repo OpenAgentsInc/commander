@@ -5,3 +5,4 @@ export * from './updatePaneSize';
 export * from './bringPaneToFront';
 export * from './setActivePane';
 export * from './openChatPane';
+export * from './createNip28ChannelPane';
