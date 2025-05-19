@@ -59,9 +59,10 @@ export const PaneManager = () => {
                 variant="ghost"
                 onClick={(e) => {
                   e.stopPropagation(); // Prevent pane activation when clicking button
-                  const name = prompt("Enter new NIP-28 channel name (optional):");
-                  if (name === null) return; // User cancelled prompt
-                  createNip28Channel(name || undefined);
+                  // Using a default name with timestamp instead of prompt
+                  const timestamp = new Date().toLocaleTimeString().replace(/:/g, '');
+                  const defaultName = `Channel-${timestamp}`;
+                  createNip28Channel(defaultName);
                 }}
                 className="p-1 h-auto text-xs"
                 title="Create NIP-28 Channel"
