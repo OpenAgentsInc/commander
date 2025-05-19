@@ -31,32 +31,26 @@ const useResizeHandlers = (
   const prevSizeRef = useRef(initialSize);
 
   useEffect(() => {
+    if (!isCurrentlyInteracting &&
+        (initialPosition.x !== prevPositionRef.current.x || initialPosition.y !== prevPositionRef.current.y) &&
+        (position.x !== initialPosition.x || position.y !== initialPosition.y)) {
+      setPosition(initialPosition);
+    }
     if (!isCurrentlyInteracting) {
-      // Only update if initialPosition has actually changed from what we already know
-      // AND if local position is different from initialPosition
-      if ((initialPosition.x !== prevPositionRef.current.x ||
-           initialPosition.y !== prevPositionRef.current.y) &&
-          (initialPosition.x !== position.x || initialPosition.y !== position.y)) {
-        setPosition(initialPosition);
-      }
-      // Always update prevPositionRef if not interacting, to sync with store if it changed
       prevPositionRef.current = initialPosition;
     }
-  }, [initialPosition.x, initialPosition.y, isCurrentlyInteracting]);
+  }, [initialPosition.x, initialPosition.y, isCurrentlyInteracting, position.x, position.y]);
 
   useEffect(() => {
+    if (!isCurrentlyInteracting &&
+        (initialSize.width !== prevSizeRef.current.width || initialSize.height !== prevSizeRef.current.height) &&
+        (size.width !== initialSize.width || size.height !== initialSize.height)) {
+      setSize(initialSize);
+    }
     if (!isCurrentlyInteracting) {
-      // Only update if initialSize has actually changed from what we already know
-      // AND if local size is different from initialSize
-      if ((initialSize.width !== prevSizeRef.current.width || 
-           initialSize.height !== prevSizeRef.current.height) &&
-          (initialSize.width !== size.width || initialSize.height !== size.height)) {
-        setSize(initialSize);
-      }
-      // Always update prevSizeRef if not interacting, to sync with store if it changed
       prevSizeRef.current = initialSize;
     }
-  }, [initialSize.width, initialSize.height, isCurrentlyInteracting]);
+  }, [initialSize.width, initialSize.height, isCurrentlyInteracting, size.width, size.height]);
 
   const minWidth = 200;
   const minHeight = 100;
