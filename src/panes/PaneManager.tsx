@@ -18,17 +18,21 @@ const PlaceholderDefaultComponent = ({ type }: { type: string }) => <div classNa
 
 
 export const PaneManager = () => {
-  const { panes } = usePaneStore();
+  const { panes, activePaneId } = usePaneStore();
 
   const stripIdPrefix = (id: string): string => {
     return id.replace(/^chat-/, ''); // Simplified
   };
 
-  const sortedPanes = [...panes].sort((a, b) => (a.isActive ? 1 : 0) - (b.isActive ? 1 : 0));
+  // No need to sort panes - the array order from the store already 
+  // has the active pane at the end due to bringPaneToFrontAction
+  
+  // Base z-index for all panes
+  const baseZIndex = 10;
 
   return (
     <>
-      {sortedPanes.map((pane: PaneType) => (
+      {panes.map((pane: PaneType, index: number) => (
         <PaneComponent
           key={pane.id}
           title={pane.title}
@@ -38,7 +42,10 @@ export const PaneManager = () => {
           height={pane.height}
           width={pane.width}
           type={pane.type}
-          isActive={pane.isActive}
+          isActive={pane.id === activePaneId}
+          style={{
+            zIndex: baseZIndex + index // Higher index = higher z-index
+          }}
           dismissable={pane.type !== 'chats' && pane.dismissable !== false}
           content={pane.content} // Pass content for 'diff' or other types
         >

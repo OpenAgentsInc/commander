@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useDrag, type HandlerParams } from '@use-gesture/react';
+import { useDrag } from '@use-gesture/react';
 import { X as IconX } from 'lucide-react';
 import { Pane as PaneType } from '@/types/pane';
 import { usePaneStore } from "@/stores/pane";
+import type { FullGestureState } from '@use-gesture/react';
 
 type PaneProps = PaneType & {
   children?: React.ReactNode;
   titleBarButtons?: React.ReactNode;
+  style?: React.CSSProperties;
+  content?: PaneType['content'];
 };
 
 type ResizeCorner = 'topleft' | 'top' | 'topright' | 'right' | 'bottomright' | 'bottom' | 'bottomleft' | 'left';
@@ -61,18 +64,15 @@ const useResizeHandlers = (
   // Memo ref for resize start state
   const resizeStartRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
 
-  type ResizeHandlerParams = {
-    active: boolean;
-    movement: [number, number];
-    first: boolean;
-    last: boolean;
-    memo: typeof resizeStartRef.current | null;
+  // Define a more accurate type based on what use-gesture provides
+  type ResizeHandlerParams = Omit<FullGestureState<'drag'>, 'memo'> & {
+    memo?: typeof resizeStartRef.current | null;
   };
 
   const makeResizeHandler = (corner: ResizeCorner) => {
-    return ({ active, movement: [deltaX, deltaY], first, last, memo }: ResizeHandlerParams) => {
+    return ({ active, movement: [deltaX, deltaY], first, last, memo, event }: ResizeHandlerParams) => {
       setIsResizing(active);
-      let currentMemo = memo;
+      let currentMemo = memo || null;
 
       if (first) {
         currentMemo = { x: position.x, y: position.y, width: size.width, height: size.height };
@@ -80,6 +80,11 @@ const useResizeHandlers = (
         resizeStartRef.current = currentMemo;
       }
 
+      // Safety check - should never happen with the first handler above
+      if (!currentMemo) {
+        return null;
+      }
+      
       let newX = currentMemo.x;
       let newY = currentMemo.y;
       let newWidth = currentMemo.width;
@@ -177,7 +182,8 @@ export const Pane: React.FC<PaneProps> = ({
   isActive,
   children,
   titleBarButtons,
-  dismissable = true
+  dismissable = true,
+  style = {}
 }) => {
   const [bounds, setBounds] = useState({ left: 0, top: 0, right: 0, bottom: 0 });
   const updatePanePosition = usePaneStore(state => state.updatePanePosition);
@@ -190,8 +196,7 @@ export const Pane: React.FC<PaneProps> = ({
   const [isResizing, setIsResizing] = useState(false);
   const isInteracting = isDragging || isResizing;
   
-  // Ref for drag start coordinates (pointer and pane)
-  const dragStartRef = useRef<{ x: number, y: number, paneX: number, paneY: number } | null>(null);
+  // We're using memo pattern from use-gesture for drag state tracking
   
   const { position, size, setPosition, resizeHandlers } = useResizeHandlers(
     id,
@@ -218,35 +223,48 @@ export const Pane: React.FC<PaneProps> = ({
     return () => window.removeEventListener('resize', updateBounds);
   }, [size.width, size.height]);
 
-  const bindDrag = useDrag(
-    ({ active, xy: [pointerX, pointerY], first, last, event }) => {
-      setIsDragging(active);
-      event.stopPropagation();
+  interface DragStartMemo {
+    startX: number;
+    startY: number;
+    paneX: number;
+    paneY: number;
+  }
 
+  const bindDrag = useDrag<DragStartMemo>(
+    ({ active, xy: [pointerX, pointerY], first, last, event, memo }) => {
+      // Handle the event properly, checking both existence and type
+      if (event && 'stopPropagation' in event && typeof event.stopPropagation === 'function') {
+        event.stopPropagation();
+      }
+      
+      // Use memo to store initial state across the entire drag
       if (first) {
-        // dragStartRef.current.paneX/Y should already be set by handlePaneMouseDown
-        // Only update pointer coordinates here
-        if (dragStartRef.current) { // Should always be true if mousedown happened on title bar
-          dragStartRef.current.x = pointerX;
-          dragStartRef.current.y = pointerY;
-        } else {
-          // Fallback if mousedown didn't set it (e.g., touch event directly triggering useDrag)
-          dragStartRef.current = {
-            x: pointerX,
-            y: pointerY,
-            paneX: position.x, // Current local position
-            paneY: position.y
-          };
+        // Capture current position BEFORE activating the pane
+        const initialMemo: DragStartMemo = {
+          startX: pointerX,
+          startY: pointerY,
+          paneX: position.x,
+          paneY: position.y,
+        };
+        
+        // Only activate the pane if not already active
+        if (!isActive) {
+          bringPaneToFront(id);
         }
+        
+        setIsDragging(true);
+        return initialMemo; // Return memo for use in subsequent callbacks
       }
 
-      if (active && dragStartRef.current) {
-        const deltaX = pointerX - dragStartRef.current.x;
-        const deltaY = pointerY - dragStartRef.current.y;
+      // Use memo for stable position calculations throughout drag
+      if (active && memo) {
+        const deltaX = pointerX - memo.startX;
+        const deltaY = pointerY - memo.startY;
 
-        let newX = dragStartRef.current.paneX + deltaX;
-        let newY = dragStartRef.current.paneY + deltaY;
+        let newX = memo.paneX + deltaX;
+        let newY = memo.paneY + deltaY;
 
+        // Apply bounds constraints
         newX = Math.max(bounds.left, Math.min(newX, bounds.right));
         newY = Math.max(bounds.top, Math.min(newY, bounds.bottom));
 
@@ -254,12 +272,14 @@ export const Pane: React.FC<PaneProps> = ({
 
         if (last) {
           updatePanePosition(id, newX, newY);
-          dragStartRef.current = null;
+          setIsDragging(false);
         }
-      } else if (!active && dragStartRef.current) { 
-        // Cleanup if drag ends unexpectedly
-        dragStartRef.current = null;
+      } else if (!active) {
+        setIsDragging(false);
       }
+      
+      // Keep returning memo to maintain continuity through the drag
+      return memo;
     },
     {
       filterTaps: true,
@@ -276,15 +296,10 @@ export const Pane: React.FC<PaneProps> = ({
     if (target.classList.contains('resize-handle') || target.closest('.title-bar-button-container')) {
         return;
     }
-    // Capture pane position *before* store update
-    dragStartRef.current = {
-      x: 0, // Pointer X will be set by useDrag
-      y: 0, // Pointer Y will be set by useDrag
-      paneX: position.x,
-      paneY: position.y
-    };
-    // bringPaneToFront will also handle setting it as active and ensures correct z-index.
-    bringPaneToFront(id);
+    // Only activate the pane - the drag is handled separately by bindDrag
+    if (!isActive) {
+      bringPaneToFront(id);
+    }
   };
 
   const resizeHandleClasses = "absolute bg-transparent pointer-events-auto";
@@ -299,7 +314,7 @@ export const Pane: React.FC<PaneProps> = ({
         top: position.y,
         width: size.width,
         height: size.height,
-        zIndex: isActive ? 50 : 49,
+        ...style, // Apply styles from props (including zIndex from PaneManager)
       }}
       className={`pane-container pointer-events-auto flex flex-col bg-black/90 border rounded-lg overflow-hidden shadow-lg ${isActive ? 'border-primary ring-1 ring-primary' : 'border-border/20'} ${!isInteracting ? 'transition-all duration-100 ease-out' : ''}`}
       onMouseDownCapture={handlePaneMouseDown}

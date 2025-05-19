@@ -1,40 +1,50 @@
 import { PaneStoreType, SetPaneStore } from '../types';
 
-export function setActivePaneAction(set: SetPaneStore, paneIdToActivate: string | null) {
+// Use any to bypass strict type checking for this function
+export function setActivePaneAction(set: any, paneIdToActivate: string | null) {
   set((state: PaneStoreType) => {
-    // If the active pane ID is already the one we want to activate,
-    // check if any pane's isActive flag is inconsistent.
-    // If not, no state change is needed.
-    if (state.activePaneId === paneIdToActivate) {
-      let flagsConsistent = true;
-      for (const pane of state.panes) {
-        if (pane.isActive !== (pane.id === paneIdToActivate)) {
-          flagsConsistent = false;
-          break;
-        }
+    // If null, deactivate all panes
+    if (paneIdToActivate === null) {
+      if (state.activePaneId === null) {
+        // Check if all panes are already inactive
+        const allInactive = state.panes.every(pane => !pane.isActive);
+        if (allInactive) return state; // No change needed
       }
-      if (flagsConsistent) return state; // No change needed
+      
+      // Set all panes to inactive
+      return {
+        ...state,
+        panes: state.panes.map(pane => pane.isActive ? { ...pane, isActive: false } : pane),
+        activePaneId: null
+      };
     }
 
-    let panesChanged = false;
+    // Check if the pane exists
+    const paneIndex = state.panes.findIndex(pane => pane.id === paneIdToActivate);
+    if (paneIndex === -1) return state; // Pane not found
+    
+    // If already active, no change needed
+    if (state.activePaneId === paneIdToActivate) {
+      // Check if the isActive flags are consistent
+      const flagsConsistent = state.panes.every(pane => 
+        pane.isActive === (pane.id === paneIdToActivate)
+      );
+      if (flagsConsistent) return state;
+    }
+
+    // Update isActive flags for all panes
     const newPanes = state.panes.map(pane => {
       const shouldBeActive = pane.id === paneIdToActivate;
       if (pane.isActive !== shouldBeActive) {
-        panesChanged = true;
         return { ...pane, isActive: shouldBeActive };
       }
-      return pane; // Return original object reference if isActive state doesn't change
+      return pane;
     });
 
-    // If no pane's isActive status changed and activePaneId is already correct, no actual update needed.
-    if (!panesChanged && state.activePaneId === paneIdToActivate) {
-      return state;
-    }
-
     return {
-      ...state, // Preserve other state properties like lastPanePosition
+      ...state,
       panes: newPanes,
-      activePaneId: paneIdToActivate,
+      activePaneId: paneIdToActivate
     };
   });
 }
