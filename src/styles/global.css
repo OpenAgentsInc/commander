@@ -260,3 +260,41 @@
   pointer-events: none; /* allows clicks to pass through */
   z-index: 1; /* above canvas but below UI */
 }
+
+/* Pane System Styles */
+.pane-container {
+  /* Base styles are mostly handled by Tailwind classes in Pane.tsx */
+  /* e.g., bg-black/90 border rounded-lg shadow-lg */
+}
+
+.pane-title-bar {
+  /* Styles are mostly handled by Tailwind classes in Pane.tsx */
+  /* e.g., bg-black text-white/90 border-b border-border/20 ... */
+}
+
+.pane-content {
+  /* Styles are mostly handled by Tailwind classes in Pane.tsx */
+  /* e.g., flex-grow text-white overflow-auto p-1 */
+  /* Custom scrollbar styling (optional) */
+}
+.pane-content::-webkit-scrollbar {
+  width: 6px; /* Thinner scrollbar */
+  height: 6px;
+}
+.pane-content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+.pane-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+.pane-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.resize-handle {
+  /* For debugging handle positions, uncomment: */
+  /* background-color: rgba(255, 0, 0, 0.1); */
+  z-index: 51; /* Ensure handles are above pane content but below active pane title bar if overlapping */
+}
