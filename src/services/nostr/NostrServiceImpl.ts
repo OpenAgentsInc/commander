@@ -296,7 +296,10 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
           };
           
           // Use the subscribe method with the required parameters
-          const subCloser = pool.subscribe(config.relays as string[], filters as any[], subParams);
+          // Convert array of filters to a single filter object with the proper type signature 
+          // including the `#${string}` index signature
+          const filter: NostrFilter = filters[0];
+          const subCloser = pool.subscribe(config.relays as string[], filter, subParams);
           
           // Create a telemetry event for subscription creation
           const subTelemetryEvent: TelemetryEvent = {

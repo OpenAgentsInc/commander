@@ -14,7 +14,7 @@ import { BIP32Service, BIP32ServiceLive } from '@/services/bip32';
 import { NIP28Service, NIP28ServiceLive } from '@/services/nip28';
 import { TelemetryService, TelemetryServiceLive, DefaultTelemetryConfigLayer, TelemetryServiceConfig, TelemetryServiceConfigTag } from '@/services/telemetry';
 import { OllamaService, OllamaServiceLive, UiOllamaConfigLive } from '@/services/ollama';
-import { BrowserClient } from "@effect/platform-browser/Client";
+import * as BrowserHttpClient from "@effect/platform-browser/BrowserHttpClient";
 import { HttpClient } from '@effect/platform';
 
 // Helper function to create a runtime from a layer
@@ -40,7 +40,7 @@ export type FullAppContext =
 const nostrLayer = NostrServiceLive.pipe(layerProvide(DefaultNostrServiceConfigLayer));
 const telemetryLayer = TelemetryServiceLive.pipe(layerProvide(DefaultTelemetryConfigLayer));
 const ollamaLayer = OllamaServiceLive.pipe(
-  layerProvide(layerMerge(UiOllamaConfigLive, BrowserClient.layer))
+  layerProvide(layerMerge(UiOllamaConfigLive, BrowserHttpClient.layer))
 );
 const nip04Layer = NIP04ServiceLive; // Assuming no direct external config tags needed by NIP04ServiceLive itself
 const nip28Layer = NIP28ServiceLive.pipe(

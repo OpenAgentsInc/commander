@@ -123,8 +123,13 @@ describe('NIP28Service', () => {
                 service.createChannel({ name: "", secretKey: testSk })
             );
             
-            // Run the program directly
-            const exit = await Effect.runPromiseExit(program);
+            // Create a test runtime with all necessary services
+            const testRuntime = Effect.provide(program, Layer.provideMerge(
+                Layer.mergeAll(MockNostrServiceLayer, MockTelemetryServiceLayer),
+                DefaultTelemetryConfigLayer
+            ));
+            // Run the program with the test runtime
+            const exit = await Effect.runPromiseExit(testRuntime);
 
             expect(Exit.isFailure(exit)).toBe(true);
             const error = getFailure(exit);
@@ -145,8 +150,13 @@ describe('NIP28Service', () => {
                 })
             );
             
-            // Run the program directly
-            const exit = await Effect.runPromiseExit(program);
+            // Create a test runtime with all necessary services
+            const testRuntime = Effect.provide(program, Layer.provideMerge(
+                Layer.mergeAll(MockNostrServiceLayer, MockTelemetryServiceLayer),
+                DefaultTelemetryConfigLayer
+            ));
+            // Run the program with the test runtime
+            const exit = await Effect.runPromiseExit(testRuntime);
 
             expect(Exit.isFailure(exit)).toBe(true);
             const error = getFailure(exit);
@@ -169,8 +179,13 @@ describe('NIP28Service', () => {
                 })
             );
             
-            // Run the program directly
-            const exit = await Effect.runPromiseExit(program);
+            // Create a test runtime with all necessary services
+            const testRuntime = Effect.provide(program, Layer.provideMerge(
+                Layer.mergeAll(MockNostrServiceLayer, MockTelemetryServiceLayer),
+                DefaultTelemetryConfigLayer
+            ));
+            // Run the program with the test runtime
+            const exit = await Effect.runPromiseExit(testRuntime);
 
             expect(Exit.isFailure(exit)).toBe(true);
             const error = getFailure(exit);

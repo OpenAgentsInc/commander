@@ -29,7 +29,12 @@ describe('TelemetryService', () => {
       return "success";
     }).pipe(Effect.provide(TelemetryServiceLive));
 
-    const result = await Effect.runPromise(Effect.provideLayer(program, DefaultTelemetryConfigLayer));
+    const result = await Effect.runPromise(
+      Effect.provide(
+        program,
+        Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)
+      )
+    );
     expect(result).toBe("success");
   });
 
@@ -40,7 +45,12 @@ describe('TelemetryService', () => {
         return yield* _(telemetryService.isEnabled());
       }).pipe(Effect.provide(TelemetryServiceLive));
 
-      const isEnabled = await Effect.runPromise(Effect.provideLayer(program, DefaultTelemetryConfigLayer));
+      const isEnabled = await Effect.runPromise(
+        Effect.provide(
+          program,
+          Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)
+        )
+      );
       expect(isEnabled).toBe(true);
     });
 
@@ -51,7 +61,12 @@ describe('TelemetryService', () => {
         return yield* _(telemetryService.isEnabled());
       }).pipe(Effect.provide(TelemetryServiceLive));
 
-      const isEnabled = await Effect.runPromise(Effect.provideLayer(program, DefaultTelemetryConfigLayer));
+      const isEnabled = await Effect.runPromise(
+        Effect.provide(
+          program,
+          Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)
+        )
+      );
       expect(isEnabled).toBe(true);
     });
 
@@ -65,7 +80,12 @@ describe('TelemetryService', () => {
         return yield* _(telemetryService.isEnabled());
       }).pipe(Effect.provide(TelemetryServiceLive));
 
-      const isEnabled = await Effect.runPromise(Effect.provideLayer(program, DefaultTelemetryConfigLayer));
+      const isEnabled = await Effect.runPromise(
+        Effect.provide(
+          program,
+          Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)
+        )
+      );
       expect(isEnabled).toBe(false);
     });
   });
