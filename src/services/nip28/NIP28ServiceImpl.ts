@@ -1,15 +1,10 @@
 // src/services/nip28/NIP28ServiceImpl.ts
 import { Effect, Layer } from "effect";
 import { finalizeEvent, type EventTemplate } from "nostr-tools/pure";
-import { NostrEvent, NostrFilter, NostrPublishError, NostrRequestError, NostrService } from '@/services/nostr';
+import { NostrEvent, NostrFilter, NostrPublishError, NostrRequestError, NostrService, Subscription } from '@/services/nostr';
 import { NIP04Service, NIP04EncryptError, NIP04DecryptError } from '@/services/nip04';
-import { CreateChannelParams, type SendChannelMessageParams, type ChannelMetadata, NIP28Service } from './NIP28Service';
+import { CreateChannelParams, type SendChannelMessageParams, type ChannelMetadata, NIP28Service, DecryptedChannelMessage } from './NIP28Service';
 import { TelemetryService, TelemetryServiceLive } from '@/services/telemetry';
-
-// Add this interface for decrypted channel messages
-export interface DecryptedChannelMessage extends NostrEvent {
-  decryptedContent: string;
-}
 
 // Layer for NIP28Service with dependencies on NostrService and NIP04Service
 export const NIP28ServiceLive = Layer.effect(
@@ -233,48 +228,25 @@ export const NIP28ServiceLive = Layer.effect(
           
           console.log(`[NIP28ServiceLive] Subscribing to messages for channel ${channelId}`);
           
-          // Create a subscription to the channel
-          const sub = yield* _(Effect.gen(function* (_) {
-            try {
-              // Get the pool from NostrService
-              const pool = yield* _(Effect.flatMap(NostrService, nostr => nostr.getPool()));
+          // Use nostr.subscribeToEvents directly (which returns an Effect)
+          return yield* _(nostr.subscribeToEvents(
+            [filter],
+            (event: NostrEvent) => {
+              console.log(`[NIP28ServiceLive] Received new message via subscription: ${event.id}`);
               
-              // Create a subscription to all configured relays
-              const sub = pool.sub(["wss://relay.damus.io", "wss://nos.lol", "wss://relay.snort.social"], [filter]);
-              
-              // Handle incoming events
-              sub.on('event', (event: NostrEvent) => {
-                console.log(`[NIP28ServiceLive] Received new message via subscription: ${event.id}`);
-                
-                // Decrypt the event
-                Effect.runPromise(nip04.decrypt(userSk, channelCreatorPk, event.content))
-                  .then(decryptedContent => {
-                    // Call the provided callback with the decrypted message
-                    onMessage({ ...event, decryptedContent });
-                  })
-                  .catch(e => {
-                    console.warn(`[NIP28ServiceLive] Failed to decrypt message ${event.id}:`, e);
-                    // Call the callback with a placeholder for the decrypted content
-                    onMessage({ ...event, decryptedContent: "[Content could not be decrypted]" });
-                  });
-              });
-              
-              // Return a subscription object with an unsub method
-              return {
-                unsub: () => {
-                  console.log(`[NIP28ServiceLive] Unsubscribing from channel ${channelId}`);
-                  sub.unsub();
-                }
-              };
-            } catch (error) {
-              return yield* _(Effect.fail(new NostrRequestError({ 
-                message: "Failed to create subscription", 
-                cause: error 
-              })));
+              // Decrypt the event
+              Effect.runPromise(nip04.decrypt(userSk, channelCreatorPk, event.content))
+                .then(decryptedContent => {
+                  // Call the provided callback with the decrypted message
+                  onMessage({ ...event, decryptedContent });
+                })
+                .catch(e => {
+                  console.warn(`[NIP28ServiceLive] Failed to decrypt message ${event.id}:`, e);
+                  // Call the callback with a placeholder for the decrypted content
+                  onMessage({ ...event, decryptedContent: "[Content could not be decrypted]" });
+                });
             }
-          }));
-          
-          return sub;
+          ));
         }),
     });
   })

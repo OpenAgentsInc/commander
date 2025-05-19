@@ -9,9 +9,13 @@ import { NIP19Service, NIP19ServiceLive } from '@/services/nip19';
 import { BIP39Service, BIP39ServiceLive } from '@/services/bip39';
 import { BIP32Service, BIP32ServiceLive } from '@/services/bip32';
 import { NIP28Service, NIP28ServiceLive } from '@/services/nip28';
-import { TelemetryService, TelemetryServiceLive, DefaultTelemetryConfigLayer, TelemetryServiceConfig } from '@/services/telemetry';
+import { TelemetryService, TelemetryServiceLive, DefaultTelemetryConfigLayer, TelemetryServiceConfig, TelemetryServiceConfigTag } from '@/services/telemetry';
 import { OllamaService, OllamaServiceConfigTag, UiOllamaConfigLive } from '@/services/ollama/OllamaService';
 import { OllamaServiceLive } from '@/services/ollama/OllamaServiceImpl';
+
+// Import Browser HTTP Client for renderer environment
+import { BrowserHttpClientLive } from "@effect/platform-browser";
+import { HttpClient } from '@effect/platform';
 
 // Helper function to create a runtime from a layer
 const createRuntime = <R>(layer: Layer.Layer<R, any, never>): Runtime.Runtime<R> => {
@@ -30,13 +34,14 @@ type FullAppContext =
   NIP28Service |
   NostrServiceConfig |
   TelemetryServiceConfig |
-  OllamaService;
+  OllamaService |
+  HttpClient.HttpClient; // Add HttpClient to the context
 
 // Build the full layer with all services
 let mainRuntime: Runtime.Runtime<FullAppContext>;
 
 try {
-  console.log("Creating a production-ready Effect runtime...");
+  console.log("Creating a production-ready Effect runtime for renderer...");
   
   // Merge all the service layers
   const FullAppLayer = Layer.mergeAll(
@@ -52,27 +57,29 @@ try {
     // Provide necessary configurations
     Layer.provide(DefaultNostrServiceConfigLayer),
     Layer.provide(DefaultTelemetryConfigLayer),
-    Layer.provide(UiOllamaConfigLive)
+    Layer.provide(UiOllamaConfigLive),
+    Layer.provide(BrowserHttpClientLive) // Provide BrowserHttpClient for renderer
   );
   
   // Create the runtime with the full layer
   mainRuntime = createRuntime(FullAppLayer);
-  console.log("Production-ready Effect runtime created successfully");
+  console.log("Production-ready Effect runtime for renderer created successfully");
 } catch (e) {
-  console.error("CRITICAL: Failed to create Effect runtime:", e);
+  console.error("CRITICAL: Failed to create Effect runtime for renderer:", e);
   // Create a fallback minimal runtime that will at least not crash the application
-  console.log("Creating fallback runtime...");
+  console.log("Creating fallback runtime for renderer...");
   
+  // Fallback layer should be minimal and guaranteed to work
   const FallbackLayer = Layer.mergeAll(
-    TelemetryServiceLive,
-    NostrServiceLive
+    TelemetryServiceLive
   ).pipe(
-    Layer.provide(DefaultNostrServiceConfigLayer),
-    Layer.provide(DefaultTelemetryConfigLayer)
+    Layer.provide(DefaultTelemetryConfigLayer),
+    Layer.succeed(NostrServiceConfigTag, DefaultNostrServiceConfigLayer.context.unsafeGet(NostrServiceConfigTag)) // Provide config directly
   );
   
-  mainRuntime = createRuntime(FallbackLayer);
-  console.log("Fallback runtime created");
+  // Create the fallback runtime
+  mainRuntime = createRuntime(FallbackLayer as Layer.Layer<FullAppContext, any, never>);
+  console.log("Fallback runtime for renderer created");
 }
 
 export { mainRuntime };
