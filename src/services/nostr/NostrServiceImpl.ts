@@ -156,6 +156,32 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
     // Publish an event to relays
     publishEvent: (event: NostrEvent) =>
       Effect.gen(function*(_) {
+        // 1. Handle No Relays Configured
+        if (config.relays.length === 0) {
+          const noRelaysEvent: TelemetryEvent = {
+            category: "log:error",
+            action: "nostr_publish_no_relays",
+            label: "[Nostr] Cannot publish event: No relays configured.",
+            value: `Event ID: ${event.id}`
+          };
+          
+          // Fire-and-forget telemetry call
+          Effect.gen(function* (_telem) {
+            const telemetryService = yield* _telem(TelemetryService);
+            yield* _telem(telemetryService.trackEvent(noRelaysEvent));
+          }).pipe(
+            Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
+            (effect) => runPromise(effect).catch((err: unknown) => {
+              // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+              console.error("TelemetryService.trackEvent for no_relays failed:", err instanceof Error ? err.message : String(err));
+            })
+          );
+          
+          return yield* _(Effect.fail(new NostrPublishError({ 
+            message: "Cannot publish event: No relays configured." 
+          })));
+        }
+        
         const pool = yield* _(
           getPoolEffect,
           Effect.mapError(error => new NostrPublishError({ 
@@ -191,59 +217,114 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
             catch: (error) => new NostrPublishError({ message: "Failed to publish event", cause: error }),
           }));
 
-          // Check if there were any failures
+          // 2. Analyze results and count successes/failures
+          const successfulRelays = results.filter(r => r.status === 'fulfilled');
           const failedRelays = results.filter(r => r.status === 'rejected');
-          if (failedRelays.length > 0) {
-            // Log warning via telemetry
-            const publishWarningEvent: TelemetryEvent = {
-              category: "log:warn",
-              action: "nostr_publish_partial_failure",
-              label: `[Nostr] Failed to publish to ${failedRelays.length} relays`,
-              value: failedRelays.map(fr => (fr as PromiseRejectedResult).reason).join(", ")
+          const successfulCount = successfulRelays.length;
+          const failedCount = failedRelays.length;
+          
+          // 3. Implement Conditional Success/Failure Based on Relay Responses
+          
+          // Scenario 1: All Relays Failed (Total Failure)
+          if (successfulCount === 0 && failedCount > 0) {
+            const totalFailureReasons = failedRelays.map(fr => (fr as PromiseRejectedResult).reason).join(", ");
+            const totalFailureEvent: TelemetryEvent = {
+              category: "log:error",
+              action: "nostr_publish_total_failure",
+              label: `[Nostr] Failed to publish event ${event.id} to all ${failedCount} configured relays.`,
+              value: `Reasons: ${totalFailureReasons}`
             };
             
-            // Fire-and-forget telemetry event
-            Effect.gen(function* (_) {
-              const telemetryService = yield* _(TelemetryService);
-              yield* _(telemetryService.trackEvent(publishWarningEvent));
+            Effect.gen(function* (_telem) {
+              const telemetryService = yield* _telem(TelemetryService);
+              yield* _telem(telemetryService.trackEvent(totalFailureEvent));
             }).pipe(
               Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
               (effect) => runPromise(effect).catch((err: unknown) => {
                 // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-                console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
+                console.error("TelemetryService.trackEvent for total_failure failed:", err instanceof Error ? err.message : String(err));
               })
             );
             
             return yield* _(Effect.fail(new NostrPublishError({
-              message: `Failed to publish to ${failedRelays.length} out of ${config.relays.length} relays`,
-              cause: failedRelays.map(fr => (fr as PromiseRejectedResult).reason).join(", ")
+              message: `Failed to publish event ${event.id} to any of the ${config.relays.length} configured relays. All ${failedCount} attempts failed.`,
+              cause: totalFailureReasons
+            })));
+          } 
+          // Scenario 2: Partial Success (Some Relays Failed, Some Succeeded)
+          else if (successfulCount > 0 && failedCount > 0) {
+            const partialFailureReasons = failedRelays.map(fr => (fr as PromiseRejectedResult).reason).join(", ");
+            const publishWarningEvent: TelemetryEvent = {
+              category: "log:warn",
+              action: "nostr_publish_partial_failure",
+              label: `[Nostr] Partially published event ${event.id}: ${successfulCount} succeeded, ${failedCount} failed.`,
+              value: `Failures: ${partialFailureReasons}`
+            };
+            
+            Effect.gen(function* (_telem) {
+              const telemetryService = yield* _telem(TelemetryService);
+              yield* _telem(telemetryService.trackEvent(publishWarningEvent));
+            }).pipe(
+              Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
+              (effect) => runPromise(effect).catch((err: unknown) => {
+                // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+                console.error("TelemetryService.trackEvent for partial_failure failed:", err instanceof Error ? err.message : String(err));
+              })
+            );
+            
+            // IMPORTANT: Return success for partial success
+            return Effect.void;
+          } 
+          // Scenario 3: Full Success (All Relays Succeeded)
+          else if (successfulCount > 0 && failedCount === 0) {
+            const publishSuccessEvent: TelemetryEvent = {
+              category: "log:info",
+              action: "nostr_publish_success",
+              label: `[Nostr] Successfully published event ${event.id} to all ${successfulCount} relays.`
+            };
+            
+            Effect.gen(function* (_telem) {
+              const telemetryService = yield* _telem(TelemetryService);
+              yield* _telem(telemetryService.trackEvent(publishSuccessEvent));
+            }).pipe(
+              Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
+              (effect) => runPromise(effect).catch((err: unknown) => {
+                // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+                console.error("TelemetryService.trackEvent for success failed:", err instanceof Error ? err.message : String(err));
+              })
+            );
+            
+            return Effect.void;
+          } 
+          // Scenario 4: Anomalous Result (e.g., no results from allSettled for other reasons)
+          else {
+            const anomalousEvent: TelemetryEvent = {
+              category: "log:error",
+              action: "nostr_publish_anomalous_result",
+              label: `[Nostr] Anomalous result for publishing event ${event.id}: 0 successful, 0 failed, with ${config.relays.length} relays configured.`
+            };
+            
+            Effect.gen(function* (_telem) {
+              const telemetryService = yield* _telem(TelemetryService);
+              yield* _telem(telemetryService.trackEvent(anomalousEvent));
+            }).pipe(
+              Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
+              (effect) => runPromise(effect).catch((err: unknown) => {
+                // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+                console.error("TelemetryService.trackEvent for anomalous_result failed:", err instanceof Error ? err.message : String(err));
+              })
+            );
+            
+            return yield* _(Effect.fail(new NostrPublishError({ 
+              message: `Anomalous result from publishing event ${event.id}: No successes or failures reported from ${config.relays.length} relays.` 
             })));
           }
-          
-          // Log success via telemetry
-          const publishSuccessEvent: TelemetryEvent = {
-            category: "log:info",
-            action: "nostr_publish_success",
-            label: "[Nostr] Successfully published event to all relays"
-          };
-          
-          // Fire-and-forget telemetry event
-          Effect.gen(function* (_) {
-            const telemetryService = yield* _(TelemetryService);
-            yield* _(telemetryService.trackEvent(publishSuccessEvent));
-          }).pipe(
-            Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
-            (effect) => runPromise(effect).catch((err: unknown) => {
-              // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-              console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
-            })
-          );
         } catch (error) {
           // Log error via telemetry
           const publishErrorEvent: TelemetryEvent = {
             category: "log:error",
             action: "nostr_publish_error",
-            label: "[Nostr] Error publishing event",
+            label: `[Nostr] Error during publish attempt for event ${event.id}`,
             value: error instanceof Error ? 
               JSON.stringify({ message: error.message, stack: error.stack }) : 
               String(error)
@@ -261,10 +342,13 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
             })
           );
           
-          throw new NostrPublishError({ 
-            message: error instanceof Error ? error.message : "Unknown error publishing event",
+          if (error instanceof NostrPublishError) {
+            return yield* _(Effect.fail(error));
+          }
+          return yield* _(Effect.fail(new NostrPublishError({ 
+            message: `Unexpected error publishing event ${event.id}`,
             cause: error
-          });
+          })));
         }
       }),
 
