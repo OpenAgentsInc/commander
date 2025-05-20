@@ -11,6 +11,7 @@ import { runPromiseExit } from 'effect/Effect';
 import * as Exit from 'effect/Exit';
 import * as Cause from 'effect/Cause';
 import { cn } from '@/utils/tailwind';
+import { DVMSettingsDialog } from '@/components/dvm';
 
 const SellComputePane: React.FC = () => {
   const [isWalletConnected, setIsWalletConnected] = useState(false);
@@ -101,8 +102,11 @@ const SellComputePane: React.FC = () => {
   return (
     <div className="p-4 h-full flex flex-col items-center justify-center text-sm">
       <Card className="w-full max-w-md bg-background/80 backdrop-blur-sm">
-        <CardHeader>
-          <CardTitle className="text-center text-lg">Sell Compute Power</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div className="text-center flex-grow">
+            <CardTitle className="text-lg">Sell Compute Power</CardTitle>
+          </div>
+          <DVMSettingsDialog />
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between p-3 border border-border/30 rounded-md">

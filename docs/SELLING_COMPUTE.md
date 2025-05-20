@@ -49,66 +49,97 @@ The NIP-90 Data Vending Machine protocol involves the following Nostr event kind
 
 ### Completed
 - ✅ UI components (Hotbar, SellComputePane)
-- ✅ Service interfaces and basic implementations
+- ✅ Service interfaces and complete implementations
 - ✅ Status checking for Spark wallet and Ollama
 - ✅ Store actions for opening the Sell Compute pane
-- ✅ Basic DVM service structure with start/stop functionality
+- ✅ Full DVM service implementation with start/stop functionality
 - ✅ Integration between UI and services
+- ✅ Loading states for DVM operations
+- ✅ Full implementation of NIP-90 job handling in Kind5050DVMService
+- ✅ Subscription to job request events via NostrService
+- ✅ Processing of job requests using OllamaService
+- ✅ Generation of invoices using SparkService
+- ✅ Sending results with payment requests
+- ✅ Error handling and telemetry
+- ✅ NIP-04 encryption/decryption support for private requests
+- ✅ Automatic status updating with checkDVMStatus
 
 ### Remaining Work
-- ⬜ Full implementation of NIP-90 job handling in Kind5050DVMService
-- ⬜ Subscription to kind 5050 events via NostrService
-- ⬜ Processing of job requests using OllamaService
-- ⬜ Generation of invoices using SparkService
-- ⬜ Sending results with payment requests
 - ⬜ UI for displaying job history and statistics
 - ⬜ Settings for price configuration
 - ⬜ Job queue management
 - ⬜ Security measures (e.g., rate limiting, request validation)
+- ⬜ Payment verification and handling
 
 ## Technical Details
 
 ### DVM Configuration
 
 The DVM is configured with:
-- Private key for Nostr identity
+- Private and public key for Nostr identity
 - List of relays to monitor for job requests
-- Default job configuration (model, pricing)
+- Supported job kinds (e.g., 5100 for text generation)
+- Comprehensive text generation configuration
 
 ```typescript
-interface Kind5050DVMServiceConfig {
-  active: boolean;
-  privateKey?: string;
-  relays: string[];
-  defaultJobConfig: {
-    model: string;
-    minPriceSats: number;
-    maxPriceSats: number;
-    pricePerToken: number;
-  };
+export interface DefaultTextGenerationJobConfig {
+  model: string;               // e.g., "LLaMA-2" or a model available via OllamaService
+  max_tokens: number;          // e.g., 512
+  temperature: number;         // e.g., 0.5
+  top_k: number;               // e.g., 50
+  top_p: number;               // e.g., 0.7
+  frequency_penalty: number;   // e.g., 1
+  // Pricing related
+  minPriceSats: number;        // Minimum price in satoshis for any job
+  pricePer1kTokens: number;    // Price per 1000 tokens (input + output) in satoshis
+}
+
+export interface Kind5050DVMServiceConfig {
+  active: boolean;                             // Whether the DVM is active (listening for job requests)
+  dvmPrivateKeyHex: string;                    // DVM's Nostr private key (hex)
+  dvmPublicKeyHex: string;                     // DVM's Nostr public key (hex), derived from privateKey
+  relays: string[];                            // Relays to listen on and respond to
+  supportedJobKinds: number[];                 // e.g., [5100] for text generation
+  defaultTextGenerationJobConfig: DefaultTextGenerationJobConfig;
 }
 ```
 
 ### Job Processing Flow
 
-1. DVM subscribes to kind 5050 events via NostrService when "GO ONLINE" is clicked
+1. DVM subscribes to job request events (kind 5000-5999) via NostrService when "GO ONLINE" is clicked
 2. When a job request is received:
-   - DVM validates the request parameters
+   - DVM validates the request parameters and extracts inputs and params
+   - If request is encrypted, DVM decrypts it using NIP-04
    - DVM sends a "processing" status update (kind 7000)
-   - DVM runs the inference using OllamaService
-   - DVM creates an invoice using SparkService
-   - DVM sends the results with invoice (kind 6050)
+   - DVM runs the inference using OllamaService with the provided prompt
+   - DVM calculates price based on token count using configured rates
+   - DVM creates a Lightning invoice using SparkService
+   - If original request was encrypted, DVM encrypts results using NIP-04
+   - DVM sends the results with the Lightning invoice (kind 6xxx)
    - DVM sends a "success" status update (kind 7000)
+3. All steps include comprehensive error handling with feedback to the client
+4. Each job request is processed in its own Effect.js fiber for concurrent processing
 
 ### Error Handling
 
 The implementation uses Effect.js for robust error handling, with specific error types:
-- `DVMConfigError`
-- `DVMConnectionError`
-- `DVMJobRequestError`
-- `DVMJobProcessingError`
-- `DVMPaymentError`
-- `DVMInvocationError`
+- `DVMConfigError`: Configuration-related errors (e.g., missing required config)
+- `DVMConnectionError`: Connection-related errors (e.g., relay subscription failures)
+- `DVMJobRequestError`: Request validation errors (e.g., missing inputs, invalid params)
+- `DVMJobProcessingError`: Processing errors (e.g., Ollama inference failures)
+- `DVMPaymentError`: Payment-related errors (e.g., invoice creation failures)
+- `DVMInvocationError`: General service invocation errors
+
+Each error includes:
+- Descriptive message
+- Original cause (if applicable)
+- Optional context data
+
+All errors are handled within the `processJobRequestInternal` function, which ensures:
+1. Error feedback is sent to the client
+2. Errors are logged via telemetry
+3. Operation state is properly maintained
+4. Resources are cleaned up appropriately
 
 ## Usage
 
@@ -116,19 +147,45 @@ To use the "Sell Compute" feature:
 
 1. Ensure you have Spark wallet initialized and Ollama running
 2. Open the "Sell Compute" pane by clicking its icon in the Hotbar
-3. Wait for status checks to confirm connections
+3. Wait for status checks to confirm connections (indicated by green status)
 4. Click "GO ONLINE" to start listening for job requests
-5. Process requests automatically as they arrive
+   - Button will show a loading state during DVM startup
+   - Once active, button will change to "GO OFFLINE"
+5. The DVM will automatically process requests as they arrive:
+   - Listens for NIP-90 job requests on configured relays
+   - Process requests in parallel using Ollama
+   - Generates invoices for clients using Spark
+   - Sends results back with payment requests
 6. Click "GO OFFLINE" to stop processing new requests
+   - Button will show a loading state during DVM shutdown
+   - Once inactive, button will change back to "GO ONLINE"
+
+You can check the status at any time by looking at the button state, which accurately reflects the actual DVM service state.
 
 ## Future Enhancements
 
-- Support for multiple AI models
-- Advanced pricing models based on token count, model size, etc.
-- Job prioritization and queuing
+- UI dashboard for DVM history and performance metrics
+- Settings interface for configuring DVM parameters
+- Support for additional AI model types beyond text generation
+- Advanced pricing models based on token count, model size, priority, etc.
+- Job prioritization and queuing system
 - Analytics dashboard for earnings and request patterns
+- Payment verification and receipt handling
 - Custom model fine-tuning offerings
 - Reputation system integration
+- Rate limiting and additional request validation
+- Resource usage monitoring and throttling
+
+## Implementation Notes
+
+The implementation leverages several key design patterns and technologies:
+
+1. **Effect.js**: All operations use Effect.js for functional composition and robust error handling
+2. **Telemetry**: Comprehensive event tracking for service operations, errors, and performance
+3. **Stateful Service**: The DVM service maintains internal state but exposes it via Effect-based APIs
+4. **Concurrent Processing**: Multiple job requests are handled concurrently using Effect fibers
+5. **Dependency Injection**: All services are injected via Effect context for testability
+6. **Clean UI State Sync**: UI component always re-verifies the actual DVM state after operations
 
 ## Related Documentation
 
@@ -136,3 +193,5 @@ To use the "Sell Compute" feature:
 - [Effect.js Documentation](https://effect.website/)
 - [Spark Wallet Documentation](https://docs.spark.org/)
 - [Ollama Documentation](https://ollama.ai/docs)
+- [NIP-04 Encryption](docs/nips/04.md)
+- [Lightning Network Invoices](https://github.com/lightning/bolts/blob/master/11-payment-encoding.md)
