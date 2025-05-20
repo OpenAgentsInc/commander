@@ -96,26 +96,38 @@ export const initializeMainRuntime = async (): Promise<void> => {
     try {
         mainRuntimeInstance = await buildRuntimeAsync(MinimalLayer as Layer<FullAppContext, any, never>);
     } catch (fallbackError) {
-        console.error("CRITICAL: Failed to create even the fallback runtime:", fallbackError);
-        // As an absolute last resort, create a runtime with minimal functionality
-        // We need to provide some basic services to satisfy the FullAppContext type
-        
-        // Create a minimal TelemetryService for the fallback
-        const minimalTelemetryService = TelemetryService.of({
-          trackEvent: () => effectSucceed(undefined),
-          isEnabled: () => effectSucceed(false),
-          setEnabled: () => effectSucceed(undefined)
-        });
-        
-        // Create a context with at least the TelemetryService
-        const minimalServiceContext = _Context.make(TelemetryService, minimalTelemetryService);
-        
-        // Create a runtime with this minimal context
-        mainRuntimeInstance = runtimeMake({
-          context: minimalServiceContext as unknown as _Context.Context<FullAppContext>,
-          runtimeFlags: RuntimeFlags.make(),
-          fiberRefs: FiberRefs.empty()
-        });
+        console.error("CRITICAL: Failed to create even the fallback runtime with MinimalLayer:", fallbackError);
+
+        // As an absolute last resort, create a runtime with only TelemetryService,
+        // built synchronously if possible, or an empty context if even that fails.
+        try {
+            console.warn("Attempting emergency synchronous TelemetryService-only runtime.");
+            const emergencyTelemetryLayer = TelemetryServiceLive.pipe(layerProvide(DefaultTelemetryConfigLayer));
+            // Provide a minimal context satisfying FullAppContext, even if most services are NoOp or missing.
+            // This cast is risky but is a last-ditch effort.
+            const emergencyContext = runSync(toRuntime(emergencyTelemetryLayer as Layer<FullAppContext, any, never>).pipe(effectScoped));
+            mainRuntimeInstance = runtimeMake(emergencyContext);
+            console.error("CRITICAL: Using an emergency runtime with ONLY TelemetryService. Most services will be unavailable.");
+        } catch (emergencyError) {
+            console.error("CRITICAL: Failed to create emergency TelemetryService-only runtime. Creating empty context runtime.", emergencyError);
+            // Create a minimal TelemetryService for the fallback
+            const minimalTelemetryService = TelemetryService.of({
+              trackEvent: () => effectSucceed(undefined),
+              isEnabled: () => effectSucceed(false),
+              setEnabled: () => effectSucceed(undefined)
+            });
+            
+            // Create a context with at least the TelemetryService
+            const minimalServiceContext = _Context.make(TelemetryService, minimalTelemetryService);
+            
+            // Create a runtime with this minimal context
+            mainRuntimeInstance = runtimeMake({
+              context: minimalServiceContext as unknown as _Context.Context<FullAppContext>,
+              runtimeFlags: RuntimeFlags.make(),
+              fiberRefs: FiberRefs.empty()
+            });
+            console.error("CRITICAL: Using an absolutely minimal runtime. Most services will be unavailable.");
+        }
     }
     console.log("Fallback runtime created with minimal functionality. Some services may be unavailable.");
   }
