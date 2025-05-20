@@ -20,14 +20,16 @@ The implementation follows a layered architecture:
 ### UI Layer
 - **Hotbar**: A new UI component that provides quick access to key functions, including the "Sell Compute" feature
 - **SellComputePane**: The main UI for the feature, showing wallet and Ollama connection status and the online/offline toggle
+- **DvmJobHistoryPane**: Dashboard UI showing job statistics and paginated history of processed jobs
 
 ### Service Layer
 - **Kind5050DVMService**: Core service that handles job requests and coordinates between Nostr, Ollama, and Spark
+  - Includes methods for retrieving job history and statistics
 - **SparkService**: Extended with `checkWalletStatus()` method for wallet connectivity checking
 - **OllamaService**: Extended with `checkOllamaStatus()` method for Ollama connectivity checking
 
 ### Store Layer
-- **PaneStore**: Extended with `openSellComputePane()` action and 'sell_compute' pane type
+- **PaneStore**: Extended with `openSellComputePane()` and `openDvmJobHistoryPane()` actions, and 'sell_compute' and 'dvm_job_history' pane types
 
 ## Nostr NIP-90 DVM Protocol
 
@@ -48,10 +50,10 @@ The NIP-90 Data Vending Machine protocol involves the following Nostr event kind
 ## Current Implementation Status
 
 ### Completed
-- ✅ UI components (Hotbar, SellComputePane)
+- ✅ UI components (Hotbar, SellComputePane, DvmJobHistoryPane)
 - ✅ Service interfaces and complete implementations
 - ✅ Status checking for Spark wallet and Ollama
-- ✅ Store actions for opening the Sell Compute pane
+- ✅ Store actions for opening the Sell Compute and Job History panes
 - ✅ Full DVM service implementation with start/stop functionality
 - ✅ Integration between UI and services
 - ✅ Loading states for DVM operations
@@ -67,12 +69,13 @@ The NIP-90 Data Vending Machine protocol involves the following Nostr event kind
 - ✅ Settings dialog UI with all configurable parameters
 - ✅ Persistent storage of user settings using localStorage
 - ✅ Dynamic relay configuration (using user-configured relays for NostrService subscriptions)
+- ✅ UI for displaying job history and statistics
 
 ### Remaining Work
-- ⬜ UI for displaying job history and statistics
+- ⬜ Payment verification and handling
 - ⬜ Job queue management
 - ⬜ Security measures (e.g., rate limiting, request validation)
-- ⬜ Payment verification and handling
+- ⬜ Persistent storage for job history (currently uses mock data)
 
 ## Technical Details
 
@@ -151,6 +154,27 @@ All parameters are optional - if not set, the application uses defaults from `De
 4. Each job request is processed in its own Effect.js fiber for concurrent processing
 5. The DVM refreshes configuration for each job to ensure the latest user settings are used
 
+### Job History and Statistics Tracking
+
+The DVM service includes facilities for tracking job history and statistics:
+
+1. **Data Types**:
+   - `JobStatus`: Enum type for job processing states ('pending_payment', 'processing', 'paid', 'completed', 'error', 'cancelled')
+   - `JobHistoryEntry`: Details of a single job request, including metadata, status, and payment info
+   - `JobStatistics`: Aggregated metrics about processed jobs, including success/failure counts and revenue
+
+2. **Service Interface**:
+   - `getJobHistory({ page, pageSize, filters })`: Retrieves paginated job history with optional filtering
+   - `getJobStatistics()`: Retrieves aggregated statistics about all jobs
+
+3. **UI Components**:
+   - Statistics cards showing key metrics (total jobs, success rate, revenue, etc.)
+   - Paginated table showing job history with status indicators
+   - Loading states and error handling for all data fetching
+   - Refresh functionality to update displayed data
+
+The current implementation uses mock data, but future enhancements will include persistent storage for job history and statistics.
+
 ### Error Handling
 
 The implementation uses Effect.js for robust error handling, with specific error types:
@@ -196,6 +220,10 @@ To use the "Sell Compute" feature:
 7. Click "GO OFFLINE" to stop processing new requests
    - Button will show a loading state during DVM shutdown
    - Once inactive, button will change back to "GO ONLINE"
+8. View job history and statistics by clicking the History icon in the Hotbar
+   - See aggregate statistics (total jobs, successful jobs, revenue, etc.)
+   - Browse paginated job history with details about each processed job
+   - Filter by status and other criteria (future enhancement)
 
 You can check the status at any time by looking at the button state, which accurately reflects the actual DVM service state.
 
@@ -216,11 +244,10 @@ Your settings are automatically persisted in localStorage and will be used whene
 
 ## Future Enhancements
 
-- UI dashboard for DVM history and performance metrics
 - Support for additional AI model types beyond text generation
 - Advanced pricing models based on token count, model size, priority, etc.
 - Job prioritization and queuing system
-- Analytics dashboard for earnings and request patterns
+- Enhanced analytics for earnings and request patterns
 - Payment verification and receipt handling
 - Custom model fine-tuning offerings
 - Reputation system integration
@@ -229,6 +256,7 @@ Your settings are automatically persisted in localStorage and will be used whene
 - Schedule-based availability settings
 - Settings backup and import/export
 - Fully dynamic relay configuration for NostrService's default relays (rather than just per-subscription)
+- Persistent storage for job history and statistics
 
 ## Implementation Notes
 
@@ -244,6 +272,8 @@ The implementation leverages several key design patterns and technologies:
 8. **Adaptive Configuration**: Service uses dynamic configuration that adapts to user settings
 9. **Per-Subscription Relay Configuration**: The NostrService now supports specifying custom relays for individual subscriptions
 10. **Dynamic Settings Refresh**: Each job request fetches the latest effective configuration to ensure up-to-date settings
+11. **React Query**: Used for data fetching, caching, and state management in the Job History UI
+12. **UI Component Patterns**: Loading states, error handling, and pagination for data display
 
 ### Store Implementation
 
@@ -271,7 +301,7 @@ export const useDVMSettingsStore = create<DVMSettingsStoreState>()(
         const relays = get().getEffectiveRelays();
         const supportedJobKinds = get().getEffectiveSupportedJobKinds();
         const textGenerationConfig = get().getEffectiveTextGenerationConfig();
-        
+
         return {
           active: defaultValues.active,
           dvmPrivateKeyHex: privateKeyHex,
