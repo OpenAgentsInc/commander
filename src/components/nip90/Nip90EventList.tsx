@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Effect, pipe, runPromise } from "effect";
+import { Effect, pipe } from "effect";
+import { runPromise } from "effect/Effect";
 import {
   type NostrEvent,
   type NostrFilter,

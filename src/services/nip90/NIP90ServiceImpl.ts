@@ -58,25 +58,25 @@ export const NIP90ServiceLive = Layer.effect(
             const jobEvent = yield* _(createNip90JobRequest(
               params.requesterSk,
               params.targetDvmPubkeyHex || "", // Empty string if not provided, helper handles it
-              params.inputs,
+              params.inputs as Array<[string, string, string?, string?, string?]>,
               params.outputMimeType || "text/plain",
               params.bidMillisats,
               params.kind,
-              params.additionalParams
+              params.additionalParams as Array<['param', string, string]> | undefined
             ));
 
             // Publish the job request event
-            const publishedEvent = yield* _(nostr.publishEvent(jobEvent, params.relays));
+            yield* _(nostr.publishEvent(jobEvent));
 
             // Track success
             yield* _(telemetry.trackEvent({
               category: "feature",
               action: "nip90_job_request_published",
-              label: `Published job request with ID: ${publishedEvent.id}`,
-              value: `Kind: ${publishedEvent.kind}`
+              label: `Published job request with ID: ${jobEvent.id}`,
+              value: `Kind: ${jobEvent.kind}`
             }));
 
-            return publishedEvent;
+            return jobEvent;
           } catch (error) {
             // Track error
             yield* _(telemetry.trackEvent({

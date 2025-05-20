@@ -48,7 +48,7 @@ describe('NIP90Service', () => {
     } as unknown as NIP04Service;
 
     mockTelemetryService = {
-      trackEvent: vi.fn().mockImplementation(() => Effect.void())
+      trackEvent: vi.fn().mockImplementation(() => Effect.succeed(undefined as void))
     } as unknown as TelemetryService;
 
     // Create test layer with mocked dependencies

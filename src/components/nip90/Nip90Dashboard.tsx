@@ -1,7 +1,7 @@
 // src/components/nip90/Nip90Dashboard.tsx
 import React from 'react';
-import { Nip90RequestForm } from './Nip90RequestForm';
-import { Nip90EventList } from './Nip90EventList';
+import Nip90RequestForm from './Nip90RequestForm';
+import Nip90EventList from './Nip90EventList';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 /**

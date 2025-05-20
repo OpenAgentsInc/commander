@@ -27,6 +27,22 @@ vi.mock('effect', () => {
       mapError: vi.fn(),
       timeout: vi.fn(),
       tryPromise: vi.fn(),
+      void: { _tag: 'Success', value: undefined },
+    },
+    Schema: {
+      String: { _tag: 'String' },
+      Number: { _tag: 'Number' },
+      Boolean: { _tag: 'Boolean' },
+      Struct: vi.fn(),
+      array: vi.fn((schema) => ({ _tag: 'Array', element: schema })),
+      Array: vi.fn((schema) => ({ _tag: 'Array', element: schema })),
+      Union: vi.fn(),
+      Literal: vi.fn(),
+      optional: vi.fn(),
+      filter: vi.fn(),
+      pipe: vi.fn(),
+      instanceOf: vi.fn(),
+      Tuple: vi.fn(),
     },
     Layer: {
       succeed: vi.fn(),
@@ -47,17 +63,6 @@ vi.mock('effect', () => {
     },
     Option: {
       getOrThrow: vi.fn(x => x),
-    },
-    // Add Schema mock to fix the error
-    Schema: {
-      String: Symbol('String'),
-      Number: Symbol('Number'),
-      Boolean: Symbol('Boolean'),
-      Undefined: Symbol('Undefined'),
-      optional: vi.fn(),
-      Union: vi.fn(),
-      Struct: vi.fn(() => Symbol('SchemaStruct')),
-      decodeUnknown: vi.fn(() => mockSucceed({})),
     },
     Context: {
       GenericTag: vi.fn(() => Symbol('GenericServiceTag')),
