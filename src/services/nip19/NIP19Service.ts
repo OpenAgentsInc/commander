@@ -13,25 +13,7 @@ export const EventPointerSchema = Schema.Struct({
     id: Schema.String,
     relays: Schema.optional(Schema.Array(Schema.String)),
     author: Schema.optional(Schema.String),
-    kind: Schema.optional(Schema.Number)
 });
-
-export type AddressPointer = NostrToolsNIP19.AddressPointer;
-export const AddressPointerSchema = Schema.Struct({
-    identifier: Schema.String,
-    pubkey: Schema.String,
-    kind: Schema.Number,
-    relays: Schema.optional(Schema.Array(Schema.String))
-});
-
-// Define a more specific type for the decoded result
-export type DecodedNIP19Result =
-  | { type: "nprofile"; data: ProfilePointer }
-  | { type: "nevent"; data: EventPointer }
-  | { type: "naddr"; data: AddressPointer }
-  | { type: "npub"; data: string } // hex
-  | { type: "nsec"; data: Uint8Array }
-  | { type: "note"; data: string }; // hex
 
 // --- Custom Error Types ---
 export class NIP19EncodeError extends Data.TaggedError("NIP19EncodeError")<{
@@ -46,13 +28,61 @@ export class NIP19DecodeError extends Data.TaggedError("NIP19DecodeError")<{
 
 // --- Service Interface ---
 export interface NIP19Service {
-  encodeNsec(secretKey: Uint8Array): Effect.Effect<string, NIP19EncodeError>;
-  encodeNpub(publicKeyHex: string): Effect.Effect<string, NIP19EncodeError>;
+  /**
+   * Encodes a public key as an npub string.
+   * @param pubkeyHex - Public key in hex format.
+   * @returns Effect with npub string.
+   */
+  encodeNpub(pubkeyHex: string): Effect.Effect<string, NIP19EncodeError>;
+
+  /**
+   * Decodes an npub string to a public key.
+   * @param npub - NIP-19 encoded npub string.
+   * @returns Effect with public key in hex format.
+   */
+  decodeNpub(npub: string): Effect.Effect<string, NIP19DecodeError>;
+
+  /**
+   * Encodes an event id as a note string.
+   * @param eventIdHex - Event ID in hex format.
+   * @returns Effect with note string.
+   */
   encodeNote(eventIdHex: string): Effect.Effect<string, NIP19EncodeError>;
-  encodeNprofile(profile: ProfilePointer): Effect.Effect<string, NIP19EncodeError>;
-  encodeNevent(event: EventPointer): Effect.Effect<string, NIP19EncodeError>;
-  encodeNaddr(address: AddressPointer): Effect.Effect<string, NIP19EncodeError>;
-  decode(nip19String: string): Effect.Effect<DecodedNIP19Result, NIP19DecodeError>;
+
+  /**
+   * Decodes a note string to an event id.
+   * @param note - NIP-19 encoded note string.
+   * @returns Effect with event ID in hex format.
+   */
+  decodeNote(note: string): Effect.Effect<string, NIP19DecodeError>;
+
+  /**
+   * Encodes a profile pointer as an nprofile string.
+   * @param profilePointer - Profile pointer object.
+   * @returns Effect with nprofile string.
+   */
+  encodeNprofile(profilePointer: ProfilePointer): Effect.Effect<string, NIP19EncodeError>;
+
+  /**
+   * Decodes an nprofile string to a profile pointer.
+   * @param nprofile - NIP-19 encoded nprofile string.
+   * @returns Effect with profile pointer object.
+   */
+  decodeNprofile(nprofile: string): Effect.Effect<ProfilePointer, NIP19DecodeError>;
+
+  /**
+   * Encodes an event pointer as an nevent string.
+   * @param eventPointer - Event pointer object.
+   * @returns Effect with nevent string.
+   */
+  encodeNevent(eventPointer: EventPointer): Effect.Effect<string, NIP19EncodeError>;
+
+  /**
+   * Decodes an nevent string to an event pointer.
+   * @param nevent - NIP-19 encoded nevent string.
+   * @returns Effect with event pointer object.
+   */
+  decodeNevent(nevent: string): Effect.Effect<EventPointer, NIP19DecodeError>;
 }
 
 // --- Service Tag ---

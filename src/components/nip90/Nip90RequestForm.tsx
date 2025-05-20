@@ -4,19 +4,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { generateSecretKey, getPublicKey as getPkFromSk } from 'nostr-tools/pure';
-import { createNip90JobRequest } from '@/helpers/nip90/event_creation';
-import { 
-  NostrService, 
-  NostrServiceLive, 
-  DefaultNostrServiceConfigLayer, 
-  type NostrEvent
-} from '@/services/nostr';
-import { NIP04ServiceLive } from '@/services/nip04';
-import { Effect, Layer, Exit, Cause } from 'effect';
-import { runPromise } from 'effect/Effect';
-import { provide } from 'effect/Layer';
-import { TelemetryService, TelemetryServiceLive, DefaultTelemetryConfigLayer, type TelemetryEvent } from '@/services/telemetry';
+import { generateSecretKey } from 'nostr-tools/pure';
+import { Effect, pipe, runPromise } from 'effect';
+import { bytesToHex } from '@noble/hashes/utils';
+import { mainRuntime } from '@/services/runtime';
+import { NIP90Service, CreateNIP90JobParams } from '@/services/nip90';
 
 // Define the DVM's public key (replace with actual key in a real application)
 const OUR_DVM_PUBKEY_HEX = "32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245"; // Example key
@@ -82,188 +74,60 @@ export default function Nip90RequestForm() {
       const requesterSkUint8Array = generateSecretKey();
       
       // Store the ephemeral secret key (hex) for later decryption of responses
-      const { bytesToHex } = await import('@noble/hashes/utils'); // Dynamic import
       const currentEphemeralSkHex = bytesToHex(requesterSkUint8Array);
       setEphemeralSkHex(currentEphemeralSkHex);
 
       // 2. Prepare inputs and any additional parameters for encryption
-      const inputsForEncryption: Array<[string, string, string?, string?, string?]> = [[inputData.trim(), 'text']];
-      // Example of adding other parameters to be encrypted:
-      // const additionalParamsForEncryption: Array<[string, string, string]> = [
+      const inputsForEncryption: [string, string, string?, string?, string?][] = [
+        [inputData.trim(), 'text']
+      ];
+
+      // Optional: Add additional parameters to be encrypted
+      // const additionalParams: ['param', string, string][] = [
       //   ['param', 'model', 'default-dvm-model']
       // ];
 
-      // 3. Create an Effect for the NIP-90 Job Request Event
-      const createRequestEventEffect = createNip90JobRequest(
-        requesterSkUint8Array,
-        OUR_DVM_PUBKEY_HEX,
-        inputsForEncryption,
-        currentOutputMimeType,
-        bidNum,
-        kind
-        // additionalParamsForEncryption // Pass if you have them
-      );
-
-      // 4. Create a program that uses both NostrService and NIP04Service
-      const program = Effect.gen(function* (_) {
-        // First, resolve the effect to create the request event
-        const requestEvent = yield* _(createRequestEventEffect);
-        
-        // Log the encrypted request event via telemetry
-        const telemetryEventData: TelemetryEvent = {
-          category: "log:info",
-          action: "generic_console_replacement",
-          label: "Generated Encrypted NIP-90 Request Event",
-          value: JSON.stringify(requestEvent, null, 2)
-        };
-        
-        const telemetryService = yield* _(TelemetryService);
-        yield* _(telemetryService.trackEvent(telemetryEventData));
-        
-        // Then publish it using NostrService
-        const nostrService = yield* _(NostrService);
-        yield* _(nostrService.publishEvent(requestEvent));
-        
-        return requestEvent.id;
-      });
-
-      // 5. Create a combined Layer with all required services
-      const fullLayer = Layer.mergeAll(
-        Layer.provide(NostrServiceLive, DefaultNostrServiceConfigLayer),
-        NIP04ServiceLive,
-        Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)
-      );
-      
-      // 6. Run the program with the combined Layer
-      const exit = await Effect.runPromiseExit(Effect.provide(program, fullLayer));
-
-      if (Exit.isSuccess(exit)) {
-        // Track successful publish via telemetry
-        const successTelemetryEvent: TelemetryEvent = {
-          category: "log:info",
-          action: "nip90_publish_success",
-          label: "Successfully published NIP-90 request",
-          value: exit.value // Event ID
-        };
-        
-        Effect.gen(function* (_) {
-          const telemetryService = yield* _(TelemetryService);
-          yield* _(telemetryService.trackEvent(successTelemetryEvent));
-        }).pipe(
-          Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
-          (effect) => Effect.runPromise(effect).catch(err => {
-            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err), Cause.pretty(err));
-          })
-        );
-        
-        setPublishedEventId(exit.value);
-        
-        // Store the event ID and secret key in localStorage for later decryption
-        if (currentEphemeralSkHex) {
-          try {
-            // Get existing requests from localStorage or initialize empty object
-            const storedRequests = JSON.parse(localStorage.getItem('nip90_requests') || '{}');
-            
-            // Add this request to the stored requests
-            storedRequests[exit.value] = {
-              secretKey: currentEphemeralSkHex,
-              createdAt: Date.now(),
-              kind: kind
-            };
-            
-            // Save back to localStorage
-            localStorage.setItem('nip90_requests', JSON.stringify(storedRequests));
-            
-            // Track localStorage storage success
-            const storeTelemetryEvent: TelemetryEvent = {
-              category: "log:info",
-              action: "generic_console_replacement",
-              label: "Stored request details for later decryption"
-            };
-            
-            Effect.gen(function* (_) {
-              const telemetryService = yield* _(TelemetryService);
-              yield* _(telemetryService.trackEvent(storeTelemetryEvent));
-            }).pipe(
-              Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
-              (effect) => runPromise(effect).catch((err: unknown) => {
-                // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-                console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
-              })
-            );
-          } catch (error) {
-            // Track localStorage storage error
-            const storeErrorTelemetryEvent: TelemetryEvent = {
-              category: "log:error",
-              action: "generic_console_replacement",
-              label: "Failed to store request details",
-              value: error instanceof Error ? 
-                JSON.stringify({ message: error.message, stack: error.stack }) : 
-                String(error)
-            };
-            
-            Effect.gen(function* (_) {
-              const telemetryService = yield* _(TelemetryService);
-              yield* _(telemetryService.trackEvent(storeErrorTelemetryEvent));
-            }).pipe(
-              Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
-              (effect) => runPromise(effect).catch((err: unknown) => {
-                // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-                console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
-              })
-            );
-          }
-        }
-      } else {
-        const underlyingError = Cause.failureOption(exit.cause);
-        const errorMessage = underlyingError._tag === "Some" && underlyingError.value instanceof Error ?
-                            underlyingError.value.message : "Unknown error during publishing.";
-        
-        // Special handling for NIP-90 publish failure as per the instructions
-        const telemetryDataForPublishFailure: TelemetryEvent = {
-          category: "log:error",
-          action: "nip90_publish_failure",
-          label: `Publishing NIP-90 request failed: ${errorMessage}`,
-          value: Cause.pretty(exit.cause)
-        };
-        
-        Effect.gen(function* (_) {
-          const telemetry = yield* _(TelemetryService);
-          yield* _(telemetry.trackEvent(telemetryDataForPublishFailure));
-        }).pipe(
-          Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
-          (effect) => runPromise(effect).catch((telemetryErr: unknown) => {
-            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.error("TelemetryService.trackEvent failed for NIP-90 publish error:", telemetryErr);
-          })
-        );
-        
-        setPublishError(`Publishing failed: ${errorMessage}`);
-      }
-
-    } catch (error) {
-      // Log the general error via telemetry
-      const generalErrorTelemetryEvent: TelemetryEvent = {
-        category: "log:error",
-        action: "generic_console_replacement",
-        label: "Error during request preparation",
-        value: error instanceof Error ? 
-          JSON.stringify({ message: error.message, stack: error.stack }) : 
-          String(error)
+      // 3. Create the params object for NIP90Service
+      const jobParams: CreateNIP90JobParams = {
+        kind,
+        inputs: inputsForEncryption,
+        outputMimeType: currentOutputMimeType,
+        requesterSk: requesterSkUint8Array,
+        targetDvmPubkeyHex: OUR_DVM_PUBKEY_HEX,
+        bidMillisats: bidNum,
+        // additionalParams // uncomment if using
       };
-      
-      Effect.gen(function* (_) {
-        const telemetryService = yield* _(TelemetryService);
-        yield* _(telemetryService.trackEvent(generalErrorTelemetryEvent));
-      }).pipe(
-        Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)),
-        (effect) => runPromise(effect).catch((err: unknown) => {
-          // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-          console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
-        })
+
+      // 4. Use the NIP90Service from mainRuntime
+      const result = await pipe(
+        Effect.flatMap(NIP90Service, service => service.createJobRequest(jobParams)),
+        Effect.map(event => event.id),
+        runPromise(mainRuntime)
       );
+
+      // Store successful event info
+      setPublishedEventId(result);
       
+      // Store the event ID and secret key in localStorage for later decryption
+      if (currentEphemeralSkHex) {
+        try {
+          // Get existing requests from localStorage or initialize empty object
+          const storedRequests = JSON.parse(localStorage.getItem('nip90_requests') || '{}');
+          
+          // Add this request to the stored requests
+          storedRequests[result] = {
+            secretKey: currentEphemeralSkHex,
+            createdAt: Date.now(),
+            kind
+          };
+          
+          // Save back to localStorage
+          localStorage.setItem('nip90_requests', JSON.stringify(storedRequests));
+        } catch (error) {
+          console.error("Failed to store request details in localStorage:", error);
+        }
+      }
+    } catch (error) {
       setPublishError(error instanceof Error ? error.message : "An unexpected error occurred.");
     } finally {
       setIsPublishing(false);
