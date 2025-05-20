@@ -28,6 +28,8 @@ interface DVMSettingsStoreState {
   getEffectiveSupportedJobKinds: () => number[];
   getEffectiveTextGenerationConfig: () => DefaultTextGenerationJobConfig;
   getDerivedPublicKeyHex: () => string | null;
+  // New method to get a complete effective configuration
+  getEffectiveConfig: () => Kind5050DVMServiceConfig;
 }
 
 // Get default config
@@ -103,6 +105,24 @@ export const useDVMSettingsStore = create<DVMSettingsStoreState>()(
         return {
           ...defaultConfigValues.defaultTextGenerationJobConfig,
           ...userConfig,
+        };
+      },
+      
+      // Get complete effective configuration
+      getEffectiveConfig: () => {
+        const privateKeyHex = get().getEffectivePrivateKeyHex();
+        const derivedPublicKeyHex = get().getDerivedPublicKeyHex() || defaultConfigValues.dvmPublicKeyHex;
+        const relays = get().getEffectiveRelays();
+        const supportedJobKinds = get().getEffectiveSupportedJobKinds();
+        const textGenerationConfig = get().getEffectiveTextGenerationConfig();
+        
+        return {
+          active: defaultConfigValues.active,
+          dvmPrivateKeyHex: privateKeyHex,
+          dvmPublicKeyHex: derivedPublicKeyHex,
+          relays,
+          supportedJobKinds,
+          defaultTextGenerationJobConfig: textGenerationConfig,
         };
       },
     }),

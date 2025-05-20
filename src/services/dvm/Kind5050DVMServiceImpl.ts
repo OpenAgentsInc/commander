@@ -163,6 +163,12 @@ export const Kind5050DVMServiceLive = Layer.scoped(
      */
     const processJobRequestInternal = (jobRequestEvent: NostrEvent): Effect.Effect<void, DVMError, never> =>
       Effect.gen(function* (_) {
+        // Get effective config at the beginning of job processing
+        // This ensures we're using the latest settings for each job
+        const effectiveConfig = useDVMSettingsStore.getState().getEffectiveConfig();
+        const dvmPrivateKeyHex = effectiveConfig.dvmPrivateKeyHex;
+        const textGenConfig = effectiveConfig.defaultTextGenerationJobConfig;
+        
         // Track job received
         yield* _(telemetry.trackEvent({ 
           category: "dvm:job", 
@@ -180,8 +186,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           isRequestEncrypted = true;
           
           // Decrypt the content using effective private key
-          const effectivePrivateKeyHex = useDVMSettingsStore.getState().getEffectivePrivateKeyHex();
-          const dvmSkBytes = hexToBytes(effectivePrivateKeyHex);
+          const dvmSkBytes = hexToBytes(dvmPrivateKeyHex);
           const decryptedContentStr = yield* _(nip04.decrypt(
             dvmSkBytes, 
             jobRequestEvent.pubkey, 
@@ -227,9 +232,8 @@ export const Kind5050DVMServiceLive = Layer.scoped(
 
         // Validate inputs
         if (inputs.length === 0) {
-          const effectivePrivateKeyHex = useDVMSettingsStore.getState().getEffectivePrivateKeyHex();
           const feedback = createNip90FeedbackEvent(
-            effectivePrivateKeyHex, 
+            dvmPrivateKeyHex, 
             jobRequestEvent, 
             "error", 
             "No inputs provided."
@@ -241,9 +245,8 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         // For text generation, require a text input
         const textInput = inputs.find(inp => inp[1] === "text");
         if (!textInput || !textInput[0]) {
-          const effectivePrivateKeyHex = useDVMSettingsStore.getState().getEffectivePrivateKeyHex();
           const feedback = createNip90FeedbackEvent(
-            effectivePrivateKeyHex, 
+            dvmPrivateKeyHex, 
             jobRequestEvent, 
             "error", 
             "No 'text' input found for text generation job."
@@ -255,38 +258,35 @@ export const Kind5050DVMServiceLive = Layer.scoped(
 
         // 2. Send "processing" Feedback
         const processingFeedback = createNip90FeedbackEvent(
-          useDVMSettingsStore.getState().getEffectivePrivateKeyHex(), 
+          dvmPrivateKeyHex, 
           jobRequestEvent, 
           "processing"
         );
         yield* _(publishFeedback(processingFeedback));
-
-        // 3. Perform Inference (OllamaService)
-        // Get effective text generation config
-        const jobConfig = useDVMSettingsStore.getState().getEffectiveTextGenerationConfig();
         
         // Prepare Ollama request with parameters from request or defaults
-        const ollamaModel = paramsMap.get("model") || jobConfig.model;
+        const ollamaModel = paramsMap.get("model") || textGenConfig.model;
         const ollamaRequest: OllamaChatCompletionRequest = {
           model: ollamaModel,
           messages: [{ role: "user", content: prompt }],
           stream: false // DVMs don't stream results in NIP-90
         };
         
-        // For Ollama parameters, we'll need to add them to the request URL as query parameters
-        // or pass them in the request body, depending on how OllamaService is implemented
-        // Since we don't have direct access to the options field, we'll log the parameters
-        // that would be passed for reference
+        // Log the parameters that would be used
         yield* _(telemetry.trackEvent({
           category: "dvm:job",
-          action: "ollama_params",
-          label: `Using parameters for job ${jobRequestEvent.id}`,
+          action: "ollama_params_intended",
+          label: `Job ID: ${jobRequestEvent.id}`,
           value: JSON.stringify({
-            num_predict: paramsMap.has("max_tokens") ? parseInt(paramsMap.get("max_tokens")!) : jobConfig.max_tokens,
-            temperature: paramsMap.has("temperature") ? parseFloat(paramsMap.get("temperature")!) : jobConfig.temperature,
-            top_k: paramsMap.has("top_k") ? parseInt(paramsMap.get("top_k")!) : jobConfig.top_k,
-            top_p: paramsMap.has("top_p") ? parseFloat(paramsMap.get("top_p")!) : jobConfig.top_p,
-            frequency_penalty: paramsMap.has("frequency_penalty") ? parseFloat(paramsMap.get("frequency_penalty")!) : jobConfig.frequency_penalty
+            requestParams: Object.fromEntries(paramsMap),
+            ollamaModelUsed: ollamaRequest.model,
+            defaultJobConfigParams: {
+              max_tokens: textGenConfig.max_tokens,
+              temperature: textGenConfig.temperature,
+              top_k: textGenConfig.top_k,
+              top_p: textGenConfig.top_p,
+              frequency_penalty: textGenConfig.frequency_penalty
+            }
           })
         }).pipe(Effect.ignoreLogged));
 
@@ -298,17 +298,17 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         // Extract output and token count
         const ollamaOutput = ollamaResult.choices[0]?.message.content || "";
         const usage = ollamaResult.usage || { 
-          prompt_tokens: prompt.length / 4, 
-          completion_tokens: ollamaOutput.length / 4, 
-          total_tokens: (prompt.length + ollamaOutput.length) / 4 
+          prompt_tokens: Math.ceil(prompt.length / 4), 
+          completion_tokens: Math.ceil(ollamaOutput.length / 4), 
+          total_tokens: Math.ceil((prompt.length + ollamaOutput.length) / 4) 
         };
         const totalTokens = usage.total_tokens;
 
         // 4. Generate Invoice (SparkService)
         // Calculate price based on token count and config
         const priceSats = Math.max(
-          jobConfig.minPriceSats,
-          Math.ceil((totalTokens / 1000) * jobConfig.pricePer1kTokens)
+          textGenConfig.minPriceSats,
+          Math.ceil((totalTokens / 1000) * textGenConfig.pricePer1kTokens)
         );
         const invoiceAmountMillisats = priceSats * 1000;
 
@@ -325,8 +325,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         // 5. Prepare final output content (encrypt if original was encrypted)
         let finalOutputContent = ollamaOutput;
         if (isRequestEncrypted) {
-          const effectivePrivateKeyHex = useDVMSettingsStore.getState().getEffectivePrivateKeyHex();
-          const dvmSkBytes = hexToBytes(effectivePrivateKeyHex);
+          const dvmSkBytes = hexToBytes(dvmPrivateKeyHex);
           finalOutputContent = yield* _(nip04.encrypt(
             dvmSkBytes, 
             jobRequestEvent.pubkey, 
@@ -341,7 +340,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
 
         // Create and publish job result event
         const jobResultEvent = createNip90JobResultEvent(
-          useDVMSettingsStore.getState().getEffectivePrivateKeyHex(),
+          dvmPrivateKeyHex,
           jobRequestEvent,
           finalOutputContent,
           invoiceAmountMillisats,
@@ -358,7 +357,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
 
         // 6. Send "success" Feedback
         const successFeedback = createNip90FeedbackEvent(
-          useDVMSettingsStore.getState().getEffectivePrivateKeyHex(), 
+          dvmPrivateKeyHex, 
           jobRequestEvent, 
           "success"
         );
@@ -373,6 +372,10 @@ export const Kind5050DVMServiceLive = Layer.scoped(
       }).pipe(
         // Centralized error handling for job processing
         Effect.catchAllCause(cause => {
+          // Get latest effective config for error handling
+          const effectiveConfigForError = useDVMSettingsStore.getState().getEffectiveConfig();
+          const dvmPrivateKeyHexForError = effectiveConfigForError.dvmPrivateKeyHex;
+          
           // Extract error or create a generic one
           const dvmError = Option.getOrElse(Cause.failureOption(cause), () =>
             new DVMJobProcessingError({ 
@@ -382,9 +385,8 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           );
 
           // Send error feedback
-          const effectivePrivateKeyHex = useDVMSettingsStore.getState().getEffectivePrivateKeyHex();
           const feedback = createNip90FeedbackEvent(
-            effectivePrivateKeyHex, 
+            dvmPrivateKeyHexForError, 
             jobRequestEvent, 
             "error", 
             dvmError.message
@@ -418,83 +420,72 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           return;
         }
 
-        // Get effective settings
-        const effectivePrivateKeyHex = useDVMSettingsStore.getState().getEffectivePrivateKeyHex();
-        const effectiveRelays = useDVMSettingsStore.getState().getEffectiveRelays();
-        const effectiveSupportedJobKinds = useDVMSettingsStore.getState().getEffectiveSupportedJobKinds();
-
-        // Update current public key
-        currentDvmPublicKeyHex = useDVMSettingsStore.getState().getDerivedPublicKeyHex() || config.dvmPublicKeyHex;
+        // Get effective settings from a single call
+        const effectiveConfig = useDVMSettingsStore.getState().getEffectiveConfig();
+        currentDvmPublicKeyHex = effectiveConfig.dvmPublicKeyHex;
 
         // Check for required config
-        if (!effectivePrivateKeyHex) {
+        if (!effectiveConfig.dvmPrivateKeyHex) {
           return yield* _(Effect.fail(new DVMConfigError({ 
             message: "DVM private key not configured." 
           })));
         }
+        
+        if (effectiveConfig.relays.length === 0) {
+          return yield* _(Effect.fail(new DVMConfigError({ 
+            message: "No DVM relays configured." 
+          })));
+        }
 
-        yield* _(telemetry.trackEvent({ 
-          category: 'dvm:status', 
-          action: 'start_listening_attempt', 
-          label: `Relays: ${effectiveRelays.join(', ')}` 
+        yield* _(telemetry.trackEvent({
+          category: 'dvm:status',
+          action: 'start_listening_attempt',
+          label: `Relays: ${effectiveConfig.relays.join(', ')}, Kinds: ${effectiveConfig.supportedJobKinds.join(', ')}`
         }).pipe(Effect.ignoreLogged));
 
         // Create filter for job requests
         const jobRequestFilter: NostrFilter = {
-          kinds: effectiveSupportedJobKinds, // Use effective job kinds
+          kinds: effectiveConfig.supportedJobKinds,
           since: Math.floor(Date.now() / 1000) - 300, // Look for recent jobs (last 5 mins)
         };
 
-        try {
-          // Subscribe to job request events
-          // NOTE: We're using the NostrService's default relays here
-          // In a real implementation, we'd create a custom NostrService layer with user-selected relays
-          // For now, we'll just log the effective relays
-          yield* _(telemetry.trackEvent({
-            category: 'dvm:relay',
-            action: 'using_relays',
-            label: effectiveRelays.join(', ')
-          }).pipe(Effect.ignoreLogged));
-          
-          // Subscribe to events using the default relay configuration
-          const sub = yield* _(nostr.subscribeToEvents(
-            [jobRequestFilter],
-            (event: NostrEvent) => {
-              // Ensure the DVM doesn't process its own events
-              // Use current public key which is updated when settings change
-              if (event.pubkey === currentDvmPublicKeyHex && 
-                 (event.kind === 7000 || (event.kind >= 6000 && event.kind <= 6999))) {
-                return;
-              }
-              
-              // Fork job processing so it runs independently
-              Effect.runFork(processJobRequestInternal(event));
+        // Subscribe to events with custom relays from effective config
+        const sub = yield* _(nostr.subscribeToEvents(
+          [jobRequestFilter],
+          (event: NostrEvent) => {
+            // Get latest config for this check to handle potential settings changes during runtime
+            const latestConfig = useDVMSettingsStore.getState().getEffectiveConfig();
+            if (event.pubkey === latestConfig.dvmPublicKeyHex && 
+               (event.kind === 7000 || (event.kind >= 6000 && event.kind <= 6999))) {
+              return;
             }
-          ).pipe(
-            Effect.mapError(e => new DVMConnectionError({ 
-              message: "Failed to subscribe to Nostr for DVM requests", 
-              cause: e 
-            }))
-          ));
+            
+            // Fork job processing so it runs independently
+            Effect.runFork(processJobRequestInternal(event));
+          },
+          effectiveConfig.relays, // Pass the effective relays from user settings
+          () => { // onEOSE callback
+            Effect.runFork(telemetry.trackEvent({
+              category: "dvm:nostr",
+              action: "subscription_eose",
+              label: `EOSE received for DVM job kinds: ${effectiveConfig.supportedJobKinds.join(', ')}`
+            }).pipe(Effect.ignoreLogged));
+          }
+        ).pipe(
+          Effect.mapError(e => new DVMConnectionError({ 
+            message: "Failed to subscribe to Nostr for DVM requests", 
+            cause: e 
+          }))
+        ));
 
-          // Store subscription and update state
-          currentSubscription = sub;
-          isActiveInternal = true;
-          
-          yield* _(telemetry.trackEvent({ 
-            category: 'dvm:status', 
-            action: 'start_listening_success' 
-          }).pipe(Effect.ignoreLogged));
-        } catch (error) {
-          // Log error and rethrow
-          yield* _(telemetry.trackEvent({ 
-            category: 'dvm:error', 
-            action: 'start_listening_failure', 
-            label: error instanceof Error ? error.message : String(error) 
-          }).pipe(Effect.ignoreLogged));
-          
-          throw error; // Will be caught by Effect error handling
-        }
+        // Store subscription and update state
+        currentSubscription = sub;
+        isActiveInternal = true;
+        
+        yield* _(telemetry.trackEvent({ 
+          category: 'dvm:status', 
+          action: 'start_listening_success' 
+        }).pipe(Effect.ignoreLogged));
       }),
       
       stopListening: () => Effect.gen(function* (_) {
@@ -544,7 +535,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         }).pipe(Effect.ignoreLogged));
         
         return isActiveInternal;
-      }),
+      })
     };
   })
 );
