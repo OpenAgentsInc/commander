@@ -37,7 +37,7 @@ const DvmJobHistoryPane: React.FC = () => {
       if (Exit.isSuccess(exitResult)) return exitResult.value;
       throw Cause.squash(exitResult.cause);
     },
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 
   // Telemetry for opening the pane
