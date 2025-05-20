@@ -48,6 +48,10 @@ export const NIP90ServiceLive = Layer.effect(
                   label: `Job request validation error: ${parseError._tag}`,
                   value: JSON.stringify({ error: parseError._tag, message: parseError.message })
                 }).pipe(Effect.ignoreLogged));
+                
+                // Import and use ParseResult if needed for more detailed error information
+                // import { ParseResult } from "@effect/schema/ParseResult";
+                // value: JSON.stringify(ParseResult.format(parseError))
 
                 return new NIP90ValidationError({
                   message: "Invalid NIP-90 job request parameters", // This message should match test expectation
@@ -83,7 +87,8 @@ export const NIP90ServiceLive = Layer.effect(
             });
 
             // Use existing helper to create the job request event with validated params
-            const jobEvent = yield* _(createNip90JobRequest(
+            // Create the effect for the job request creation
+            const jobEventEffect = createNip90JobRequest(
               validatedParams.requesterSk,
               validatedParams.targetDvmPubkeyHex || "", // Empty string if not provided, helper handles it
               mutableInputs,
@@ -91,7 +96,13 @@ export const NIP90ServiceLive = Layer.effect(
               validatedParams.bidMillisats,
               validatedParams.kind,
               mutableAdditionalParams
-            ));
+            );
+            
+            // Provide NIP04Service from the closure
+            const jobEventWithServiceProvided = Effect.provideService(jobEventEffect, NIP04Service, nip04);
+            
+            // Now yield the effect that has the service provided
+            const jobEvent = yield* _(jobEventWithServiceProvided);
 
             // Publish the job request event
             yield* _(nostr.publishEvent(jobEvent));

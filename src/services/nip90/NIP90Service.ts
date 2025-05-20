@@ -124,7 +124,7 @@ export interface NIP90Service {
    */
   createJobRequest(
     params: CreateNIP90JobParams
-  ): Effect.Effect<NostrEvent, NIP90RequestError | NIP04EncryptError | NostrPublishError | NIP90ValidationError, TelemetryService | NostrService | NIP04Service>;
+  ): Effect.Effect<NostrEvent, NIP90RequestError | NIP04EncryptError | NostrPublishError | NIP90ValidationError, never>;
 
   /**
    * Fetches and optionally decrypts a job result for a specific job request ID.
@@ -138,7 +138,7 @@ export interface NIP90Service {
     jobRequestEventId: string,
     dvmPubkeyHex?: string, // DVM who might have responded
     decryptionKey?: Uint8Array // Key to decrypt result if it's encrypted
-  ): Effect.Effect<NIP90JobResult | null, NIP90ResultError | NIP04DecryptError | NostrRequestError, TelemetryService | NostrService | NIP04Service>;
+  ): Effect.Effect<NIP90JobResult | null, NIP90ResultError | NIP04DecryptError | NostrRequestError, never>;
 
   /**
    * Fetches and optionally decrypts all feedback events for a given job request.
@@ -152,7 +152,7 @@ export interface NIP90Service {
     jobRequestEventId: string,
     dvmPubkeyHex?: string,
     decryptionKey?: Uint8Array
-  ): Effect.Effect<NIP90JobFeedback[], NIP90ResultError | NIP04DecryptError | NostrRequestError, TelemetryService | NostrService | NIP04Service>;
+  ): Effect.Effect<NIP90JobFeedback[], NIP90ResultError | NIP04DecryptError | NostrRequestError, never>;
 
   /**
    * Subscribes to updates (results and feedback) for a specific job request.
@@ -168,7 +168,7 @@ export interface NIP90Service {
     dvmPubkeyHex: string,
     decryptionKey: Uint8Array,
     onUpdate: (event: NIP90JobResult | NIP90JobFeedback) => void
-  ): Effect.Effect<Subscription, NostrRequestError | NIP04DecryptError | NIP90ResultError, TelemetryService | NostrService | NIP04Service>;
+  ): Effect.Effect<Subscription, NostrRequestError | NIP04DecryptError | NIP90ResultError, never>;
 }
 
 // --- Service Tag ---
