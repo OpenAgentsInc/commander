@@ -130,7 +130,7 @@ export const OllamaOpenAIChatStreamChunkSchema = Schema.Struct({
   object: Schema.String, // e.g., "chat.completion.chunk"
   created: Schema.Number,
   model: Schema.String,
-  choices: Schema.array(OllamaOpenAIChatStreamChoiceSchema),
+  choices: Schema.Array(OllamaOpenAIChatStreamChoiceSchema),
   usage: Schema.optional(Schema.NullishOr(OllamaChatCompletionUsageSchema))
 });
 export type OllamaOpenAIChatStreamChunk = Schema.Schema.Type<typeof OllamaOpenAIChatStreamChunkSchema>;
