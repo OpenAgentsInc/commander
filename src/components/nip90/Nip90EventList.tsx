@@ -13,7 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { NIP90Service, NIP90JobResult, NIP90JobFeedback } from "@/services/nip90";
-import { mainRuntime } from "@/services/runtime";
+import { getMainRuntime } from "@/services/runtime";
 import { hexToBytes } from "@noble/hashes/utils";
 
 const NIP90_REQUEST_KINDS_MIN = 5000;
@@ -32,7 +32,7 @@ async function fetchNip90JobRequests(): Promise<NostrEvent[]> {
     limit: 100
   }];
 
-  // Use mainRuntime to get access to NostrService directly
+  // Use getMainRuntime to get access to NostrService directly
   const program = Effect.gen(function* (_) {
     // Directly get NostrService from context
     const nostrSvcDirect = yield* _(NostrService);
@@ -51,7 +51,7 @@ async function fetchNip90JobRequests(): Promise<NostrEvent[]> {
   });
   
   // Now provide the runtime to the program and run it
-  const result: NostrEvent[] = await runPromise(Effect.provide(program, mainRuntime));
+  const result: NostrEvent[] = await runPromise(Effect.provide(program, getMainRuntime()));
   return result;
 }
 
@@ -83,7 +83,7 @@ const useNip19Encoding = (hexValue: string, type: 'npub' | 'note') => {
           }
           return encoded;
         });
-        const result: string = await runPromise(Effect.provide(program, mainRuntime));
+        const result: string = await runPromise(Effect.provide(program, getMainRuntime()));
         return result;
       } catch (err) {
         console.error(`[Nip90Component] Error encoding ${type}:`, err);
@@ -140,7 +140,7 @@ const Nip90EventCard: React.FC<Nip90EventCardProps> = ({ event }) => {
         const result = yield* _(nip90Svc.getJobResult(event.id, undefined, decryptionKey));
         return result;
       });
-      const result = await runPromise(Effect.provide(resultProgram, mainRuntime));
+      const result = await runPromise(Effect.provide(resultProgram, getMainRuntime()));
       
       setJobResult(result);
       
@@ -150,7 +150,7 @@ const Nip90EventCard: React.FC<Nip90EventCardProps> = ({ event }) => {
         const feedback = yield* _(nip90Svc.listJobFeedback(event.id, undefined, decryptionKey));
         return feedback;
       });
-      const feedback = await runPromise(Effect.provide(feedbackProgram, mainRuntime));
+      const feedback = await runPromise(Effect.provide(feedbackProgram, getMainRuntime()));
       
       setJobFeedback(feedback);
     } catch (error) {

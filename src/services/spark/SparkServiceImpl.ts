@@ -67,6 +67,15 @@ export const SparkServiceLive = Layer.scoped(
           return wallet;
         },
         catch: (e) => {
+          // Log the raw error from SparkWallet.initialize via telemetry
+          Effect.runFork(telemetry.trackEvent({
+            category: "spark:error",
+            action: "wallet_initialize_sdk_failure_raw",
+            label: `SDK Error: ${e instanceof Error ? e.message : String(e)}`,
+            // Attempt to stringify the error, including non-standard properties
+            value: JSON.stringify(e, Object.getOwnPropertyNames(e instanceof Error ? e : Object(e)))
+          }).pipe(Effect.ignoreLogged)); // Use ignoreLogged for fire-and-forget telemetry
+          
           // Map the error to the appropriate type
           if (e instanceof NetworkError) {
             return new SparkConnectionError({

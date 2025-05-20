@@ -9,7 +9,7 @@ import { NIP90Service } from '@/services/nip90';
 
 // Mock the runtime
 vi.mock('@/services/runtime', () => ({
-  mainRuntime: {}
+  getMainRuntime: vi.fn(() => ({}))
 }));
 
 // Mock nostr-tools/pure used by the form

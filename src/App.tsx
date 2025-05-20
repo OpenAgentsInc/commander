@@ -17,10 +17,3 @@ export default function App() {
 
   return <RouterProvider router={router} />;
 }
-
-const root = createRoot(document.getElementById("app")!);
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);

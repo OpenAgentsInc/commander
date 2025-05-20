@@ -41,6 +41,11 @@ export type SparkError =
 export interface SparkServiceConfig {
   network: "REGTEST" | "MAINNET" | "LOCAL";
   mnemonicOrSeed?: string | Uint8Array;
+  /**
+   * The account number to use for Spark wallet initialization.
+   * IMPORTANT: Must be 2 or higher. Values 0 and 1 are not allowed by the SDK and
+   * will cause a ValidationError when initializing the wallet.
+   */
   accountNumber?: number;
   sparkSdkOptions?: Record<string, unknown>; // Will refine based on actual SDK types
 }
@@ -53,7 +58,7 @@ export const DefaultSparkServiceConfigLayer = Layer.succeed(
   {
     network: "REGTEST",
     mnemonicOrSeed: "test test test test test test test test test test test junk", // Development only
-    accountNumber: 0,
+    accountNumber: 2, // Must be ≥ 2 per SDK validation
     sparkSdkOptions: {
       // Use sensible defaults for local development - will populate from SDK examination
       grpcUrl: "http://localhost:8080",

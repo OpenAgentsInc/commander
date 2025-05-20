@@ -8,7 +8,7 @@ import { generateSecretKey } from 'nostr-tools/pure';
 import { Effect } from 'effect';
 import { runPromise, runPromiseExit } from 'effect/Effect';
 import { bytesToHex } from '@noble/hashes/utils';
-import { mainRuntime } from '@/services/runtime';
+import { getMainRuntime } from '@/services/runtime';
 import { NIP90Service, CreateNIP90JobParams, NIP90InputType } from '@/services/nip90';
 
 // Define the DVM's public key (replace with actual key in a real application)
@@ -101,7 +101,7 @@ export default function Nip90RequestForm() {
         // additionalParams // uncomment if using
       };
 
-      // 4. Use the NIP90Service from mainRuntime
+      // 4. Use the NIP90Service from getMainRuntime()
       const programToRun = Effect.flatMap(NIP90Service, service =>
         service.createJobRequest(jobParams) // This returns Effect<NostrEvent, ...>
       ).pipe(
@@ -109,7 +109,7 @@ export default function Nip90RequestForm() {
       );
 
       // Provide the runtime to the program and run it
-      const result = await runPromise(Effect.provide(programToRun, mainRuntime));
+      const result = await runPromise(Effect.provide(programToRun, getMainRuntime()));
 
       // Store successful event info
       setPublishedEventId(result);
