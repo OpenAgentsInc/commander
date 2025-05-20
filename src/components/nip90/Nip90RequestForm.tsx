@@ -79,9 +79,9 @@ export default function Nip90RequestForm() {
       setEphemeralSkHex(currentEphemeralSkHex);
 
       // 2. Prepare inputs and any additional parameters for encryption
-      // Explicitly match the NIP90InputType tuple structure
-      const inputsForEncryption: Array<[string, NIP90InputType, string?, string?, string?]> = [
-        [inputData.trim(), 'text', undefined, undefined, undefined]
+      // Explicitly match the NIP90InputType tuple structure with 4 elements
+      const inputsForEncryption: Array<[string, NIP90InputType, string?, string?]> = [
+        [inputData.trim(), 'text', undefined, undefined]
       ];
 
       // Optional: Add additional parameters to be encrypted

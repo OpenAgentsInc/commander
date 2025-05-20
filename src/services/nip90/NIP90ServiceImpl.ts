@@ -15,7 +15,8 @@ import {
   NIP90RequestError,
   NIP90ResultError,
   NIP90ValidationError,
-  NIP90JobFeedbackStatus
+  NIP90JobFeedbackStatus,
+  NIP90InputType
 } from './NIP90Service';
 
 // Layer for NIP90Service with dependencies on NostrService, NIP04Service, and TelemetryService
@@ -45,7 +46,7 @@ export const NIP90ServiceLive = Layer.effect(
                   category: "error",
                   action: "nip90_validation_error",
                   label: `Job request validation error: ${parseError._tag}`,
-                  value: JSON.stringify(parseError.errors)
+                  value: JSON.stringify({ error: parseError._tag, message: parseError.message })
                 }).pipe(Effect.ignoreLogged));
 
                 return new NIP90ValidationError({
@@ -60,7 +61,7 @@ export const NIP90ServiceLive = Layer.effect(
           try {
             // Convert readonly arrays/tuples to mutable ones
             const mutableInputs = validatedParams.inputs.map(
-              inputTuple => [...inputTuple] as [string, string, string?, string?, string?]
+              inputTuple => [...inputTuple] as [string, NIP90InputType, (string | undefined)?, (string | undefined)?]
             );
             const mutableAdditionalParams = validatedParams.additionalParams?.map(
                 paramTuple => [...paramTuple] as ['param', string, string]

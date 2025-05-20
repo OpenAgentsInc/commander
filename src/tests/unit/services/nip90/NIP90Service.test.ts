@@ -36,11 +36,13 @@ describe('NIP90Service', () => {
     // Reset mocks
     vi.clearAllMocks();
 
-    // Create mock implementations
+    // Create mock implementations with R = never
     mockNostrService = {
       publishEvent: vi.fn().mockImplementation((event) => Effect.succeed(event)),
       listEvents: vi.fn().mockImplementation(() => Effect.succeed([])),
-      subscribeToEvents: vi.fn().mockImplementation(() => Effect.succeed({ unsub: () => {} }))
+      subscribeToEvents: vi.fn().mockImplementation(() => Effect.succeed({ unsub: vi.fn() })),
+      getPool: vi.fn().mockImplementation(() => Effect.succeed({} as any)),
+      cleanupPool: vi.fn().mockImplementation(() => Effect.succeed(undefined as void))
     } as unknown as NostrService;
 
     mockNip04Service = {
@@ -49,7 +51,9 @@ describe('NIP90Service', () => {
     } as unknown as NIP04Service;
 
     mockTelemetryService = {
-      trackEvent: vi.fn().mockImplementation(() => Effect.succeed(undefined as void))
+      trackEvent: vi.fn().mockImplementation(() => Effect.succeed(undefined as void)),
+      isEnabled: vi.fn().mockImplementation(() => Effect.succeed(true)),
+      setEnabled: vi.fn().mockImplementation(() => Effect.succeed(undefined as void))
     } as unknown as TelemetryService;
 
     // Create test layer with mocked dependencies
@@ -129,9 +133,11 @@ describe('NIP90Service', () => {
             service => service.createJobRequest(invalidJobParams)
           ).pipe(Effect.provide(testLayer))
         );
-        fail('Should have thrown error');
-      } catch (error) {
+        expect.fail('Should have thrown error');
+      } catch (e: unknown) {
         // The error is a FiberFailure containing a NIP90ValidationError
+        const error = e as Error;
+        expect(error).toBeDefined();
         expect(error.message).toMatch(/Invalid NIP-90 job request parameters/);
         expect(error.name).toContain('NIP90ValidationError');
       }
