@@ -40,19 +40,19 @@ export const NIP90InputTypeSchema = Schema.Union(
 );
 export type NIP90InputType = Schema.Schema.Type<typeof NIP90InputTypeSchema>;
 
-export const NIP90InputSchema = Schema.Tuple([
+export const NIP90InputSchema = Schema.Tuple(
   Schema.String,
   NIP90InputTypeSchema,
-  Schema.optional(Schema.String),
-  Schema.optional(Schema.String)
-]);
+  Schema.optionalElement(Schema.String),
+  Schema.optionalElement(Schema.String)
+);
 export type NIP90Input = Schema.Schema.Type<typeof NIP90InputSchema>;
 
-export const NIP90JobParamSchema = Schema.Tuple([
+export const NIP90JobParamSchema = Schema.Tuple(
   Schema.Literal("param"),
   Schema.String,
   Schema.String
-]);
+);
 export type NIP90JobParam = Schema.Schema.Type<typeof NIP90JobParamSchema>;
 
 export const CreateNIP90JobParamsSchema = Schema.Struct({
@@ -138,7 +138,7 @@ export interface NIP90Service {
     jobRequestEventId: string,
     dvmPubkeyHex?: string, // DVM who might have responded
     decryptionKey?: Uint8Array // Key to decrypt result if it's encrypted
-  ): Effect.Effect<NIP90JobResult | null, NIP90ResultError | NIP04DecryptError, TelemetryService | NostrService | NIP04Service>;
+  ): Effect.Effect<NIP90JobResult | null, NIP90ResultError | NIP04DecryptError | NostrRequestError, TelemetryService | NostrService | NIP04Service>;
 
   /**
    * Fetches and optionally decrypts all feedback events for a given job request.
@@ -152,7 +152,7 @@ export interface NIP90Service {
     jobRequestEventId: string,
     dvmPubkeyHex?: string,
     decryptionKey?: Uint8Array
-  ): Effect.Effect<NIP90JobFeedback[], NIP90ResultError | NIP04DecryptError, TelemetryService | NostrService | NIP04Service>;
+  ): Effect.Effect<NIP90JobFeedback[], NIP90ResultError | NIP04DecryptError | NostrRequestError, TelemetryService | NostrService | NIP04Service>;
 
   /**
    * Subscribes to updates (results and feedback) for a specific job request.
@@ -168,7 +168,7 @@ export interface NIP90Service {
     dvmPubkeyHex: string,
     decryptionKey: Uint8Array,
     onUpdate: (event: NIP90JobResult | NIP90JobFeedback) => void
-  ): Effect.Effect<Subscription, NostrRequestError | NIP04DecryptError, TelemetryService | NostrService | NIP04Service>;
+  ): Effect.Effect<Subscription, NostrRequestError | NIP04DecryptError | NIP90ResultError, TelemetryService | NostrService | NIP04Service>;
 }
 
 // --- Service Tag ---

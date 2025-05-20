@@ -60,12 +60,27 @@ export const NIP90ServiceLive = Layer.effect(
 
           try {
             // Convert readonly arrays/tuples to mutable ones
-            const mutableInputs = validatedParams.inputs.map(
-              inputTuple => [...inputTuple] as [string, NIP90InputType, (string | undefined)?, (string | undefined)?]
-            );
-            const mutableAdditionalParams = validatedParams.additionalParams?.map(
-                paramTuple => [...paramTuple] as ['param', string, string]
-            );
+            const mutableInputs = validatedParams.inputs.map(inputTuple => {
+              // Make sure we handle empty arrays appropriately
+              if (inputTuple.length < 2) {
+                throw new NIP90ValidationError({
+                  message: "Invalid NIP-90 job request input: requires at least value and type",
+                  context: { inputTuple }
+                });
+              }
+              const [value, type, ...rest] = inputTuple;
+              return [value, type, ...rest] as [string, NIP90InputType, (string | undefined)?, (string | undefined)?];
+            });
+            
+            const mutableAdditionalParams = validatedParams.additionalParams?.map(paramTuple => {
+              if (paramTuple.length < 3) {
+                throw new NIP90ValidationError({
+                  message: "Invalid NIP-90 job request parameter: requires param identifier and two values",
+                  context: { paramTuple }
+                });
+              }
+              return ['param', paramTuple[1], paramTuple[2]] as ['param', string, string];
+            });
 
             // Use existing helper to create the job request event with validated params
             const jobEvent = yield* _(createNip90JobRequest(

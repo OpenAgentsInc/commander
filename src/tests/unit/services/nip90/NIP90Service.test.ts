@@ -1,5 +1,5 @@
 import { expect, describe, it, vi, beforeEach, afterEach } from 'vitest';
-import { Effect, Layer, Context } from 'effect';
+import { Effect, Layer, Context, pipe } from 'effect';
 import {
   NIP90Service,
   NIP90ServiceLive,
@@ -14,6 +14,15 @@ import { NostrEvent, NostrService } from '@/services/nostr';
 import { NIP04Service } from '@/services/nip04';
 import { TelemetryService } from '@/services/telemetry';
 import { createNip90JobRequest } from '@/helpers/nip90/event_creation';
+
+// Helper function to convert an Effect with service requirements to an Effect with R = never
+function provideTestServices<A, E>(effect: Effect.Effect<A, E, TelemetryService | NostrService | NIP04Service>): Effect.Effect<A, E, never> {
+  return pipe(
+    effect,
+    Effect.provide(testLayer),
+    Effect.withRuntime(_ => Effect.succeed(_._runFiber(() => {})))
+  );
+}
 
 // Mock dependencies
 vi.mock('@/helpers/nip90/event_creation', () => ({
@@ -94,10 +103,12 @@ describe('NIP90Service', () => {
 
       // Act
       const result = await Effect.runPromise(
-        Effect.flatMap(
-          NIP90Service,
-          service => service.createJobRequest(jobParams)
-        ).pipe(Effect.provide(testLayer))
+        provideTestServices(
+          Effect.flatMap(
+            NIP90Service,
+            service => service.createJobRequest(jobParams)
+          )
+        )
       );
 
       // Assert
@@ -118,10 +129,12 @@ describe('NIP90Service', () => {
       // because Effect.runPromise wraps errors in FiberFailure
       await expect(
         Effect.runPromise(
-          Effect.flatMap(
-            NIP90Service,
-            service => service.createJobRequest(invalidJobParams)
-          ).pipe(Effect.provide(testLayer))
+          provideTestServices(
+            Effect.flatMap(
+              NIP90Service,
+              service => service.createJobRequest(invalidJobParams)
+            )
+          )
         )
       ).rejects.toThrow(/Invalid NIP-90 job request parameters/);
       

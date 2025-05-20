@@ -80,9 +80,10 @@ export default function Nip90RequestForm() {
 
       // 2. Prepare inputs and any additional parameters for encryption
       // Explicitly match the NIP90InputType tuple structure with 4 elements
-      const inputsForEncryption: Array<[string, NIP90InputType, string?, string?]> = [
-        [inputData.trim(), 'text', undefined, undefined]
-      ];
+      // Must match the NIP90InputSchema defined in the service
+      const inputsForEncryption = [
+        [inputData.trim(), 'text' as const, undefined, undefined]
+      ] as ReadonlyArray<readonly [string, NIP90InputType, string | undefined, string | undefined]>;
 
       // Optional: Add additional parameters to be encrypted
       // const additionalParams: ['param', string, string][] = [
