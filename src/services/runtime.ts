@@ -1,32 +1,27 @@
 // src/services/runtime.ts
-import { Layer, toRuntime, provide as layerProvide, merge as layerMerge, mergeAll as layerMergeAll, succeed as layerSucceed } from "effect/Layer";
-import { Runtime, make as runtimeMake, defaultRuntimeFlags as runtimeDefaultRuntimeFlags } from "effect/Runtime";
-import { Effect, runSync, succeed as effectSucceed, scoped as effectScoped, flatMap as effectFlatMap } from "effect/Effect";
-import { Context } from "effect/Context";
+import { Layer, toRuntime, provide as layerProvide, mergeAll as layerMergeAll, succeed as layerSucceed } from "effect/Layer";
+import { Runtime, make as runtimeMake } from "effect/Runtime";
+import { Effect, runSync, runPromise, succeed as effectSucceed, scoped as effectScoped, flatMap as effectFlatMap, provide as effectProvide, runFork } from "effect/Effect";
+import * as _Context from "effect/Context";
+import * as RuntimeFlags from "effect/RuntimeFlags";
+import * as FiberRefs from "effect/FiberRefs";
 import {
   NostrService, NostrServiceLive,
-  DefaultNostrServiceConfigLayer, NostrServiceConfig, NostrServiceConfigTag
+  DefaultNostrServiceConfigLayer
 } from '@/services/nostr';
 import { NIP04Service, NIP04ServiceLive } from '@/services/nip04';
 import { NIP19Service, NIP19ServiceLive } from '@/services/nip19';
 import { BIP39Service, BIP39ServiceLive } from '@/services/bip39';
 import { BIP32Service, BIP32ServiceLive } from '@/services/bip32';
 import { NIP28Service, NIP28ServiceLive } from '@/services/nip28';
-import { TelemetryService, TelemetryServiceLive, DefaultTelemetryConfigLayer, TelemetryServiceConfig, TelemetryServiceConfigTag } from '@/services/telemetry';
+import { TelemetryService, TelemetryServiceLive, DefaultTelemetryConfigLayer } from '@/services/telemetry';
 import { OllamaService, OllamaServiceLive, UiOllamaConfigLive } from '@/services/ollama';
 import { BrowserHttpClient } from "@effect/platform-browser";
 import { HttpClient } from '@effect/platform';
 import { SparkService, SparkServiceLive, DefaultSparkServiceConfigLayer } from '@/services/spark';
 import { NIP90Service, NIP90ServiceLive } from '@/services/nip90';
 
-// Helper function to create a runtime from a layer
-// Change generic parameter R to ROut to reflect it's the output context of the layer
-const createRuntime = <ROut, E = any>(layer: Layer<ROut, E, never>): Runtime<ROut> => {
-  const runtimeContext = runSync(toRuntime(layer).pipe(effectScoped));
-  return runtimeMake(runtimeContext);
-};
-
-// Define the full context type for the runtime - services provided to the app
+// Define the full context type for the runtime
 export type FullAppContext =
   NostrService |
   NIP04Service |
@@ -38,63 +33,105 @@ export type FullAppContext =
   OllamaService |
   SparkService |
   NIP90Service |
-  HttpClient.HttpClient; // HttpClient is a provided service
+  HttpClient.HttpClient;
+
+// Runtime instance - will be initialized asynchronously
+let mainRuntimeInstance: Runtime<FullAppContext>;
 
 // Compose individual services with their direct dependencies
 const nostrLayer = NostrServiceLive.pipe(layerProvide(DefaultNostrServiceConfigLayer));
 const telemetryLayer = TelemetryServiceLive.pipe(layerProvide(DefaultTelemetryConfigLayer));
 const ollamaLayer = OllamaServiceLive.pipe(
-  layerProvide(layerMerge(UiOllamaConfigLive, BrowserHttpClient.layerXMLHttpRequest))
+  layerProvide(layerMergeAll(UiOllamaConfigLive, BrowserHttpClient.layerXMLHttpRequest))
 );
-const nip04Layer = NIP04ServiceLive; // Assuming no direct external config tags needed by NIP04ServiceLive itself
+const nip04Layer = NIP04ServiceLive;
 const nip28Layer = NIP28ServiceLive.pipe(
-  layerProvide(layerMerge(nostrLayer, nip04Layer)) // Provide configured NostrService and NIP04Service
+  layerProvide(layerMergeAll(nostrLayer, nip04Layer, telemetryLayer)) // Added telemetryLayer
 );
 const sparkLayer = SparkServiceLive.pipe(
-  layerProvide(layerMerge(DefaultSparkServiceConfigLayer, telemetryLayer)) // Provide configured SparkServiceConfig and TelemetryService
+  layerProvide(layerMergeAll(DefaultSparkServiceConfigLayer, telemetryLayer))
 );
 const nip90Layer = NIP90ServiceLive.pipe(
-  layerProvide(layerMerge(layerMerge(nostrLayer, nip04Layer), telemetryLayer)) // Provide NostrService, NIP04Service and TelemetryService
+  layerProvide(layerMergeAll(nostrLayer, nip04Layer, telemetryLayer))
 );
 
-// Build the full layer with all services
-let mainRuntime: Runtime<FullAppContext>;
+// Full application layer
+const FullAppLayer = layerMergeAll(
+  nostrLayer,
+  nip04Layer,
+  NIP19ServiceLive,
+  BIP39ServiceLive,
+  BIP32ServiceLive,
+  telemetryLayer,
+  nip28Layer,
+  ollamaLayer,
+  sparkLayer,
+  nip90Layer
+);
 
-try {
-  console.log("Creating a production-ready Effect runtime for renderer...");
-  
-  // Merge all the service layers
-  const FullAppLayer = layerMergeAll(
-    nostrLayer,
-    nip04Layer,
-    NIP19ServiceLive,
-    BIP39ServiceLive,
-    BIP32ServiceLive,
-    telemetryLayer,
-    nip28Layer,
-    ollamaLayer,
-    sparkLayer,
-    nip90Layer
-  ); // This layer should now have RIn = never if all dependencies are correctly satisfied.
-  
-  // Create the runtime with the full layer
-  mainRuntime = createRuntime(FullAppLayer as Layer<FullAppContext, any, never>);
-  console.log("Production-ready Effect runtime for renderer created successfully");
-} catch (e: unknown) {
-  console.error("CRITICAL: Failed to create Effect runtime for renderer:", e);
-  // Create a fallback minimal runtime that will at least not crash the application
-  console.log("Creating fallback runtime for renderer...");
-  
-  // Create a minimal fallback Layer with just telemetry
-  const minimalTelemetryLayer = layerSucceed(TelemetryService, TelemetryService.of({
-    trackEvent: () => effectSucceed(undefined),
-    isEnabled: () => effectSucceed(false),
-    setEnabled: () => effectSucceed(undefined)
-  }));
-  
-  // Create the fallback runtime with explicit type assertion
-  mainRuntime = createRuntime(minimalTelemetryLayer as Layer<FullAppContext, any, never>);
-  console.log("Fallback runtime created with minimal functionality. Some services may be unavailable.");
+// Asynchronous function to initialize the runtime
+async function buildRuntimeAsync<ROut, E = any>(layer: Layer<ROut, E, never>): Promise<Runtime<ROut>> {
+  const runtimeContext = await runPromise(toRuntime(layer).pipe(effectScoped));
+  return runtimeMake(runtimeContext);
 }
 
-export { mainRuntime };
+// Function to initialize the main runtime, must be called at application startup
+export const initializeMainRuntime = async (): Promise<void> => {
+  try {
+    console.log("Creating a production-ready Effect runtime for renderer...");
+    mainRuntimeInstance = await buildRuntimeAsync(FullAppLayer as Layer<FullAppContext, any, never>);
+    console.log("Production-ready Effect runtime for renderer created successfully.");
+  } catch (e: unknown) {
+    console.error("CRITICAL: Failed to create Effect runtime for renderer:", e);
+    console.log("Creating fallback runtime for renderer...");
+
+    // Fallback runtime with minimal services (e.g., only Telemetry)
+    const MinimalLayer = layerMergeAll(
+      TelemetryServiceLive.pipe(layerProvide(DefaultTelemetryConfigLayer))
+      // Add other essential, synchronously initializable services if needed for fallback
+    );
+    // Fallback creation must be synchronous if the app structure depends on immediate availability
+    // However, the error was from runSync, so the async buildRuntimeAsync has a better chance.
+    // If even async build fails, this is a last resort.
+    try {
+        mainRuntimeInstance = await buildRuntimeAsync(MinimalLayer as Layer<FullAppContext, any, never>);
+    } catch (fallbackError) {
+        console.error("CRITICAL: Failed to create even the fallback runtime:", fallbackError);
+        // As an absolute last resort, create a runtime with minimal functionality
+        // We need to provide some basic services to satisfy the FullAppContext type
+        
+        // Create a minimal TelemetryService for the fallback
+        const minimalTelemetryService = TelemetryService.of({
+          trackEvent: () => effectSucceed(undefined),
+          isEnabled: () => effectSucceed(false),
+          setEnabled: () => effectSucceed(undefined)
+        });
+        
+        // Create a context with at least the TelemetryService
+        const minimalServiceContext = _Context.make(TelemetryService, minimalTelemetryService);
+        
+        // Create a runtime with this minimal context
+        mainRuntimeInstance = runtimeMake({
+          context: minimalServiceContext as unknown as _Context.Context<FullAppContext>,
+          runtimeFlags: RuntimeFlags.make(),
+          fiberRefs: FiberRefs.empty()
+        });
+    }
+    console.log("Fallback runtime created with minimal functionality. Some services may be unavailable.");
+  }
+};
+
+// Getter for the initialized runtime
+export const getMainRuntime = (): Runtime<FullAppContext> => {
+  if (!mainRuntimeInstance) {
+    // This state should ideally be prevented by awaiting initializeMainRuntime at app start.
+    // If it occurs, it's a critical error in the app's startup sequence.
+    console.error("CRITICAL: getMainRuntime() called before initializeMainRuntime() completed. Using a temporary emergency runtime.");
+    // Create an emergency synchronous fallback if called too early.
+    // This is a safety net but indicates a logic flaw in startup.
+    const emergencyLayer = TelemetryServiceLive.pipe(layerProvide(DefaultTelemetryConfigLayer));
+    const emergencyContext = runSync(toRuntime(emergencyLayer as Layer<FullAppContext, any, never>).pipe(effectScoped));
+    return runtimeMake(emergencyContext);
+  }
+  return mainRuntimeInstance;
+};

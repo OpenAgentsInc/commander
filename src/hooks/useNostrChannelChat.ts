@@ -5,7 +5,7 @@ import { NIP28Service, DecryptedChannelMessage, NIP28InvalidInputError } from '@
 import { type ChatMessageProps } from '@/components/chat/ChatMessage';
 import { hexToBytes } from '@noble/hashes/utils';
 import { getPublicKey } from 'nostr-tools/pure';
-import { mainRuntime } from '@/services/runtime';
+import { getMainRuntime } from '@/services/runtime';
 import { NostrRequestError, NostrPublishError } from '@/services/nostr';
 import { NIP04DecryptError, NIP04EncryptError } from '@/services/nip04';
 
@@ -24,7 +24,7 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
   const [userInput, setUserInput] = useState('');
   
   // Store the runtime reference
-  const runtimeRef = useRef(mainRuntime);
+  const runtimeRef = useRef(getMainRuntime());
   // Store the subscription reference for cleanup
   const subscriptionRef = useRef<{ unsub: () => void } | null>(null);
   
@@ -86,8 +86,8 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
       nip28Service => nip28Service.getChannelMessages(channelId, DEMO_USER_SK)
     );
 
-    // Run the Effect using mainRuntime
-    Effect.runPromiseExit(Effect.provide(getMessagesEffect, mainRuntime))
+    // Run the Effect using runtime from ref
+    Effect.runPromiseExit(Effect.provide(getMessagesEffect, rt))
       .then((exitResult: Exit.Exit<DecryptedChannelMessage[], NostrRequestError | NIP04DecryptError>) => {
         setIsLoading(false);
         
@@ -197,8 +197,8 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
           )
         );
         
-        // Run the subscription Effect using mainRuntime
-        Effect.runPromiseExit(Effect.provide(subscribeEffect, mainRuntime))
+        // Run the subscription Effect using the runtime
+        Effect.runPromiseExit(Effect.provide(subscribeEffect, rt))
           .then((subExit: Exit.Exit<{ unsub: () => void }, NostrRequestError>) => {
             if (Exit.isSuccess(subExit)) {
               console.log("[Hook] Subscribed to channel messages");
@@ -289,8 +289,8 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
       })
     );
     
-    // Run the Effect using mainRuntime
-    Effect.runPromiseExit(Effect.provide(sendMessageEffect, mainRuntime))
+    // Run the Effect using the runtime
+    Effect.runPromiseExit(Effect.provide(sendMessageEffect, rt))
       .then((exitResult: Exit.Exit<any, NostrRequestError | NostrPublishError | NIP28InvalidInputError | NIP04EncryptError>) => {
         if (Exit.isSuccess(exitResult)) {
           // If successful, update the temp message with the real message ID

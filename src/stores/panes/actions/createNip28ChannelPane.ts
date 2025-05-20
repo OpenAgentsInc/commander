@@ -6,7 +6,7 @@ import { NIP28Service, type CreateChannelParams, NIP28InvalidInputError } from '
 import { type NostrEvent, NostrRequestError, NostrPublishError } from '@/services/nostr';
 import { hexToBytes } from "@noble/hashes/utils";
 import { getPublicKey } from "nostr-tools/pure";
-import { mainRuntime } from '@/services/runtime';
+import { getMainRuntime } from '@/services/runtime';
 import { usePaneStore } from '@/stores/pane';
 
 // Demo key for testing (in a real app this would come from the user's identity management)
@@ -23,10 +23,10 @@ export function createNip28ChannelPaneAction(
   get: GetPaneStore,
   channelNameInput?: string,
 ) {
-  const rt = mainRuntime;
+  const rt = getMainRuntime();
 
   if (!rt) {
-    console.error("CRITICAL: mainRuntime is not available in createNip28ChannelPaneAction.");
+    console.error("CRITICAL: Runtime is not available in createNip28ChannelPaneAction.");
     // Create an error pane
     const errorPaneInput: PaneInput = {
       type: 'default', 
@@ -69,7 +69,7 @@ export function createNip28ChannelPaneAction(
   );
   
   // Run the Effect using Effect.runPromiseExit
-  Effect.runPromiseExit(Effect.provide(createChannelEffect, mainRuntime))
+  Effect.runPromiseExit(Effect.provide(createChannelEffect, rt))
     .then((exitResult: Exit.Exit<NostrEvent, NostrRequestError | NostrPublishError | NIP28InvalidInputError>) => {
       // Remove the temporary "creating" pane
       usePaneStore.getState().removePane(tempPaneId);
