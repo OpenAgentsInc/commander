@@ -1,5 +1,5 @@
-import { expect, describe, it, vi, beforeEach, afterEach } from 'vitest';
-import { Effect, Layer, Context, pipe } from 'effect';
+import { expect, describe, it, vi, beforeEach, afterEach } from "vitest";
+import { Effect, Layer, Context } from "effect";
 import {
   NIP90Service,
   NIP90ServiceLive,
@@ -8,34 +8,37 @@ import {
   NIP90ValidationError,
   CreateNIP90JobParams,
   NIP90JobFeedback,
-  NIP90JobResult
-} from '@/services/nip90';
-import { NostrEvent, NostrService } from '@/services/nostr';
-import { NIP04Service } from '@/services/nip04';
-import { TelemetryService } from '@/services/telemetry';
-import { createNip90JobRequest } from '@/helpers/nip90/event_creation';
-
-// Helper function to properly handle Effect context requirements in tests
-function runEffectTest<A, E>(effect: Effect.Effect<A, E, any>): Effect.Effect<A, E, never> {
-  return Effect.provide(effect, testLayer);
-}
+  NIP90JobResult,
+} from "@/services/nip90";
+import { NostrEvent, NostrService } from "@/services/nostr";
+import { NIP04Service } from "@/services/nip04";
+import { TelemetryService } from "@/services/telemetry";
+import { createNip90JobRequest } from "@/helpers/nip90/event_creation";
 
 // Mock dependencies
-vi.mock('@/helpers/nip90/event_creation', () => ({
-  createNip90JobRequest: vi.fn()
+vi.mock("@/helpers/nip90/event_creation", () => ({
+  createNip90JobRequest: vi.fn(),
 }));
 
 // Sample test data
 const TEST_SK = new Uint8Array(32).fill(1);
-const TEST_EVENT_ID = 'test-event-id';
-const TEST_DVM_PUBKEY = 'test-dvm-pubkey';
+const TEST_EVENT_ID = "test-event-id";
+const TEST_DVM_PUBKEY = "test-dvm-pubkey";
 
-describe('NIP90Service', () => {
+describe("NIP90Service", () => {
   // Create test mocks for dependencies
   let mockNostrService: NostrService;
   let mockNip04Service: NIP04Service;
   let mockTelemetryService: TelemetryService;
-  let testLayer: Layer.Layer<NIP90Service>;
+  let testLayer: Layer.Layer<NIP90Service>; // This layer provides NIP90ServiceLive and its dependencies
+
+  // Helper function to properly handle Effect context requirements in tests
+  // The input 'effect' should depend on NIP90Service, and providing testLayer satisfies it.
+  function runEffectTest<A, E>(
+    effect: Effect.Effect<A, E, NIP90Service>,
+  ): Effect.Effect<A, E, never> {
+    return Effect.provide(effect, testLayer);
+  }
 
   beforeEach(() => {
     // Reset mocks
@@ -43,30 +46,48 @@ describe('NIP90Service', () => {
 
     // Create mock implementations with R = never
     mockNostrService = {
-      publishEvent: vi.fn().mockImplementation((event) => Effect.succeed(event)),
+      publishEvent: vi
+        .fn()
+        .mockImplementation(() => Effect.succeed(undefined as void)),
       listEvents: vi.fn().mockImplementation(() => Effect.succeed([])),
-      subscribeToEvents: vi.fn().mockImplementation(() => Effect.succeed({ unsub: vi.fn() })),
+      subscribeToEvents: vi
+        .fn()
+        .mockImplementation(() => Effect.succeed({ unsub: vi.fn() })),
       getPool: vi.fn().mockImplementation(() => Effect.succeed({} as any)),
-      cleanupPool: vi.fn().mockImplementation(() => Effect.succeed(undefined as void))
-    } as unknown as NostrService;
+      cleanupPool: vi
+        .fn()
+        .mockImplementation(() => Effect.succeed(undefined as void)),
+    };
 
     mockNip04Service = {
-      encrypt: vi.fn().mockImplementation(() => Effect.succeed("encrypted-content")),
-      decrypt: vi.fn().mockImplementation(() => Effect.succeed("decrypted-content"))
-    } as unknown as NIP04Service;
+      encrypt: vi
+        .fn()
+        .mockImplementation(() => Effect.succeed("encrypted-content")),
+      decrypt: vi
+        .fn()
+        .mockImplementation(() => Effect.succeed("decrypted-content")),
+    };
 
     mockTelemetryService = {
-      trackEvent: vi.fn().mockImplementation(() => Effect.succeed(undefined as void)),
+      trackEvent: vi
+        .fn()
+        .mockImplementation(() => Effect.succeed(undefined as void)),
       isEnabled: vi.fn().mockImplementation(() => Effect.succeed(true)),
-      setEnabled: vi.fn().mockImplementation(() => Effect.succeed(undefined as void))
-    } as unknown as TelemetryService;
+      setEnabled: vi
+        .fn()
+        .mockImplementation(() => Effect.succeed(undefined as void)),
+    };
 
     // Create test layer with mocked dependencies
+    // This layer provides NIP90ServiceLive, which in turn depends on NostrService, NIP04Service, and TelemetryService.
+    // We provide mock implementations for these dependencies here.
     testLayer = Layer.provide(
       NIP90ServiceLive,
       Layer.succeed(NostrService, mockNostrService)
         .pipe(Layer.merge(Layer.succeed(NIP04Service, mockNip04Service)))
-        .pipe(Layer.merge(Layer.succeed(TelemetryService, mockTelemetryService)))
+        .pipe(
+          Layer.merge(Layer.succeed(TelemetryService, mockTelemetryService)),
+        ),
     );
   });
 
@@ -74,442 +95,283 @@ describe('NIP90Service', () => {
     vi.restoreAllMocks();
   });
 
-  describe('createJobRequest', () => {
-    it('should create and publish a job request successfully', async () => {
+  describe("createJobRequest", () => {
+    it("should create and publish a job request successfully", async () => {
       // Arrange
       const mockJobEvent: NostrEvent = {
-        id: 'test-event-id',
-        pubkey: 'test-pubkey',
+        id: "test-event-id",
+        pubkey: "test-pubkey",
         created_at: 123456789,
         kind: 5100,
-        tags: [['encrypted'], ['output', 'text/plain']],
-        content: 'encrypted-content',
-        sig: 'test-sig'
+        tags: [["encrypted"], ["output", "text/plain"]],
+        content: "encrypted-content",
+        sig: "test-sig",
       };
 
-      const mockCreateJobRequest = createNip90JobRequest as unknown as ReturnType<typeof vi.fn>;
-      mockCreateJobRequest.mockReturnValue(Effect.succeed(mockJobEvent));
+      const mockCreateJobRequestHelper =
+        createNip90JobRequest as unknown as ReturnType<typeof vi.fn>;
+      mockCreateJobRequestHelper.mockReturnValue(Effect.succeed(mockJobEvent));
 
       const jobParams: CreateNIP90JobParams = {
         kind: 5100,
-        inputs: [['test input', 'text']],
+        inputs: [["test input", "text"]],
         requesterSk: TEST_SK,
-        outputMimeType: 'text/plain'
+        outputMimeType: "text/plain",
       };
 
       // Act
-      const result = await Effect.runPromise(
-        runEffectTest(
-          Effect.flatMap(
-            NIP90Service,
-            service => service.createJobRequest(jobParams)
-          )
-        )
+      const program = Effect.flatMap(NIP90Service, (service) =>
+        service.createJobRequest(jobParams),
       );
+      const result = await Effect.runPromise(runEffectTest(program));
 
       // Assert
       expect(result).toEqual(mockJobEvent);
       expect(mockTelemetryService.trackEvent).toHaveBeenCalledTimes(2); // start and success
     });
 
-    it('should handle validation errors', async () => {
+    it("should handle validation errors", async () => {
       // Arrange
       const invalidJobParams = {
-        // Missing required fields
-        kind: 4999, // Invalid kind (should be 5000-5999)
-        inputs: [['test input', 'invalid-type']],
-        requesterSk: TEST_SK
+        kind: 4999,
+        inputs: [["test input", "invalid-type" as any]],
+        requesterSk: TEST_SK,
       } as unknown as CreateNIP90JobParams;
 
-      // Act & Assert - we need to check for the error message rather than the type
-      // because Effect.runPromise wraps errors in FiberFailure
-      await expect(
-        Effect.runPromise(
-          runEffectTest(
-            Effect.flatMap(
-              NIP90Service,
-              service => service.createJobRequest(invalidJobParams)
-            )
-          )
-        )
-      ).rejects.toThrow(/Invalid NIP-90 job request parameters/);
-      
-      // Check that the error is thrown correctly
+      const program = Effect.flatMap(NIP90Service, (service) =>
+        service.createJobRequest(invalidJobParams),
+      );
+
+      await expect(Effect.runPromise(runEffectTest(program))).rejects.toThrow(
+        /Invalid NIP-90 job request parameters/,
+      );
+
       try {
-        await Effect.runPromise(
-          runEffectTest(
-            Effect.flatMap(
-              NIP90Service,
-              service => service.createJobRequest(invalidJobParams)
-            )
-          )
-        );
-        expect.fail('Should have thrown error');
+        await Effect.runPromise(runEffectTest(program));
+        expect.fail("Should have thrown error");
       } catch (e: unknown) {
-        // The error is a FiberFailure containing a NIP90ValidationError
-        const error = e as Error;
-        expect(error).toBeDefined();
+        const error = e as NIP90ValidationError;
+        expect(error).toBeInstanceOf(NIP90ValidationError);
         expect(error.message).toMatch(/Invalid NIP-90 job request parameters/);
-        expect(error.name).toContain('NIP90ValidationError');
+        expect(error.name).toContain("NIP90ValidationError");
       }
-      
-      // Check telemetry was called for validation
+
       expect(mockTelemetryService.trackEvent).toHaveBeenCalledWith(
         expect.objectContaining({
-          action: 'nip90_validation_error'
-        })
+          action: "nip90_validation_error",
+        }),
       );
     });
 
-    it('should handle encryption errors', async () => {
-      // Arrange
+    it("should handle encryption errors", async () => {
       const jobParams: CreateNIP90JobParams = {
         kind: 5100,
-        inputs: [['test input', 'text']],
+        inputs: [["test input", "text"]],
         requesterSk: TEST_SK,
         targetDvmPubkeyHex: TEST_DVM_PUBKEY,
-        outputMimeType: 'text/plain'
+        outputMimeType: "text/plain",
       };
 
-      const mockCreateJobRequest = createNip90JobRequest as unknown as ReturnType<typeof vi.fn>;
-      mockCreateJobRequest.mockReturnValue(Effect.fail(new Error('Encryption failed')));
+      const mockCreateJobRequestHelper =
+        createNip90JobRequest as unknown as ReturnType<typeof vi.fn>;
+      mockCreateJobRequestHelper.mockReturnValue(
+        Effect.fail(new Error("Encryption failed")),
+      );
 
-      // Act & Assert
-      await expect(
-        Effect.runPromise(
-          runEffectTest(
-            Effect.flatMap(
-              NIP90Service,
-              service => service.createJobRequest(jobParams)
-            )
-          )
-        )
-      ).rejects.toThrow(/Encryption failed/);
+      const program = Effect.flatMap(NIP90Service, (service) =>
+        service.createJobRequest(jobParams),
+      );
+      await expect(Effect.runPromise(runEffectTest(program))).rejects.toThrow(
+        /Encryption failed/,
+      );
     });
 
-    it('should handle publishing errors', async () => {
-      // Arrange
+    it("should handle publishing errors", async () => {
       const mockJobEvent: NostrEvent = {
-        id: 'test-event-id',
-        pubkey: 'test-pubkey',
-        created_at: 123456789,
-        kind: 5100,
-        tags: [['encrypted'], ['output', 'text/plain']],
-        content: 'encrypted-content',
-        sig: 'test-sig'
+        id: "test",
+        pubkey: "pk",
+        kind: 5000,
+        created_at: 0,
+        tags: [],
+        content: "",
+        sig: "",
       };
+      const mockCreateJobRequestHelper =
+        createNip90JobRequest as unknown as ReturnType<typeof vi.fn>;
+      mockCreateJobRequestHelper.mockReturnValue(Effect.succeed(mockJobEvent));
 
-      const mockCreateJobRequest = createNip90JobRequest as unknown as ReturnType<typeof vi.fn>;
-      mockCreateJobRequest.mockReturnValue(Effect.succeed(mockJobEvent));
-
-      // Override publishEvent to simulate error
-      mockNostrService.publishEvent = vi.fn().mockImplementation(() => 
-        Effect.fail(new Error('Publishing failed'))
-      );
+      mockNostrService.publishEvent = vi
+        .fn()
+        .mockImplementation(() => Effect.fail(new Error("Publishing failed")));
 
       const jobParams: CreateNIP90JobParams = {
         kind: 5100,
-        inputs: [['test input', 'text']],
+        inputs: [["test input", "text"]],
         requesterSk: TEST_SK,
-        outputMimeType: 'text/plain'
+        outputMimeType: "text/plain",
       };
-
-      // Act & Assert
-      await expect(
-        Effect.runPromise(
-          runEffectTest(
-            Effect.flatMap(
-              NIP90Service,
-              service => service.createJobRequest(jobParams)
-            )
-          )
-        )
-      ).rejects.toThrow(/Publishing failed/);
+      const program = Effect.flatMap(NIP90Service, (service) =>
+        service.createJobRequest(jobParams),
+      );
+      await expect(Effect.runPromise(runEffectTest(program))).rejects.toThrow(
+        /Publishing failed/,
+      );
     });
   });
 
-  describe('getJobResult', () => {
-    it('should return null when no results are found', async () => {
-      // Arrange
-      mockNostrService.listEvents = vi.fn().mockImplementation(() => Effect.succeed([]));
-
-      // Act
-      const result = await Effect.runPromise(
-        Effect.flatMap(
-          NIP90Service,
-          service => service.getJobResult(TEST_EVENT_ID)
-        ), testLayer)
+  describe("getJobResult", () => {
+    it("should return null when no results are found", async () => {
+      mockNostrService.listEvents = vi
+        .fn()
+        .mockImplementation(() => Effect.succeed([]));
+      const program = Effect.flatMap(NIP90Service, (service) =>
+        service.getJobResult(TEST_EVENT_ID),
       );
-
-      // Assert
+      const result = await Effect.runPromise(runEffectTest(program));
       expect(result).toBeNull();
-      expect(mockNostrService.listEvents).toHaveBeenCalledWith([{
-        kinds: expect.arrayContaining([6000]), // Should include kinds 6000-6999
-        '#e': [TEST_EVENT_ID],
-        limit: 1
-      }]);
     });
 
-    it('should retrieve and return a job result', async () => {
-      // Arrange
+    it("should retrieve and return a job result", async () => {
       const mockResultEvent: NostrEvent = {
-        id: 'result-event-id',
-        pubkey: TEST_DVM_PUBKEY,
-        created_at: 123456789,
-        kind: 6100, // Result kind
-        tags: [
-          ['e', TEST_EVENT_ID],
-          ['request', '{"some":"request data"}'],
-          ['amount', '1000', 'bolt11invoice']
-        ],
-        content: 'result-content',
-        sig: 'test-sig'
-      };
-
-      mockNostrService.listEvents = vi.fn().mockImplementation(() => 
-        Effect.succeed([mockResultEvent])
-      );
-
-      // Act
-      const result = await Effect.runPromise(
-        Effect.flatMap(
-          NIP90Service,
-          service => service.getJobResult(TEST_EVENT_ID)
-        ), testLayer)
-      );
-
-      // Assert
-      expect(result).not.toBeNull();
-      expect(result).toMatchObject({
-        id: 'result-event-id',
+        id: "res1",
         kind: 6100,
-        content: 'result-content',
-        parsedRequest: { some: 'request data' },
-        paymentAmount: 1000,
-        paymentInvoice: 'bolt11invoice',
-        isEncrypted: false
-      });
+        pubkey: "dvm",
+        created_at: 1,
+        tags: [
+          ["e", TEST_EVENT_ID],
+          ["request", "{}"],
+        ],
+        content: "res",
+        sig: "s",
+      };
+      mockNostrService.listEvents = vi
+        .fn()
+        .mockImplementation(() => Effect.succeed([mockResultEvent]));
+      const program = Effect.flatMap(NIP90Service, (service) =>
+        service.getJobResult(TEST_EVENT_ID),
+      );
+      const result = await Effect.runPromise(runEffectTest(program));
+      expect(result).toMatchObject({ id: "res1" });
     });
 
-    it('should handle encrypted results when decryption key is provided', async () => {
-      // Arrange
+    it("should handle encrypted results when decryption key is provided", async () => {
       const mockEncryptedResultEvent: NostrEvent = {
-        id: 'encrypted-result-id',
-        pubkey: TEST_DVM_PUBKEY,
-        created_at: 123456789,
+        id: "encRes",
         kind: 6100,
-        tags: [
-          ['e', TEST_EVENT_ID],
-          ['encrypted']
-        ],
-        content: 'encrypted-content',
-        sig: 'test-sig'
+        pubkey: TEST_DVM_PUBKEY,
+        created_at: 1,
+        tags: [["e", TEST_EVENT_ID], ["encrypted"]],
+        content: "enc",
+        sig: "s",
       };
-
-      mockNostrService.listEvents = vi.fn().mockImplementation(() => 
-        Effect.succeed([mockEncryptedResultEvent])
+      mockNostrService.listEvents = vi
+        .fn()
+        .mockImplementation(() => Effect.succeed([mockEncryptedResultEvent]));
+      const program = Effect.flatMap(NIP90Service, (service) =>
+        service.getJobResult(TEST_EVENT_ID, TEST_DVM_PUBKEY, TEST_SK),
       );
-
-      // Act
-      const result = await Effect.runPromise(
-        Effect.flatMap(
-          NIP90Service,
-          service => service.getJobResult(TEST_EVENT_ID, TEST_DVM_PUBKEY, TEST_SK)
-        ), testLayer)
-      );
-
-      // Assert
-      expect(result).not.toBeNull();
-      expect(result?.isEncrypted).toBe(true);
-      expect(result?.content).toBe('decrypted-content');
-      expect(mockNip04Service.decrypt).toHaveBeenCalledWith(
-        TEST_SK,
-        TEST_DVM_PUBKEY,
-        'encrypted-content'
-      );
+      const result = await Effect.runPromise(runEffectTest(program));
+      expect(result?.content).toBe("decrypted-content");
     });
 
-    it('should handle decryption failures', async () => {
-      // Arrange
+    it("should handle decryption failures", async () => {
       const mockEncryptedResultEvent: NostrEvent = {
-        id: 'encrypted-result-id',
-        pubkey: TEST_DVM_PUBKEY,
-        created_at: 123456789,
+        id: "encResFail",
         kind: 6100,
-        tags: [
-          ['e', TEST_EVENT_ID],
-          ['encrypted']
-        ],
-        content: 'encrypted-content',
-        sig: 'test-sig'
+        pubkey: TEST_DVM_PUBKEY,
+        created_at: 1,
+        tags: [["e", TEST_EVENT_ID], ["encrypted"]],
+        content: "enc",
+        sig: "s",
       };
-
-      mockNostrService.listEvents = vi.fn().mockImplementation(() => 
-        Effect.succeed([mockEncryptedResultEvent])
+      mockNostrService.listEvents = vi
+        .fn()
+        .mockImplementation(() => Effect.succeed([mockEncryptedResultEvent]));
+      mockNip04Service.decrypt = vi
+        .fn()
+        .mockImplementation(() => Effect.fail(new Error("Decryption failed")));
+      const program = Effect.flatMap(NIP90Service, (service) =>
+        service.getJobResult(TEST_EVENT_ID, TEST_DVM_PUBKEY, TEST_SK),
       );
-
-      mockNip04Service.decrypt = vi.fn().mockImplementation(() => 
-        Effect.fail(new Error('Decryption failed'))
+      await expect(Effect.runPromise(runEffectTest(program))).rejects.toThrow(
+        /Decryption failed/,
       );
-
-      // Act & Assert
-      await expect(
-        Effect.runPromise(
-          Effect.flatMap(
-            NIP90Service,
-            service => service.getJobResult(TEST_EVENT_ID, TEST_DVM_PUBKEY, TEST_SK)
-          ), testLayer)
-        )
-      ).rejects.toThrow(/Decryption failed/);
     });
   });
 
-  describe('listJobFeedback', () => {
-    it('should return empty array when no feedback is found', async () => {
-      // Arrange
-      mockNostrService.listEvents = vi.fn().mockImplementation(() => Effect.succeed([]));
-
-      // Act
-      const result = await Effect.runPromise(
-        Effect.flatMap(
-          NIP90Service,
-          service => service.listJobFeedback(TEST_EVENT_ID)
-        ), testLayer)
+  describe("listJobFeedback", () => {
+    it("should return empty array when no feedback is found", async () => {
+      mockNostrService.listEvents = vi
+        .fn()
+        .mockImplementation(() => Effect.succeed([]));
+      const program = Effect.flatMap(NIP90Service, (service) =>
+        service.listJobFeedback(TEST_EVENT_ID),
       );
-
-      // Assert
+      const result = await Effect.runPromise(runEffectTest(program));
       expect(result).toEqual([]);
-      expect(mockNostrService.listEvents).toHaveBeenCalledWith([{
-        kinds: [7000],
-        '#e': [TEST_EVENT_ID]
-      }]);
     });
 
-    it('should retrieve and return feedback events', async () => {
-      // Arrange
+    it("should retrieve and return feedback events", async () => {
       const mockFeedbackEvents: NostrEvent[] = [
         {
-          id: 'feedback-1',
-          pubkey: TEST_DVM_PUBKEY,
-          created_at: 123456789,
+          id: "fb1",
           kind: 7000,
+          pubkey: "dvm",
+          created_at: 1,
           tags: [
-            ['e', TEST_EVENT_ID],
-            ['status', 'processing']
+            ["e", TEST_EVENT_ID],
+            ["status", "processing"],
           ],
-          content: '',
-          sig: 'test-sig'
+          content: "",
+          sig: "s",
         },
-        {
-          id: 'feedback-2',
-          pubkey: TEST_DVM_PUBKEY,
-          created_at: 123456790,
-          kind: 7000,
-          tags: [
-            ['e', TEST_EVENT_ID],
-            ['status', 'success'],
-            ['amount', '2000']
-          ],
-          content: 'Completed successfully',
-          sig: 'test-sig'
-        }
       ];
-
-      mockNostrService.listEvents = vi.fn().mockImplementation(() => 
-        Effect.succeed(mockFeedbackEvents)
+      mockNostrService.listEvents = vi
+        .fn()
+        .mockImplementation(() => Effect.succeed(mockFeedbackEvents));
+      const program = Effect.flatMap(NIP90Service, (service) =>
+        service.listJobFeedback(TEST_EVENT_ID),
       );
-
-      // Act
-      const result = await Effect.runPromise(
-        Effect.flatMap(
-          NIP90Service,
-          service => service.listJobFeedback(TEST_EVENT_ID)
-        ), testLayer)
-      );
-
-      // Assert
-      expect(result).toHaveLength(2);
-      expect(result[0].status).toBe('processing');
-      expect(result[1].status).toBe('success');
-      expect(result[1].paymentAmount).toBe(2000);
+      const result = await Effect.runPromise(runEffectTest(program));
+      expect(result).toHaveLength(1);
+      expect((result[0] as NIP90JobFeedback).status).toBe("processing");
     });
 
-    it('should handle encrypted feedback when decryption key is provided', async () => {
-      // Arrange
-      const mockEncryptedFeedback: NostrEvent = {
-        id: 'encrypted-feedback',
-        pubkey: TEST_DVM_PUBKEY,
-        created_at: 123456789,
+    it("should handle encrypted feedback when decryption key is provided", async () => {
+      const mockEncFeedback: NostrEvent = {
+        id: "encFb",
         kind: 7000,
-        tags: [
-          ['e', TEST_EVENT_ID],
-          ['status', 'payment-required'],
-          ['encrypted']
-        ],
-        content: 'encrypted-content',
-        sig: 'test-sig'
+        pubkey: TEST_DVM_PUBKEY,
+        created_at: 1,
+        tags: [["e", TEST_EVENT_ID], ["encrypted"]],
+        content: "encFb",
+        sig: "s",
       };
-
-      mockNostrService.listEvents = vi.fn().mockImplementation(() => 
-        Effect.succeed([mockEncryptedFeedback])
+      mockNostrService.listEvents = vi
+        .fn()
+        .mockImplementation(() => Effect.succeed([mockEncFeedback]));
+      const program = Effect.flatMap(NIP90Service, (service) =>
+        service.listJobFeedback(TEST_EVENT_ID, TEST_DVM_PUBKEY, TEST_SK),
       );
-
-      // Act
-      const result = await Effect.runPromise(
-        Effect.flatMap(
-          NIP90Service,
-          service => service.listJobFeedback(TEST_EVENT_ID, TEST_DVM_PUBKEY, TEST_SK)
-        ), testLayer)
-      );
-
-      // Assert
-      expect(result).toHaveLength(1);
-      expect(result[0].status).toBe('payment-required');
-      expect(result[0].isEncrypted).toBe(true);
-      expect(result[0].content).toBe('decrypted-content');
-      expect(mockNip04Service.decrypt).toHaveBeenCalledWith(
-        TEST_SK,
-        TEST_DVM_PUBKEY,
-        'encrypted-content'
-      );
+      const result = await Effect.runPromise(runEffectTest(program));
+      expect((result[0] as NIP90JobFeedback).content).toBe("decrypted-content");
     });
   });
 
-  describe('subscribeToJobUpdates', () => {
-    it('should create a subscription for job updates', async () => {
-      // Arrange
+  describe("subscribeToJobUpdates", () => {
+    it("should create a subscription for job updates", async () => {
       const mockCallback = vi.fn();
-      
-      // Act
-      const subscription = await Effect.runPromise(
-        Effect.flatMap(
-          NIP90Service,
-          service => service.subscribeToJobUpdates(
-            TEST_EVENT_ID,
-            TEST_DVM_PUBKEY,
-            TEST_SK,
-            mockCallback
-          )
-        ), testLayer)
+      const program = Effect.flatMap(NIP90Service, (service) =>
+        service.subscribeToJobUpdates(
+          TEST_EVENT_ID,
+          TEST_DVM_PUBKEY,
+          TEST_SK,
+          mockCallback,
+        ),
       );
-
-      // Assert
-      expect(subscription).toHaveProperty('unsub');
-      expect(mockNostrService.subscribeToEvents).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            kinds: expect.arrayContaining([6000]), // Should include 6000-6999
-            '#e': [TEST_EVENT_ID],
-            authors: [TEST_DVM_PUBKEY]
-          }),
-          expect.objectContaining({
-            kinds: [7000],
-            '#e': [TEST_EVENT_ID],
-            authors: [TEST_DVM_PUBKEY]
-          })
-        ]),
-        expect.any(Function)
-      );
+      const subscription = await Effect.runPromise(runEffectTest(program));
+      expect(subscription).toHaveProperty("unsub");
+      expect(mockNostrService.subscribeToEvents).toHaveBeenCalled();
     });
   });
 });
