@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { PlusCircle, HelpCircle, Zap, ZapOff, Wifi, WifiOff, RefreshCcw } from 'lucide-react';
+import { PlusCircle, HelpCircle, Zap, ZapOff, Wifi, WifiOff, RefreshCcw, Loader2 } from 'lucide-react';
 import { SparkService } from '@/services/spark';
 import { OllamaService } from '@/services/ollama';
 import { Kind5050DVMService } from '@/services/dvm';
@@ -17,6 +17,7 @@ const SellComputePane: React.FC = () => {
   const [isOllamaConnected, setIsOllamaConnected] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
   const [statusLoading, setStatusLoading] = useState({ wallet: false, ollama: false });
+  const [isDvmLoading, setIsDvmLoading] = useState(false); // Loading state for DVM operations
 
   const runtime = getMainRuntime();
 
@@ -26,7 +27,7 @@ const SellComputePane: React.FC = () => {
     runPromiseExit(Effect.provide(walletProgram, runtime)).then(exit => {
       if (Exit.isSuccess(exit)) setIsWalletConnected(exit.value);
       else {
-        console.error("Wallet status check failed:", exit);
+        console.error("Wallet status check failed:", Cause.squash(exit.cause));
         setIsWalletConnected(false);
       }
       setStatusLoading(s => ({ ...s, wallet: false }));
@@ -39,7 +40,7 @@ const SellComputePane: React.FC = () => {
     runPromiseExit(Effect.provide(ollamaProgram, runtime)).then(exit => {
       if (Exit.isSuccess(exit)) setIsOllamaConnected(exit.value);
       else {
-        console.error("Ollama status check failed:", exit);
+        console.error("Ollama status check failed:", Cause.squash(exit.cause));
         setIsOllamaConnected(false);
       }
       setStatusLoading(s => ({ ...s, ollama: false }));
@@ -47,13 +48,16 @@ const SellComputePane: React.FC = () => {
   }, [runtime]);
 
   const checkDVMStatus = useCallback(async () => {
+    setIsDvmLoading(true); // Show loading state while checking
     const dvmStatusProgram = Effect.flatMap(Kind5050DVMService, s => s.isListening());
     runPromiseExit(Effect.provide(dvmStatusProgram, runtime)).then(exit => {
       if (Exit.isSuccess(exit)) {
         setIsOnline(exit.value);
       } else {
-        console.error("Failed to check DVM status:", exit);
+        console.error("Failed to check DVM status:", Cause.squash(exit.cause));
+        setIsOnline(false); // Default to offline on error
       }
+      setIsDvmLoading(false); // Hide loading state when done
     });
   }, [runtime]);
 
@@ -63,27 +67,30 @@ const SellComputePane: React.FC = () => {
     checkDVMStatus();
   }, [checkWalletStatus, checkOllamaStatus, checkDVMStatus]);
 
-  const handleGoOnline = () => {
-    if (isWalletConnected && isOllamaConnected) {
-      const dvmAction = !isOnline
-        ? Effect.flatMap(Kind5050DVMService, s => s.startListening())
-        : Effect.flatMap(Kind5050DVMService, s => s.stopListening());
-      
-      // Execute the appropriate DVM action based on current state
-      runPromiseExit(Effect.provide(dvmAction, runtime)).then(exit => {
-        if (Exit.isSuccess(exit)) {
-          setIsOnline(!isOnline);
-          console.log(`Compute selling ${!isOnline ? 'started' : 'stopped'}`);
-        } else {
-          console.error(
-            `Failed to ${!isOnline ? 'start' : 'stop'} DVM:`, exit
-          );
-          alert(`Failed to ${!isOnline ? 'start' : 'stop'} the service. Check console for details.`);
-        }
-      });
-    } else {
-      alert("Please connect your wallet and Ollama to go online.");
+  const handleGoOnlineToggle = async () => {
+    if ((!isWalletConnected || !isOllamaConnected) && !isOnline) {
+      alert("Please ensure your wallet and Ollama are connected to go online.");
+      return;
     }
+
+    setIsDvmLoading(true);
+
+    const dvmAction = isOnline
+      ? Effect.flatMap(Kind5050DVMService, s => s.stopListening())
+      : Effect.flatMap(Kind5050DVMService, s => s.startListening());
+
+    const exit = await runPromiseExit(Effect.provide(dvmAction, runtime));
+
+    if (Exit.isSuccess(exit)) {
+      // Re-check actual DVM status from service
+      await checkDVMStatus();
+      console.log(`DVM Service ${isOnline ? 'stop' : 'start'} command successful.`);
+    } else {
+      console.error(`Failed to ${isOnline ? 'stop' : 'start'} DVM:`, Cause.squash(exit.cause));
+      alert(`Failed to ${isOnline ? 'stop' : 'start'} the service. Check console for details.`);
+      await checkDVMStatus(); // Re-check to ensure UI reflects actual state
+    }
+    // Loading state is handled by checkDVMStatus
   };
 
   const walletStatusText = statusLoading.wallet ? 'Checking...' : (isWalletConnected ? 'CONNECTED' : 'NOT CONNECTED');
@@ -108,7 +115,7 @@ const SellComputePane: React.FC = () => {
             </div>
             <div className="flex space-x-1">
               <Button variant="ghost" size="icon" title="Check Wallet Status" onClick={checkWalletStatus} disabled={statusLoading.wallet}>
-                 {statusLoading.wallet ? <div className="w-4 h-4 animate-spin rounded-full border-2 border-current border-t-transparent"></div> : <RefreshCcw className="w-4 h-4" />}
+                 {statusLoading.wallet ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
               </Button>
               <Button variant="ghost" size="icon" title="Wallet Info"> <HelpCircle className="w-4 h-4" /> </Button>
             </div>
@@ -124,7 +131,7 @@ const SellComputePane: React.FC = () => {
             </div>
             <div className="flex space-x-1">
               <Button variant="ghost" size="icon" title="Check Ollama Status" onClick={checkOllamaStatus} disabled={statusLoading.ollama}>
-                 {statusLoading.ollama ? <div className="w-4 h-4 animate-spin rounded-full border-2 border-current border-t-transparent"></div> : <RefreshCcw className="w-4 h-4" />}
+                 {statusLoading.ollama ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
               </Button>
               <Button variant="ghost" size="icon" title="Ollama Info"> <HelpCircle className="w-4 h-4" /> </Button>
             </div>
@@ -135,13 +142,13 @@ const SellComputePane: React.FC = () => {
           </CardDescription>
 
           <Button
-            onClick={handleGoOnline}
+            onClick={handleGoOnlineToggle}
             className="w-full py-3 text-base"
             variant={isOnline ? "outline" : "default"}
-            disabled={(statusLoading.wallet || statusLoading.ollama || (!isWalletConnected || !isOllamaConnected)) && !isOnline}
+            disabled={isDvmLoading || ((!isWalletConnected || !isOllamaConnected) && !isOnline)}
           >
-            {isOnline ? <ZapOff className="mr-2 h-5 w-5" /> : <Zap className="mr-2 h-5 w-5" />}
-            {isOnline ? 'GO OFFLINE' : 'GO ONLINE'}
+            {isDvmLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : (isOnline ? <ZapOff className="mr-2 h-5 w-5" /> : <Zap className="mr-2 h-5 w-5" />)}
+            {isDvmLoading ? (isOnline ? 'Stopping...' : 'Starting...') : (isOnline ? 'GO OFFLINE' : 'GO ONLINE')}
           </Button>
         </CardContent>
       </Card>
