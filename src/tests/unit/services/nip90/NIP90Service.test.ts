@@ -5,6 +5,7 @@ import {
   NIP90ServiceLive,
   NIP90RequestError,
   NIP90ResultError,
+  NIP90ValidationError,
   CreateNIP90JobParams,
   NIP90JobFeedback,
   NIP90JobResult
@@ -109,7 +110,8 @@ describe('NIP90Service', () => {
         requesterSk: TEST_SK
       } as unknown as CreateNIP90JobParams;
 
-      // Act & Assert
+      // Act & Assert - we need to check for the error message rather than the type
+      // because Effect.runPromise wraps errors in FiberFailure
       await expect(
         Effect.runPromise(
           Effect.flatMap(
@@ -118,6 +120,28 @@ describe('NIP90Service', () => {
           ).pipe(Effect.provide(testLayer))
         )
       ).rejects.toThrow(/Invalid NIP-90 job request parameters/);
+      
+      // Check that the error is thrown correctly
+      try {
+        await Effect.runPromise(
+          Effect.flatMap(
+            NIP90Service,
+            service => service.createJobRequest(invalidJobParams)
+          ).pipe(Effect.provide(testLayer))
+        );
+        fail('Should have thrown error');
+      } catch (error) {
+        // The error is a FiberFailure containing a NIP90ValidationError
+        expect(error.message).toMatch(/Invalid NIP-90 job request parameters/);
+        expect(error.name).toContain('NIP90ValidationError');
+      }
+      
+      // Check telemetry was called for validation
+      expect(mockTelemetryService.trackEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'nip90_validation_error'
+        })
+      );
     });
 
     it('should handle encryption errors', async () => {

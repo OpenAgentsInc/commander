@@ -5,6 +5,7 @@ import { runPromise } from "effect/Effect";
 import {
   type NostrEvent,
   type NostrFilter,
+  NostrService
 } from "@/services/nostr";
 import { NIP19Service } from "@/services/nip19";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,15 +32,16 @@ async function fetchNip90JobRequests(): Promise<NostrEvent[]> {
     limit: 100
   }];
 
-  // Use mainRuntime to get access to NIP90Service
+  // Use mainRuntime to get access to NostrService directly
   const program = Effect.gen(function* (_) {
-    const nostrSvc = yield* _(NIP90Service);
-    const nostrService = yield* _(nostrSvc["nostr"]);
-    const events: NostrEvent[] = yield* _(nostrService.listEvents(filters)); // Explicitly type events
+    // Directly get NostrService from context
+    const nostrSvcDirect = yield* _(NostrService);
+    // Explicitly type the result from listEvents
+    const events: NostrEvent[] = yield* _(nostrSvcDirect.listEvents(filters));
     console.log(`[Nip90EventList] Fetched ${events.length} NIP-90 events`);
     if (events.length > 0) {
       console.log("[Nip90Component] Event kinds distribution:", 
-        events.reduce((acc, ev) => { // ev is now NostrEvent
+        events.reduce((acc, ev) => { // ev is properly typed as NostrEvent
           acc[ev.kind] = (acc[ev.kind] || 0) + 1;
           return acc;
         }, {} as Record<number, number>)

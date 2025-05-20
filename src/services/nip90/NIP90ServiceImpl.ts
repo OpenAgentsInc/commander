@@ -34,56 +34,68 @@ export const NIP90ServiceLive = Layer.effect(
             category: "feature",
             action: "nip90_create_job_request",
             label: `Creating job request of kind: ${params.kind}`,
-          }));
+          }).pipe(Effect.ignoreLogged)); // Use ignoreLogged to handle TrackEventError
 
-          // Validate params against schema
-          try {
-            Schema.decodeUnknown(CreateNIP90JobParamsSchema)(params);
-          } catch (error) {
-            // Track validation failure
-            yield* _(telemetry.trackEvent({
-              category: "error",
-              action: "nip90_validation_error",
-              label: `Job request validation error: ${error instanceof Error ? error.message : String(error)}`,
-            }));
-            
-            return yield* _(Effect.fail(new NIP90ValidationError({
-              message: "Invalid NIP-90 job request parameters",
-              cause: error
-            })));
-          }
+          // Replace the try-catch with Effect-native validation
+          const validatedParams = yield* _(
+            Schema.decodeUnknown(CreateNIP90JobParamsSchema)(params).pipe(
+              Effect.mapError((parseError) => {
+                // Track validation failure telemetry - fire and forget
+                Effect.runFork(telemetry.trackEvent({
+                  category: "error",
+                  action: "nip90_validation_error",
+                  label: `Job request validation error: ${parseError._tag}`,
+                  value: JSON.stringify(parseError.errors)
+                }).pipe(Effect.ignoreLogged));
+
+                return new NIP90ValidationError({
+                  message: "Invalid NIP-90 job request parameters", // This message should match test expectation
+                  cause: parseError,
+                  context: { params: "validation failed" }
+                });
+              })
+            )
+          );
 
           try {
-            // Use existing helper to create the job request event
+            // Convert readonly arrays/tuples to mutable ones
+            const mutableInputs = validatedParams.inputs.map(
+              inputTuple => [...inputTuple] as [string, string, string?, string?, string?]
+            );
+            const mutableAdditionalParams = validatedParams.additionalParams?.map(
+                paramTuple => [...paramTuple] as ['param', string, string]
+            );
+
+            // Use existing helper to create the job request event with validated params
             const jobEvent = yield* _(createNip90JobRequest(
-              params.requesterSk,
-              params.targetDvmPubkeyHex || "", // Empty string if not provided, helper handles it
-              params.inputs as Array<[string, string, string?, string?, string?]>,
-              params.outputMimeType || "text/plain",
-              params.bidMillisats,
-              params.kind,
-              params.additionalParams as Array<['param', string, string]> | undefined
+              validatedParams.requesterSk,
+              validatedParams.targetDvmPubkeyHex || "", // Empty string if not provided, helper handles it
+              mutableInputs,
+              validatedParams.outputMimeType || "text/plain",
+              validatedParams.bidMillisats,
+              validatedParams.kind,
+              mutableAdditionalParams
             ));
 
             // Publish the job request event
             yield* _(nostr.publishEvent(jobEvent));
 
-            // Track success
+            // Track success - use ignoreLogged for telemetry
             yield* _(telemetry.trackEvent({
               category: "feature",
               action: "nip90_job_request_published",
               label: `Published job request with ID: ${jobEvent.id}`,
               value: `Kind: ${jobEvent.kind}`
-            }));
+            }).pipe(Effect.ignoreLogged));
 
             return jobEvent;
           } catch (error) {
-            // Track error
+            // Track error - use ignoreLogged for telemetry
             yield* _(telemetry.trackEvent({
               category: "error",
               action: "nip90_create_job_request_error",
               label: `Failed to create or publish job request: ${error instanceof Error ? error.message : String(error)}`,
-            }));
+            }).pipe(Effect.ignoreLogged));
 
             if (error instanceof NIP04EncryptError) {
               return yield* _(Effect.fail(error));
@@ -105,7 +117,7 @@ export const NIP90ServiceLive = Layer.effect(
             category: "feature",
             action: "nip90_get_job_result",
             label: `Fetching job result for request: ${jobRequestEventId}`,
-          }));
+          }).pipe(Effect.ignoreLogged));
 
           try {
             // Create filter for job result events
@@ -128,14 +140,14 @@ export const NIP90ServiceLive = Layer.effect(
                 category: "info",
                 action: "nip90_no_job_result",
                 label: `No job result found for request: ${jobRequestEventId}`,
-              }));
+              }).pipe(Effect.ignoreLogged));
               return null;
             }
 
             // Get the most recent result
             const resultEvent = events[0];
             
-            // Process the event into a NIP90JobResult
+            // Process the event into a NIP90JobResult - make it let so we can update it immutably
             let jobResult: NIP90JobResult = {
               ...resultEvent,
               parsedRequest: undefined,
@@ -189,7 +201,7 @@ export const NIP90ServiceLive = Layer.effect(
                   category: "feature",
                   action: "nip90_job_result_decrypted",
                   label: `Successfully decrypted job result for request: ${jobRequestEventId}`,
-                }));
+                }).pipe(Effect.ignoreLogged));
 
                 return decryptedResult;
               } catch (error) {
@@ -197,7 +209,7 @@ export const NIP90ServiceLive = Layer.effect(
                   category: "error",
                   action: "nip90_decryption_error",
                   label: `Failed to decrypt job result: ${error instanceof Error ? error.message : String(error)}`,
-                }));
+                }).pipe(Effect.ignoreLogged));
                 
                 if (error instanceof NIP04DecryptError) {
                   return yield* _(Effect.fail(error));
@@ -214,7 +226,7 @@ export const NIP90ServiceLive = Layer.effect(
               category: "feature",
               action: "nip90_job_result_fetched",
               label: `Successfully fetched job result for request: ${jobRequestEventId}`,
-            }));
+            }).pipe(Effect.ignoreLogged));
 
             return jobResult;
           } catch (error) {
@@ -222,7 +234,7 @@ export const NIP90ServiceLive = Layer.effect(
               category: "error",
               action: "nip90_get_job_result_error",
               label: `Failed to fetch job result: ${error instanceof Error ? error.message : String(error)}`,
-            }));
+            }).pipe(Effect.ignoreLogged));
 
             if (error instanceof NostrRequestError) {
               return yield* _(Effect.fail(error));
@@ -241,7 +253,7 @@ export const NIP90ServiceLive = Layer.effect(
             category: "feature",
             action: "nip90_list_job_feedback",
             label: `Fetching job feedback for request: ${jobRequestEventId}`,
-          }));
+          }).pipe(Effect.ignoreLogged));
 
           try {
             // Create filter for job feedback events (kind 7000)
@@ -263,7 +275,7 @@ export const NIP90ServiceLive = Layer.effect(
                 category: "info",
                 action: "nip90_no_job_feedback",
                 label: `No job feedback found for request: ${jobRequestEventId}`,
-              }));
+              }).pipe(Effect.ignoreLogged));
               return [];
             }
 
@@ -330,7 +342,7 @@ export const NIP90ServiceLive = Layer.effect(
                     category: "error",
                     action: "nip90_feedback_decryption_error",
                     label: `Failed to decrypt feedback content: ${error instanceof Error ? error.message : String(error)}`,
-                  }));
+                  }).pipe(Effect.ignoreLogged));
                 }
               }
 
@@ -341,7 +353,7 @@ export const NIP90ServiceLive = Layer.effect(
               category: "feature",
               action: "nip90_job_feedback_fetched",
               label: `Successfully fetched ${feedbackEvents.length} job feedback events for request: ${jobRequestEventId}`,
-            }));
+            }).pipe(Effect.ignoreLogged));
 
             return feedbackEvents;
           } catch (error) {
@@ -349,7 +361,7 @@ export const NIP90ServiceLive = Layer.effect(
               category: "error",
               action: "nip90_list_job_feedback_error",
               label: `Failed to fetch job feedback: ${error instanceof Error ? error.message : String(error)}`,
-            }));
+            }).pipe(Effect.ignoreLogged));
 
             if (error instanceof NostrRequestError) {
               return yield* _(Effect.fail(error));
@@ -368,7 +380,7 @@ export const NIP90ServiceLive = Layer.effect(
             category: "feature",
             action: "nip90_subscribe_job_updates",
             label: `Subscribing to updates for job request: ${jobRequestEventId}`,
-          }));
+          }).pipe(Effect.ignoreLogged));
 
           try {
             // Create filters for both result (6xxx) and feedback (7000) events
@@ -521,7 +533,7 @@ export const NIP90ServiceLive = Layer.effect(
               category: "error",
               action: "nip90_subscribe_job_updates_error",
               label: `Failed to subscribe to job updates: ${error instanceof Error ? error.message : String(error)}`,
-            }));
+            }).pipe(Effect.ignoreLogged));
 
             if (error instanceof NostrRequestError) {
               return yield* _(Effect.fail(error));

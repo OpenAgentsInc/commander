@@ -5,11 +5,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { generateSecretKey } from 'nostr-tools/pure';
-import { Effect, pipe } from 'effect';
+import { Effect } from 'effect';
 import { runPromise, runPromiseExit } from 'effect/Effect';
 import { bytesToHex } from '@noble/hashes/utils';
 import { mainRuntime } from '@/services/runtime';
-import { NIP90Service, CreateNIP90JobParams } from '@/services/nip90';
+import { NIP90Service, CreateNIP90JobParams, NIP90InputType } from '@/services/nip90';
 
 // Define the DVM's public key (replace with actual key in a real application)
 const OUR_DVM_PUBKEY_HEX = "32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245"; // Example key
@@ -79,8 +79,9 @@ export default function Nip90RequestForm() {
       setEphemeralSkHex(currentEphemeralSkHex);
 
       // 2. Prepare inputs and any additional parameters for encryption
-      const inputsForEncryption: [string, string, string?, string?, string?][] = [
-        [inputData.trim(), 'text']
+      // Explicitly match the NIP90InputType tuple structure
+      const inputsForEncryption: Array<[string, NIP90InputType, string?, string?, string?]> = [
+        [inputData.trim(), 'text', undefined, undefined, undefined]
       ];
 
       // Optional: Add additional parameters to be encrypted
@@ -93,7 +94,7 @@ export default function Nip90RequestForm() {
         kind,
         inputs: inputsForEncryption,
         outputMimeType: currentOutputMimeType,
-        requesterSk: requesterSkUint8Array,
+        requesterSk: requesterSkUint8Array as Uint8Array<ArrayBuffer>,
         targetDvmPubkeyHex: OUR_DVM_PUBKEY_HEX,
         bidMillisats: bidNum,
         // additionalParams // uncomment if using
@@ -106,6 +107,7 @@ export default function Nip90RequestForm() {
         Effect.map(event => event.id) // `event` is NostrEvent here
       );
 
+      // Provide the runtime to the program and run it
       const result = await runPromise(Effect.provide(programToRun, mainRuntime));
 
       // Store successful event info
