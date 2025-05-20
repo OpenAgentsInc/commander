@@ -237,15 +237,16 @@ export const SparkServiceLive = Layer.effect(
                 });
                 
                 // Map SDK result to our interface type
+                // Handling the LightningSendRequest structure from SDK
                 const result: LightningPayment = {
                   payment: {
                     id: sdkResult.id || 'unknown-id',
-                    paymentHash: sdkResult.paymentHash || 'unknown-hash',
-                    amountSats: sdkResult.amountSats || 0,
-                    feeSats: sdkResult.feeSats || 0,
+                    paymentHash: (sdkResult as any).paymentHash || 'unknown-hash',
+                    amountSats: (sdkResult as any).amountSats || 0,
+                    feeSats: (sdkResult as any).feeSats || 0,
                     createdAt: Math.floor(Date.now() / 1000),
                     status: 'SUCCESS', // Assume success if we get here
-                    destination: sdkResult.destination
+                    destination: (sdkResult as any).destination || 'unknown-destination'
                   }
                 };
                 

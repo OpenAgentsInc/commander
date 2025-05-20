@@ -171,7 +171,7 @@ describe('SparkService', () => {
   });
 
   // Helper to create test programs that don't use Effect.gen 
-  const createTestProgram = <A, E>(program: (service: SparkService) => Effect.Effect<A, E, never>) => {
+  const createTestProgram = <A>(program: (service: SparkService) => Effect.Effect<A, SparkValidationError | SparkLightningError | SparkConnectionError | SparkAuthenticationError | SparkTransactionError | SparkBalanceError | SparkRPCError | SparkNotImplementedError | SparkConfigError | TrackEventError, never>) => {
     const mockService = createMockSparkService();
     return program(mockService);
   };
@@ -222,11 +222,11 @@ describe('SparkService', () => {
         service.createLightningInvoice(invoiceParams)
       );
       
-      const exit = await Effect.runPromiseExit(program as any);
+      const exit = await Effect.runPromiseExit(program);
       
       // Assertions
       expect(Exit.isSuccess(exit)).toBe(true);
-      const result = getSuccess(exit);
+      const result = getSuccess(exit) as LightningInvoice;
       expect(result.invoice.paymentHash).toEqual('abcdef1234567890');
       expect(result.invoice.encodedInvoice).toContain('lnbc10n1p3zry29pp');
     });
@@ -242,7 +242,7 @@ describe('SparkService', () => {
         service.createLightningInvoice(invalidParams)
       );
       
-      const exit = await Effect.runPromiseExit(program as any);
+      const exit = await Effect.runPromiseExit(program);
       
       // Assertions
       expect(Exit.isFailure(exit)).toBe(true);
@@ -290,11 +290,11 @@ describe('SparkService', () => {
         service.payLightningInvoice(paymentParams)
       );
       
-      const exit = await Effect.runPromiseExit(program as any);
+      const exit = await Effect.runPromiseExit(program);
       
       // Assertions
       expect(Exit.isSuccess(exit)).toBe(true);
-      const result = getSuccess(exit);
+      const result = getSuccess(exit) as LightningPayment;
       expect(result.payment.id).toEqual('payment123');
       expect(result.payment.paymentHash).toEqual('abcdef1234567890');
     });
@@ -310,7 +310,7 @@ describe('SparkService', () => {
         service.payLightningInvoice(invalidParams)
       );
       
-      const exit = await Effect.runPromiseExit(program as any);
+      const exit = await Effect.runPromiseExit(program);
       
       // Assertions
       expect(Exit.isFailure(exit)).toBe(true);
@@ -329,11 +329,11 @@ describe('SparkService', () => {
         service.getBalance()
       );
       
-      const exit = await Effect.runPromiseExit(program as any);
+      const exit = await Effect.runPromiseExit(program);
       
       // Assertions
       expect(Exit.isSuccess(exit)).toBe(true);
-      const result = getSuccess(exit);
+      const result = getSuccess(exit) as BalanceInfo;
       expect(result.balance).toEqual(BigInt(50000));
       expect(result.tokenBalances.get('token1')?.tokenInfo.name).toBe('Test Token');
     });
@@ -346,11 +346,11 @@ describe('SparkService', () => {
         service.getSingleUseDepositAddress()
       );
       
-      const exit = await Effect.runPromiseExit(program as any);
+      const exit = await Effect.runPromiseExit(program);
       
       // Assertions
       expect(Exit.isSuccess(exit)).toBe(true);
-      const result = getSuccess(exit);
+      const result = getSuccess(exit) as string;
       expect(result).toEqual('bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh');
     });
   });
