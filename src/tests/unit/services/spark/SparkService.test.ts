@@ -211,6 +211,36 @@ describe('SparkService', () => {
     const runnableEffect = effect as Effect.Effect<A, E, never>;
     return Effect.runPromiseExit(runnableEffect);
   };
+  
+  // Helper for SDK error mapping tests
+  const testSDKErrorMapping = async <A>(
+    sdkMethodMock: ReturnType<typeof vi.fn>,
+    serviceMethodCall: Effect.Effect<A, SparkError | TrackEventError, SparkService>,
+    sdkErrorInstance: Error, // Use the mock error type from ./mockSdk
+    expectedSparkErrorType: new (...args: any[]) => SparkError,
+    expectedCategory: string,
+    expectedActionPrefix: string
+  ) => {
+    sdkMethodMock.mockRejectedValueOnce(sdkErrorInstance);
+    mockTrackEvent.mockClear();
+
+    const exit = await safeRunEffect(serviceMethodCall.pipe(Effect.provide(testLayerForLive)));
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    const error = getFailure(exit);
+    expect(error).toBeInstanceOf(expectedSparkErrorType);
+    if (error instanceof expectedSparkErrorType) { // Type guard
+      expect(error.cause).toBe(sdkErrorInstance);
+    }
+    expect(mockTrackEvent).toHaveBeenCalledWith(expect.objectContaining({
+      category: expectedCategory,
+      action: `${expectedActionPrefix}_start`
+    }));
+    expect(mockTrackEvent).toHaveBeenCalledWith(expect.objectContaining({
+      category: expectedCategory,
+      action: `${expectedActionPrefix}_failure`
+    }));
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -269,25 +299,32 @@ describe('SparkService', () => {
       }
     });
     
-    it('should fail when invalid parameters are provided via SparkServiceLive', async () => {
-      // Setup a mock that will fail if called with negative amount
-      createLightningInvoiceMock.mockImplementation(({ amountSats }) => {
-        if (amountSats < 0) {
-          throw new MockValidationError('Invalid amount');
-        }
-        return Promise.resolve({ invoice: { encodedInvoice: 'test', paymentHash: 'test', createdAt: '2023-01-01' } });
-      });
-      
-      // Invalid parameter - negative amount
-      const invalidParams = { amountSats: -100, memo: 'Invalid Test' };
-      
-      const program = Effect.flatMap(SparkService, s => s.createLightningInvoice(invalidParams as any));
+    it('should fail with SparkValidationError (schema validation) for zero amountSats via SparkServiceLive', async () => {
+      const invalidParams: CreateLightningInvoiceParams = { amountSats: 0, memo: 'Invalid Zero Amount' };
+      // SDK mock should NOT be called for this test - reset it to verify
+      createLightningInvoiceMock.mockClear();
+      mockTrackEvent.mockClear();
+
+      const program = Effect.flatMap(SparkService, s => s.createLightningInvoice(invalidParams));
       const exit = await safeRunEffect(program.pipe(Effect.provide(testLayerForLive)));
-      
-      // The effect should fail with any error
+
       expect(Exit.isFailure(exit)).toBe(true);
-      // Verify the SDK mock was called (validation is happening in the SDK mock)
-      expect(createLightningInvoiceMock).toHaveBeenCalled();
+      const error = getFailure(exit);
+      expect(error).toBeInstanceOf(SparkValidationError);
+      if (error instanceof SparkValidationError && error.cause) {
+        expect(error.message).toContain("Invalid parameters for createLightningInvoice");
+        // @ts-ignore - Assuming cause is ParseError from effect/Schema
+        expect(error.cause._tag).toBe("ParseError");
+      }
+      expect(createLightningInvoiceMock).not.toHaveBeenCalled(); // Crucial: SDK method wasn't called
+      expect(mockTrackEvent).toHaveBeenCalledWith(expect.objectContaining({
+        action: 'create_invoice_failure', // Validation failures should log failure telemetry
+        label: expect.stringContaining("Invalid parameters"),
+        category: 'spark:lightning' // Ensure correct category
+      }));
+      // Ensure no "start" or "success" telemetry was called for this action
+      expect(mockTrackEvent).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'create_invoice_start' }));
+      expect(mockTrackEvent).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'create_invoice_success' }));
     });
     
     it('should create invoice via SparkServiceLive and track telemetry', async () => {
@@ -360,6 +397,32 @@ describe('SparkService', () => {
       }
       expect(mockTrackEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'create_invoice_failure' }));
     });
+    
+    it('should map SDK ValidationError to SparkValidationError for createLightningInvoice', async () => {
+      const params: CreateLightningInvoiceParams = { amountSats: 1000, memo: "Test" };
+      const program = Effect.flatMap(SparkService, s => s.createLightningInvoice(params));
+      await testSDKErrorMapping(
+        createLightningInvoiceMock,
+        program,
+        new MockValidationError("SDK CreateInvoice Validation Failed"),
+        SparkValidationError,
+        'spark:lightning',
+        'create_invoice'
+      );
+    });
+
+    it('should map SDK NotImplementedError to SparkNotImplementedError for createLightningInvoice', async () => {
+      const params: CreateLightningInvoiceParams = { amountSats: 1000, memo: "Test" };
+      const program = Effect.flatMap(SparkService, s => s.createLightningInvoice(params));
+      await testSDKErrorMapping(
+        createLightningInvoiceMock,
+        program,
+        new MockNotImplementedError("SDK CreateInvoice Not Implemented"),
+        SparkNotImplementedError,
+        'spark:lightning',
+        'create_invoice'
+      );
+    });
   });
 
   describe('payLightningInvoice', () => {
@@ -405,28 +468,30 @@ describe('SparkService', () => {
       }
     });
     
-    it('should fail when invalid parameters are provided via SparkServiceLive', async () => {
-      // Setup a mock that will fail if called with negative maxFeeSats
-      payLightningInvoiceMock.mockImplementation(({ maxFeeSats }) => {
-        if (maxFeeSats < 0) {
-          throw new MockValidationError('Invalid fee');
-        }
-        return Promise.resolve({ id: 'test', paymentPreimage: 'test', status: 'SUCCESS' });
-      });
-      
-      // Invalid parameter - negative maxFeeSats
-      const invalidParams = { 
-        invoice: 'lnbc1valid', 
-        maxFeeSats: -10  // Negative fee should fail
-      };
-      
-      const program = Effect.flatMap(SparkService, s => s.payLightningInvoice(invalidParams as any));
+    it('should fail with SparkValidationError (schema validation) for empty invoice string via SparkServiceLive', async () => {
+      const invalidParams: PayLightningInvoiceParams = { invoice: '', maxFeeSats: 100 };
+      payLightningInvoiceMock.mockClear();
+      mockTrackEvent.mockClear();
+
+      const program = Effect.flatMap(SparkService, s => s.payLightningInvoice(invalidParams));
       const exit = await safeRunEffect(program.pipe(Effect.provide(testLayerForLive)));
-      
-      // The effect should fail with any error
+
       expect(Exit.isFailure(exit)).toBe(true);
-      // Verify the SDK mock was called (validation is happening in the SDK mock)
-      expect(payLightningInvoiceMock).toHaveBeenCalled();
+      const error = getFailure(exit);
+      expect(error).toBeInstanceOf(SparkValidationError);
+      if (error instanceof SparkValidationError && error.cause) {
+        expect(error.message).toContain("Invalid parameters for payLightningInvoice");
+        // @ts-ignore
+        expect(error.cause._tag).toBe("ParseError");
+      }
+      expect(payLightningInvoiceMock).not.toHaveBeenCalled();
+      expect(mockTrackEvent).toHaveBeenCalledWith(expect.objectContaining({
+        action: 'pay_invoice_failure',
+        label: expect.stringContaining("Invalid parameters"),
+        category: 'spark:lightning'
+      }));
+      expect(mockTrackEvent).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'pay_invoice_start' }));
+      expect(mockTrackEvent).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'pay_invoice_success' }));
     });
     
     it('should successfully pay invoice via SparkServiceLive', async () => {
@@ -477,6 +542,32 @@ describe('SparkService', () => {
       }
       expect(mockTrackEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'pay_invoice_failure' }));
     });
+    
+    it('should map SDK ValidationError to SparkValidationError for payLightningInvoice', async () => {
+      const params: PayLightningInvoiceParams = { invoice: "lnbc...", maxFeeSats: 100 };
+      const program = Effect.flatMap(SparkService, s => s.payLightningInvoice(params));
+      await testSDKErrorMapping(
+        payLightningInvoiceMock,
+        program,
+        new MockValidationError("SDK PayInvoice Validation Failed"),
+        SparkValidationError,
+        'spark:lightning',
+        'pay_invoice'
+      );
+    });
+
+    it('should map SDK NotImplementedError to SparkNotImplementedError for payLightningInvoice', async () => {
+      const params: PayLightningInvoiceParams = { invoice: "lnbc...", maxFeeSats: 100 };
+      const program = Effect.flatMap(SparkService, s => s.payLightningInvoice(params));
+      await testSDKErrorMapping(
+        payLightningInvoiceMock,
+        program,
+        new MockNotImplementedError("SDK PayInvoice Not Implemented"),
+        SparkNotImplementedError,
+        'spark:lightning',
+        'pay_invoice'
+      );
+    });
   });
 
   describe('getBalance', () => {
@@ -493,6 +584,42 @@ describe('SparkService', () => {
       const result = getSuccess(exit) as BalanceInfo;
       expect(result.balance).toEqual(BigInt(50000));
       expect(result.tokenBalances.get('token1')?.tokenInfo.name).toBe('Test Token');
+    });
+    
+    it('should map SDK ValidationError to SparkValidationError for getBalance', async () => {
+      const program = Effect.flatMap(SparkService, s => s.getBalance());
+      await testSDKErrorMapping(
+        getBalanceMock,
+        program,
+        new MockValidationError("SDK GetBalance Validation Failed"),
+        SparkValidationError,
+        'spark:balance',
+        'get_balance'
+      );
+    });
+
+    it('should map SDK NotImplementedError to SparkNotImplementedError for getBalance', async () => {
+      const program = Effect.flatMap(SparkService, s => s.getBalance());
+      await testSDKErrorMapping(
+        getBalanceMock,
+        program,
+        new MockNotImplementedError("SDK GetBalance Not Implemented"),
+        SparkNotImplementedError,
+        'spark:balance',
+        'get_balance'
+      );
+    });
+    
+    it('should map SDK ConfigurationError to SparkConfigError for getBalance', async () => {
+      const program = Effect.flatMap(SparkService, s => s.getBalance());
+      await testSDKErrorMapping(
+        getBalanceMock,
+        program,
+        new MockConfigError("SDK GetBalance Config Failed"),
+        SparkConfigError,
+        'spark:balance',
+        'get_balance'
+      );
     });
   });
 
@@ -523,6 +650,42 @@ describe('SparkService', () => {
       expect(result).toEqual('sdk-deposit-address-123');
       expect(mockTrackEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'get_deposit_address_start' }));
       expect(mockTrackEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'get_deposit_address_success' }));
+    });
+    
+    it('should map SDK ValidationError to SparkValidationError for getSingleUseDepositAddress', async () => {
+      const program = Effect.flatMap(SparkService, s => s.getSingleUseDepositAddress());
+      await testSDKErrorMapping(
+        getSingleUseDepositAddressMock,
+        program,
+        new MockValidationError("SDK GetAddress Validation Failed"),
+        SparkValidationError,
+        'spark:deposit',
+        'get_deposit_address'
+      );
+    });
+
+    it('should map SDK NotImplementedError to SparkNotImplementedError for getSingleUseDepositAddress', async () => {
+      const program = Effect.flatMap(SparkService, s => s.getSingleUseDepositAddress());
+      await testSDKErrorMapping(
+        getSingleUseDepositAddressMock,
+        program,
+        new MockNotImplementedError("SDK GetAddress Not Implemented"),
+        SparkNotImplementedError,
+        'spark:deposit',
+        'get_deposit_address'
+      );
+    });
+    
+    it('should map SDK ConfigurationError to SparkConfigError for getSingleUseDepositAddress', async () => {
+      const program = Effect.flatMap(SparkService, s => s.getSingleUseDepositAddress());
+      await testSDKErrorMapping(
+        getSingleUseDepositAddressMock,
+        program,
+        new MockConfigError("SDK GetAddress Config Failed"),
+        SparkConfigError,
+        'spark:deposit',
+        'get_deposit_address'
+      );
     });
   });
   

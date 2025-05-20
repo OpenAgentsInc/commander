@@ -160,6 +160,14 @@ export const SparkServiceLive = Layer.scoped(
             }))
           );
           
+          // Additional validation checks
+          if (params.amountSats <= 0) {
+            return yield* _(Effect.fail(new SparkValidationError({
+              message: "Invalid parameters for createLightningInvoice: Amount must be greater than 0",
+              context: { originalParams: params }
+            })));
+          }
+          
           // Use the original params since they already have the correct type
           const validatedParams = params;
 
@@ -182,7 +190,8 @@ export const SparkServiceLive = Layer.scoped(
                   invoice: {
                     encodedInvoice: sdkResult.invoice.encodedInvoice,
                     paymentHash: sdkResult.invoice.paymentHash,
-                    amountSats: validatedParams.amountSats, // Use the amount from our validated params
+                    // If SDK returns amount, prefer it. Otherwise, use the requested amount
+                    amountSats: sdkResult.invoice.amount?.originalValue ?? validatedParams.amountSats,
                     createdAt: sdkResult.invoice.createdAt ? Date.parse(sdkResult.invoice.createdAt) / 1000 : Math.floor(Date.now() / 1000),
                     expiresAt: sdkResult.invoice.expiresAt ? Date.parse(sdkResult.invoice.expiresAt) / 1000 : Math.floor(Date.now() / 1000) + (validatedParams.expirySeconds || 3600), // Default 1hr
                     memo: sdkResult.invoice.memo || validatedParams.memo
@@ -286,6 +295,21 @@ export const SparkServiceLive = Layer.scoped(
             }))
           );
           
+          // Additional validation checks
+          if (!params.invoice || params.invoice.trim().length === 0) {
+            return yield* _(Effect.fail(new SparkValidationError({
+              message: "Invalid parameters for payLightningInvoice: Invoice string cannot be empty",
+              context: { originalParams: params }
+            })));
+          }
+          
+          if (params.maxFeeSats < 0) {
+            return yield* _(Effect.fail(new SparkValidationError({
+              message: "Invalid parameters for payLightningInvoice: Max fee must be non-negative",
+              context: { originalParams: params }
+            })));
+          }
+          
           // Use the original params since they already have the correct type
           const validatedParams = params;
           
@@ -316,8 +340,9 @@ export const SparkServiceLive = Layer.scoped(
                     id: sdkResult.id || 'unknown-id',
                     // The SDK uses paymentPreimage, not paymentHash
                     paymentHash: sdkResult.paymentPreimage || 'unknown-hash',
-                    // SDK should provide an amount field separate from fee, look for transfer amount first
-                    amountSats: (sdkResult.transfer?.totalAmount?.originalValue) || 
+                    // Prefer actual amount sent by SDK if available
+                    amountSats: sdkResult.amount?.originalValue || 
+                      sdkResult.transfer?.totalAmount?.originalValue || 
                       // Fallback to fee - not ideal but we need to get payment amount somewhere
                       (sdkResult.fee && typeof sdkResult.fee.originalValue === 'number' ? 
                         sdkResult.fee.originalValue : 0),
@@ -328,8 +353,9 @@ export const SparkServiceLive = Layer.scoped(
                     // Map actual SDK status to our internal status
                     status: String(sdkResult.status).toUpperCase().includes('SUCCESS') ? 'SUCCESS' : 
                       (String(sdkResult.status).toUpperCase().includes('PEND') ? 'PENDING' : 'FAILED'),
-                    // The SDK doesn't provide destination directly - use transferId or invoice preview
-                    destination: sdkResult.transfer?.sparkId || 
+                    // Prefer specific destination field from SDK if available
+                    destination: sdkResult.destinationNodePubkey || 
+                      sdkResult.transfer?.sparkId || 
                       (sdkResult.encodedInvoice ? sdkResult.encodedInvoice.substring(0, 20) + '...' : 'unknown-destination')
                   }
                 };
@@ -505,6 +531,13 @@ export const SparkServiceLive = Layer.scoped(
                     context: errorContext
                   });
                 }
+                if (e instanceof ConfigurationError) {
+                  return new SparkConfigError({
+                    message: 'Configuration error during balance retrieval',
+                    cause: e,
+                    context: errorContext
+                  });
+                }
                 if (e instanceof SparkSDKError) {
                   return new SparkBalanceError({
                     message: 'SDK error fetching balance',
@@ -587,6 +620,13 @@ export const SparkServiceLive = Layer.scoped(
                 if (e instanceof NotImplementedError) {
                   return new SparkNotImplementedError({
                     message: 'Deposit address generation not implemented in this environment',
+                    cause: e,
+                    context: errorContext
+                  });
+                }
+                if (e instanceof ConfigurationError) {
+                  return new SparkConfigError({
+                    message: 'Configuration error during deposit address generation',
                     cause: e,
                     context: errorContext
                   });
