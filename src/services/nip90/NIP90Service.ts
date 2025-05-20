@@ -54,13 +54,13 @@ export type NIP90JobParam = Schema.Schema.Type<typeof NIP90JobParamSchema>;
 
 export const CreateNIP90JobParamsSchema = Schema.Struct({
   kind: Schema.Number.pipe(Schema.filter(k => k >= 5000 && k <= 5999, { message: () => "Kind must be between 5000-5999" })),
-  inputs: Schema.array(NIP90InputSchema),
+  inputs: Schema.Array(NIP90InputSchema),
   outputMimeType: Schema.optional(Schema.String),
-  additionalParams: Schema.optional(Schema.array(NIP90JobParamSchema)),
+  additionalParams: Schema.optional(Schema.Array(NIP90JobParamSchema)),
   bidMillisats: Schema.optional(Schema.Number),
   targetDvmPubkeyHex: Schema.optional(Schema.String), // For encrypted requests to a specific DVM
   requesterSk: Schema.instanceOf(Uint8Array), // Customer's secret key (can be ephemeral)
-  relays: Schema.optional(Schema.array(Schema.String)) // Relays to publish the request to
+  relays: Schema.optional(Schema.Array(Schema.String)) // Relays to publish the request to
 });
 export type CreateNIP90JobParams = Schema.Schema.Type<typeof CreateNIP90JobParamsSchema>;
 
@@ -69,7 +69,7 @@ export const NIP90JobResultSchema = Schema.Struct({
   pubkey: Schema.String,
   created_at: Schema.Number,
   kind: Schema.Number.pipe(Schema.filter(k => k >= 6000 && k <= 6999)),
-  tags: Schema.array(Schema.array(Schema.String)),
+  tags: Schema.Array(Schema.Array(Schema.String)),
   content: Schema.String, // This might be JSON or other data, possibly encrypted
   sig: Schema.String,
   // Parsed fields for convenience
@@ -96,7 +96,7 @@ export const NIP90JobFeedbackSchema = Schema.Struct({
   pubkey: Schema.String,
   created_at: Schema.Number,
   kind: Schema.Literal(7000),
-  tags: Schema.array(Schema.array(Schema.String)),
+  tags: Schema.Array(Schema.Array(Schema.String)),
   content: Schema.String,
   sig: Schema.String,
   // Parsed fields for convenience

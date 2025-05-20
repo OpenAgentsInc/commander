@@ -25,7 +25,7 @@ export const OllamaServiceConfigTag = Context.GenericTag<OllamaServiceConfig>("O
 // OllamaChatCompletionRequest schema
 export const OllamaChatCompletionRequestSchema = Schema.Struct({
   model: Schema.optional(Schema.String),
-  messages: Schema.array(OllamaMessageSchema),
+  messages: Schema.Array(OllamaMessageSchema),
   stream: Schema.optional(Schema.Boolean)
 });
 export type OllamaChatCompletionRequest = Schema.Schema.Type<typeof OllamaChatCompletionRequestSchema>;
@@ -50,7 +50,7 @@ export const OllamaChatCompletionResponseSchema = Schema.Struct({
   object: Schema.String,
   created: Schema.Number,
   model: Schema.String,
-  choices: Schema.array(OllamaChatCompletionChoiceSchema),
+  choices: Schema.Array(OllamaChatCompletionChoiceSchema),
   usage: Schema.optional(OllamaChatCompletionUsageSchema)
 });
 export type OllamaChatCompletionResponse = Schema.Schema.Type<typeof OllamaChatCompletionResponseSchema>;
@@ -112,7 +112,7 @@ export class OllamaParseError extends Error {
 export const OllamaOpenAIChatStreamDeltaSchema = Schema.Struct({
   role: Schema.optional(Schema.Union(Schema.Literal("system"), Schema.Literal("user"), Schema.Literal("assistant"))),
   content: Schema.optional(Schema.String),
-  // tool_calls: Schema.optional(Schema.array(Schema.Any)) // If supporting tool calls
+  // tool_calls: Schema.optional(Schema.Array(Schema.Any)) // If supporting tool calls
 });
 export type OllamaOpenAIChatStreamDelta = Schema.Schema.Type<typeof OllamaOpenAIChatStreamDeltaSchema>;
 

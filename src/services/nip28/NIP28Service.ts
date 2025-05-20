@@ -24,7 +24,7 @@ export const ChannelMetadataContentSchema = Schema.Struct({
     name: Schema.String, // NIP-28 implies name is required for kind 40 content
     about: Schema.optional(Schema.String),
     picture: Schema.optional(Schema.String),
-    relays: Schema.optional(Schema.array(Schema.String)) // NIP-28 mentions this for kind 40 content too
+    relays: Schema.optional(Schema.Array(Schema.String)) // NIP-28 mentions this for kind 40 content too
 });
 export type ChannelMetadataContent = Schema.Schema.Type<typeof ChannelMetadataContentSchema>;
 

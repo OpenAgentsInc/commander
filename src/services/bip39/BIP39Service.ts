@@ -11,7 +11,7 @@ export const BIP39MnemonicOptionsSchema = Schema.Struct({
       Schema.Literal(256)
     )
   ),
-  wordlist: Schema.optional(Schema.array(Schema.String))
+  wordlist: Schema.optional(Schema.Array(Schema.String))
 });
 
 export type BIP39MnemonicOptions = Schema.Schema.Type<typeof BIP39MnemonicOptionsSchema>;

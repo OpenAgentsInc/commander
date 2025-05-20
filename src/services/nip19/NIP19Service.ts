@@ -5,13 +5,13 @@ import type * as NostrToolsNIP19 from "nostr-tools/nip19"; // For type reuse
 export type ProfilePointer = NostrToolsNIP19.ProfilePointer;
 export const ProfilePointerSchema = Schema.Struct({
     pubkey: Schema.String,
-    relays: Schema.optional(Schema.array(Schema.String))
+    relays: Schema.optional(Schema.Array(Schema.String))
 });
 
 export type EventPointer = NostrToolsNIP19.EventPointer;
 export const EventPointerSchema = Schema.Struct({
     id: Schema.String,
-    relays: Schema.optional(Schema.array(Schema.String)),
+    relays: Schema.optional(Schema.Array(Schema.String)),
     author: Schema.optional(Schema.String),
     kind: Schema.optional(Schema.Number)
 });
@@ -21,7 +21,7 @@ export const AddressPointerSchema = Schema.Struct({
     identifier: Schema.String,
     pubkey: Schema.String,
     kind: Schema.Number,
-    relays: Schema.optional(Schema.array(Schema.String))
+    relays: Schema.optional(Schema.Array(Schema.String))
 });
 
 export type DecodedNIP19Result =
