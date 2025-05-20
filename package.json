@@ -1,7 +1,7 @@
 {
   "name": "commander",
   "productName": "Commander",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Command agents, earn bitcoin.",
   "main": ".vite/build/main.js",
   "private": true,
@@ -67,9 +67,9 @@
     "vitest": "^3.1.2"
   },
   "dependencies": {
+    "@buildonspark/spark-sdk": "0.1.23",
     "@effect/platform": "^0.82.2",
     "@effect/platform-browser": "^0.62.3",
-    "@effect/schema": "^0.75.5",
     "@icons-pack/react-simple-icons": "^12.7.0",
     "@mediapipe/camera_utils": "^0.3.1675466862",
     "@mediapipe/drawing_utils": "^0.3.1675466124",

@@ -34,11 +34,13 @@ export const DefaultTelemetryConfigLayer = Layer.succeed(
 export class TelemetryError extends Data.TaggedError("TelemetryError")<{
   readonly cause?: unknown;
   readonly message: string;
+  readonly context?: Record<string, unknown>;
 }> {}
 
 export class TrackEventError extends Data.TaggedError("TrackEventError")<{
   readonly cause?: unknown;
   readonly message: string;
+  readonly context?: Record<string, unknown>;
 }> {}
 
 // --- Service Interface ---
