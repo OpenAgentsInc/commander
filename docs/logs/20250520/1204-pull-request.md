@@ -1,21 +1,21 @@
 # Add NIP-90 Data Vending Machine Service Layer
 
 ## Summary
-This PR implements a complete NIP-90 Data Vending Machine (DVM) service layer with proper Effect.js integration and type-safety. It enables encrypted job requests, result handling, and feedback management following the NIP-90 specification.
+This PR implements a complete NIP-90 Data Vending Machine (DVM) service layer with proper Effect-TS integration and type-safety. It enables encrypted job requests, result handling, and feedback management following the NIP-90 specification.
 
 ## Features
 - New `NIP90Service` interface for creating job requests, retrieving results, and handling feedback
-- Comprehensive schema validation with Effect.js Schema
+- Comprehensive schema validation with Effect-TS Schema
 - Proper error typing and handling for all operations
 - Secure request encryption using NIP-04
-- Correct Effect.js dependency injection pattern with `R = never`
+- Correct Effect-TS dependency injection pattern with `R = never`
 - Full test coverage with mocked dependencies
 
 ## Implementation Details
 1. **Service Layer Structure**
    - Created `NIP90Service` interface with clearly typed methods
    - Implemented `NIP90ServiceLive` with proper dependency injection
-   - All methods use Effect.js for proper error handling and context management
+   - All methods use Effect-TS for proper error handling and context management
 
 2. **Schema & Type Definitions**
    - Created typed schemas for job requests, results, and feedback events
@@ -38,16 +38,16 @@ This PR implements a complete NIP-90 Data Vending Machine (DVM) service layer wi
    - Local storage for preserving ephemeral keys for decryption
 
 ## Architectural Patterns
-- Proper use of Effect.js `Schema` for runtime validation
+- Proper use of Effect-TS `Schema` for runtime validation
 - Correct modeling of Effect context requirements (`R = never` pattern)
 - Service implementations properly manage internal dependencies
 - Consistent error handling and telemetry throughout
 - Type-safe tuple handling for complex data structures
 
 ## Technical Challenges Solved
-- Fixed Effect.js context typing issues with Schema.Tuple usage
+- Fixed Effect-TS context typing issues with Schema.Tuple usage
 - Correctly handled dependency injection for helper functions
-- Proper error propagation through Effect.js channels
+- Proper error propagation through Effect-TS channels
 - Ensured type safety with complex tuple structures
 - Structured error handling for validation, encryption, and API failures
 
@@ -57,7 +57,7 @@ All unit tests pass, verifying:
 - Result retrieval and parsing
 - Feedback handling
 - Error cases (validation, encryption, network)
-- FiberFailure wrapping in Effect.js
+- FiberFailure wrapping in Effect-TS
 
 ## Next Steps
 - Add result polling/subscription mechanism for long-running jobs
