@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { DefaultTextGenerationJobConfig, Kind5050DVMServiceConfig } from '@/services/dvm/Kind5050DVMService';
-import { DefaultKind5050DVMServiceConfigLayer } from '@/services/dvm/Kind5050DVMService';
+import { defaultKind5050DVMServiceConfig } from '@/services/dvm/Kind5050DVMService';
 import { getPublicKey } from 'nostr-tools/pure';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 
@@ -32,14 +32,8 @@ interface DVMSettingsStoreState {
   getEffectiveConfig: () => Kind5050DVMServiceConfig;
 }
 
-// Get default config
-// Note: We're accessing internal properties of the Layer, which is not ideal
-// but necessary to access the default config values
-// @ts-ignore - Accessing internal Layer properties
-const defaultConfigValues = DefaultKind5050DVMServiceConfigLayer.context._unsafeGet(
-  // @ts-ignore - Accessing internal Layer properties
-  DefaultKind5050DVMServiceConfigLayer.tag
-);
+// Get default config directly from the exported configuration object
+const defaultConfigValues = defaultKind5050DVMServiceConfig;
 
 export const useDVMSettingsStore = create<DVMSettingsStoreState>()(
   persist(

@@ -64,26 +64,29 @@ const devDvmSkBytes = generateSecretKey();
 const devDvmSkHex = bytesToHex(devDvmSkBytes);
 const devDvmPkHex = getPublicKey(devDvmSkBytes);
 
+// Export the default configuration object directly
+export const defaultKind5050DVMServiceConfig: Kind5050DVMServiceConfig = {
+  active: false,                // Start inactive by default
+  dvmPrivateKeyHex: devDvmSkHex, // Use a default development SK
+  dvmPublicKeyHex: devDvmPkHex,  // Corresponding PK
+  relays: ["wss://relay.damus.io", "wss://relay.nostr.band", "wss://nos.lol"],
+  supportedJobKinds: [5100],    // Support text generation (kind 5100)
+  defaultTextGenerationJobConfig: {
+    model: "gemma2:latest",     // Default model for Ollama
+    max_tokens: 512,
+    temperature: 0.7,
+    top_k: 40,
+    top_p: 0.9,
+    frequency_penalty: 0.5,
+    minPriceSats: 10,           // Minimum sats for any job
+    pricePer1kTokens: 2         // e.g., 2 sats per 1000 tokens
+  }
+};
+
 // Default configuration for development
 export const DefaultKind5050DVMServiceConfigLayer = Layer.succeed(
   Kind5050DVMServiceConfigTag,
-  {
-    active: false,                // Start inactive by default
-    dvmPrivateKeyHex: devDvmSkHex, // Use a default development SK
-    dvmPublicKeyHex: devDvmPkHex,  // Corresponding PK
-    relays: ["wss://relay.damus.io", "wss://relay.nostr.band", "wss://nos.lol"],
-    supportedJobKinds: [5100],    // Support text generation (kind 5100)
-    defaultTextGenerationJobConfig: {
-      model: "gemma2:latest",     // Default model for Ollama
-      max_tokens: 512,
-      temperature: 0.7,
-      top_k: 40,
-      top_p: 0.9,
-      frequency_penalty: 0.5,
-      minPriceSats: 10,           // Minimum sats for any job
-      pricePer1kTokens: 2         // e.g., 2 sats per 1000 tokens
-    }
-  }
+  defaultKind5050DVMServiceConfig
 );
 
 /**

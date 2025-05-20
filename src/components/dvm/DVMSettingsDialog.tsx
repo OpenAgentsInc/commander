@@ -14,16 +14,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Cog, AlertTriangle } from 'lucide-react';
 import { useDVMSettingsStore, type DVMUserSettings } from '@/stores/dvmSettingsStore';
-import { DefaultKind5050DVMServiceConfigLayer } from '@/services/dvm/Kind5050DVMService';
+import { defaultKind5050DVMServiceConfig } from '@/services/dvm/Kind5050DVMService';
 import { getPublicKey } from 'nostr-tools/pure';
 import { hexToBytes } from '@noble/hashes/utils';
 
 // Get default config for placeholders and comparisons
-// @ts-ignore - Accessing internal Layer properties
-const defaultConfig = DefaultKind5050DVMServiceConfigLayer.context._unsafeGet(
-  // @ts-ignore - Accessing internal Layer properties
-  DefaultKind5050DVMServiceConfigLayer.tag
-);
+const defaultConfig = defaultKind5050DVMServiceConfig;
 
 export function DVMSettingsDialog() {
   const { settings: userSettings, updateSettings, resetSettings } = useDVMSettingsStore();
