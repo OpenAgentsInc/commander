@@ -1,7 +1,6 @@
 **Commander UI Standards**
 
 **Document#** `001`
-**Apple Lisa Information** `Commander UI Information`
 
 ```
 *********************************************************************************
@@ -48,7 +47,7 @@
 ---
 
 ```
-“DTCLISADOC-420-0-00.PICT” 154 KB 2001-05-03 dpi: 300h x 300v pix: 1795h x 2707v
+“DTCCOMMDOC-420-0-00.PICT” 154 KB 2001-05-03 dpi: 300h x 300v pix: 1795h x 2707v
 Commander UI Info : Document # 001 : User Interface Standards (21 May 2025)
 Source: OpenAgents Inc. Page 0001 of 00XX
 ```
@@ -91,7 +90,7 @@ Apple Commander Computer Technical Information
 ---
 
 ```
-“DTCLISADOC-420-0-01.PICT” 149 KB 2001-05-03 dpi: 300h x 300v pix: 2091h x 2979v
+“DTCCOMMDOC-420-0-01.PICT” 149 KB 2001-05-03 dpi: 300h x 300v pix: 2091h x 2979v
 Commander UI Info : Document # 001 : User Interface Standards (21 May 2025)
 Source: OpenAgents Inc. Page 0002 of 00XX
 ```
@@ -127,7 +126,7 @@ Also several minor changes and many clarifications.
 ---
 
 ```
-“DTCLISADOC-420-0-02.PICT” 55 KB 2001-05-03 dpi: 300h x 300v pix: 2079h x 1232v
+“DTCCOMMDOC-420-0-02.PICT” 55 KB 2001-05-03 dpi: 300h x 300v pix: 2079h x 1232v
 Commander UI Info : Document # 001 : User Interface Standards (21 May 2025)
 Source: OpenAgents Inc. Page 0003 of 00XX
 ```
@@ -234,7 +233,7 @@ Last pages: 23
 
 ---
 ```
-“DTCLISADOC-420-0-03.PICT” 196 KB 2001-05-03 dpi: 300h x 300v pix: 1928h x 2895v
+“DTCCOMMDOC-420-0-03.PICT” 196 KB 2001-05-03 dpi: 300h x 300v pix: 1928h x 2895v
 Commander UI Info : Document # 001 : User Interface Standards (21 May 2025)
 Source: OpenAgents Inc. Page 0004 of 00XX
 ```
@@ -348,7 +347,7 @@ Hand gestures are translated into application commands and interactions.
 *   **Landmark Canvas:** `landmarkCanvasRef` in `useHandTracking` draws hand connections and landmarks. Key landmarks (thumb tip, index tip) are highlighted. Pinch midpoints can also be visualized with coordinates for debugging. This canvas is typically mirrored like the video feed.
 *   **Dynamic Pointer (3D):** `src/components/hands/DynamicPointer.tsx` renders an invisible `RigidBody` in a 3D physics scene that follows the primary hand's position (typically index finger tip). This allows physical interaction with other 3D objects in the scene.
 
-**(Page 8 is where the Lisa doc starts section 4. KEYBOARD. We'll continue adapting)**
+**(Page 8 is where the COMM doc starts section 4. KEYBOARD. We'll continue adapting)**
 
 `Commander UI Info : Document # 001 : User Interface Standards (21 May 2025)`
 
@@ -677,7 +676,7 @@ The CAPS LOCK key functions as per standard OS behavior, toggling persistent upp
 
 **24. CODE (SPECIAL KEYS FOR HOTKEYS)**
 
-This section in the Lisa document referred to a specific "CODE" key. In Commander, this concept maps to the use of standard keyboard keys (letters, numbers, function keys F1-F12, Esc, etc.) as part of the (future) hotkey system, often in conjunction with modifiers (Ctrl, Alt, Shift).
+This section in the COMM document referred to a specific "CODE" key. In Commander, this concept maps to the use of standard keyboard keys (letters, numbers, function keys F1-F12, Esc, etc.) as part of the (future) hotkey system, often in conjunction with modifiers (Ctrl, Alt, Shift).
 *   **Example Philosophy:**
     *   `Q, W, E, R` row: Often used for primary abilities in games.
     *   `A, S, D, F` row: Often used for common commands (Attack, Stop, Hold Position, etc.).
@@ -963,20 +962,20 @@ Commander incorporates a telemetry system (`src/services/telemetry/`) to gather 
 
 ---
 ```
-“DTCLISADOC-420-1-23.PICT” 247 KB 2001-05-04 dpi: 300h x 300v pix: 1899h x 3215v
+“DTCCOMMDOC-420-1-23.PICT” 247 KB 2001-05-04 dpi: 300h x 300v pix: 1899h x 3215v
 Commander UI Info : Document # 001 : User Interface Standards (21 May 2025)
 Source: OpenAgents Inc. Page 00XX of 00XX
 ```
 
 ---
 
-This document provides a foundational UI standard for Commander. It will be a living document, updated iteratively as new features are developed and existing ones are refined based on user feedback and NUI best practices.Okay, this is a fantastic and comprehensive start to your Commander UI Standards Document! You've successfully extrapolated a lot of information from the codebase and integrated the desired NUI principles. It mirrors the structure and level of detail of the Lisa document well.
+This document provides a foundational UI standard for Commander. It will be a living document, updated iteratively as new features are developed and existing ones are refined based on user feedback and NUI best practices.Okay, this is a fantastic and comprehensive start to your Commander UI Standards Document! You've successfully extrapolated a lot of information from the codebase and integrated the desired NUI principles. It mirrors the structure and level of detail of the COMM document well.
 
 Here's a review and some minor suggestions:
 
 **Overall Strengths:**
 
-*   **Comprehensive ToC:** The Table of Contents is thorough and covers most aspects of a modern application, successfully mapping Lisa's categories to Commander's features.
+*   **Comprehensive ToC:** The Table of Contents is thorough and covers most aspects of a modern application, successfully mapping COMM's categories to Commander's features.
 *   **Clear Introduction:** Sets the tone and philosophy well.
 *   **Good Extrapolation:** You've done a great job inferring UI standards from the tech stack (Electron, React, Shadcn, Tailwind, Dark Mode) and specific components (Panes, Chat, Hand Tracking, IPC for window controls).
 *   **NUI Focus:** The document consistently emphasizes NUI principles, hand tracking, and the HUD-style interface.
@@ -990,7 +989,7 @@ Here's a review and some minor suggestions:
 
 1.  **Page Count:** You've used `XX` for the total page count. Once finalized, you can replace this. For this exercise, it's fine.
 2.  **Consistency in Terminology:**
-    *   **"Commander UI Info" vs. "Apple Lisa Computer Info":** You've correctly replaced "Apple Lisa Computer Info" with "Commander UI Info" in the headers/footers, which is good.
+    *   **"Commander UI Info" vs. "Apple COMM Computer Info":** You've correctly replaced "Apple COMM Computer Info" with "Commander UI Info" in the headers/footers, which is good.
     *   **"Source: OpenAgents Inc."**: Good.
 3.  **Table of Contents - Section 4 (Keyboard):**
     *   "4.2 Hotkeys & Keybindings (StarCraft Style Philosophy)" - Excellent to call out the philosophy.
