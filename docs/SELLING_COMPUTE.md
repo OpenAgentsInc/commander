@@ -66,10 +66,10 @@ The NIP-90 Data Vending Machine protocol involves the following Nostr event kind
 - ✅ User-configurable DVM settings (identity, relays, job kinds, pricing, model parameters)
 - ✅ Settings dialog UI with all configurable parameters
 - ✅ Persistent storage of user settings using localStorage
+- ✅ Dynamic relay configuration (using user-configured relays for NostrService subscriptions)
 
 ### Remaining Work
 - ⬜ UI for displaying job history and statistics
-- ⬜ Dynamic relay configuration (currently uses defaults from NostrService)
 - ⬜ Job queue management
 - ⬜ Security measures (e.g., rate limiting, request validation)
 - ⬜ Payment verification and handling
@@ -135,6 +135,8 @@ All parameters are optional - if not set, the application uses defaults from `De
 ### Job Processing Flow
 
 1. DVM subscribes to job request events (kind 5000-5999) via NostrService when "GO ONLINE" is clicked
+   - The DVM service uses the user-configured relays from settings, not the default NostrService relays
+   - This allows users to select specific relays for their DVM operations
 2. When a job request is received:
    - DVM validates the request parameters and extracts inputs and params
    - If request is encrypted, DVM decrypts it using NIP-04
@@ -147,6 +149,7 @@ All parameters are optional - if not set, the application uses defaults from `De
    - DVM sends a "success" status update (kind 7000)
 3. All steps include comprehensive error handling with feedback to the client
 4. Each job request is processed in its own Effect.js fiber for concurrent processing
+5. The DVM refreshes configuration for each job to ensure the latest user settings are used
 
 ### Error Handling
 
@@ -214,7 +217,6 @@ Your settings are automatically persisted in localStorage and will be used whene
 ## Future Enhancements
 
 - UI dashboard for DVM history and performance metrics
-- Dynamic relay configuration (modifying NostrService to support changing relays)
 - Support for additional AI model types beyond text generation
 - Advanced pricing models based on token count, model size, priority, etc.
 - Job prioritization and queuing system
@@ -226,6 +228,7 @@ Your settings are automatically persisted in localStorage and will be used whene
 - Resource usage monitoring and throttling
 - Schedule-based availability settings
 - Settings backup and import/export
+- Fully dynamic relay configuration for NostrService's default relays (rather than just per-subscription)
 
 ## Implementation Notes
 
@@ -239,6 +242,8 @@ The implementation leverages several key design patterns and technologies:
 6. **Dependency Injection**: All services are injected via Effect context for testability
 7. **Clean UI State Sync**: UI component always re-verifies the actual DVM state after operations
 8. **Adaptive Configuration**: Service uses dynamic configuration that adapts to user settings
+9. **Per-Subscription Relay Configuration**: The NostrService now supports specifying custom relays for individual subscriptions
+10. **Dynamic Settings Refresh**: Each job request fetches the latest effective configuration to ensure up-to-date settings
 
 ### Store Implementation
 
@@ -259,6 +264,23 @@ export const useDVMSettingsStore = create<DVMSettingsStoreState>()(
       getEffectiveSupportedJobKinds: () => { /* ... */ },
       getEffectiveTextGenerationConfig: () => { /* ... */ },
       getDerivedPublicKeyHex: () => { /* ... */ },
+      // Get complete effective configuration in one call
+      getEffectiveConfig: () => {
+        const privateKeyHex = get().getEffectivePrivateKeyHex();
+        const derivedPublicKeyHex = get().getDerivedPublicKeyHex();
+        const relays = get().getEffectiveRelays();
+        const supportedJobKinds = get().getEffectiveSupportedJobKinds();
+        const textGenerationConfig = get().getEffectiveTextGenerationConfig();
+        
+        return {
+          active: defaultValues.active,
+          dvmPrivateKeyHex: privateKeyHex,
+          dvmPublicKeyHex: derivedPublicKeyHex,
+          relays,
+          supportedJobKinds,
+          defaultTextGenerationJobConfig: textGenerationConfig,
+        };
+      },
     }),
     {
       name: 'dvm-user-settings',
