@@ -63,6 +63,7 @@ const kind5050DVMLayer = Kind5050DVMServiceLive.pipe(
     nostrLayer,
     ollamaLayer,
     sparkLayer,
+    nip04Layer,
     telemetryLayer
   ))
 );
