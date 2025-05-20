@@ -1,23 +1,25 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Effect, Layer, Either } from "effect";
+import { Effect, pipe } from "effect";
+import { runPromise } from "effect/Effect";
 import {
-  NostrService,
-  NostrServiceLive,
-  DefaultNostrServiceConfigLayer,
   type NostrEvent,
   type NostrFilter,
+  NostrService
 } from "@/services/nostr";
-import { NIP19Service, NIP19ServiceLive } from "@/services/nip19";
+import { NIP19Service } from "@/services/nip19";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { NIP90Service, NIP90JobResult, NIP90JobFeedback } from "@/services/nip90";
+import { mainRuntime } from "@/services/runtime";
+import { hexToBytes } from "@noble/hashes/utils";
 
 const NIP90_REQUEST_KINDS_MIN = 5000;
 const NIP90_REQUEST_KINDS_MAX = 5999;
 
-// Function to fetch NIP-90 events using the NostrService
+// Function to fetch NIP-90 events using the NostrService via NIP90Service
 async function fetchNip90JobRequests(): Promise<NostrEvent[]> {
   console.log("[Nip90Component] Fetching NIP-90 job requests...");
 
@@ -27,46 +29,30 @@ async function fetchNip90JobRequests(): Promise<NostrEvent[]> {
   );
   const filters: NostrFilter[] = [{
     kinds: nip90RequestKinds,
-    limit: 100 // Increased from 20 to get more historical events
+    limit: 100
   }];
 
-  // Define the Effect program
+  // Use mainRuntime to get access to NostrService directly
   const program = Effect.gen(function* (_) {
-    const nostrService = yield* _(NostrService); // Use the Tag
-    const events = yield* _(nostrService.listEvents(filters));
-    console.log(`[Nip90Component] Fetched ${events.length} NIP-90 events`);
-    
-    // Log the first few events for debugging
+    // Directly get NostrService from context
+    const nostrSvcDirect = yield* _(NostrService);
+    // Explicitly type the result from listEvents
+    const events: NostrEvent[] = yield* _(nostrSvcDirect.listEvents(filters));
+    console.log(`[Nip90EventList] Fetched ${events.length} NIP-90 events`);
     if (events.length > 0) {
-      console.log("[Nip90Component] First event:", JSON.stringify(events[0], null, 2));
       console.log("[Nip90Component] Event kinds distribution:", 
-        events.reduce((acc, ev) => {
+        events.reduce((acc, ev) => { // ev is properly typed as NostrEvent
           acc[ev.kind] = (acc[ev.kind] || 0) + 1;
           return acc;
         }, {} as Record<number, number>)
       );
     }
-    
     return events;
   });
-
-  // Compose and provide layers
-  const fullLayer = Layer.provide(NostrServiceLive, DefaultNostrServiceConfigLayer);
-
-  // Run the program with all required layers
-  // Use runPromiseExit to handle potential errors gracefully
-  const result = await Effect.runPromise(
-    Effect.either(Effect.provide(program, fullLayer))
-  );
-
-  if (Either.isRight(result)) {
-    return result.right;
-  } else {
-    // Log the error cause for debugging
-    console.error("[Nip90Component] Error fetching NIP-90 events:", result.left);
-    // Rethrow error for useQuery error handling
-    throw new Error(`Failed to fetch NIP-90 events: ${result.left.message || 'Unknown error'}`);
-  }
+  
+  // Now provide the runtime to the program and run it
+  const result: NostrEvent[] = await runPromise(Effect.provide(program, mainRuntime));
+  return result;
 }
 
 // Helper to format event tags for display
@@ -87,19 +73,18 @@ const useNip19Encoding = (hexValue: string, type: 'npub' | 'note') => {
     queryKey: ['nip19Encode', type, hexValue],
     queryFn: async () => {
       try {
-        // Create the Effect program for encoding
         const program = Effect.gen(function* (_) {
-          const nip19 = yield* _(NIP19Service);
+          const nip19Svc = yield* _(NIP19Service);
+          let encoded: string;
           if (type === 'npub') {
-            return yield* _(nip19.encodeNpub(hexValue));
-          } else if (type === 'note') {
-            return yield* _(nip19.encodeNote(hexValue));
+            encoded = yield* _(nip19Svc.encodeNpub(hexValue));
+          } else {
+            encoded = yield* _(nip19Svc.encodeNote(hexValue));
           }
-          throw new Error(`Unsupported encoding type: ${type}`);
+          return encoded;
         });
-        
-        // Run the program with the NIP19ServiceLive layer
-        return await Effect.runPromise(Effect.provide(program, NIP19ServiceLive));
+        const result: string = await runPromise(Effect.provide(program, mainRuntime));
+        return result;
       } catch (err) {
         console.error(`[Nip90Component] Error encoding ${type}:`, err);
         return `${type}1${hexValue.substring(0, 8)}...`;
@@ -112,16 +97,70 @@ const useNip19Encoding = (hexValue: string, type: 'npub' | 'note') => {
   return encodedValue || `${type}1${hexValue.substring(0, 8)}...`; // Fallback to simple format
 };
 
-const Nip90EventCard: React.FC<{ event: NostrEvent }> = ({ event }) => {
+interface Nip90EventCardProps {
+  event: NostrEvent;
+}
+
+const Nip90EventCard: React.FC<Nip90EventCardProps> = ({ event }) => {
   const npub = useNip19Encoding(event.pubkey, 'npub');
   const noteId = useNip19Encoding(event.id, 'note');
   const eventDate = new Date(event.created_at * 1000).toLocaleString();
   
+  const [jobResult, setJobResult] = useState<NIP90JobResult | null>(null);
+  const [jobFeedback, setJobFeedback] = useState<NIP90JobFeedback[]>([]);
+  const [isLoadingResults, setIsLoadingResults] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  
   // Extract tags that might be interesting for NIP-90
   const jobType = getTagValue(event.tags, 'j') || 'unknown';
-  const budget = getTagValue(event.tags, 'amount');
-  const client = getTagValue(event.tags, 'client');
+  const budget = getTagValue(event.tags, 'bid');
+  const outputMime = getTagValue(event.tags, 'output');
   
+  // Function to fetch results and feedback for this job request
+  const fetchResults = async () => {
+    setIsLoadingResults(true);
+    setLoadError(null);
+    
+    try {
+      // Get ephemeral keys for decryption if they exist
+      let decryptionKey: Uint8Array | undefined = undefined;
+      try {
+        const storedRequests = JSON.parse(localStorage.getItem('nip90_requests') || '{}');
+        const requestData = storedRequests[event.id];
+        if (requestData?.secretKey) {
+          decryptionKey = hexToBytes(requestData.secretKey);
+        }
+      } catch (error) {
+        console.error("Error retrieving request data from localStorage:", error);
+      }
+      
+      // Fetch job result using NIP90Service
+      const resultProgram = Effect.gen(function* (_) {
+        const nip90Svc = yield* _(NIP90Service);
+        const result = yield* _(nip90Svc.getJobResult(event.id, undefined, decryptionKey));
+        return result;
+      });
+      const result = await runPromise(Effect.provide(resultProgram, mainRuntime));
+      
+      setJobResult(result);
+      
+      // Fetch job feedback using NIP90Service
+      const feedbackProgram = Effect.gen(function* (_) {
+        const nip90Svc = yield* _(NIP90Service);
+        const feedback = yield* _(nip90Svc.listJobFeedback(event.id, undefined, decryptionKey));
+        return feedback;
+      });
+      const feedback = await runPromise(Effect.provide(feedbackProgram, mainRuntime));
+      
+      setJobFeedback(feedback);
+    } catch (error) {
+      console.error("Error fetching job results:", error);
+      setLoadError(error instanceof Error ? error.message : "Failed to load job results and feedback");
+    } finally {
+      setIsLoadingResults(false);
+    }
+  };
+
   return (
     <Card className="mb-4 bg-card/80 backdrop-blur-sm">
       <CardHeader className="pb-2">
@@ -130,19 +169,21 @@ const Nip90EventCard: React.FC<{ event: NostrEvent }> = ({ event }) => {
             {noteId}
             {jobType && <Badge className="ml-2">{jobType}</Badge>}
           </CardTitle>
-          {budget && <Badge variant="outline" className="ml-2">{budget} sats</Badge>}
+          {budget && <Badge variant="outline" className="ml-2">{budget} msats</Badge>}
         </div>
         <CardDescription className="text-xs">
           <span className="font-semibold">From:</span> {npub}<br />
           <span className="font-semibold">Kind:</span> {event.kind} | <span className="font-semibold">Created:</span> {eventDate}
-          {client && <><br /><span className="font-semibold">Client:</span> {client}</>}
+          {outputMime && <><br /><span className="font-semibold">Output MIME:</span> {outputMime}</>}
         </CardDescription>
       </CardHeader>
       <CardContent className="py-0">
-        <div className="text-xs font-mono whitespace-pre-wrap break-all bg-muted p-2 rounded">
-          <strong>Content:</strong><br/>
-          {event.content || "(No content)"}
-        </div>
+        {event.content && (
+          <div className="text-xs font-mono whitespace-pre-wrap break-all bg-muted p-2 rounded">
+            <strong>Content:</strong><br/>
+            {event.content}
+          </div>
+        )}
         {event.tags.length > 0 && (
           <details className="mt-2 text-xs">
             <summary className="cursor-pointer">Tags ({event.tags.length})</summary>
@@ -151,10 +192,85 @@ const Nip90EventCard: React.FC<{ event: NostrEvent }> = ({ event }) => {
             </pre>
           </details>
         )}
+        
+        {/* Job Results Section */}
+        {jobResult && (
+          <div className="mt-3 border-t pt-2">
+            <h4 className="text-xs font-semibold mb-1">Job Result:</h4>
+            <div className="text-xs font-mono whitespace-pre-wrap break-all bg-muted p-2 rounded">
+              {jobResult.isEncrypted ? "(Encrypted)" : jobResult.content || "(Empty content)"}
+            </div>
+            {jobResult.paymentAmount && (
+              <div className="text-xs mt-1">
+                <Badge variant="outline">Payment Required: {jobResult.paymentAmount} msats</Badge>
+                {jobResult.paymentInvoice && (
+                  <details className="mt-1">
+                    <summary className="cursor-pointer">Invoice</summary>
+                    <div className="text-[10px] mt-1 font-mono break-all">
+                      {jobResult.paymentInvoice}
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Job Feedback Section */}
+        {jobFeedback.length > 0 && (
+          <div className="mt-3 border-t pt-2">
+            <h4 className="text-xs font-semibold mb-1">Feedback ({jobFeedback.length}):</h4>
+            {jobFeedback.map((feedback, index) => (
+              <div key={index} className="text-xs mb-2">
+                <Badge className={
+                  feedback.status === 'success' ? 'bg-green-100 text-green-800' :
+                  feedback.status === 'error' ? 'bg-red-100 text-red-800' :
+                  feedback.status === 'processing' ? 'bg-blue-100 text-blue-800' :
+                  feedback.status === 'payment-required' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-gray-100 text-gray-800'
+                }>
+                  {feedback.status || "Status not specified"}
+                </Badge>
+                {feedback.statusExtraInfo && (
+                  <span className="ml-1 text-gray-500">{feedback.statusExtraInfo}</span>
+                )}
+                {feedback.content && (
+                  <div className="mt-1 font-mono whitespace-pre-wrap break-all bg-muted p-1 rounded text-[10px]">
+                    {feedback.content}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        
+        {/* Error Message */}
+        {loadError && (
+          <div className="mt-2 text-xs text-destructive">
+            Error: {loadError}
+          </div>
+        )}
       </CardContent>
       <CardFooter className="pt-1 pb-2 flex justify-between">
-        <Button size="sm" variant="outline">Bid</Button>
-        <Button size="sm" variant="outline">View Details</Button>
+        {!jobResult && !isLoadingResults ? (
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={fetchResults}
+            disabled={isLoadingResults}
+          >
+            {isLoadingResults ? "Loading..." : "Load Results"}
+          </Button>
+        ) : (
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={fetchResults}
+            disabled={isLoadingResults}
+          >
+            {isLoadingResults ? "Refreshing..." : "Refresh Results"}
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );

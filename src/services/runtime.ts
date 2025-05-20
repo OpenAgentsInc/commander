@@ -17,6 +17,7 @@ import { OllamaService, OllamaServiceLive, UiOllamaConfigLive } from '@/services
 import { BrowserHttpClient } from "@effect/platform-browser";
 import { HttpClient } from '@effect/platform';
 import { SparkService, SparkServiceLive, DefaultSparkServiceConfigLayer } from '@/services/spark';
+import { NIP90Service, NIP90ServiceLive } from '@/services/nip90';
 
 // Helper function to create a runtime from a layer
 // Change generic parameter R to ROut to reflect it's the output context of the layer
@@ -36,6 +37,7 @@ export type FullAppContext =
   NIP28Service |
   OllamaService |
   SparkService |
+  NIP90Service |
   HttpClient.HttpClient; // HttpClient is a provided service
 
 // Compose individual services with their direct dependencies
@@ -50,6 +52,9 @@ const nip28Layer = NIP28ServiceLive.pipe(
 );
 const sparkLayer = SparkServiceLive.pipe(
   layerProvide(layerMerge(DefaultSparkServiceConfigLayer, telemetryLayer)) // Provide configured SparkServiceConfig and TelemetryService
+);
+const nip90Layer = NIP90ServiceLive.pipe(
+  layerProvide(layerMerge(layerMerge(nostrLayer, nip04Layer), telemetryLayer)) // Provide NostrService, NIP04Service and TelemetryService
 );
 
 // Build the full layer with all services
@@ -68,7 +73,8 @@ try {
     telemetryLayer,
     nip28Layer,
     ollamaLayer,
-    sparkLayer
+    sparkLayer,
+    nip90Layer
   ); // This layer should now have RIn = never if all dependencies are correctly satisfied.
   
   // Create the runtime with the full layer

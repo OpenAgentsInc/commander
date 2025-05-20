@@ -1,105 +1,27 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Nip90RequestForm from '@/components/nip90/Nip90RequestForm';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Effect } from 'effect';
+import type { NostrEvent } from '@/services/nostr';
+import { NIP90Service } from '@/services/nip90';
 
-// Mock Effect and other dependencies first, before any imports happen
-vi.mock('effect', () => {
-  // Create a fixed Effect succeed implementation that doesn't depend on importing the actual module
-  const mockSucceed = vi.fn().mockImplementation((value) => ({
-    _tag: 'Success',
-    value
-  }));
-  
-  return {
-    Effect: {
-      gen: () => ({ pipe: vi.fn() }),
-      flatMap: vi.fn(),
-      succeed: mockSucceed,
-      fail: vi.fn(),
-      provide: vi.fn(),
-      runPromise: vi.fn().mockResolvedValue({}),
-      runPromiseExit: vi.fn().mockResolvedValue({
-        _tag: 'Success',
-        value: 'mockEventId123',
-      }),
-      mapError: vi.fn(),
-      timeout: vi.fn(),
-      tryPromise: vi.fn(),
-    },
-    Layer: {
-      succeed: vi.fn(),
-      provide: vi.fn(),
-      mergeAll: vi.fn(),
-    },
-    Exit: {
-      isSuccess: vi.fn(() => true),
-      isFailure: vi.fn(() => false), 
-    },
-    Cause: {
-      pretty: vi.fn(),
-      failureOption: vi.fn(() => ({
-        _tag: 'Some',
-        value: { message: 'Test error' }
-      })),
-      isCause: vi.fn(() => false),
-    },
-    Option: {
-      getOrThrow: vi.fn(x => x),
-    },
-    // Add Schema mock to fix the error
-    Schema: {
-      String: Symbol('String'),
-      Number: Symbol('Number'),
-      Boolean: Symbol('Boolean'),
-      Undefined: Symbol('Undefined'),
-      optional: vi.fn(),
-      Union: vi.fn(),
-      Struct: vi.fn(() => Symbol('SchemaStruct')),
-      decodeUnknown: vi.fn(() => mockSucceed({})),
-    },
-    Context: {
-      GenericTag: vi.fn(() => Symbol('GenericServiceTag')),
-    },
-    Data: {
-      TaggedError: vi.fn(() => class {} ),
-    },
-  };
-});
-
-// Mock all other dependencies
-vi.mock('@/services/nip04', () => ({
-  NIP04Service: vi.fn(),
-  NIP04ServiceLive: vi.fn(),
-  NIP04EncryptError: class {},
-  NIP04DecryptError: class {},
+// Mock the runtime
+vi.mock('@/services/runtime', () => ({
+  mainRuntime: {}
 }));
 
-vi.mock('@/services/nostr', () => ({
-  NostrService: vi.fn(),
-  NostrServiceLive: vi.fn(),
-  DefaultNostrServiceConfigLayer: vi.fn(),
-}));
-
-vi.mock('@/services/telemetry', () => ({
-  TelemetryService: {
-    pipe: vi.fn(),
-  },
-  TelemetryServiceLive: {
-    pipe: vi.fn(),
-  },
-  // Don't need 'type' as it's not a runtime export
-}));
-
-vi.mock('@/helpers/nip90/event_creation', () => ({
-  createNip90JobRequest: vi.fn(() => ({ pipe: vi.fn() })),
-}));
-
+// Mock nostr-tools/pure used by the form
 vi.mock('nostr-tools/pure', () => ({
-  generateSecretKey: vi.fn(() => new Uint8Array(32)),
-  getPublicKey: vi.fn(() => 'mock-pubkey'),
-  finalizeEvent: vi.fn(),
+  generateSecretKey: vi.fn(() => new Uint8Array(32).fill(1)),
+  getPublicKey: vi.fn(() => 'mockPublicKeyHex'),
+}));
+
+// Mock runPromise and runPromiseExit
+vi.mock('effect/Effect', () => ({
+  runPromise: vi.fn().mockResolvedValue('mock-event-id'),
+  runPromiseExit: vi.fn()
 }));
 
 // Mock localStorage
@@ -109,17 +31,20 @@ const localStorageMock = {
 };
 Object.defineProperty(window, 'localStorage', { value: localStorageMock });
 
-// Simple tests that don't rely on complex mocking
 describe('Nip90RequestForm', () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-
+  
   const renderComponent = () => render(
     <QueryClientProvider client={queryClient}>
       <Nip90RequestForm />
     </QueryClientProvider>
   );
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('renders form elements correctly', () => {
     renderComponent();
@@ -140,5 +65,17 @@ describe('Nip90RequestForm', () => {
     const inputDataArea = screen.getByLabelText(/Input Data/i) as HTMLTextAreaElement;
     fireEvent.change(inputDataArea, { target: { value: 'Test input' } });
     expect(inputDataArea.value).toBe('Test input');
+  });
+
+  it('renders the form with proper elements', async () => {
+    // We just test the form elements render properly
+    renderComponent();
+    
+    // Fill out the form
+    fireEvent.change(screen.getByLabelText(/Job Kind/i), { target: { value: '5100' } });
+    fireEvent.change(screen.getByLabelText(/Input Data/i), { target: { value: 'Test prompt' } });
+    
+    // Verify the button exists
+    expect(screen.getByRole('button', { name: /Publish Encrypted Job Request/i })).toBeInTheDocument();
   });
 });

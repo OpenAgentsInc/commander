@@ -122,7 +122,9 @@
       "electron",
       "electron-winstaller",
       "esbuild",
-      "msw"
+      "msw",
+      "protobufjs",
+      "secp256k1"
     ]
   }
 }
