@@ -7,7 +7,9 @@ import { OllamaService } from '@/services/ollama';
 import { Kind5050DVMService } from '@/services/dvm';
 import { getMainRuntime } from '@/services/runtime';
 import { Effect } from 'effect';
-import { runPromiseExit, Exit, Cause } from 'effect/Effect';
+import { runPromiseExit } from 'effect/Effect';
+import * as Exit from 'effect/Exit';
+import * as Cause from 'effect/Cause';
 import { cn } from '@/utils/tailwind';
 
 const SellComputePane: React.FC = () => {

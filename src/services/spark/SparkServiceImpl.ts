@@ -719,8 +719,7 @@ export const SparkServiceLive = Layer.scoped(
           const sparkError = error as SparkError;
           
           if (sparkError instanceof SparkConfigError || 
-              (sparkError instanceof SparkServiceError && 
-               sparkError.message.toLowerCase().includes("initialize"))) {
+              (sparkError.message && sparkError.message.toLowerCase().includes("initialize"))) {
             yield* _(telemetry.trackEvent({
               category: 'spark:status',
               action: 'check_wallet_status_failure_not_initialized',

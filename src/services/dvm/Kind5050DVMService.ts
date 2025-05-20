@@ -1,4 +1,4 @@
-import { Context, Effect, Data, Schema } from 'effect';
+import { Context, Effect, Data, Schema, Layer } from 'effect';
 import { TelemetryService } from '@/services/telemetry';
 import { TrackEventError } from '@/services/telemetry/TelemetryService';
 
@@ -44,8 +44,9 @@ export interface Kind5050DVMServiceConfig {
 export const Kind5050DVMServiceConfigTag = Context.GenericTag<Kind5050DVMServiceConfig>("Kind5050DVMServiceConfig");
 
 // Default configuration for development
-export const DefaultKind5050DVMServiceConfigLayer = Effect.succeed(Kind5050DVMServiceConfigTag).pipe(
-  Effect.map(() => ({
+export const DefaultKind5050DVMServiceConfigLayer = Layer.succeed(
+  Kind5050DVMServiceConfigTag,
+  {
     active: false, // Start inactive by default
     relays: ["wss://relay.damus.io", "wss://relay.nostr.band"],
     defaultJobConfig: {
@@ -54,7 +55,7 @@ export const DefaultKind5050DVMServiceConfigLayer = Effect.succeed(Kind5050DVMSe
       maxPriceSats: 1000,
       pricePerToken: 0.1
     }
-  }))
+  }
 );
 
 /**
