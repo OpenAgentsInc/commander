@@ -136,7 +136,7 @@ export const NIP90ServiceLive = Layer.effect(
             const resultEvent = events[0];
             
             // Process the event into a NIP90JobResult
-            const jobResult: NIP90JobResult = {
+            let jobResult: NIP90JobResult = {
               ...resultEvent,
               parsedRequest: undefined,
               paymentAmount: undefined,
@@ -148,7 +148,9 @@ export const NIP90ServiceLive = Layer.effect(
             const requestTag = resultEvent.tags.find(t => t[0] === "request");
             if (requestTag && requestTag[1]) {
               try {
-                jobResult.parsedRequest = JSON.parse(requestTag[1]);
+                const parsedRequest = JSON.parse(requestTag[1]);
+                // Create a new object with the updated field
+                jobResult = { ...jobResult, parsedRequest };
               } catch (e) {
                 // Silently fail on JSON parse, this is just a convenience field
               }
@@ -157,13 +159,16 @@ export const NIP90ServiceLive = Layer.effect(
             // Parse amount tag if present
             const amountTag = resultEvent.tags.find(t => t[0] === "amount");
             if (amountTag && amountTag[1]) {
-              jobResult.paymentAmount = parseInt(amountTag[1], 10) || undefined;
-              jobResult.paymentInvoice = amountTag[2];
+              const paymentAmount = parseInt(amountTag[1], 10) || undefined;
+              const paymentInvoice = amountTag[2];
+              // Create a new object with the updated fields
+              jobResult = { ...jobResult, paymentAmount, paymentInvoice };
             }
 
             // Check if content is encrypted
             const isEncrypted = resultEvent.tags.some(t => t[0] === "encrypted");
-            jobResult.isEncrypted = isEncrypted;
+            // Create a new object with the updated field
+            jobResult = { ...jobResult, isEncrypted };
 
             // Attempt decryption if necessary and possible
             if (isEncrypted && decryptionKey && resultEvent.pubkey) {
@@ -266,7 +271,7 @@ export const NIP90ServiceLive = Layer.effect(
             const feedbackEvents: NIP90JobFeedback[] = [];
 
             for (const event of events) {
-              const feedbackEvent: NIP90JobFeedback = {
+              let feedbackEvent: NIP90JobFeedback = {
                 ...event,
                 kind: 7000, // Ensure it's the right kind
                 parsedRequest: undefined,
@@ -283,21 +288,28 @@ export const NIP90ServiceLive = Layer.effect(
                 // Validate against known status values
                 const status = statusTag[1] as NIP90JobFeedbackStatus;
                 if (["payment-required", "processing", "error", "success", "partial"].includes(status)) {
-                  feedbackEvent.status = status;
-                  feedbackEvent.statusExtraInfo = statusTag[2]; // Optional extra info
+                  // Create a new object with the updated fields
+                  feedbackEvent = { 
+                    ...feedbackEvent, 
+                    status, 
+                    statusExtraInfo: statusTag[2] // Optional extra info
+                  };
                 }
               }
 
               // Parse amount tag if present
               const amountTag = event.tags.find(t => t[0] === "amount");
               if (amountTag && amountTag[1]) {
-                feedbackEvent.paymentAmount = parseInt(amountTag[1], 10) || undefined;
-                feedbackEvent.paymentInvoice = amountTag[2];
+                const paymentAmount = parseInt(amountTag[1], 10) || undefined;
+                const paymentInvoice = amountTag[2];
+                // Create a new object with the updated fields
+                feedbackEvent = { ...feedbackEvent, paymentAmount, paymentInvoice };
               }
 
               // Check if content is encrypted
               const isEncrypted = event.tags.some(t => t[0] === "encrypted");
-              feedbackEvent.isEncrypted = isEncrypted;
+              // Create a new object with the updated field
+              feedbackEvent = { ...feedbackEvent, isEncrypted };
 
               // Attempt decryption if necessary and possible
               if (isEncrypted && decryptionKey && event.pubkey) {
@@ -308,8 +320,8 @@ export const NIP90ServiceLive = Layer.effect(
                     event.content
                   ));
                   
-                  // Add decrypted content
-                  feedbackEvent.content = decryptedContent;
+                  // Create a new object with the updated field
+                  feedbackEvent = { ...feedbackEvent, content: decryptedContent };
                 } catch (error) {
                   // If decryption fails, log but don't fail the entire operation
                   // as we might have other feedback events that are valid
@@ -380,7 +392,7 @@ export const NIP90ServiceLive = Layer.effect(
                   // Determine if it's a result (6xxx) or feedback (7000) event
                   if (event.kind === 7000) {
                     // Process as feedback
-                    const feedbackEvent: NIP90JobFeedback = {
+                    let feedbackEvent: NIP90JobFeedback = {
                       ...event,
                       kind: 7000,
                       parsedRequest: undefined,
@@ -396,21 +408,29 @@ export const NIP90ServiceLive = Layer.effect(
                     if (statusTag && statusTag[1]) {
                       const status = statusTag[1] as NIP90JobFeedbackStatus;
                       if (["payment-required", "processing", "error", "success", "partial"].includes(status)) {
-                        feedbackEvent.status = status;
-                        feedbackEvent.statusExtraInfo = statusTag[2];
+                        // Create a new object with updated fields
+                        feedbackEvent = { 
+                          ...feedbackEvent, 
+                          status, 
+                          statusExtraInfo: statusTag[2] 
+                        };
                       }
                     }
 
                     // Parse amount tag if present
                     const amountTag = event.tags.find(t => t[0] === "amount");
                     if (amountTag && amountTag[1]) {
-                      feedbackEvent.paymentAmount = parseInt(amountTag[1], 10) || undefined;
-                      feedbackEvent.paymentInvoice = amountTag[2];
+                      // Create a new object with updated fields
+                      feedbackEvent = {
+                        ...feedbackEvent,
+                        paymentAmount: parseInt(amountTag[1], 10) || undefined,
+                        paymentInvoice: amountTag[2]
+                      };
                     }
 
                     // Check for encryption
                     const isEncrypted = event.tags.some(t => t[0] === "encrypted");
-                    feedbackEvent.isEncrypted = isEncrypted;
+                    feedbackEvent = { ...feedbackEvent, isEncrypted };
 
                     // Handle encrypted content
                     if (isEncrypted) {
@@ -422,8 +442,9 @@ export const NIP90ServiceLive = Layer.effect(
                             event.pubkey,
                             event.content
                           ));
-                          feedbackEvent.content = decryptedContent;
-                          onUpdate(feedbackEvent);
+                          // Create final updated object and pass to callback
+                          const updatedFeedbackEvent = { ...feedbackEvent, content: decryptedContent };
+                          onUpdate(updatedFeedbackEvent);
                         } catch (error) {
                           console.error("Failed to decrypt feedback content in subscription:", error);
                         }
@@ -434,7 +455,7 @@ export const NIP90ServiceLive = Layer.effect(
                     }
                   } else if (event.kind >= 6000 && event.kind <= 6999) {
                     // Process as result
-                    const resultEvent: NIP90JobResult = {
+                    let resultEvent: NIP90JobResult = {
                       ...event,
                       parsedRequest: undefined,
                       paymentAmount: undefined,
@@ -446,7 +467,8 @@ export const NIP90ServiceLive = Layer.effect(
                     const requestTag = event.tags.find(t => t[0] === "request");
                     if (requestTag && requestTag[1]) {
                       try {
-                        resultEvent.parsedRequest = JSON.parse(requestTag[1]);
+                        const parsedRequest = JSON.parse(requestTag[1]);
+                        resultEvent = { ...resultEvent, parsedRequest };
                       } catch (e) {
                         // Silently fail on JSON parse
                       }
@@ -455,13 +477,16 @@ export const NIP90ServiceLive = Layer.effect(
                     // Parse amount tag if present
                     const amountTag = event.tags.find(t => t[0] === "amount");
                     if (amountTag && amountTag[1]) {
-                      resultEvent.paymentAmount = parseInt(amountTag[1], 10) || undefined;
-                      resultEvent.paymentInvoice = amountTag[2];
+                      resultEvent = {
+                        ...resultEvent,
+                        paymentAmount: parseInt(amountTag[1], 10) || undefined,
+                        paymentInvoice: amountTag[2]
+                      };
                     }
 
                     // Check for encryption
                     const isEncrypted = event.tags.some(t => t[0] === "encrypted");
-                    resultEvent.isEncrypted = isEncrypted;
+                    resultEvent = { ...resultEvent, isEncrypted };
 
                     // Handle encrypted content
                     if (isEncrypted) {
@@ -473,8 +498,8 @@ export const NIP90ServiceLive = Layer.effect(
                             event.pubkey,
                             event.content
                           ));
-                          resultEvent.content = decryptedContent;
-                          onUpdate(resultEvent);
+                          const updatedResultEvent = { ...resultEvent, content: decryptedContent };
+                          onUpdate(updatedResultEvent);
                         } catch (error) {
                           console.error("Failed to decrypt result content in subscription:", error);
                         }

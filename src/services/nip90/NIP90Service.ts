@@ -1,7 +1,10 @@
 // src/services/nip90/NIP90Service.ts
 import { Effect, Context, Data, Schema, Option } from "effect";
 import type { NostrEvent, NostrFilter, Subscription, NostrPublishError, NostrRequestError } from '@/services/nostr';
+import { NostrService } from '@/services/nostr';
 import type { NIP04EncryptError, NIP04DecryptError } from '@/services/nip04';
+import { NIP04Service } from '@/services/nip04';
+import { TelemetryService } from '@/services/telemetry';
 
 // --- Custom Error Types ---
 export class NIP90ServiceError extends Data.TaggedError("NIP90ServiceError")<{
