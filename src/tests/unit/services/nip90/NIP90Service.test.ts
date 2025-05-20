@@ -15,13 +15,9 @@ import { NIP04Service } from '@/services/nip04';
 import { TelemetryService } from '@/services/telemetry';
 import { createNip90JobRequest } from '@/helpers/nip90/event_creation';
 
-// Helper function to convert an Effect with service requirements to an Effect with R = never
-function provideTestServices<A, E>(effect: Effect.Effect<A, E, TelemetryService | NostrService | NIP04Service>): Effect.Effect<A, E, never> {
-  return pipe(
-    effect,
-    Effect.provide(testLayer),
-    Effect.withRuntime(_ => Effect.succeed(_._runFiber(() => {})))
-  );
+// Helper function to properly handle Effect context requirements in tests
+function runEffectTest<A, E>(effect: Effect.Effect<A, E, any>): Effect.Effect<A, E, never> {
+  return Effect.provide(effect, testLayer);
 }
 
 // Mock dependencies
@@ -103,7 +99,7 @@ describe('NIP90Service', () => {
 
       // Act
       const result = await Effect.runPromise(
-        provideTestServices(
+        runEffectTest(
           Effect.flatMap(
             NIP90Service,
             service => service.createJobRequest(jobParams)
@@ -129,7 +125,7 @@ describe('NIP90Service', () => {
       // because Effect.runPromise wraps errors in FiberFailure
       await expect(
         Effect.runPromise(
-          provideTestServices(
+          runEffectTest(
             Effect.flatMap(
               NIP90Service,
               service => service.createJobRequest(invalidJobParams)
@@ -141,10 +137,12 @@ describe('NIP90Service', () => {
       // Check that the error is thrown correctly
       try {
         await Effect.runPromise(
-          Effect.flatMap(
-            NIP90Service,
-            service => service.createJobRequest(invalidJobParams)
-          ).pipe(Effect.provide(testLayer))
+          runEffectTest(
+            Effect.flatMap(
+              NIP90Service,
+              service => service.createJobRequest(invalidJobParams)
+            )
+          )
         );
         expect.fail('Should have thrown error');
       } catch (e: unknown) {
@@ -179,10 +177,12 @@ describe('NIP90Service', () => {
       // Act & Assert
       await expect(
         Effect.runPromise(
-          Effect.flatMap(
-            NIP90Service,
-            service => service.createJobRequest(jobParams)
-          ).pipe(Effect.provide(testLayer))
+          runEffectTest(
+            Effect.flatMap(
+              NIP90Service,
+              service => service.createJobRequest(jobParams)
+            )
+          )
         )
       ).rejects.toThrow(/Encryption failed/);
     });
@@ -217,10 +217,12 @@ describe('NIP90Service', () => {
       // Act & Assert
       await expect(
         Effect.runPromise(
-          Effect.flatMap(
-            NIP90Service,
-            service => service.createJobRequest(jobParams)
-          ).pipe(Effect.provide(testLayer))
+          runEffectTest(
+            Effect.flatMap(
+              NIP90Service,
+              service => service.createJobRequest(jobParams)
+            )
+          )
         )
       ).rejects.toThrow(/Publishing failed/);
     });
@@ -236,7 +238,7 @@ describe('NIP90Service', () => {
         Effect.flatMap(
           NIP90Service,
           service => service.getJobResult(TEST_EVENT_ID)
-        ).pipe(Effect.provide(testLayer))
+        ), testLayer)
       );
 
       // Assert
@@ -273,7 +275,7 @@ describe('NIP90Service', () => {
         Effect.flatMap(
           NIP90Service,
           service => service.getJobResult(TEST_EVENT_ID)
-        ).pipe(Effect.provide(testLayer))
+        ), testLayer)
       );
 
       // Assert
@@ -313,7 +315,7 @@ describe('NIP90Service', () => {
         Effect.flatMap(
           NIP90Service,
           service => service.getJobResult(TEST_EVENT_ID, TEST_DVM_PUBKEY, TEST_SK)
-        ).pipe(Effect.provide(testLayer))
+        ), testLayer)
       );
 
       // Assert
@@ -356,7 +358,7 @@ describe('NIP90Service', () => {
           Effect.flatMap(
             NIP90Service,
             service => service.getJobResult(TEST_EVENT_ID, TEST_DVM_PUBKEY, TEST_SK)
-          ).pipe(Effect.provide(testLayer))
+          ), testLayer)
         )
       ).rejects.toThrow(/Decryption failed/);
     });
@@ -372,7 +374,7 @@ describe('NIP90Service', () => {
         Effect.flatMap(
           NIP90Service,
           service => service.listJobFeedback(TEST_EVENT_ID)
-        ).pipe(Effect.provide(testLayer))
+        ), testLayer)
       );
 
       // Assert
@@ -422,7 +424,7 @@ describe('NIP90Service', () => {
         Effect.flatMap(
           NIP90Service,
           service => service.listJobFeedback(TEST_EVENT_ID)
-        ).pipe(Effect.provide(testLayer))
+        ), testLayer)
       );
 
       // Assert
@@ -457,7 +459,7 @@ describe('NIP90Service', () => {
         Effect.flatMap(
           NIP90Service,
           service => service.listJobFeedback(TEST_EVENT_ID, TEST_DVM_PUBKEY, TEST_SK)
-        ).pipe(Effect.provide(testLayer))
+        ), testLayer)
       );
 
       // Assert
@@ -488,7 +490,7 @@ describe('NIP90Service', () => {
             TEST_SK,
             mockCallback
           )
-        ).pipe(Effect.provide(testLayer))
+        ), testLayer)
       );
 
       // Assert
