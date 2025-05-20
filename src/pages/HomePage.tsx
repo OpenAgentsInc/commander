@@ -24,7 +24,7 @@ export default function HomePage() {
   const initialPinchPositionRef = useRef<{ x: number; y: number } | null>(null);
   const paneStartPosRef = useRef<{ x: number; y: number } | null>(null);
 
-  const { panes, bringPaneToFront, updatePanePosition, activePaneId: currentActivePaneId, openSellComputePane } = usePaneStore();
+  const { panes, bringPaneToFront, updatePanePosition, activePaneId: currentActivePaneId, openSellComputePane, openDvmJobHistoryPane } = usePaneStore();
 
   const toggleHandTracking = () => {
     const newState = !isHandTrackingActive;
@@ -130,6 +130,7 @@ export default function HomePage() {
         isHandTrackingActive={isHandTrackingActive}
         onToggleHandTracking={toggleHandTracking}
         onOpenSellComputePane={openSellComputePane}
+        onOpenDvmJobHistoryPane={openDvmJobHistoryPane}
       />
     </div>
   );

@@ -3,6 +3,7 @@ import { TelemetryService } from '@/services/telemetry';
 import { TrackEventError } from '@/services/telemetry/TelemetryService';
 import { generateSecretKey, getPublicKey } from 'nostr-tools/pure';
 import { bytesToHex } from '@noble/hashes/utils';
+import type { JobHistoryEntry, JobStatistics } from '@/types/dvm';
 
 /**
  * DVM service errors
@@ -104,6 +105,27 @@ export interface Kind5050DVMService {
    * Returns the current listening status
    */
   isListening(): Effect.Effect<boolean, DVMError | TrackEventError, never>;
+
+  /**
+   * Retrieves job history entries with pagination and optional filtering
+   * @param options Pagination and filtering options
+   * @returns A list of job history entries and total count
+   */
+  getJobHistory(options: { 
+    page: number; 
+    pageSize: number; 
+    filters?: Partial<JobHistoryEntry> 
+  }): Effect.Effect<
+    { entries: JobHistoryEntry[]; totalCount: number }, 
+    DVMError | TrackEventError, 
+    never
+  >;
+
+  /**
+   * Retrieves aggregated job statistics
+   * @returns Statistics about processed jobs, revenue, etc.
+   */
+  getJobStatistics(): Effect.Effect<JobStatistics, DVMError | TrackEventError, never>;
 }
 
 export const Kind5050DVMService = Context.GenericTag<Kind5050DVMService>("Kind5050DVMService");

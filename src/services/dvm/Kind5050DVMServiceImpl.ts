@@ -23,6 +23,7 @@ import {
   DVMPaymentError, 
   DVMError
 } from './Kind5050DVMService';
+import type { JobHistoryEntry, JobStatistics } from '@/types/dvm';
 
 /**
  * Helper to create NIP-90 feedback events (Kind 7000)
@@ -535,6 +536,129 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         }).pipe(Effect.ignoreLogged));
         
         return isActiveInternal;
+      }),
+
+      getJobHistory: (options: { page: number; pageSize: number; filters?: Partial<JobHistoryEntry> }) => Effect.gen(function* (_) {
+        yield* _(telemetry.trackEvent({ 
+          category: 'dvm:history', 
+          action: 'get_job_history_stub', 
+          label: `Page: ${options.page}` 
+        }).pipe(Effect.ignoreLogged));
+        
+        // Mock data for now - this will be replaced with actual persistence in a future task
+        const mockHistory: JobHistoryEntry[] = [
+          { 
+            id: 'job1', 
+            timestamp: Date.now() - 3600000, // 1 hour ago 
+            jobRequestEventId: 'req1', 
+            requesterPubkey: 'pk_requester1', 
+            kind: 5100, 
+            inputSummary: 'Translate to French: Hello world', 
+            status: 'completed', 
+            ollamaModelUsed: 'gemma2:latest', 
+            tokensProcessed: 120, 
+            invoiceAmountSats: 20, 
+            paymentReceivedSats: 20, 
+            resultSummary: 'Bonjour le monde' 
+          },
+          { 
+            id: 'job2', 
+            timestamp: Date.now() - 7200000, // 2 hours ago
+            jobRequestEventId: 'req2', 
+            requesterPubkey: 'pk_requester2', 
+            kind: 5100, 
+            inputSummary: 'Summarize this article...', 
+            status: 'error', 
+            ollamaModelUsed: 'gemma2:latest', 
+            errorDetails: 'Ollama connection failed' 
+          },
+          { 
+            id: 'job3', 
+            timestamp: Date.now() - 10800000, // 3 hours ago
+            jobRequestEventId: 'req3', 
+            requesterPubkey: 'pk_requester1', 
+            kind: 5000, 
+            inputSummary: 'Image generation: cat astronaut', 
+            status: 'pending_payment', 
+            ollamaModelUsed: 'dall-e-stub', 
+            invoiceAmountSats: 100 
+          },
+          {
+            id: 'job4',
+            timestamp: Date.now() - 86400000, // 1 day ago
+            jobRequestEventId: 'req4',
+            requesterPubkey: 'pk_requester3',
+            kind: 5100,
+            inputSummary: 'Write a poem about technology',
+            status: 'completed',
+            ollamaModelUsed: 'llama3:instruct',
+            tokensProcessed: 350,
+            invoiceAmountSats: 50,
+            paymentReceivedSats: 50,
+            resultSummary: 'Digital dreams in silicon sleep...'
+          },
+          {
+            id: 'job5',
+            timestamp: Date.now() - 172800000, // 2 days ago
+            jobRequestEventId: 'req5',
+            requesterPubkey: 'pk_requester2',
+            kind: 5100,
+            inputSummary: 'Debug this JavaScript code...',
+            status: 'paid',
+            ollamaModelUsed: 'codellama:latest',
+            tokensProcessed: 420,
+            invoiceAmountSats: 60,
+            paymentReceivedSats: 60,
+            resultSummary: 'Found issue in line 42...'
+          }
+        ];
+        
+        // Very basic filtering (to be enhanced with real implementation)
+        let filteredEntries = [...mockHistory];
+        if (options.filters) {
+          const filters = options.filters;
+          filteredEntries = filteredEntries.filter(entry => {
+            for (const [key, value] of Object.entries(filters)) {
+              if (entry[key as keyof JobHistoryEntry] !== value) {
+                return false;
+              }
+            }
+            return true;
+          });
+        }
+        
+        // Pagination
+        const paginatedEntries = filteredEntries.slice(
+          (options.page - 1) * options.pageSize, 
+          options.page * options.pageSize
+        );
+        
+        return { entries: paginatedEntries, totalCount: filteredEntries.length };
+      }),
+
+      getJobStatistics: () => Effect.gen(function* (_) {
+        yield* _(telemetry.trackEvent({ 
+          category: 'dvm:stats', 
+          action: 'get_job_statistics_stub' 
+        }).pipe(Effect.ignoreLogged));
+        
+        // Mock statistics (to be replaced with actual calculations in a future task)
+        const mockStats: JobStatistics = {
+          totalJobsProcessed: 125,
+          totalSuccessfulJobs: 90,
+          totalFailedJobs: 15,
+          totalRevenueSats: 1850,
+          jobsPendingPayment: 20,
+          averageProcessingTimeMs: 3250,
+          modelUsageCounts: { 
+            "gemma2:latest": 70, 
+            "llama3:instruct": 20, 
+            "codellama:latest": 25,
+            "other_model": 10 
+          }
+        };
+        
+        return mockStats;
       })
     };
   })

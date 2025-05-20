@@ -8,3 +8,4 @@ export * from './openChatPane';
 export * from './createNip28ChannelPane';
 export * from './openNip90DashboardPane';
 export * from './openSellComputePane';
+export * from './openDvmJobHistoryPane';

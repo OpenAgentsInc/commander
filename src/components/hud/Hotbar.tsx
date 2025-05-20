@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '@/utils/tailwind';
 import { HotbarItem } from './HotbarItem';
-import { RefreshCw, Hand, MessageSquarePlus, Cpu, Store } from 'lucide-react';
+import { RefreshCw, Hand, MessageSquarePlus, Cpu, Store, History } from 'lucide-react';
 import { usePaneStore } from '@/stores/pane';
 
 interface HotbarProps {
@@ -9,19 +9,22 @@ interface HotbarProps {
   isHandTrackingActive: boolean;
   onToggleHandTracking: () => void;
   onOpenSellComputePane: () => void;
+  onOpenDvmJobHistoryPane: () => void;
 }
 
 export const Hotbar: React.FC<HotbarProps> = ({ 
   className, 
   isHandTrackingActive, 
   onToggleHandTracking, 
-  onOpenSellComputePane 
+  onOpenSellComputePane,
+  onOpenDvmJobHistoryPane 
 }) => {
   const resetHUDState = usePaneStore((state) => state.resetHUDState);
   const createNip28Channel = usePaneStore((state) => state.createNip28ChannelPane);
   const openNip90Dashboard = usePaneStore((state) => state.openNip90DashboardPane);
   const activePaneId = usePaneStore((state) => state.activePaneId);
   const SELL_COMPUTE_PANE_ID = 'sell_compute';
+  const DVM_JOB_HISTORY_PANE_ID = 'dvm_job_history';
 
   const handleCreateChannel = () => {
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/:/g, '');
@@ -51,8 +54,11 @@ export const Hotbar: React.FC<HotbarProps> = ({
       <HotbarItem slotNumber={5} onClick={onOpenSellComputePane} title="Sell Compute" isActive={activePaneId === SELL_COMPUTE_PANE_ID}>
         <Store className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
-      {Array.from({ length: 4 }).map((_, index) => (
-        <HotbarItem key={`empty-${6 + index}`} slotNumber={6 + index} title={`Slot ${6 + index}`} className="opacity-30 cursor-not-allowed hover:bg-background/70">
+      <HotbarItem slotNumber={6} onClick={onOpenDvmJobHistoryPane} title="DVM Job History" isActive={activePaneId === DVM_JOB_HISTORY_PANE_ID}>
+        <History className="w-5 h-5 text-muted-foreground" />
+      </HotbarItem>
+      {Array.from({ length: 3 }).map((_, index) => (
+        <HotbarItem key={`empty-${7 + index}`} slotNumber={7 + index} title={`Slot ${7 + index}`} className="opacity-30 cursor-not-allowed hover:bg-background/70">
           <div className="w-5 h-5 text-muted-foreground/50"></div>
         </HotbarItem>
       ))}
