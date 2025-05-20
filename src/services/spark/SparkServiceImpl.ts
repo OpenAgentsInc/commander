@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Schema } from 'effect';
+import { Context, Effect, Layer, Schema, Cause } from 'effect';
 import { TelemetryService, TelemetryServiceConfigTag } from '@/services/telemetry';
 import {
   CreateLightningInvoiceParams,
@@ -111,27 +111,34 @@ export const SparkServiceLive = Layer.scoped(
     }));
     
     // Add finalizer to clean up wallet connections when the layer is released
-    yield* _(Effect.addFinalizer(() => 
-      Effect.sync(() => {
-        // Use synchronous cleanup to avoid Effect channel issues
+    yield* _(Effect.addFinalizer(() => {
+      // Using a simpler approach that doesn't yield any errors to match the expected type signature
+      return Effect.sync(() => {
+        // Synchronous cleanup to avoid type issues with Effect channels
         if (typeof wallet.cleanupConnections === 'function') {
           try {
-            // We'll run this synchronously to avoid Effect channel complications
+            // We need to log success via a fire-and-forget promise
             wallet.cleanupConnections()
               .then(() => {
-                console.log('SparkWallet connections cleaned up successfully');
+                // We can't use Effect here due to type constraints with Effect.addFinalizer
+                console.log('[SparkService] Wallet connections cleaned up successfully');
+                // Try to log to telemetry service, but can't rely on it at this point
+                // Can't use Effect here in a finalizer, just log to console
+                console.log('[SparkService] Telemetry: wallet_cleanup_success')
               })
-              .catch((e) => {
-                console.error('Failed to cleanup SparkWallet connections', e);
+              .catch(error => {
+                console.error('[SparkService] Failed to cleanup wallet connections', error);
+                // Try to log error to telemetry
+                // Can't use Effect here in a finalizer, just log to console
+                console.log('[SparkService] Telemetry: wallet_cleanup_failure', error instanceof Error ? error.message : String(error))
               });
           } catch (e) {
-            console.error('Error during wallet.cleanupConnections', e);
+            console.error('[SparkService] Critical error during wallet.cleanupConnections', e);
           }
         }
-        
         return undefined;
-      })
-    ));
+      });
+    }));
 
     // Return the implementation of the SparkService interface
     return {
