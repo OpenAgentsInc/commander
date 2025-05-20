@@ -1,5 +1,5 @@
 import { Context, Effect, Layer } from 'effect';
-import { TelemetryService } from '@/services/telemetry';
+import { TelemetryService, TelemetryServiceConfigTag } from '@/services/telemetry';
 import {
   CreateLightningInvoiceParams,
   LightningInvoice,
@@ -17,7 +17,8 @@ import {
   SparkServiceConfigTag,
   SparkTransactionError,
   SparkValidationError,
-  BalanceInfo
+  BalanceInfo,
+  SparkNotImplementedError
 } from './SparkService';
 
 // Import the Spark SDK with all its types
@@ -28,57 +29,9 @@ import {
   NotImplementedError, 
   RPCError, 
   SparkSDKError, 
-  ValidationError
+  ValidationError,
+  SparkWallet
 } from '@buildonspark/spark-sdk';
-import { SparkNotImplementedError } from './SparkService';
-import { SparkWallet } from '@buildonspark/spark-sdk';
-
-// Define interfaces for SDK types that we interact with
-
-// SparkWallet initialization options - using any for compatibility with actual SDK
-interface SparkWalletInitOptions {
-  mnemonicOrSeed?: string | Uint8Array;
-  accountNumber?: number;
-  options?: Record<string, unknown>;
-}
-
-// Since we don't have the actual SDK types, we'll use a more generic approach
-// that will work with the actual SDK without needing to define all the exact types
-
-// SDK response types
-interface SDKLightningInvoice {
-  invoice: {
-    encodedInvoice: string;
-    paymentHash: string;
-    // Other fields the SDK might return
-  };
-}
-
-interface SDKLightningPayment {
-  id?: string;
-  paymentHash?: string;
-  amountSats?: number;
-  feeSats?: number;
-  status?: string;
-  destination?: string;
-  // Other fields the SDK might return
-}
-
-interface SDKBalanceInfo {
-  balance: bigint;
-  tokenBalances?: Map<string, {
-    balance: bigint;
-    tokenInfo: {
-      tokenPublicKey?: string;
-      tokenName?: string;
-      tokenSymbol?: string;
-      tokenDecimals?: number;
-      [key: string]: unknown;
-    };
-    [key: string]: unknown;
-  }>;
-  [key: string]: unknown;
-}
 
 /**
  * Implements the SparkService interface using the Spark SDK
@@ -90,46 +43,28 @@ export const SparkServiceLive = Layer.effect(
     const sparkConfig = yield* _(SparkServiceConfigTag);
     const telemetry = yield* _(TelemetryService);
 
+    // Track wallet initialization start in telemetry
+    yield* _(telemetry.trackEvent({
+      category: 'spark:init',
+      action: 'wallet_initialize_start',
+      label: `Network: ${sparkConfig.network}`,
+      value: sparkConfig.accountNumber?.toString() || '0'
+    }));
+
     // Initialize the SparkWallet instance
     const wallet = yield* _(
       Effect.tryPromise({
         try: async () => {
-          // Track wallet initialization in telemetry
-          await Effect.runPromise(telemetry.trackEvent({
-            category: 'spark:init',
-            action: 'wallet_initialize_start',
-            label: `Network: ${sparkConfig.network}`,
-            value: sparkConfig.accountNumber?.toString() || '0'
-          }));
-
           // Initialize the SparkWallet using the provided configuration
-          // Use the config directly, assuming the SDK can handle our config object structure
-          // This would be better typed with actual SDK types, but we're mocking it
           const { wallet } = await SparkWallet.initialize({
             mnemonicOrSeed: sparkConfig.mnemonicOrSeed,
             accountNumber: sparkConfig.accountNumber,
             options: sparkConfig.sparkSdkOptions
-          } as any); // Using any here is acceptable since we're working with a mocked SDK
-
-          // Track successful initialization
-          await Effect.runPromise(telemetry.trackEvent({
-            category: 'spark:init',
-            action: 'wallet_initialize_success',
-            label: `Network: ${sparkConfig.network}`,
-            value: 'success'
-          }));
+          });
 
           return wallet;
         },
         catch: (e) => {
-          // Track initialization failure
-          Effect.runSync(telemetry.trackEvent({
-            category: 'spark:init',
-            action: 'wallet_initialize_failure',
-            label: e instanceof Error ? e.message : 'Unknown error',
-            value: JSON.stringify({ accountNumber: sparkConfig.accountNumber })
-          }));
-
           // Map the error to the appropriate type
           if (e instanceof NetworkError) {
             return new SparkConnectionError({
@@ -165,6 +100,14 @@ export const SparkServiceLive = Layer.effect(
       })
     );
 
+    // Track successful initialization
+    yield* _(telemetry.trackEvent({
+      category: 'spark:init',
+      action: 'wallet_initialize_success',
+      label: `Network: ${sparkConfig.network}`,
+      value: 'success'
+    }));
+
     // Return the implementation of the SparkService interface
     return {
       /**
@@ -183,10 +126,10 @@ export const SparkServiceLive = Layer.effect(
           return yield* _(
             Effect.tryPromise({
               try: async () => {
-                // Call the SDK method
-                const sdkResult = await wallet.createLightningInvoice(params) as SDKLightningInvoice;
+                // Call the SDK method with explicit return type
+                const sdkResult = await wallet.createLightningInvoice(params);
                 
-                // Map SDK result to our interface type
+                // Map SDK result to our interface type with explicit type
                 const result: LightningInvoice = {
                   invoice: {
                     encodedInvoice: sdkResult.invoice.encodedInvoice,
@@ -253,20 +196,18 @@ export const SparkServiceLive = Layer.effect(
                 });
               }
             }),
-            Effect.tapBoth({
-              onSuccess: (invoice: LightningInvoice) => telemetry.trackEvent({
-                category: 'spark:lightning',
-                action: 'create_invoice_success',
-                label: `Invoice created: ${invoice.invoice.encodedInvoice.substring(0, 20)}...`,
-                value: invoice.invoice.paymentHash
-              }),
-              onFailure: (err) => telemetry.trackEvent({
-                category: 'spark:lightning',
-                action: 'create_invoice_failure',
-                label: err.message,
-                value: JSON.stringify(err.context)
-              })
-            })
+            Effect.tap((invoice: LightningInvoice) => telemetry.trackEvent({
+              category: 'spark:lightning',
+              action: 'create_invoice_success',
+              label: `Invoice created: ${invoice.invoice.encodedInvoice.substring(0, 20)}...`,
+              value: invoice.invoice.paymentHash
+            })),
+            Effect.tapError((err) => telemetry.trackEvent({
+              category: 'spark:lightning',
+              action: 'create_invoice_failure',
+              label: err.message,
+              value: JSON.stringify(err.context)
+            }))
           );
         }),
 
@@ -289,11 +230,11 @@ export const SparkServiceLive = Layer.effect(
           return yield* _(
             Effect.tryPromise({
               try: async () => {
-                // Call the SDK method
+                // Call the SDK method with explicit params
                 const sdkResult = await wallet.payLightningInvoice({
                   invoice: params.invoice,
                   maxFeeSats: params.maxFeeSats
-                }) as SDKLightningPayment;
+                });
                 
                 // Map SDK result to our interface type
                 const result: LightningPayment = {
@@ -366,20 +307,18 @@ export const SparkServiceLive = Layer.effect(
                 });
               }
             }),
-            Effect.tapBoth({
-              onSuccess: (payment: LightningPayment) => telemetry.trackEvent({
-                category: 'spark:lightning',
-                action: 'pay_invoice_success',
-                label: `Payment status: ${payment.payment.status}`,
-                value: `Amount: ${payment.payment.amountSats}, Fee: ${payment.payment.feeSats}`
-              }),
-              onFailure: (err) => telemetry.trackEvent({
-                category: 'spark:lightning',
-                action: 'pay_invoice_failure',
-                label: err.message,
-                value: JSON.stringify(err.context)
-              })
-            })
+            Effect.tap((payment: LightningPayment) => telemetry.trackEvent({
+              category: 'spark:lightning',
+              action: 'pay_invoice_success',
+              label: `Payment status: ${payment.payment.status}`,
+              value: `Amount: ${payment.payment.amountSats}, Fee: ${payment.payment.feeSats}`
+            })),
+            Effect.tapError((err) => telemetry.trackEvent({
+              category: 'spark:lightning',
+              action: 'pay_invoice_failure',
+              label: err.message,
+              value: JSON.stringify(err.context)
+            }))
           );
         }),
 
@@ -399,8 +338,8 @@ export const SparkServiceLive = Layer.effect(
           return yield* _(
             Effect.tryPromise({
               try: async () => {
-                // Call the SDK method
-                const sdkResult = await wallet.getBalance() as SDKBalanceInfo;
+                // Call the SDK method with explicit type inference
+                const sdkResult = await wallet.getBalance();
                 
                 // Map SDK result to our interface type
                 const mappedTokenBalances = new Map<string, {
@@ -490,20 +429,18 @@ export const SparkServiceLive = Layer.effect(
                 });
               }
             }),
-            Effect.tapBoth({
-              onSuccess: (balance) => telemetry.trackEvent({
-                category: 'spark:balance',
-                action: 'get_balance_success',
-                label: `Balance: ${balance.balance} sats`,
-                value: `Token count: ${balance.tokenBalances.size}`
-              }),
-              onFailure: (err) => telemetry.trackEvent({
-                category: 'spark:balance',
-                action: 'get_balance_failure',
-                label: err.message,
-                value: JSON.stringify(err.context)
-              })
-            })
+            Effect.tap((balance: BalanceInfo) => telemetry.trackEvent({
+              category: 'spark:balance',
+              action: 'get_balance_success',
+              label: `Balance: ${balance.balance} sats`,
+              value: `Token count: ${balance.tokenBalances.size}`
+            })),
+            Effect.tapError((err) => telemetry.trackEvent({
+              category: 'spark:balance',
+              action: 'get_balance_failure',
+              label: err.message,
+              value: JSON.stringify(err.context)
+            }))
           );
         }),
 
@@ -578,20 +515,18 @@ export const SparkServiceLive = Layer.effect(
                 });
               }
             }),
-            Effect.tapBoth({
-              onSuccess: (address) => telemetry.trackEvent({
-                category: 'spark:deposit',
-                action: 'get_deposit_address_success',
-                label: `Address: ${address.substring(0, 10)}...`,
-                value: address
-              }),
-              onFailure: (err) => telemetry.trackEvent({
-                category: 'spark:deposit',
-                action: 'get_deposit_address_failure',
-                label: err.message,
-                value: JSON.stringify(err.context)
-              })
-            })
+            Effect.tap((address: string) => telemetry.trackEvent({
+              category: 'spark:deposit',
+              action: 'get_deposit_address_success',
+              label: `Address: ${address.substring(0, 10)}...`,
+              value: address
+            })),
+            Effect.tapError((err) => telemetry.trackEvent({
+              category: 'spark:deposit',
+              action: 'get_deposit_address_failure',
+              label: err.message,
+              value: JSON.stringify(err.context)
+            }))
           );
         })
     };
