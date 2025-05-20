@@ -12,6 +12,7 @@ The "Sell Compute" feature enables users to:
 4. Process inference requests using Ollama
 5. Generate Lightning invoices using Spark wallet
 6. Send results (kind 6050) with payment requests back to requesters
+7. Automatically verify payments and update job statuses
 
 ## Architecture
 
@@ -25,7 +26,8 @@ The implementation follows a layered architecture:
 ### Service Layer
 - **Kind5050DVMService**: Core service that handles job requests and coordinates between Nostr, Ollama, and Spark
   - Includes methods for retrieving job history and statistics
-- **SparkService**: Extended with `checkWalletStatus()` method for wallet connectivity checking
+  - Implements automatic payment verification and status updating
+- **SparkService**: Extended with `checkWalletStatus()` and `checkInvoiceStatus()` methods for wallet connectivity and payment verification
 - **OllamaService**: Extended with `checkOllamaStatus()` method for Ollama connectivity checking
 
 ### Store Layer
@@ -41,6 +43,7 @@ The NIP-90 Data Vending Machine protocol involves the following Nostr event kind
 
 2. **Kind 7000**: Provider sends job status updates (optional)
    - "processing" when job starts
+   - "payment-required" when an invoice is generated
    - "success" or "error" when job completes or fails
 
 3. **Kind 6050**: Provider sends job results
@@ -70,9 +73,9 @@ The NIP-90 Data Vending Machine protocol involves the following Nostr event kind
 - ✅ Persistent storage of user settings using localStorage
 - ✅ Dynamic relay configuration (using user-configured relays for NostrService subscriptions)
 - ✅ UI for displaying job history and statistics
+- ✅ Payment verification and handling via periodic background checking
 
 ### Remaining Work
-- ⬜ Payment verification and handling
 - ⬜ Job queue management
 - ⬜ Security measures (e.g., rate limiting, request validation)
 - ⬜ Persistent storage for job history (currently uses mock data)
@@ -147,12 +150,19 @@ All parameters are optional - if not set, the application uses defaults from `De
    - DVM runs the inference using OllamaService with the provided prompt
    - DVM calculates price based on token count using configured rates
    - DVM creates a Lightning invoice using SparkService
+   - DVM stores the BOLT11 invoice and payment hash for later verification
    - If original request was encrypted, DVM encrypts results using NIP-04
    - DVM sends the results with the Lightning invoice (kind 6xxx)
    - DVM sends a "success" status update (kind 7000)
-3. All steps include comprehensive error handling with feedback to the client
-4. Each job request is processed in its own Effect.js fiber for concurrent processing
-5. The DVM refreshes configuration for each job to ensure the latest user settings are used
+   - Job status is initially set to "pending_payment"
+3. Payment verification happens automatically:
+   - Every 2 minutes, the DVM checks all jobs with "pending_payment" status
+   - For each job, it calls SparkService.checkInvoiceStatus() with the stored invoice BOLT11 string
+   - If the invoice is paid, it updates the job status to "paid" and records the payment amount
+   - Job status updates are reflected in the job history UI
+4. All steps include comprehensive error handling with feedback to the client
+5. Each job request is processed in its own Effect.js fiber for concurrent processing
+6. The DVM refreshes configuration for each job to ensure the latest user settings are used
 
 ### Job History and Statistics Tracking
 
@@ -161,6 +171,7 @@ The DVM service includes facilities for tracking job history and statistics:
 1. **Data Types**:
    - `JobStatus`: Enum type for job processing states ('pending_payment', 'processing', 'paid', 'completed', 'error', 'cancelled')
    - `JobHistoryEntry`: Details of a single job request, including metadata, status, and payment info
+     - Now includes `invoiceBolt11` and `invoicePaymentHash` for payment tracking
    - `JobStatistics`: Aggregated metrics about processed jobs, including success/failure counts and revenue
 
 2. **Service Interface**:
@@ -174,6 +185,31 @@ The DVM service includes facilities for tracking job history and statistics:
    - Refresh functionality to update displayed data
 
 The current implementation uses mock data, but future enhancements will include persistent storage for job history and statistics.
+
+### Payment Verification
+
+The DVM service automatically verifies payments for completed jobs:
+
+1. **Invoice Storage**:
+   - When a job is processed and an invoice is created, the BOLT11 invoice string and payment hash are stored in the `JobHistoryEntry`
+   - The job is initially set to status "pending_payment"
+
+2. **Periodic Verification**:
+   - A background fiber runs every 2 minutes checking all pending payment jobs
+   - It calls `SparkService.checkInvoiceStatus(invoiceBolt11)` for each pending job
+   - If the status is "paid", it updates the job status and records the payment amount
+
+3. **Status Handling**:
+   - When an invoice is verified as paid, the job status changes to "paid"
+   - For expired or error invoices, appropriate status updates are made
+   - All status changes are logged via telemetry
+
+4. **Lifecycle Management**:
+   - The payment verification process starts when the DVM goes online
+   - It stops automatically when the DVM goes offline
+   - Error handling ensures the verification process continues even if individual invoice checks fail
+
+This implementation ensures payments are tracked and verified automatically without user intervention.
 
 ### Error Handling
 
@@ -217,6 +253,7 @@ To use the "Sell Compute" feature:
    - Process requests in parallel using Ollama
    - Generates invoices for clients using Spark
    - Sends results back with payment requests
+   - Automatically verifies payments every 2 minutes
 7. Click "GO OFFLINE" to stop processing new requests
    - Button will show a loading state during DVM shutdown
    - Once inactive, button will change back to "GO ONLINE"
@@ -248,7 +285,6 @@ Your settings are automatically persisted in localStorage and will be used whene
 - Advanced pricing models based on token count, model size, priority, etc.
 - Job prioritization and queuing system
 - Enhanced analytics for earnings and request patterns
-- Payment verification and receipt handling
 - Custom model fine-tuning offerings
 - Reputation system integration
 - Rate limiting and additional request validation
@@ -274,6 +310,7 @@ The implementation leverages several key design patterns and technologies:
 10. **Dynamic Settings Refresh**: Each job request fetches the latest effective configuration to ensure up-to-date settings
 11. **React Query**: Used for data fetching, caching, and state management in the Job History UI
 12. **UI Component Patterns**: Loading states, error handling, and pagination for data display
+13. **Background Processing**: Scheduled tasks for payment verification using Effect.js fibers
 
 ### Store Implementation
 

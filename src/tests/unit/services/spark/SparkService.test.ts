@@ -183,6 +183,21 @@ describe('SparkService', () => {
     checkWalletStatus: () => {
       // Return wallet status
       return Effect.succeed(true);
+    },
+    
+    checkInvoiceStatus: (invoiceBolt11: string) => {
+      // Simple mock implementation for testing
+      if (invoiceBolt11.includes('paid')) {
+        return Effect.succeed({ status: 'paid' as const, amountPaidMsats: 100000 });
+      } else if (invoiceBolt11.includes('expired')) {
+        return Effect.succeed({ status: 'expired' as const });
+      } else if (invoiceBolt11.includes('error')) {
+        return Effect.fail(new SparkLightningError({
+          message: "Error checking invoice status",
+          context: { invoiceBolt11 }
+        }));
+      }
+      return Effect.succeed({ status: 'pending' as const });
     }
   });
 

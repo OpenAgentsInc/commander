@@ -1,7 +1,7 @@
 import { Effect, Layer, Schema, Option, Cause, Fiber, Schedule, Duration } from 'effect';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { finalizeEvent, type EventTemplate } from 'nostr-tools/pure';
-import { TelemetryService } from '@/services/telemetry';
+import { TelemetryService, TrackEventError } from '@/services/telemetry';
 import { NostrService, type NostrEvent, type NostrFilter, type Subscription, NostrPublishError } from '@/services/nostr';
 import { OllamaService, type OllamaChatCompletionRequest, OllamaError } from '@/services/ollama';
 import { SparkService, type CreateLightningInvoiceParams, SparkError, LightningInvoice } from '@/services/spark';
@@ -157,18 +157,16 @@ export const Kind5050DVMServiceLive = Layer.scoped(
      * Periodically checks for invoices with pending payment status and updates their status
      * by checking with the Spark service.
      */
-    const checkAndUpdateInvoiceStatuses = (): Effect.Effect<void, DVMError | TrackEventError, Kind5050DVMService | SparkService | TelemetryService> => 
-      Effect.gen(function* (_) {
+    const checkAndUpdateInvoiceStatuses = function(this: any): Effect.Effect<void, DVMError | TrackEventError, SparkService> {
+      return Effect.gen(function* (_) {
         yield* _(telemetry.trackEvent({ 
           category: 'dvm:payment_check', 
           action: 'check_all_invoices_start' 
         }).pipe(Effect.ignoreLogged));
-
-        // Access the service instance itself for calling getJobHistory
-        const dvmService = yield* _(Kind5050DVMService);
         
         // Get a large page of job history to find pending payment jobs
-        const historyResult = yield* _(dvmService.getJobHistory({ page: 1, pageSize: 500 }));
+        // Cast the result to the expected type
+        const historyResult: { entries: JobHistoryEntry[], totalCount: number } = yield* _(this.getJobHistory({ page: 1, pageSize: 500 }));
         
         // Filter for jobs with pending_payment status and invoiceBolt11
         const pendingPaymentJobs = historyResult.entries.filter(
@@ -202,17 +200,18 @@ export const Kind5050DVMServiceLive = Layer.scoped(
 
           // Check invoice status via SparkService, handling errors individually
           // so one failure doesn't stop checking others
-          const invoiceStatusResult = yield* _(
+          const invoiceStatusResult: { status: 'pending' | 'paid' | 'expired' | 'error', amountPaidMsats?: number, message?: string } = yield* _(
             spark.checkInvoiceStatus(job.invoiceBolt11).pipe(
-              Effect.catchTag("SparkError", (err) => {
+              Effect.catchAll((err) => {
+                // Handle errors generically since we can't use instanceof SparkError
                 Effect.runFork(telemetry.trackEvent({
                   category: 'dvm:payment_check_error',
                   action: 'spark_check_invoice_failed',
                   label: `Job ID: ${job.id}, Invoice: ${job.invoiceBolt11?.substring(0,20)}...`,
-                  value: err.message
+                  value: err instanceof Error ? err.message : String(err)
                 }));
                 // Return a default error status, but don't fail the whole loop
-                return Effect.succeed({ status: 'error' as const, message: err.message });
+                return Effect.succeed({ status: 'error' as const, message: err instanceof Error ? err.message : String(err) });
               })
             )
           );
@@ -244,7 +243,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
               action: `invoice_${invoiceStatusResult.status}`,
               label: `Job ID: ${job.id}`,
               value: invoiceStatusResult.status === 'error' 
-                ? (invoiceStatusResult as any).message 
+                ? invoiceStatusResult.message 
                 : undefined
             }).pipe(Effect.ignoreLogged));
             
@@ -257,7 +256,8 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           category: 'dvm:payment_check', 
           action: 'check_all_invoices_complete' 
         }).pipe(Effect.ignoreLogged));
-      });
+      }.bind(this));
+    };
     
     /**
      * The main job processing logic
@@ -608,8 +608,8 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           Schedule.spaced(Duration.minutes(2))
         );
         
-        // Fork the scheduled effect into its own fiber
-        invoiceCheckFiber = Effect.runFork(scheduledInvoiceCheck);
+        // Fork the scheduled effect into its own fiber and explicitly type it as void
+        invoiceCheckFiber = Effect.runFork(scheduledInvoiceCheck as Effect.Effect<void, never, never>);
         
         yield* _(telemetry.trackEvent({ 
           category: 'dvm:status', 
