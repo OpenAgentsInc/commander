@@ -133,8 +133,7 @@ export const SparkServiceLive = Layer.scoped(
                 category: 'spark:dispose',
                 action: 'wallet_cleanup_failure',
                 label: error instanceof Error ? error.message : 'Unknown cleanup error',
-                value: String(error),
-                context: { network: sparkConfig.network }
+                value: `Network: ${sparkConfig.network}|Error: ${String(error)}`
               }));
             });
         }
@@ -403,7 +402,7 @@ export const SparkServiceLive = Layer.scoped(
               // The SDK uses paymentPreimage, not paymentHash
               paymentHash: sdkResult.paymentPreimage || 'unknown-hash',
               // Prefer actual amount sent by SDK if available
-              amountSats: sdkResult.amount?.originalValue || 
+              amountSats: (sdkResult as any).amount?.originalValue || 
                 sdkResult.transfer?.totalAmount?.originalValue || 
                 // Fallback to fee - not ideal but we need to get payment amount somewhere
                 (sdkResult.fee && typeof sdkResult.fee.originalValue === 'number' ? 
@@ -416,7 +415,7 @@ export const SparkServiceLive = Layer.scoped(
               status: String(sdkResult.status).toUpperCase().includes('SUCCESS') ? 'SUCCESS' : 
                 (String(sdkResult.status).toUpperCase().includes('PEND') ? 'PENDING' : 'FAILED'),
               // Prefer specific destination field from SDK if available
-              destination: sdkResult.destinationNodePubkey || 
+              destination: (sdkResult as any).destinationNodePubkey || 
                 sdkResult.transfer?.sparkId || 
                 (sdkResult.encodedInvoice ? sdkResult.encodedInvoice.substring(0, 20) + '...' : 'unknown-destination')
             }

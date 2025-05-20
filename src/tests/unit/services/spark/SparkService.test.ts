@@ -51,6 +51,8 @@ import {
   SparkAuthenticationError,
   SparkRPCError,
   SparkNotImplementedError,
+  SparkServiceError,
+  SparkError,
   CreateLightningInvoiceParams,
   PayLightningInvoiceParams,
   LightningInvoice,
