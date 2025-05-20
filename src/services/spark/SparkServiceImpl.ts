@@ -237,16 +237,23 @@ export const SparkServiceLive = Layer.effect(
                 });
                 
                 // Map SDK result to our interface type
-                // Handling the LightningSendRequest structure from SDK
+                // Based on LightningSendRequest from the SDK
                 const result: LightningPayment = {
                   payment: {
                     id: sdkResult.id || 'unknown-id',
-                    paymentHash: (sdkResult as any).paymentHash || 'unknown-hash',
-                    amountSats: (sdkResult as any).amountSats || 0,
-                    feeSats: (sdkResult as any).feeSats || 0,
+                    // The SDK uses paymentPreimage, not paymentHash
+                    paymentHash: sdkResult.paymentPreimage || 'unknown-hash',
+                    // SDK provides fee with CurrencyAmount structure
+                    amountSats: sdkResult.fee && typeof sdkResult.fee.originalValue === 'number' ? 
+                      sdkResult.fee.originalValue : 0,
+                    // SDK provides fee with CurrencyAmount structure
+                    feeSats: sdkResult.fee && typeof sdkResult.fee.originalValue === 'number' ? 
+                      sdkResult.fee.originalValue : 0,
                     createdAt: Math.floor(Date.now() / 1000),
-                    status: 'SUCCESS', // Assume success if we get here
-                    destination: (sdkResult as any).destination || 'unknown-destination'
+                    // We assume SUCCESS because the call succeeded
+                    status: 'SUCCESS',
+                    // The SDK doesn't provide destination directly - could be derived from transfer if needed
+                    destination: sdkResult.encodedInvoice ? sdkResult.encodedInvoice.substring(0, 20) + '...' : 'unknown-destination'
                   }
                 };
                 
