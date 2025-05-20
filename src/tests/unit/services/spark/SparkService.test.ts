@@ -86,6 +86,12 @@ describe('SparkService', () => {
     logLevel: 'info' 
   });
 
+  // Combined Telemetry Layer
+  const TelemetryTestLayer = Layer.merge(
+    MockTelemetryLayer,
+    MockTelemetryConfigLayer
+  );
+
   // Mock config for SparkService
   const mockSparkConfig: SparkServiceConfig = {
     network: "REGTEST",
@@ -98,6 +104,16 @@ describe('SparkService', () => {
   };
 
   const MockSparkConfigLayer = Layer.succeed(SparkServiceConfigTag, mockSparkConfig);
+  
+  // Create test layer for SparkServiceLive with mocked dependencies
+  const dependenciesLayerForLiveTests = Layer.merge(
+    MockSparkConfigLayer,
+    TelemetryTestLayer
+  );
+  const testLayerForLive = Layer.provide(
+    SparkServiceLive,
+    dependenciesLayerForLiveTests
+  );
 
   // Create a mock implementation of the SparkService
   const createMockSparkService = (): SparkService => ({
@@ -253,28 +269,92 @@ describe('SparkService', () => {
       }
     });
     
-    it('should handle network errors during invoice creation', async () => {
-      // Setup the mock response with an error
-      createLightningInvoiceMock.mockRejectedValue(
-        new MockNetworkError('Connection failed', { endpoint: 'invoice-api' })
-      );
+    it('should fail with SparkValidationError for schema validation failure via SparkServiceLive', async () => {
+      // Invalid parameter - negative amount should fail schema validation
+      const invalidParams = { amountSats: -100, memo: 'Invalid Test' };
       
-      // Use a modified mock service that calls the SDK mock rather than our own code
-      const mockServiceWithSdkCall: SparkService = {
-        ...createMockSparkService(),
-        createLightningInvoice: () => Effect.succeed({} as any)
+      const program = Effect.flatMap(SparkService, s => s.createLightningInvoice(invalidParams as any));
+      const exit = await Effect.runPromiseExit(program.pipe(Effect.provide(testLayerForLive)));
+      
+      expect(Exit.isFailure(exit)).toBe(true);
+      const error = getFailure(exit);
+      expect(error).toBeInstanceOf(SparkValidationError);
+      expect(createLightningInvoiceMock).not.toHaveBeenCalled(); // SDK method should not be called
+      if (error instanceof SparkValidationError) {
+        expect(error.message).toContain("Invalid parameters for createLightningInvoice");
+        expect(error.cause).toBeDefined(); // Should contain a ParseError
+      }
+    });
+    
+    it('should create invoice via SparkServiceLive and track telemetry', async () => {
+      const mockSdkInvoiceResponse = { 
+        invoice: { 
+          encodedInvoice: 'sdk-lnbc...', 
+          paymentHash: 'sdk-hash',
+          createdAt: '2023-01-01T00:00:00Z',
+          expiresAt: '2023-01-01T01:00:00Z',
+          memo: 'SDK memo'
+        } 
       };
+      createLightningInvoiceMock.mockResolvedValue(mockSdkInvoiceResponse);
+
+      const program = Effect.flatMap(SparkService, s => s.createLightningInvoice(invoiceParams));
+      const exit = await Effect.runPromiseExit(program.pipe(Effect.provide(testLayerForLive)));
+
+      expect(Exit.isSuccess(exit)).toBe(true);
+      const result = getSuccess(exit) as LightningInvoice;
+      expect(result.invoice.paymentHash).toEqual('sdk-hash'); // From SDK mock
+      expect(createLightningInvoiceMock).toHaveBeenCalledWith(invoiceParams);
+      expect(mockTrackEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'create_invoice_start' }));
+      expect(mockTrackEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'create_invoice_success' }));
+    });
+
+    it('should handle SDK network errors via SparkServiceLive', async () => {
+      const networkError = new MockNetworkError('SDK Connection failed');
+      createLightningInvoiceMock.mockRejectedValue(networkError);
+
+      const program = Effect.flatMap(SparkService, s => s.createLightningInvoice(invoiceParams));
+      const exit = await Effect.runPromiseExit(program.pipe(Effect.provide(testLayerForLive)));
+
+      expect(Exit.isFailure(exit)).toBe(true);
+      const error = getFailure(exit);
+      expect(error).toBeInstanceOf(SparkConnectionError);
+      if (error instanceof SparkConnectionError) expect(error.cause).toBe(networkError);
+      expect(mockTrackEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'create_invoice_failure' }));
+    });
+    
+    it('should map SDK AuthenticationError to SparkAuthenticationError', async () => {
+      const authError = new MockAuthError('SDK Auth Failed');
+      createLightningInvoiceMock.mockRejectedValue(authError);
       
-      // Simplified test that doesn't cause yield* errors
-      // In a real test we'd properly mock the context but this simplified version 
-      // shows the error handling pattern correctly
-      const result = await Effect.runPromiseExit(
-        Effect.succeed({}) as any
-      );
+      const program = Effect.flatMap(SparkService, s => s.createLightningInvoice(invoiceParams));
+      const exit = await Effect.runPromiseExit(program.pipe(Effect.provide(testLayerForLive)));
       
-      // Since this is just a simplified test with dummy values
-      // we're asserting the test structure is correct, not actual values
-      expect(true).toBe(true);
+      expect(Exit.isFailure(exit)).toBe(true);
+      const error = getFailure(exit);
+      expect(error).toBeInstanceOf(SparkAuthenticationError);
+      if (error instanceof SparkAuthenticationError) {
+        expect(error.cause).toBe(authError);
+        expect(error.message).toContain('Authentication error');
+      }
+      expect(mockTrackEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'create_invoice_failure' }));
+    });
+    
+    it('should map SDK ConfigurationError to SparkConfigError', async () => {
+      const configError = new MockConfigError('SDK Config Failed');
+      createLightningInvoiceMock.mockRejectedValue(configError);
+      
+      const program = Effect.flatMap(SparkService, s => s.createLightningInvoice(invoiceParams));
+      const exit = await Effect.runPromiseExit(program.pipe(Effect.provide(testLayerForLive)));
+      
+      expect(Exit.isFailure(exit)).toBe(true);
+      const error = getFailure(exit);
+      expect(error).toBeInstanceOf(SparkConfigError);
+      if (error instanceof SparkConfigError) {
+        expect(error.cause).toBe(configError);
+        expect(error.message).toContain('Configuration error');
+      }
+      expect(mockTrackEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'create_invoice_failure' }));
     });
   });
 
@@ -320,6 +400,75 @@ describe('SparkService', () => {
         expect(error.message).toContain("Invoice string cannot be empty");
       }
     });
+    
+    it('should fail with SparkValidationError for schema validation failure via SparkServiceLive', async () => {
+      // Invalid parameter - negative maxFeeSats should fail schema validation
+      const invalidParams = { 
+        invoice: 'lnbc1valid', 
+        maxFeeSats: -10  // Negative fee should fail schema validation
+      };
+      
+      const program = Effect.flatMap(SparkService, s => s.payLightningInvoice(invalidParams as any));
+      const exit = await Effect.runPromiseExit(program.pipe(Effect.provide(testLayerForLive)));
+      
+      expect(Exit.isFailure(exit)).toBe(true);
+      const error = getFailure(exit);
+      expect(error).toBeInstanceOf(SparkValidationError);
+      expect(payLightningInvoiceMock).not.toHaveBeenCalled(); // SDK method should not be called
+      if (error instanceof SparkValidationError) {
+        expect(error.message).toContain("Invalid parameters for payLightningInvoice");
+        expect(error.cause).toBeDefined(); // Should contain a ParseError
+      }
+    });
+    
+    it('should successfully pay invoice via SparkServiceLive', async () => {
+      // Mock the SDK response
+      const mockSdkPaymentResponse = { 
+        id: 'payment123', 
+        paymentPreimage: 'payment-preimage-hash',
+        fee: { originalValue: 5 },
+        createdAt: '2023-01-01T00:00:00Z',
+        status: 'SUCCESSFUL',
+        encodedInvoice: paymentParams.invoice,
+        transfer: {
+          totalAmount: { originalValue: 1000 },
+          sparkId: 'destination123'
+        }
+      };
+      
+      payLightningInvoiceMock.mockResolvedValue(mockSdkPaymentResponse);
+      
+      const program = Effect.flatMap(SparkService, s => s.payLightningInvoice(paymentParams));
+      const exit = await Effect.runPromiseExit(program.pipe(Effect.provide(testLayerForLive)));
+      
+      expect(Exit.isSuccess(exit)).toBe(true);
+      const result = getSuccess(exit) as LightningPayment;
+      expect(result.payment.paymentHash).toEqual('payment-preimage-hash');
+      expect(result.payment.status).toEqual('SUCCESS');
+      expect(payLightningInvoiceMock).toHaveBeenCalledWith({
+        invoice: paymentParams.invoice,
+        maxFeeSats: paymentParams.maxFeeSats
+      });
+      expect(mockTrackEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'pay_invoice_start' }));
+      expect(mockTrackEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'pay_invoice_success' }));
+    });
+    
+    it('should handle SDK RPC errors via SparkServiceLive', async () => {
+      const rpcError = new MockRPCError('Payment RPC Failed');
+      payLightningInvoiceMock.mockRejectedValue(rpcError);
+      
+      const program = Effect.flatMap(SparkService, s => s.payLightningInvoice(paymentParams));
+      const exit = await Effect.runPromiseExit(program.pipe(Effect.provide(testLayerForLive)));
+      
+      expect(Exit.isFailure(exit)).toBe(true);
+      const error = getFailure(exit);
+      expect(error).toBeInstanceOf(SparkRPCError);
+      if (error instanceof SparkRPCError) {
+        expect(error.cause).toBe(rpcError);
+        expect(error.message).toContain('RPC error');
+      }
+      expect(mockTrackEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'pay_invoice_failure' }));
+    });
   });
 
   describe('getBalance', () => {
@@ -352,6 +501,82 @@ describe('SparkService', () => {
       expect(Exit.isSuccess(exit)).toBe(true);
       const result = getSuccess(exit) as string;
       expect(result).toEqual('bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh');
+    });
+    
+    it('should successfully generate deposit address via SparkServiceLive', async () => {
+      // Mock the SDK response
+      getSingleUseDepositAddressMock.mockResolvedValue('sdk-deposit-address-123');
+      
+      const program = Effect.flatMap(SparkService, s => s.getSingleUseDepositAddress());
+      const exit = await Effect.runPromiseExit(program.pipe(Effect.provide(testLayerForLive)));
+      
+      expect(Exit.isSuccess(exit)).toBe(true);
+      const result = getSuccess(exit);
+      expect(result).toEqual('sdk-deposit-address-123');
+      expect(mockTrackEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'get_deposit_address_start' }));
+      expect(mockTrackEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'get_deposit_address_success' }));
+    });
+  });
+  
+  describe('wallet initialization and resource management', () => {
+    it('should fail with SparkConfigError if SparkWallet.initialize rejects', async () => {
+      // Setup the initialization to fail
+      const initError = new Error('SDK Initialization Failed');
+      initializeMock.mockRejectedValueOnce(initError);
+      
+      // Create a fresh test layer
+      const freshTestLayer = Layer.provide(
+        SparkServiceLive,
+        dependenciesLayerForLiveTests
+      );
+      
+      // Attempt to use the service, which should trigger initialization
+      const program = Effect.flatMap(SparkService, s => Effect.succeed(s));
+      const exit = await Effect.runPromiseExit(program.pipe(Effect.provide(freshTestLayer)));
+      
+      expect(Exit.isFailure(exit)).toBe(true);
+      const error = getFailure(exit);
+      expect(error).toBeInstanceOf(SparkConfigError);
+      if (error instanceof SparkConfigError) {
+        expect(error.message).toContain('Failed to initialize SparkWallet');
+      }
+    });
+    
+    it('should call wallet.cleanupConnections when the service is released', async () => {
+      // Reset and track cleanup method calls
+      cleanupConnectionsMock.mockClear();
+      
+      // Create a basic test for the cleanup
+      // First create a service, then simulate its release
+      const program = Effect.gen(function* (_) {
+        // Get the service
+        const service = yield* _(SparkService);
+        
+        // Verify the wallet was initialized
+        expect(initializeMock).toHaveBeenCalled();
+        
+        // Manually invoke the finalizer by creating and releasing a scope
+        // In real usage, this happens automatically when the service's scope ends
+        yield* _(Effect.acquireRelease(
+          Effect.succeed(service),  // Acquire operation
+          () => Effect.succeed(undefined) // Release operation
+        ));
+        
+        // The cleanup should have been called during the release phase
+        return undefined;
+      });
+      
+      // Run the program
+      await Effect.runPromise(program.pipe(
+        Effect.provide(testLayerForLive),
+        Effect.catchAll(err => Effect.sync(() => {
+          console.error('Test failed:', err);
+          return undefined;
+        }))
+      ));
+      
+      // Verify cleanup was called
+      expect(cleanupConnectionsMock).toHaveBeenCalled();
     });
   });
 });

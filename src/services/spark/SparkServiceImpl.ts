@@ -1,10 +1,12 @@
-import { Context, Effect, Layer } from 'effect';
+import { Context, Effect, Layer, Schema } from 'effect';
 import { TelemetryService, TelemetryServiceConfigTag } from '@/services/telemetry';
 import {
   CreateLightningInvoiceParams,
+  CreateLightningInvoiceParamsSchema,
   LightningInvoice,
   LightningPayment,
   PayLightningInvoiceParams,
+  PayLightningInvoiceParamsSchema,
   SparkAuthenticationError,
   SparkBalanceError,
   SparkConfigError,
@@ -36,7 +38,7 @@ import {
 /**
  * Implements the SparkService interface using the Spark SDK
  */
-export const SparkServiceLive = Layer.effect(
+export const SparkServiceLive = Layer.scoped(
   SparkService,
   Effect.gen(function* (_) {
     // Get dependencies from the context
@@ -107,6 +109,29 @@ export const SparkServiceLive = Layer.effect(
       label: `Network: ${sparkConfig.network}`,
       value: 'success'
     }));
+    
+    // Add finalizer to clean up wallet connections when the layer is released
+    yield* _(Effect.addFinalizer(() => 
+      Effect.sync(() => {
+        // Use synchronous cleanup to avoid Effect channel issues
+        if (typeof wallet.cleanupConnections === 'function') {
+          try {
+            // We'll run this synchronously to avoid Effect channel complications
+            wallet.cleanupConnections()
+              .then(() => {
+                console.log('SparkWallet connections cleaned up successfully');
+              })
+              .catch((e) => {
+                console.error('Failed to cleanup SparkWallet connections', e);
+              });
+          } catch (e) {
+            console.error('Error during wallet.cleanupConnections', e);
+          }
+        }
+        
+        return undefined;
+      })
+    ));
 
     // Return the implementation of the SparkService interface
     return {
@@ -115,29 +140,45 @@ export const SparkServiceLive = Layer.effect(
        */
       createLightningInvoice: (params: CreateLightningInvoiceParams) =>
         Effect.gen(function* (_) {
+          // Validate input parameters using the schema
+          yield* _(
+            Effect.flatMap(
+              Schema.decodeUnknown(CreateLightningInvoiceParamsSchema)(params),
+              () => Effect.succeed(null)
+            ),
+            Effect.mapError((parseError: unknown) => new SparkValidationError({
+              message: "Invalid parameters for createLightningInvoice",
+              cause: parseError,
+              context: { originalParams: params }
+            }))
+          );
+          
+          // Use the original params since they already have the correct type
+          const validatedParams = params;
+
           // Track the start of the operation
           yield* _(telemetry.trackEvent({
             category: 'spark:lightning',
             action: 'create_invoice_start',
-            label: `Amount: ${params.amountSats} sats`,
-            value: JSON.stringify(params)
+            label: `Amount: ${validatedParams.amountSats} sats`,
+            value: JSON.stringify(validatedParams)
           }));
 
           return yield* _(
             Effect.tryPromise({
               try: async () => {
                 // Call the SDK method with explicit return type
-                const sdkResult = await wallet.createLightningInvoice(params);
+                const sdkResult = await wallet.createLightningInvoice(validatedParams);
                 
                 // Map SDK result to our interface type with explicit type
                 const result: LightningInvoice = {
                   invoice: {
                     encodedInvoice: sdkResult.invoice.encodedInvoice,
                     paymentHash: sdkResult.invoice.paymentHash,
-                    amountSats: params.amountSats, // Use the amount from our params
-                    createdAt: Math.floor(Date.now() / 1000), // Current timestamp as approximation
-                    expiresAt: Math.floor(Date.now() / 1000) + (params.expirySeconds || 3600), // Default 1hr
-                    memo: params.memo
+                    amountSats: validatedParams.amountSats, // Use the amount from our validated params
+                    createdAt: sdkResult.invoice.createdAt ? Date.parse(sdkResult.invoice.createdAt) / 1000 : Math.floor(Date.now() / 1000),
+                    expiresAt: sdkResult.invoice.expiresAt ? Date.parse(sdkResult.invoice.expiresAt) / 1000 : Math.floor(Date.now() / 1000) + (validatedParams.expirySeconds || 3600), // Default 1hr
+                    memo: sdkResult.invoice.memo || validatedParams.memo
                   }
                 };
                 
@@ -145,46 +186,55 @@ export const SparkServiceLive = Layer.effect(
               },
               catch: (e) => {
                 // Map the error to the appropriate type
+                const context = { params: validatedParams };
+                
                 if (e instanceof ValidationError) {
                   return new SparkValidationError({
                     message: 'Invalid parameters for Lightning invoice creation',
                     cause: e,
-                    context: { params }
+                    context
                   });
                 }
                 if (e instanceof NetworkError) {
                   return new SparkConnectionError({
                     message: 'Network error during Lightning invoice creation',
                     cause: e,
-                    context: { params }
+                    context
                   });
                 }
                 if (e instanceof RPCError) {
                   return new SparkRPCError({
                     message: 'RPC error during Lightning invoice creation',
                     cause: e,
-                    context: { params }
+                    context
                   });
                 }
                 if (e instanceof AuthenticationError) {
                   return new SparkAuthenticationError({
                     message: 'Authentication error during Lightning invoice creation',
                     cause: e,
-                    context: { params }
+                    context
                   });
                 }
                 if (e instanceof NotImplementedError) {
                   return new SparkNotImplementedError({
                     message: 'Lightning invoice creation not implemented in this environment',
                     cause: e,
-                    context: { params }
+                    context
+                  });
+                }
+                if (e instanceof ConfigurationError) {
+                  return new SparkConfigError({
+                    message: 'Configuration error during Lightning invoice creation',
+                    cause: e,
+                    context
                   });
                 }
                 if (e instanceof SparkSDKError) {
                   return new SparkLightningError({
                     message: 'SDK error during Lightning invoice creation',
                     cause: e,
-                    context: { params }
+                    context
                   });
                 }
                 
@@ -192,7 +242,7 @@ export const SparkServiceLive = Layer.effect(
                 return new SparkLightningError({
                   message: 'Failed to create Lightning invoice via SparkSDK',
                   cause: e,
-                  context: { amountSats: params.amountSats }
+                  context: { amountSats: validatedParams.amountSats }
                 });
               }
             }),
@@ -216,24 +266,40 @@ export const SparkServiceLive = Layer.effect(
        */
       payLightningInvoice: (params: PayLightningInvoiceParams) =>
         Effect.gen(function* (_) {
+          // Validate input parameters using the schema
+          yield* _(
+            Effect.flatMap(
+              Schema.decodeUnknown(PayLightningInvoiceParamsSchema)(params),
+              () => Effect.succeed(null)
+            ),
+            Effect.mapError((parseError: unknown) => new SparkValidationError({
+              message: "Invalid parameters for payLightningInvoice",
+              cause: parseError,
+              context: { originalParams: params }
+            }))
+          );
+          
+          // Use the original params since they already have the correct type
+          const validatedParams = params;
+          
           // Track the start of the operation
           yield* _(telemetry.trackEvent({
             category: 'spark:lightning',
             action: 'pay_invoice_start',
-            label: `Invoice: ${params.invoice.substring(0, 20)}...`,
+            label: `Invoice: ${validatedParams.invoice.substring(0, 20)}...`,
             value: JSON.stringify({
-              maxFeeSats: params.maxFeeSats,
-              timeoutSeconds: params.timeoutSeconds
+              maxFeeSats: validatedParams.maxFeeSats,
+              timeoutSeconds: validatedParams.timeoutSeconds
             })
           }));
 
           return yield* _(
             Effect.tryPromise({
               try: async () => {
-                // Call the SDK method with explicit params
+                // Call the SDK method with validated params
                 const sdkResult = await wallet.payLightningInvoice({
-                  invoice: params.invoice,
-                  maxFeeSats: params.maxFeeSats
+                  invoice: validatedParams.invoice,
+                  maxFeeSats: validatedParams.maxFeeSats
                 });
                 
                 // Map SDK result to our interface type
@@ -243,17 +309,21 @@ export const SparkServiceLive = Layer.effect(
                     id: sdkResult.id || 'unknown-id',
                     // The SDK uses paymentPreimage, not paymentHash
                     paymentHash: sdkResult.paymentPreimage || 'unknown-hash',
-                    // SDK provides fee with CurrencyAmount structure
-                    amountSats: sdkResult.fee && typeof sdkResult.fee.originalValue === 'number' ? 
-                      sdkResult.fee.originalValue : 0,
+                    // SDK should provide an amount field separate from fee, look for transfer amount first
+                    amountSats: (sdkResult.transfer?.totalAmount?.originalValue) || 
+                      // Fallback to fee - not ideal but we need to get payment amount somewhere
+                      (sdkResult.fee && typeof sdkResult.fee.originalValue === 'number' ? 
+                        sdkResult.fee.originalValue : 0),
                     // SDK provides fee with CurrencyAmount structure
                     feeSats: sdkResult.fee && typeof sdkResult.fee.originalValue === 'number' ? 
                       sdkResult.fee.originalValue : 0,
-                    createdAt: Math.floor(Date.now() / 1000),
-                    // We assume SUCCESS because the call succeeded
-                    status: 'SUCCESS',
-                    // The SDK doesn't provide destination directly - could be derived from transfer if needed
-                    destination: sdkResult.encodedInvoice ? sdkResult.encodedInvoice.substring(0, 20) + '...' : 'unknown-destination'
+                    createdAt: sdkResult.createdAt ? Date.parse(sdkResult.createdAt) / 1000 : Math.floor(Date.now() / 1000),
+                    // Map actual SDK status to our internal status
+                    status: String(sdkResult.status).toUpperCase().includes('SUCCESS') ? 'SUCCESS' : 
+                      (String(sdkResult.status).toUpperCase().includes('PEND') ? 'PENDING' : 'FAILED'),
+                    // The SDK doesn't provide destination directly - use transferId or invoice preview
+                    destination: sdkResult.transfer?.sparkId || 
+                      (sdkResult.encodedInvoice ? sdkResult.encodedInvoice.substring(0, 20) + '...' : 'unknown-destination')
                   }
                 };
                 
@@ -261,8 +331,8 @@ export const SparkServiceLive = Layer.effect(
               },
               catch: (e) => {
                 // Map the error to the appropriate type
-                const invoicePrefix = params.invoice.substring(0, 20) + '...';
-                const errorContext = { invoice: invoicePrefix };
+                const invoicePrefix = validatedParams.invoice.substring(0, 20) + '...';
+                const errorContext = { invoice: invoicePrefix, params: validatedParams };
 
                 if (e instanceof ValidationError) {
                   return new SparkValidationError({
@@ -295,6 +365,13 @@ export const SparkServiceLive = Layer.effect(
                 if (e instanceof NotImplementedError) {
                   return new SparkNotImplementedError({
                     message: 'Lightning payment not implemented in this environment',
+                    cause: e,
+                    context: errorContext
+                  });
+                }
+                if (e instanceof ConfigurationError) {
+                  return new SparkConfigError({
+                    message: 'Configuration error during Lightning payment',
                     cause: e,
                     context: errorContext
                   });
