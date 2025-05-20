@@ -112,31 +112,33 @@ export const SparkServiceLive = Layer.scoped(
     
     // Add finalizer to clean up wallet connections when the layer is released
     yield* _(Effect.addFinalizer(() => {
-      // Using a simpler approach that doesn't yield any errors to match the expected type signature
+      // Use Effect.sync to ensure the finalizer itself doesn't have a typed error channel
       return Effect.sync(() => {
-        // Synchronous cleanup to avoid type issues with Effect channels
         if (typeof wallet.cleanupConnections === 'function') {
-          try {
-            // We need to log success via a fire-and-forget promise
-            wallet.cleanupConnections()
-              .then(() => {
-                // We can't use Effect here due to type constraints with Effect.addFinalizer
-                console.log('[SparkService] Wallet connections cleaned up successfully');
-                // Try to log to telemetry service, but can't rely on it at this point
-                // Can't use Effect here in a finalizer, just log to console
-                console.log('[SparkService] Telemetry: wallet_cleanup_success')
-              })
-              .catch(error => {
-                console.error('[SparkService] Failed to cleanup wallet connections', error);
-                // Try to log error to telemetry
-                // Can't use Effect here in a finalizer, just log to console
-                console.log('[SparkService] Telemetry: wallet_cleanup_failure', error instanceof Error ? error.message : String(error))
-              });
-          } catch (e) {
-            console.error('[SparkService] Critical error during wallet.cleanupConnections', e);
-          }
+          wallet.cleanupConnections()
+            .then(() => {
+              // TELEMETRY_IGNORE_THIS_CONSOLE_CALL (Finalizer logging)
+              console.log(`[SparkService Finalizer] Wallet connections cleaned up successfully for network: ${sparkConfig.network}.`);
+              // Attempt to use telemetry via Effect.runFork (fire-and-forget)
+              Effect.runFork(telemetry.trackEvent({
+                category: 'spark:dispose',
+                action: 'wallet_cleanup_success',
+                label: `Network: ${sparkConfig.network}`
+              }));
+            })
+            .catch(error => {
+              // TELEMETRY_IGNORE_THIS_CONSOLE_CALL (Finalizer logging)
+              console.error(`[SparkService Finalizer] Failed to cleanup wallet connections for network: ${sparkConfig.network}:`, error);
+              Effect.runFork(telemetry.trackEvent({
+                category: 'spark:dispose',
+                action: 'wallet_cleanup_failure',
+                label: error instanceof Error ? error.message : 'Unknown cleanup error',
+                value: String(error),
+                context: { network: sparkConfig.network }
+              }));
+            });
         }
-        return undefined;
+        return undefined; // Effect.sync requires a return value
       });
     }));
 
@@ -148,30 +150,26 @@ export const SparkServiceLive = Layer.scoped(
       createLightningInvoice: (params: CreateLightningInvoiceParams) =>
         Effect.gen(function* (_) {
           // Validate input parameters using the schema
-          yield* _(
-            Effect.flatMap(
-              Schema.decodeUnknown(CreateLightningInvoiceParamsSchema)(params),
-              () => Effect.succeed(null)
-            ),
-            Effect.mapError((parseError: unknown) => new SparkValidationError({
-              message: "Invalid parameters for createLightningInvoice",
-              cause: parseError,
-              context: { originalParams: params }
-            }))
+          const validatedParams = yield* _(
+            Schema.decodeUnknown(CreateLightningInvoiceParamsSchema)(params).pipe(
+              Effect.mapError((parseError) => new SparkValidationError({
+                message: "Invalid parameters for createLightningInvoice",
+                cause: parseError,
+                context: { originalParams: params }
+              }))
+            )
           );
           
           // Additional validation checks
           if (params.amountSats <= 0) {
+            // Fail with validation error for zero or negative amounts
             return yield* _(Effect.fail(new SparkValidationError({
               message: "Invalid parameters for createLightningInvoice: Amount must be greater than 0",
               context: { originalParams: params }
             })));
           }
-          
-          // Use the original params since they already have the correct type
-          const validatedParams = params;
 
-          // Track the start of the operation
+          // Track the start of the operation - ONLY after successful validation
           yield* _(telemetry.trackEvent({
             category: 'spark:lightning',
             action: 'create_invoice_start',
@@ -179,103 +177,109 @@ export const SparkServiceLive = Layer.scoped(
             value: JSON.stringify(validatedParams)
           }));
 
-          return yield* _(
-            Effect.tryPromise({
-              try: async () => {
-                // Call the SDK method with explicit return type
-                const sdkResult = await wallet.createLightningInvoice(validatedParams);
-                
-                // Map SDK result to our interface type with explicit type
-                const result: LightningInvoice = {
-                  invoice: {
-                    encodedInvoice: sdkResult.invoice.encodedInvoice,
-                    paymentHash: sdkResult.invoice.paymentHash,
-                    // If SDK returns amount, prefer it. Otherwise, use the requested amount
-                    amountSats: sdkResult.invoice.amount?.originalValue ?? validatedParams.amountSats,
-                    createdAt: sdkResult.invoice.createdAt ? Date.parse(sdkResult.invoice.createdAt) / 1000 : Math.floor(Date.now() / 1000),
-                    expiresAt: sdkResult.invoice.expiresAt ? Date.parse(sdkResult.invoice.expiresAt) / 1000 : Math.floor(Date.now() / 1000) + (validatedParams.expirySeconds || 3600), // Default 1hr
-                    memo: sdkResult.invoice.memo || validatedParams.memo
-                  }
-                };
-                
-                return result;
-              },
-              catch: (e) => {
-                // Map the error to the appropriate type
-                const context = { params: validatedParams };
-                
-                if (e instanceof ValidationError) {
-                  return new SparkValidationError({
-                    message: 'Invalid parameters for Lightning invoice creation',
-                    cause: e,
-                    context
-                  });
-                }
-                if (e instanceof NetworkError) {
-                  return new SparkConnectionError({
-                    message: 'Network error during Lightning invoice creation',
-                    cause: e,
-                    context
-                  });
-                }
-                if (e instanceof RPCError) {
-                  return new SparkRPCError({
-                    message: 'RPC error during Lightning invoice creation',
-                    cause: e,
-                    context
-                  });
-                }
-                if (e instanceof AuthenticationError) {
-                  return new SparkAuthenticationError({
-                    message: 'Authentication error during Lightning invoice creation',
-                    cause: e,
-                    context
-                  });
-                }
-                if (e instanceof NotImplementedError) {
-                  return new SparkNotImplementedError({
-                    message: 'Lightning invoice creation not implemented in this environment',
-                    cause: e,
-                    context
-                  });
-                }
-                if (e instanceof ConfigurationError) {
-                  return new SparkConfigError({
-                    message: 'Configuration error during Lightning invoice creation',
-                    cause: e,
-                    context
-                  });
-                }
-                if (e instanceof SparkSDKError) {
-                  return new SparkLightningError({
-                    message: 'SDK error during Lightning invoice creation',
-                    cause: e,
-                    context
-                  });
-                }
-                
-                // Default fallback for unknown errors
-                return new SparkLightningError({
-                  message: 'Failed to create Lightning invoice via SparkSDK',
+          // Call the SDK and handle errors
+          const sdkResult = yield* _(Effect.tryPromise({
+            try: async () => {
+              return await wallet.createLightningInvoice(validatedParams);
+            },
+            catch: (e) => {
+              // Map the error to the appropriate type
+              const context = { params: validatedParams };
+              
+              if (e instanceof ValidationError) {
+                return new SparkValidationError({
+                  message: 'Invalid parameters for Lightning invoice creation',
                   cause: e,
-                  context: { amountSats: validatedParams.amountSats }
+                  context
                 });
               }
-            }),
-            Effect.tap((invoice: LightningInvoice) => telemetry.trackEvent({
-              category: 'spark:lightning',
-              action: 'create_invoice_success',
-              label: `Invoice created: ${invoice.invoice.encodedInvoice.substring(0, 20)}...`,
-              value: invoice.invoice.paymentHash
-            })),
-            Effect.tapError((err) => telemetry.trackEvent({
-              category: 'spark:lightning',
-              action: 'create_invoice_failure',
-              label: err.message,
-              value: JSON.stringify(err.context)
-            }))
-          );
-        }),
+              if (e instanceof NetworkError) {
+                return new SparkConnectionError({
+                  message: 'Network error during Lightning invoice creation',
+                  cause: e,
+                  context
+                });
+              }
+              if (e instanceof RPCError) {
+                return new SparkRPCError({
+                  message: 'RPC error during Lightning invoice creation',
+                  cause: e,
+                  context
+                });
+              }
+              if (e instanceof AuthenticationError) {
+                return new SparkAuthenticationError({
+                  message: 'Authentication error during Lightning invoice creation',
+                  cause: e,
+                  context
+                });
+              }
+              if (e instanceof NotImplementedError) {
+                return new SparkNotImplementedError({
+                  message: 'Lightning invoice creation not implemented in this environment',
+                  cause: e,
+                  context
+                });
+              }
+              if (e instanceof ConfigurationError) {
+                return new SparkConfigError({
+                  message: 'Configuration error during Lightning invoice creation',
+                  cause: e,
+                  context
+                });
+              }
+              if (e instanceof SparkSDKError) {
+                return new SparkLightningError({
+                  message: 'SDK error during Lightning invoice creation',
+                  cause: e,
+                  context
+                });
+              }
+              
+              // Default fallback for unknown errors
+              return new SparkLightningError({
+                message: 'Failed to create Lightning invoice via SparkSDK',
+                cause: e,
+                context: { amountSats: validatedParams.amountSats }
+              });
+            }
+          }));
+          
+          // Map SDK result to our interface type with explicit type
+          const result: LightningInvoice = {
+            invoice: {
+              encodedInvoice: sdkResult.invoice.encodedInvoice,
+              paymentHash: sdkResult.invoice.paymentHash,
+              // If SDK returns amount, prefer it. Otherwise, use the requested amount
+              amountSats: sdkResult.invoice.amount?.originalValue ?? validatedParams.amountSats,
+              createdAt: sdkResult.invoice.createdAt ? Date.parse(sdkResult.invoice.createdAt) / 1000 : Math.floor(Date.now() / 1000),
+              expiresAt: sdkResult.invoice.expiresAt ? Date.parse(sdkResult.invoice.expiresAt) / 1000 : Math.floor(Date.now() / 1000) + (validatedParams.expirySeconds || 3600), // Default 1hr
+              memo: sdkResult.invoice.memo || validatedParams.memo
+            }
+          };
+          
+          // Track success
+          yield* _(telemetry.trackEvent({
+            category: 'spark:lightning',
+            action: 'create_invoice_success',
+            label: `Invoice created: ${result.invoice.encodedInvoice.substring(0, 20)}...`,
+            value: result.invoice.paymentHash
+          }));
+          
+          return result;
+        }).pipe(
+          // Use tapError to catch and log all errors using the telemetry service
+          Effect.tapError(err => telemetry.trackEvent({
+            category: 'spark:lightning',
+            action: 'create_invoice_failure',
+            label: err.message,
+            value: JSON.stringify({
+              errorMessage: err.message,
+              errorName: (err as Error).name,
+              errorContext: (err as SparkError).context
+            })
+          }))
+        ),
 
       /**
        * Pays a Lightning invoice
@@ -283,16 +287,14 @@ export const SparkServiceLive = Layer.scoped(
       payLightningInvoice: (params: PayLightningInvoiceParams) =>
         Effect.gen(function* (_) {
           // Validate input parameters using the schema
-          yield* _(
-            Effect.flatMap(
-              Schema.decodeUnknown(PayLightningInvoiceParamsSchema)(params),
-              () => Effect.succeed(null)
-            ),
-            Effect.mapError((parseError: unknown) => new SparkValidationError({
-              message: "Invalid parameters for payLightningInvoice",
-              cause: parseError,
-              context: { originalParams: params }
-            }))
+          const validatedParams = yield* _(
+            Schema.decodeUnknown(PayLightningInvoiceParamsSchema)(params).pipe(
+              Effect.mapError((parseError) => new SparkValidationError({
+                message: "Invalid parameters for payLightningInvoice",
+                cause: parseError,
+                context: { originalParams: params }
+              }))
+            )
           );
           
           // Additional validation checks
@@ -310,10 +312,7 @@ export const SparkServiceLive = Layer.scoped(
             })));
           }
           
-          // Use the original params since they already have the correct type
-          const validatedParams = params;
-          
-          // Track the start of the operation
+          // Track the start of the operation - ONLY after successful validation
           yield* _(telemetry.trackEvent({
             category: 'spark:lightning',
             action: 'pay_invoice_start',
@@ -324,121 +323,127 @@ export const SparkServiceLive = Layer.scoped(
             })
           }));
 
-          return yield* _(
-            Effect.tryPromise({
-              try: async () => {
-                // Call the SDK method with validated params
-                const sdkResult = await wallet.payLightningInvoice({
-                  invoice: validatedParams.invoice,
-                  maxFeeSats: validatedParams.maxFeeSats
-                });
-                
-                // Map SDK result to our interface type
-                // Based on LightningSendRequest from the SDK
-                const result: LightningPayment = {
-                  payment: {
-                    id: sdkResult.id || 'unknown-id',
-                    // The SDK uses paymentPreimage, not paymentHash
-                    paymentHash: sdkResult.paymentPreimage || 'unknown-hash',
-                    // Prefer actual amount sent by SDK if available
-                    amountSats: sdkResult.amount?.originalValue || 
-                      sdkResult.transfer?.totalAmount?.originalValue || 
-                      // Fallback to fee - not ideal but we need to get payment amount somewhere
-                      (sdkResult.fee && typeof sdkResult.fee.originalValue === 'number' ? 
-                        sdkResult.fee.originalValue : 0),
-                    // SDK provides fee with CurrencyAmount structure
-                    feeSats: sdkResult.fee && typeof sdkResult.fee.originalValue === 'number' ? 
-                      sdkResult.fee.originalValue : 0,
-                    createdAt: sdkResult.createdAt ? Date.parse(sdkResult.createdAt) / 1000 : Math.floor(Date.now() / 1000),
-                    // Map actual SDK status to our internal status
-                    status: String(sdkResult.status).toUpperCase().includes('SUCCESS') ? 'SUCCESS' : 
-                      (String(sdkResult.status).toUpperCase().includes('PEND') ? 'PENDING' : 'FAILED'),
-                    // Prefer specific destination field from SDK if available
-                    destination: sdkResult.destinationNodePubkey || 
-                      sdkResult.transfer?.sparkId || 
-                      (sdkResult.encodedInvoice ? sdkResult.encodedInvoice.substring(0, 20) + '...' : 'unknown-destination')
-                  }
-                };
-                
-                return result;
-              },
-              catch: (e) => {
-                // Map the error to the appropriate type
-                const invoicePrefix = validatedParams.invoice.substring(0, 20) + '...';
-                const errorContext = { invoice: invoicePrefix, params: validatedParams };
+          const sdkResult = yield* _(Effect.tryPromise({
+            try: async () => {
+              // Call the SDK method with validated params
+              return await wallet.payLightningInvoice({
+                invoice: validatedParams.invoice,
+                maxFeeSats: validatedParams.maxFeeSats
+              });
+            },
+            catch: (e) => {
+              // Map the error to the appropriate type
+              const invoicePrefix = validatedParams.invoice.substring(0, 20) + '...';
+              const errorContext = { invoice: invoicePrefix, params: validatedParams };
 
-                if (e instanceof ValidationError) {
-                  return new SparkValidationError({
-                    message: 'Invalid Lightning invoice format',
-                    cause: e,
-                    context: errorContext
-                  });
-                }
-                if (e instanceof NetworkError) {
-                  return new SparkConnectionError({
-                    message: 'Network error during Lightning payment',
-                    cause: e,
-                    context: errorContext
-                  });
-                }
-                if (e instanceof RPCError) {
-                  return new SparkRPCError({
-                    message: 'RPC error during Lightning payment',
-                    cause: e,
-                    context: errorContext
-                  });
-                }
-                if (e instanceof AuthenticationError) {
-                  return new SparkAuthenticationError({
-                    message: 'Authentication error during Lightning payment',
-                    cause: e,
-                    context: errorContext
-                  });
-                }
-                if (e instanceof NotImplementedError) {
-                  return new SparkNotImplementedError({
-                    message: 'Lightning payment not implemented in this environment',
-                    cause: e,
-                    context: errorContext
-                  });
-                }
-                if (e instanceof ConfigurationError) {
-                  return new SparkConfigError({
-                    message: 'Configuration error during Lightning payment',
-                    cause: e,
-                    context: errorContext
-                  });
-                }
-                if (e instanceof SparkSDKError) {
-                  return new SparkLightningError({
-                    message: 'SDK error during Lightning payment',
-                    cause: e,
-                    context: errorContext
-                  });
-                }
-                
-                // Default fallback for unknown errors
-                return new SparkLightningError({
-                  message: 'Failed to pay Lightning invoice via SparkSDK',
+              if (e instanceof ValidationError) {
+                return new SparkValidationError({
+                  message: 'Invalid Lightning invoice format',
                   cause: e,
                   context: errorContext
                 });
               }
-            }),
-            Effect.tap((payment: LightningPayment) => telemetry.trackEvent({
-              category: 'spark:lightning',
-              action: 'pay_invoice_success',
-              label: `Payment status: ${payment.payment.status}`,
-              value: `Amount: ${payment.payment.amountSats}, Fee: ${payment.payment.feeSats}`
-            })),
-            Effect.tapError((err) => telemetry.trackEvent({
-              category: 'spark:lightning',
-              action: 'pay_invoice_failure',
-              label: err.message,
-              value: JSON.stringify(err.context)
-            }))
-          );
-        }),
+              if (e instanceof NetworkError) {
+                return new SparkConnectionError({
+                  message: 'Network error during Lightning payment',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              if (e instanceof RPCError) {
+                return new SparkRPCError({
+                  message: 'RPC error during Lightning payment',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              if (e instanceof AuthenticationError) {
+                return new SparkAuthenticationError({
+                  message: 'Authentication error during Lightning payment',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              if (e instanceof NotImplementedError) {
+                return new SparkNotImplementedError({
+                  message: 'Lightning payment not implemented in this environment',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              if (e instanceof ConfigurationError) {
+                return new SparkConfigError({
+                  message: 'Configuration error during Lightning payment',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              if (e instanceof SparkSDKError) {
+                return new SparkLightningError({
+                  message: 'SDK error during Lightning payment',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              
+              // Default fallback for unknown errors
+              return new SparkLightningError({
+                message: 'Failed to pay Lightning invoice via SparkSDK',
+                cause: e,
+                context: errorContext
+              });
+            }
+          }));
+          
+          // Map SDK result to our interface type
+          // Based on LightningSendRequest from the SDK
+          const result: LightningPayment = {
+            payment: {
+              id: sdkResult.id || 'unknown-id',
+              // The SDK uses paymentPreimage, not paymentHash
+              paymentHash: sdkResult.paymentPreimage || 'unknown-hash',
+              // Prefer actual amount sent by SDK if available
+              amountSats: sdkResult.amount?.originalValue || 
+                sdkResult.transfer?.totalAmount?.originalValue || 
+                // Fallback to fee - not ideal but we need to get payment amount somewhere
+                (sdkResult.fee && typeof sdkResult.fee.originalValue === 'number' ? 
+                  sdkResult.fee.originalValue : 0),
+              // SDK provides fee with CurrencyAmount structure
+              feeSats: sdkResult.fee && typeof sdkResult.fee.originalValue === 'number' ? 
+                sdkResult.fee.originalValue : 0,
+              createdAt: sdkResult.createdAt ? Date.parse(sdkResult.createdAt) / 1000 : Math.floor(Date.now() / 1000),
+              // Map actual SDK status to our internal status
+              status: String(sdkResult.status).toUpperCase().includes('SUCCESS') ? 'SUCCESS' : 
+                (String(sdkResult.status).toUpperCase().includes('PEND') ? 'PENDING' : 'FAILED'),
+              // Prefer specific destination field from SDK if available
+              destination: sdkResult.destinationNodePubkey || 
+                sdkResult.transfer?.sparkId || 
+                (sdkResult.encodedInvoice ? sdkResult.encodedInvoice.substring(0, 20) + '...' : 'unknown-destination')
+            }
+          };
+          
+          // Track success
+          yield* _(telemetry.trackEvent({
+            category: 'spark:lightning',
+            action: 'pay_invoice_success',
+            label: `Payment status: ${result.payment.status}`,
+            value: `Amount: ${result.payment.amountSats}, Fee: ${result.payment.feeSats}`
+          }));
+          
+          return result;
+        }).pipe(
+          // Use tapError to catch and log all errors using the telemetry service
+          Effect.tapError(err => telemetry.trackEvent({
+            category: 'spark:lightning',
+            action: 'pay_invoice_failure',
+            label: err.message,
+            value: JSON.stringify({
+              errorMessage: err.message,
+              errorName: (err as Error).name,
+              errorContext: (err as SparkError).context
+            })
+          }))
+        ),
 
       /**
        * Gets the current balance
@@ -453,121 +458,127 @@ export const SparkServiceLive = Layer.scoped(
             value: ''
           }));
 
-          return yield* _(
-            Effect.tryPromise({
-              try: async () => {
-                // Call the SDK method with explicit type inference
-                const sdkResult = await wallet.getBalance();
-                
-                // Map SDK result to our interface type
-                const mappedTokenBalances = new Map<string, {
-                  balance: bigint;
-                  tokenInfo: {
-                    tokenId: string;
-                    name: string;
-                    symbol: string;
-                    decimals: number;
-                  };
-                }>();
-                
-                // Convert the token balance Map if it exists
-                if (sdkResult.tokenBalances) {
-                  for (const [key, value] of sdkResult.tokenBalances.entries()) {
-                    mappedTokenBalances.set(key, {
-                      balance: value.balance,
-                      tokenInfo: {
-                        tokenId: value.tokenInfo.tokenPublicKey || key,
-                        name: value.tokenInfo.tokenName || 'Unknown Token',
-                        symbol: value.tokenInfo.tokenSymbol || 'UNK',
-                        decimals: value.tokenInfo.tokenDecimals || 0
-                      }
-                    });
-                  }
-                }
-                
-                const result: BalanceInfo = {
-                  balance: sdkResult.balance,
-                  tokenBalances: mappedTokenBalances
-                };
-                
-                return result;
-              },
-              catch: (e) => {
-                // Map the error to the appropriate type
-                const errorContext = {};
+          const sdkResult = yield* _(Effect.tryPromise({
+            try: async () => {
+              // Call the SDK method with explicit type inference
+              return await wallet.getBalance();
+            },
+            catch: (e) => {
+              // Map the error to the appropriate type
+              const errorContext = {};
 
-                if (e instanceof NetworkError) {
-                  return new SparkConnectionError({
-                    message: 'Network error fetching balance',
-                    cause: e,
-                    context: errorContext
-                  });
-                }
-                if (e instanceof AuthenticationError) {
-                  return new SparkAuthenticationError({
-                    message: 'Authentication error fetching balance',
-                    cause: e,
-                    context: errorContext
-                  });
-                }
-                if (e instanceof RPCError) {
-                  return new SparkRPCError({
-                    message: 'RPC error fetching balance',
-                    cause: e,
-                    context: errorContext
-                  });
-                }
-                if (e instanceof ValidationError) {
-                  return new SparkValidationError({
-                    message: 'Validation error fetching balance',
-                    cause: e,
-                    context: errorContext
-                  });
-                }
-                if (e instanceof NotImplementedError) {
-                  return new SparkNotImplementedError({
-                    message: 'Balance retrieval not implemented in this environment',
-                    cause: e,
-                    context: errorContext
-                  });
-                }
-                if (e instanceof ConfigurationError) {
-                  return new SparkConfigError({
-                    message: 'Configuration error during balance retrieval',
-                    cause: e,
-                    context: errorContext
-                  });
-                }
-                if (e instanceof SparkSDKError) {
-                  return new SparkBalanceError({
-                    message: 'SDK error fetching balance',
-                    cause: e,
-                    context: errorContext
-                  });
-                }
-                
-                // Default fallback for unknown errors
-                return new SparkBalanceError({
-                  message: 'Failed to get balance via SparkSDK',
+              if (e instanceof NetworkError) {
+                return new SparkConnectionError({
+                  message: 'Network error fetching balance',
                   cause: e,
                   context: errorContext
                 });
               }
-            }),
-            Effect.tap((balance: BalanceInfo) => telemetry.trackEvent({
-              category: 'spark:balance',
-              action: 'get_balance_success',
-              label: `Balance: ${balance.balance} sats`,
-              value: `Token count: ${balance.tokenBalances.size}`
-            })),
-            Effect.tapError((err) => telemetry.trackEvent({
-              category: 'spark:balance',
-              action: 'get_balance_failure',
-              label: err.message,
-              value: JSON.stringify(err.context)
-            }))
-          );
-        }),
+              if (e instanceof AuthenticationError) {
+                return new SparkAuthenticationError({
+                  message: 'Authentication error fetching balance',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              if (e instanceof RPCError) {
+                return new SparkRPCError({
+                  message: 'RPC error fetching balance',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              if (e instanceof ValidationError) {
+                return new SparkValidationError({
+                  message: 'Validation error fetching balance',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              if (e instanceof NotImplementedError) {
+                return new SparkNotImplementedError({
+                  message: 'Balance retrieval not implemented in this environment',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              if (e instanceof ConfigurationError) {
+                return new SparkConfigError({
+                  message: 'Configuration error during balance retrieval',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              if (e instanceof SparkSDKError) {
+                return new SparkBalanceError({
+                  message: 'SDK error fetching balance',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              
+              // Default fallback for unknown errors
+              return new SparkBalanceError({
+                message: 'Failed to get balance via SparkSDK',
+                cause: e,
+                context: errorContext
+              });
+            }
+          }));
+          
+          // Map SDK result to our interface type
+          const mappedTokenBalances = new Map<string, {
+            balance: bigint;
+            tokenInfo: {
+              tokenId: string;
+              name: string;
+              symbol: string;
+              decimals: number;
+            };
+          }>();
+          
+          // Convert the token balance Map if it exists
+          if (sdkResult.tokenBalances) {
+            for (const [key, value] of sdkResult.tokenBalances.entries()) {
+              mappedTokenBalances.set(key, {
+                balance: value.balance,
+                tokenInfo: {
+                  tokenId: value.tokenInfo.tokenPublicKey || key,
+                  name: value.tokenInfo.tokenName || 'Unknown Token',
+                  symbol: value.tokenInfo.tokenSymbol || 'UNK',
+                  decimals: value.tokenInfo.tokenDecimals || 0
+                }
+              });
+            }
+          }
+          
+          const result: BalanceInfo = {
+            balance: sdkResult.balance,
+            tokenBalances: mappedTokenBalances
+          };
+          
+          // Track success
+          yield* _(telemetry.trackEvent({
+            category: 'spark:balance',
+            action: 'get_balance_success',
+            label: `Balance: ${result.balance} sats`,
+            value: `Token count: ${result.tokenBalances.size}`
+          }));
+          
+          return result;
+        }).pipe(
+          // Use tapError to catch and log all errors using the telemetry service
+          Effect.tapError(err => telemetry.trackEvent({
+            category: 'spark:balance',
+            action: 'get_balance_failure',
+            label: err.message,
+            value: JSON.stringify({
+              errorMessage: err.message,
+              errorName: (err as Error).name,
+              errorContext: (err as SparkError).context
+            })
+          }))
+        ),
 
       /**
        * Gets a single-use deposit address
@@ -582,85 +593,93 @@ export const SparkServiceLive = Layer.scoped(
             value: ''
           }));
 
-          return yield* _(
-            Effect.tryPromise({
-              try: () => wallet.getSingleUseDepositAddress(),
-              catch: (e) => {
-                // Map the error to the appropriate type
-                const errorContext = {};
+          const address = yield* _(Effect.tryPromise({
+            try: () => wallet.getSingleUseDepositAddress(),
+            catch: (e) => {
+              // Map the error to the appropriate type
+              const errorContext = {};
 
-                if (e instanceof NetworkError) {
-                  return new SparkConnectionError({
-                    message: 'Network error generating deposit address',
-                    cause: e,
-                    context: errorContext
-                  });
-                }
-                if (e instanceof AuthenticationError) {
-                  return new SparkAuthenticationError({
-                    message: 'Authentication error generating deposit address',
-                    cause: e,
-                    context: errorContext
-                  });
-                }
-                if (e instanceof RPCError) {
-                  return new SparkRPCError({
-                    message: 'RPC error generating deposit address',
-                    cause: e,
-                    context: errorContext
-                  });
-                }
-                if (e instanceof ValidationError) {
-                  return new SparkValidationError({
-                    message: 'Validation error generating deposit address',
-                    cause: e,
-                    context: errorContext
-                  });
-                }
-                if (e instanceof NotImplementedError) {
-                  return new SparkNotImplementedError({
-                    message: 'Deposit address generation not implemented in this environment',
-                    cause: e,
-                    context: errorContext
-                  });
-                }
-                if (e instanceof ConfigurationError) {
-                  return new SparkConfigError({
-                    message: 'Configuration error during deposit address generation',
-                    cause: e,
-                    context: errorContext
-                  });
-                }
-                if (e instanceof SparkSDKError) {
-                  return new SparkTransactionError({
-                    message: 'SDK error generating deposit address',
-                    cause: e,
-                    context: errorContext
-                  });
-                }
-                
-                // Default fallback for unknown errors
-                return new SparkTransactionError({
-                  message: 'Failed to generate deposit address via SparkSDK',
+              if (e instanceof NetworkError) {
+                return new SparkConnectionError({
+                  message: 'Network error generating deposit address',
                   cause: e,
                   context: errorContext
                 });
               }
-            }),
-            Effect.tap((address: string) => telemetry.trackEvent({
-              category: 'spark:deposit',
-              action: 'get_deposit_address_success',
-              label: `Address: ${address.substring(0, 10)}...`,
-              value: address
-            })),
-            Effect.tapError((err) => telemetry.trackEvent({
-              category: 'spark:deposit',
-              action: 'get_deposit_address_failure',
-              label: err.message,
-              value: JSON.stringify(err.context)
-            }))
-          );
-        })
+              if (e instanceof AuthenticationError) {
+                return new SparkAuthenticationError({
+                  message: 'Authentication error generating deposit address',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              if (e instanceof RPCError) {
+                return new SparkRPCError({
+                  message: 'RPC error generating deposit address',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              if (e instanceof ValidationError) {
+                return new SparkValidationError({
+                  message: 'Validation error generating deposit address',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              if (e instanceof NotImplementedError) {
+                return new SparkNotImplementedError({
+                  message: 'Deposit address generation not implemented in this environment',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              if (e instanceof ConfigurationError) {
+                return new SparkConfigError({
+                  message: 'Configuration error during deposit address generation',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              if (e instanceof SparkSDKError) {
+                return new SparkTransactionError({
+                  message: 'SDK error generating deposit address',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              
+              // Default fallback for unknown errors
+              return new SparkTransactionError({
+                message: 'Failed to generate deposit address via SparkSDK',
+                cause: e,
+                context: errorContext
+              });
+            }
+          }));
+          
+          // Track success
+          yield* _(telemetry.trackEvent({
+            category: 'spark:deposit',
+            action: 'get_deposit_address_success',
+            label: `Address: ${address.substring(0, 10)}...`,
+            value: address
+          }));
+          
+          return address;
+        }).pipe(
+          // Use tapError to catch and log all errors using the telemetry service
+          Effect.tapError(err => telemetry.trackEvent({
+            category: 'spark:deposit',
+            action: 'get_deposit_address_failure',
+            label: err.message,
+            value: JSON.stringify({
+              errorMessage: err.message,
+              errorName: (err as Error).name,
+              errorContext: (err as SparkError).context
+            })
+          }))
+        )
     };
   })
 );
