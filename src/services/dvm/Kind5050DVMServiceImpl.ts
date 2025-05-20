@@ -105,6 +105,13 @@ function createNip90JobResultEvent(
   return finalizeEvent(template, hexToBytes(dvmPrivateKeyHex)) as NostrEvent;
 }
 
+// Define a type for the invoice status result
+interface InvoiceStatusResult {
+  status: 'pending' | 'paid' | 'expired' | 'error';
+  amountPaidMsats?: number;
+  message?: string;
+}
+
 /**
  * Implementation of Kind5050DVMService
  * This service:
@@ -128,8 +135,8 @@ export const Kind5050DVMServiceLive = Layer.scoped(
     let isActiveInternal = config.active || false;
     let currentSubscription: Subscription | null = null;
     let currentDvmPublicKeyHex = useDVMSettingsStore.getState().getDerivedPublicKeyHex() || config.dvmPublicKeyHex;
-    // Use any to avoid typing issues with the fiber
-    let invoiceCheckFiber: Fiber.RuntimeFiber<any, never> | null = null;
+    // Use more specific typing for the fiber
+    let invoiceCheckFiber: Fiber.RuntimeFiber<void, never> | null = null;
     
     // Track service initialization
     yield* _(telemetry.trackEvent({
@@ -155,21 +162,170 @@ export const Kind5050DVMServiceLive = Layer.scoped(
       );
     
     /**
-     * Periodically checks for invoices with pending payment status and updates their status
-     * by checking with the Spark service.
+     * Mock job history data function
+     * This function returns mock job history data with various invoice statuses
+     * Taking TelemetryService as a dependency through Effect context
      */
-    // Use any for all typings to avoid type constraints issues
-    const checkAndUpdateInvoiceStatuses = function(this: any): any {
-      // Using any to work around the complex typing issues
-      const _this = this as any;
-      return Effect.gen(function* (_) {
-        yield* _(telemetry.trackEvent({ 
+    const getJobHistoryStub = (
+      options: { page: number; pageSize: number; filters?: Partial<JobHistoryEntry> }
+    ): Effect.Effect<{ entries: JobHistoryEntry[]; totalCount: number }, DVMError | TrackEventError, TelemetryService> =>
+      Effect.gen(function* (ctx) {
+        const localTelemetry = yield* ctx(TelemetryService);
+        
+        yield* _(localTelemetry.trackEvent({ 
+          category: 'dvm:history', 
+          action: 'get_job_history_stub_called', 
+          label: `Page: ${options.page}` 
+        }).pipe(Effect.ignoreLogged));
+        
+        // Mock data for now - this will be replaced with actual persistence in a future task
+        const mockHistory: JobHistoryEntry[] = [
+          { 
+            id: 'job1', 
+            timestamp: Date.now() - 3600000, // 1 hour ago 
+            jobRequestEventId: 'req1', 
+            requesterPubkey: 'pk_requester1', 
+            kind: 5100, 
+            inputSummary: 'Translate to French: Hello world', 
+            status: 'completed', 
+            ollamaModelUsed: 'gemma2:latest', 
+            tokensProcessed: 120, 
+            invoiceAmountSats: 20, 
+            invoiceBolt11: 'paid_invoice_stub_1',
+            invoicePaymentHash: 'hash_for_paid_1',
+            paymentReceivedSats: 20, 
+            resultSummary: 'Bonjour le monde' 
+          },
+          { 
+            id: 'job2', 
+            timestamp: Date.now() - 7200000, // 2 hours ago
+            jobRequestEventId: 'req2', 
+            requesterPubkey: 'pk_requester2', 
+            kind: 5100, 
+            inputSummary: 'Summarize this article...', 
+            status: 'error', 
+            ollamaModelUsed: 'gemma2:latest', 
+            errorDetails: 'Ollama connection failed' 
+          },
+          { 
+            id: 'job3', 
+            timestamp: Date.now() - 10800000, // 3 hours ago
+            jobRequestEventId: 'req3', 
+            requesterPubkey: 'pk_requester1', 
+            kind: 5000, 
+            inputSummary: 'Image generation: cat astronaut', 
+            status: 'pending_payment', 
+            ollamaModelUsed: 'dall-e-stub', 
+            invoiceAmountSats: 100,
+            invoiceBolt11: 'pending_invoice_stub_1',
+            invoicePaymentHash: 'hash_for_pending_1' 
+          },
+          {
+            id: 'job4',
+            timestamp: Date.now() - 86400000, // 1 day ago
+            jobRequestEventId: 'req4',
+            requesterPubkey: 'pk_requester3',
+            kind: 5100,
+            inputSummary: 'Write a poem about technology',
+            status: 'completed',
+            ollamaModelUsed: 'llama3:instruct',
+            tokensProcessed: 350,
+            invoiceAmountSats: 50,
+            invoiceBolt11: 'expired_invoice_stub_1',
+            invoicePaymentHash: 'hash_for_expired_1',
+            paymentReceivedSats: 50,
+            resultSummary: 'Digital dreams in silicon sleep...'
+          },
+          {
+            id: 'job5',
+            timestamp: Date.now() - 172800000, // 2 days ago
+            jobRequestEventId: 'req5',
+            requesterPubkey: 'pk_requester2',
+            kind: 5100,
+            inputSummary: 'Debug this JavaScript code...',
+            status: 'paid',
+            ollamaModelUsed: 'codellama:latest',
+            tokensProcessed: 420,
+            invoiceAmountSats: 60,
+            invoiceBolt11: 'paid_invoice_stub_2',
+            invoicePaymentHash: 'hash_for_paid_2',
+            paymentReceivedSats: 60,
+            resultSummary: 'Found issue in line 42...'
+          },
+          {
+            id: 'job6',
+            timestamp: Date.now() - 43200000, // 12 hours ago
+            jobRequestEventId: 'req6',
+            requesterPubkey: 'pk_requester4',
+            kind: 5100,
+            inputSummary: 'Analyze this data structure',
+            status: 'pending_payment',
+            ollamaModelUsed: 'codellama:latest',
+            tokensProcessed: 320,
+            invoiceAmountSats: 40,
+            invoiceBolt11: 'expired_invoice_stub_1',
+            invoicePaymentHash: 'hash_for_expired_1'
+          },
+          {
+            id: 'job7',
+            timestamp: Date.now() - 21600000, // 6 hours ago
+            jobRequestEventId: 'req7',
+            requesterPubkey: 'pk_requester5',
+            kind: 5100,
+            inputSummary: 'Generate test cases for my API',
+            status: 'pending_payment',
+            ollamaModelUsed: 'llama3:instruct',
+            tokensProcessed: 280,
+            invoiceAmountSats: 35,
+            invoiceBolt11: 'error_invoice_stub_1',
+            invoicePaymentHash: 'hash_for_error_1'
+          }
+        ];
+        
+        // Very basic filtering (to be enhanced with real implementation)
+        let filteredEntries = [...mockHistory];
+        if (options.filters) {
+          const filters = options.filters;
+          filteredEntries = filteredEntries.filter(entry => {
+            for (const [key, value] of Object.entries(filters)) {
+              if (entry[key as keyof JobHistoryEntry] !== value) {
+                return false;
+              }
+            }
+            return true;
+          });
+        }
+        
+        // Pagination
+        const paginatedEntries = filteredEntries.slice(
+          (options.page - 1) * options.pageSize, 
+          options.page * options.pageSize
+        );
+        
+        return { entries: paginatedEntries, totalCount: filteredEntries.length };
+      });
+    
+    /**
+     * Periodically checks for invoices with pending payment status and updates their status
+     * by checking with the Spark service. Refactored to not use 'this' and use proper typing.
+     */
+    const checkAndUpdateInvoiceStatuses = (): Effect.Effect<void, DVMError | TrackEventError, SparkService | TelemetryService> =>
+      Effect.gen(function* (ctx) {
+        // Get services from the effect context
+        const localTelemetry = yield* ctx(TelemetryService);
+        const localSpark = yield* ctx(SparkService);
+        
+        yield* _(localTelemetry.trackEvent({ 
           category: 'dvm:payment_check', 
           action: 'check_all_invoices_start' 
         }).pipe(Effect.ignoreLogged));
         
-        // Get a large page of job history to find pending payment jobs
-        const historyResult: { entries: JobHistoryEntry[], totalCount: number } = yield* _(_this.getJobHistory({ page: 1, pageSize: 500 }));
+        // Get job history by calling our stub with TelemetryService provided
+        const historyResult = yield* _(
+          getJobHistoryStub({ page: 1, pageSize: 500 }).pipe(
+            Effect.provideService(TelemetryService, localTelemetry)
+          )
+        );
         
         // Filter for jobs with pending_payment status and invoiceBolt11
         const pendingPaymentJobs = historyResult.entries.filter(
@@ -177,14 +333,14 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         );
 
         if (pendingPaymentJobs.length === 0) {
-          yield* _(telemetry.trackEvent({ 
+          yield* _(localTelemetry.trackEvent({ 
             category: 'dvm:payment_check', 
             action: 'no_pending_invoices_found' 
           }).pipe(Effect.ignoreLogged));
           return;
         }
 
-        yield* _(telemetry.trackEvent({ 
+        yield* _(localTelemetry.trackEvent({ 
           category: 'dvm:payment_check', 
           action: 'checking_pending_invoices', 
           value: String(pendingPaymentJobs.length) 
@@ -194,7 +350,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         for (const job of pendingPaymentJobs) {
           if (!job.invoiceBolt11) continue; // Should not happen due to filter, but checking anyway
 
-          yield* _(telemetry.trackEvent({
+          yield* _(localTelemetry.trackEvent({
             category: 'dvm:payment_check',
             action: 'check_invoice_attempt',
             label: `Job ID: ${job.id}`,
@@ -203,25 +359,28 @@ export const Kind5050DVMServiceLive = Layer.scoped(
 
           // Check invoice status via SparkService, handling errors individually
           // so one failure doesn't stop checking others
-          const invoiceStatusResult: { status: 'pending' | 'paid' | 'expired' | 'error', amountPaidMsats?: number, message?: string } = yield* _(
-            spark.checkInvoiceStatus(job.invoiceBolt11).pipe(
+          const invoiceStatusResult: InvoiceStatusResult = yield* _(
+            localSpark.checkInvoiceStatus(job.invoiceBolt11).pipe(
               Effect.catchAll((err) => {
-                // Handle errors generically since we can't use instanceof SparkError
-                Effect.runFork(telemetry.trackEvent({
+                const sparkErr = err as SparkError;
+                Effect.runFork(localTelemetry.trackEvent({
                   category: 'dvm:payment_check_error',
                   action: 'spark_check_invoice_failed',
                   label: `Job ID: ${job.id}, Invoice: ${job.invoiceBolt11?.substring(0,20)}...`,
-                  value: err instanceof Error ? err.message : String(err)
+                  value: sparkErr.message
                 }));
                 // Return a default error status, but don't fail the whole loop
-                return Effect.succeed({ status: 'error' as const, message: err instanceof Error ? err.message : String(err) });
+                return Effect.succeed<InvoiceStatusResult>({ 
+                  status: 'error' as const, 
+                  message: sparkErr.message 
+                });
               })
             )
           );
 
           // Handle paid invoices
           if (invoiceStatusResult.status === 'paid') {
-            yield* _(telemetry.trackEvent({
+            yield* _(localTelemetry.trackEvent({
               category: 'dvm:payment_check',
               action: 'invoice_paid',
               label: `Job ID: ${job.id}`,
@@ -241,7 +400,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           } 
           // Handle expired or error invoices
           else if (invoiceStatusResult.status === 'expired' || invoiceStatusResult.status === 'error') {
-            yield* _(telemetry.trackEvent({
+            yield* _(localTelemetry.trackEvent({
               category: 'dvm:payment_check',
               action: `invoice_${invoiceStatusResult.status}`,
               label: `Job ID: ${job.id}`,
@@ -255,12 +414,11 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           }
         }
 
-        yield* _(telemetry.trackEvent({ 
+        yield* _(localTelemetry.trackEvent({ 
           category: 'dvm:payment_check', 
           action: 'check_all_invoices_complete' 
         }).pipe(Effect.ignoreLogged));
-      }.bind(this));
-    };
+      });
     
     /**
      * The main job processing logic
@@ -470,7 +628,9 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         const successFeedback = createNip90FeedbackEvent(
           dvmPrivateKeyHex, 
           jobRequestEvent, 
-          "success"
+          "success",
+          undefined,
+          { amountMillisats: invoiceAmountMillisats, invoice: bolt11Invoice }
         );
         yield* _(publishFeedback(successFeedback));
 
@@ -521,332 +681,208 @@ export const Kind5050DVMServiceLive = Layer.scoped(
 
     // Return the service interface
     return {
-      startListening: function(this: any): Effect.Effect<void, DVMConfigError | DVMConnectionError | TrackEventError, never> {
-        return Effect.gen(function* (_) {
-        // Check if already active
-        if (isActiveInternal) {
-          yield* _(telemetry.trackEvent({ 
-            category: 'dvm:status', 
-            action: 'start_listening_already_active' 
-          }).pipe(Effect.ignoreLogged));
-          return;
-        }
-
-        // Get effective settings from a single call
-        const effectiveConfig = useDVMSettingsStore.getState().getEffectiveConfig();
-        currentDvmPublicKeyHex = effectiveConfig.dvmPublicKeyHex;
-
-        // Check for required config
-        if (!effectiveConfig.dvmPrivateKeyHex) {
-          return yield* _(Effect.fail(new DVMConfigError({ 
-            message: "DVM private key not configured." 
-          })));
-        }
-        
-        if (effectiveConfig.relays.length === 0) {
-          return yield* _(Effect.fail(new DVMConfigError({ 
-            message: "No DVM relays configured." 
-          })));
-        }
-
-        yield* _(telemetry.trackEvent({
-          category: 'dvm:status',
-          action: 'start_listening_attempt',
-          label: `Relays: ${effectiveConfig.relays.join(', ')}, Kinds: ${effectiveConfig.supportedJobKinds.join(', ')}`
-        }).pipe(Effect.ignoreLogged));
-
-        // Create filter for job requests
-        const jobRequestFilter: NostrFilter = {
-          kinds: effectiveConfig.supportedJobKinds,
-          since: Math.floor(Date.now() / 1000) - 300, // Look for recent jobs (last 5 mins)
-        };
-
-        // Subscribe to events with custom relays from effective config
-        const sub = yield* _(nostr.subscribeToEvents(
-          [jobRequestFilter],
-          (event: NostrEvent) => {
-            // Get latest config for this check to handle potential settings changes during runtime
-            const latestConfig = useDVMSettingsStore.getState().getEffectiveConfig();
-            if (event.pubkey === latestConfig.dvmPublicKeyHex && 
-               (event.kind === 7000 || (event.kind >= 6000 && event.kind <= 6999))) {
-              return;
-            }
-            
-            // Fork job processing so it runs independently
-            Effect.runFork(processJobRequestInternal(event));
-          },
-          effectiveConfig.relays, // Pass the effective relays from user settings
-          () => { // onEOSE callback
-            Effect.runFork(telemetry.trackEvent({
-              category: "dvm:nostr",
-              action: "subscription_eose",
-              label: `EOSE received for DVM job kinds: ${effectiveConfig.supportedJobKinds.join(', ')}`
-            }).pipe(Effect.ignoreLogged));
-          }
-        ).pipe(
-          Effect.mapError(e => new DVMConnectionError({ 
-            message: "Failed to subscribe to Nostr for DVM requests", 
-            cause: e 
-          }))
-        ));
-
-        // Store subscription and update state
-        currentSubscription = sub;
-        isActiveInternal = true;
-        
-        // Start the periodic invoice check
-        const that = this as Record<string, any>;
-        const invoiceCheckLoopEffect = Effect.sync(() => {
-          return checkAndUpdateInvoiceStatuses.call(that);
-        }).pipe(
-          Effect.catchAllCause((cause) => {
-            return telemetry.trackEvent({
-              category: "dvm:error",
-              action: "invoice_check_loop_error",
-              label: "Error in periodic invoice check loop",
-              value: Cause.pretty(cause)
-            }).pipe(Effect.ignoreLogged);
-          })
-        );
-        
-        // Schedule the effect to run periodically (every 2 minutes)
-        const scheduledInvoiceCheck = Effect.repeat(
-          invoiceCheckLoopEffect,
-          Schedule.spaced(Duration.minutes(2))
-        );
-        
-        // Fork the scheduled effect into its own fiber - using as any to bypass type checks
-        invoiceCheckFiber = Effect.runFork(scheduledInvoiceCheck as any);
-        
-        yield* _(telemetry.trackEvent({ 
-          category: 'dvm:status', 
-          action: 'invoice_check_loop_started' 
-        }).pipe(Effect.ignoreLogged));
-        
-        yield* _(telemetry.trackEvent({ 
-          category: 'dvm:status', 
-          action: 'start_listening_success' 
-        }).pipe(Effect.ignoreLogged));
-      });
-      },
-      
-      stopListening: () => Effect.gen(function* (_) {
-        // Check if already inactive
-        if (!isActiveInternal) {
-          yield* _(telemetry.trackEvent({ 
-            category: 'dvm:status', 
-            action: 'stop_listening_already_inactive'
-          }).pipe(Effect.ignoreLogged));
-          return;
-        }
-        
-        yield* _(telemetry.trackEvent({ 
-          category: 'dvm:status', 
-          action: 'stop_listening_attempt'
-        }).pipe(Effect.ignoreLogged));
-        
-        // Unsubscribe if we have a subscription
-        if (currentSubscription) {
-          try {
-            currentSubscription.unsub();
-            currentSubscription = null;
-          } catch (e) {
-            // Log error but continue (don't fail the stopListening)
+      startListening: (): Effect.Effect<void, DVMConfigError | DVMConnectionError | TrackEventError, never> => 
+        Effect.gen(function* (_) {
+          // Check if already active
+          if (isActiveInternal) {
             yield* _(telemetry.trackEvent({ 
-              category: 'dvm:error', 
-              action: 'stop_listening_unsub_failure', 
-              label: e instanceof Error ? e.message : String(e) 
+              category: 'dvm:status', 
+              action: 'start_listening_already_active' 
             }).pipe(Effect.ignoreLogged));
+            return;
           }
-        }
-        
-        // Interrupt the invoice checking fiber if active
-        if (invoiceCheckFiber) {
-          Effect.runFork(Fiber.interrupt(invoiceCheckFiber));
-          invoiceCheckFiber = null;
+
+          // Get effective settings from a single call
+          const effectiveConfig = useDVMSettingsStore.getState().getEffectiveConfig();
+          currentDvmPublicKeyHex = effectiveConfig.dvmPublicKeyHex;
+
+          // Check for required config
+          if (!effectiveConfig.dvmPrivateKeyHex) {
+            return yield* _(Effect.fail(new DVMConfigError({ 
+              message: "DVM private key not configured." 
+            })));
+          }
+          
+          if (effectiveConfig.relays.length === 0) {
+            return yield* _(Effect.fail(new DVMConfigError({ 
+              message: "No DVM relays configured." 
+            })));
+          }
+
+          yield* _(telemetry.trackEvent({
+            category: 'dvm:status',
+            action: 'start_listening_attempt',
+            label: `Relays: ${effectiveConfig.relays.join(', ')}, Kinds: ${effectiveConfig.supportedJobKinds.join(', ')}`
+          }).pipe(Effect.ignoreLogged));
+
+          // Create filter for job requests
+          const jobRequestFilter: NostrFilter = {
+            kinds: effectiveConfig.supportedJobKinds,
+            since: Math.floor(Date.now() / 1000) - 300, // Look for recent jobs (last 5 mins)
+          };
+
+          // Subscribe to events with custom relays from effective config
+          const sub = yield* _(nostr.subscribeToEvents(
+            [jobRequestFilter],
+            (event: NostrEvent) => {
+              // Get latest config for this check to handle potential settings changes during runtime
+              const latestConfig = useDVMSettingsStore.getState().getEffectiveConfig();
+              if (event.pubkey === latestConfig.dvmPublicKeyHex && 
+                (event.kind === 7000 || (event.kind >= 6000 && event.kind <= 6999))) {
+                return;
+              }
+              
+              // Fork job processing so it runs independently
+              Effect.runFork(processJobRequestInternal(event));
+            },
+            effectiveConfig.relays, // Pass the effective relays from user settings
+            () => { // onEOSE callback
+              Effect.runFork(telemetry.trackEvent({
+                category: "dvm:nostr",
+                action: "subscription_eose",
+                label: `EOSE received for DVM job kinds: ${effectiveConfig.supportedJobKinds.join(', ')}`
+              }).pipe(Effect.ignoreLogged));
+            }
+          ).pipe(
+            Effect.mapError(e => new DVMConnectionError({ 
+              message: "Failed to subscribe to Nostr for DVM requests", 
+              cause: e 
+            }))
+          ));
+
+          // Store subscription and update state
+          currentSubscription = sub;
+          isActiveInternal = true;
+          
+          // Create the invoice check effect with proper error handling
+          const invoiceCheckLoopEffect = checkAndUpdateInvoiceStatuses().pipe(
+            Effect.catchAllCause(cause => 
+              telemetry.trackEvent({
+                category: "dvm:error",
+                action: "invoice_check_loop_error",
+                label: "Error in periodic invoice check loop",
+                value: Cause.pretty(cause)
+              }).pipe(Effect.ignoreLogged)
+            )
+          );
+          
+          // Schedule the effect to run periodically (every 2 minutes)
+          const scheduledInvoiceCheck = Effect.repeat(
+            invoiceCheckLoopEffect,
+            Schedule.spaced(Duration.minutes(2))
+          );
+          
+          // Provide the required services to the scheduled effect
+          const fullyProvidedCheck = scheduledInvoiceCheck.pipe(
+            Effect.provideService(SparkService, spark),
+            Effect.provideService(TelemetryService, telemetry)
+          );
+          
+          // Fork the scheduled effect into its own fiber - properly typed now
+          invoiceCheckFiber = Effect.runFork(fullyProvidedCheck) as Fiber.RuntimeFiber<void, never>;
+          
           yield* _(telemetry.trackEvent({ 
             category: 'dvm:status', 
-            action: 'invoice_check_loop_stopped' 
+            action: 'invoice_check_loop_started' 
           }).pipe(Effect.ignoreLogged));
-        }
-        
-        // Update state
-        isActiveInternal = false;
-        
-        yield* _(telemetry.trackEvent({ 
-          category: 'dvm:status', 
-          action: 'stop_listening_success'
-        }).pipe(Effect.ignoreLogged));
-      }),
+          
+          yield* _(telemetry.trackEvent({ 
+            category: 'dvm:status', 
+            action: 'start_listening_success' 
+          }).pipe(Effect.ignoreLogged));
+        }),
       
-      isListening: () => Effect.gen(function* (_) {
-        yield* _(telemetry.trackEvent({ 
-          category: 'dvm:status', 
-          action: 'check_listening_status', 
-          label: isActiveInternal ? 'active' : 'inactive'
-        }).pipe(Effect.ignoreLogged));
-        
-        return isActiveInternal;
-      }),
-
-      getJobHistory: (options: { page: number; pageSize: number; filters?: Partial<JobHistoryEntry> }) => Effect.gen(function* (_) {
-        yield* _(telemetry.trackEvent({ 
-          category: 'dvm:history', 
-          action: 'get_job_history_stub', 
-          label: `Page: ${options.page}` 
-        }).pipe(Effect.ignoreLogged));
-        
-        // Mock data for now - this will be replaced with actual persistence in a future task
-        const mockHistory: JobHistoryEntry[] = [
-          { 
-            id: 'job1', 
-            timestamp: Date.now() - 3600000, // 1 hour ago 
-            jobRequestEventId: 'req1', 
-            requesterPubkey: 'pk_requester1', 
-            kind: 5100, 
-            inputSummary: 'Translate to French: Hello world', 
-            status: 'completed', 
-            ollamaModelUsed: 'gemma2:latest', 
-            tokensProcessed: 120, 
-            invoiceAmountSats: 20, 
-            invoiceBolt11: 'lnbcrt200n1pj9x8dgpp5d55rctgx5m72zzdrp23w43xx4zzvctp5jdcde7hvj0kkm3c9nwksdqqcqzzsxqyz5vqsp5paid_invoice_stub5jkgmqv9x4tx0cuv3h86f9v6c8m5h8txpvdnhveq9qyyssqyjm2z2ay3ta76c7u2hwkwkk6wdcqgd4hmgj6q8ru5s5y2vk6fafxxdc39z9kc5qjw0wc9cmgpz4a5pgm6jfygvcrg9jk9equcq07jcrp',
-            invoicePaymentHash: 'e7d0b290764720c4cc8a2a901abe98af7864a951a7cbc3090cd0faaa5fefd89f',
-            paymentReceivedSats: 20, 
-            resultSummary: 'Bonjour le monde' 
-          },
-          { 
-            id: 'job2', 
-            timestamp: Date.now() - 7200000, // 2 hours ago
-            jobRequestEventId: 'req2', 
-            requesterPubkey: 'pk_requester2', 
-            kind: 5100, 
-            inputSummary: 'Summarize this article...', 
-            status: 'error', 
-            ollamaModelUsed: 'gemma2:latest', 
-            errorDetails: 'Ollama connection failed' 
-          },
-          { 
-            id: 'job3', 
-            timestamp: Date.now() - 10800000, // 3 hours ago
-            jobRequestEventId: 'req3', 
-            requesterPubkey: 'pk_requester1', 
-            kind: 5000, 
-            inputSummary: 'Image generation: cat astronaut', 
-            status: 'pending_payment', 
-            ollamaModelUsed: 'dall-e-stub', 
-            invoiceAmountSats: 100,
-            invoiceBolt11: 'lnbcrt1u1pj9x8r7pp50erc4fkrzucva5m4nrz4vykza72zefnre8d76t4atqf4p4jjjtmsdqqcqzzsxqyz5vqsp5pending_invoice_stub4eqv6v8q35jcudq7lw9kwl0l2e5vs954fcpj92fsq9qyyssqfdaxj3mpkjspcvvell9v5kjvme7nrr5k49re94u3cyljrgysfdwy2td2j5vfaqvr9jl3tn786g0m75wu7hsuy7q453guqh2r08syqp2gc0vp',
-            invoicePaymentHash: '3db44da2b89d19a05b48c12a5533678cf127ff3f7abc1813d9b368800a343ac8' 
-          },
-          {
-            id: 'job4',
-            timestamp: Date.now() - 86400000, // 1 day ago
-            jobRequestEventId: 'req4',
-            requesterPubkey: 'pk_requester3',
-            kind: 5100,
-            inputSummary: 'Write a poem about technology',
-            status: 'completed',
-            ollamaModelUsed: 'llama3:instruct',
-            tokensProcessed: 350,
-            invoiceAmountSats: 50,
-            invoiceBolt11: 'lnbcrt500n1pj9x8p5pp5r7eqkj0cljdhtfvfgjzfq0ftfn9twp0j5gvdlhwujkty4atg32vqdqqcqzzsxqyz5vqsp5paid_invoice_stub7dz6drzn5wdl9tqq2ke6ewz50axpvtfv7l8tkvwysq9qyyssqmyec09j2fky6h3wsjhnmjynpx37v6gejnqv5jlnxr4cp808x4n65wh8h38kl9tlruvzhfgllkflm9jm46lxrfsnwvpnsdyl86qnqqutehcq',
-            invoicePaymentHash: '7cfceb3e2d169a61110c57e06f8ebd5823d781f3bb49fb4d25d5de132d6c6c2a',
-            paymentReceivedSats: 50,
-            resultSummary: 'Digital dreams in silicon sleep...'
-          },
-          {
-            id: 'job5',
-            timestamp: Date.now() - 172800000, // 2 days ago
-            jobRequestEventId: 'req5',
-            requesterPubkey: 'pk_requester2',
-            kind: 5100,
-            inputSummary: 'Debug this JavaScript code...',
-            status: 'paid',
-            ollamaModelUsed: 'codellama:latest',
-            tokensProcessed: 420,
-            invoiceAmountSats: 60,
-            invoiceBolt11: 'lnbcrt600n1pj9x8zcpp5xvavgfdtkjz3zp2xsydqdk0hf2f0zu203fc2vj4v5hkrjmnk2j3qdqqcqzzsxqyz5vqsp5paid_invoice_stub57ycxrdht92tn76mnmcplzc88ck9dt52wt9dk3l3lq9qyyssq73upt3h5lcrqyux3r42cl46z2jd7jlu2vfylfsh7h3vl98lkh5jxkef2xf2vg6la3cgqu59x4mddmzwutjgufmv7kddl7uksvv8cpdgsfka',
-            invoicePaymentHash: '43dc85844c65e6fcae0d6dee11498d92c99bed6bf5d8f6720e5a7e39a5f0dd56',
-            paymentReceivedSats: 60,
-            resultSummary: 'Found issue in line 42...'
-          },
-          {
-            id: 'job6',
-            timestamp: Date.now() - 43200000, // 12 hours ago
-            jobRequestEventId: 'req6',
-            requesterPubkey: 'pk_requester4',
-            kind: 5100,
-            inputSummary: 'Analyze this data structure',
-            status: 'pending_payment',
-            ollamaModelUsed: 'codellama:latest',
-            tokensProcessed: 320,
-            invoiceAmountSats: 40,
-            invoiceBolt11: 'lnbcrt400n1pj9x83dpp50exzgcnpw4v2fsexvfs2w2h36zvhv65qtv3uav2dm0eckfk25cgsdqqcqzzsxqyz5vqsp5expired_invoice_stub57y48sfw39ztwnflzqwue6v62k9srdkx57a6mfhjxsq9qyyssq6a0hgpywl3kcp5kuxkva6dfwmwlv3qfglu2ftl67fh9ynvmpzfl2wvpq7zupg9v6m2qdp9fvzft2rjkqvhw8g36ukvnjm9qy7f5gq0u4qkf',
-            invoicePaymentHash: '8f735f5f36f8eb20b0e9f25c4c0d4e2c9e3d0f1b2a5c8e7d6f3a2b5c8d7e6f5a4'
-          },
-          {
-            id: 'job7',
-            timestamp: Date.now() - 21600000, // 6 hours ago
-            jobRequestEventId: 'req7',
-            requesterPubkey: 'pk_requester5',
-            kind: 5100,
-            inputSummary: 'Generate test cases for my API',
-            status: 'pending_payment',
-            ollamaModelUsed: 'llama3:instruct',
-            tokensProcessed: 280,
-            invoiceAmountSats: 35,
-            invoiceBolt11: 'lnbcrt350n1pj9x8zwpp5k5wjcr75r9wvtmg2wrzk0h0d29qpkjl09z6cjy2f4tkn68v2enmsdqqcqzzsxqyz5vqsp5error_invoice_stub57y4azwsfwcv4j3hprx7j5xc55gvdlexq65lf98ffq9qyyssqwj02ek6ftlal7kmk29v2uk5nj8h5zpfnqm5xfvprg5k4j0m8gpcfzmpdavnvmf6wctmk5hzjkf8qhjzejfmmp0j2l45e6s2hpyvspqf8ruw',
-            invoicePaymentHash: '1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7a8b9c0d1e2f'
+      stopListening: (): Effect.Effect<void, DVMError | TrackEventError, never> => 
+        Effect.gen(function* (_) {
+          // Check if already inactive
+          if (!isActiveInternal) {
+            yield* _(telemetry.trackEvent({ 
+              category: 'dvm:status', 
+              action: 'stop_listening_already_inactive'
+            }).pipe(Effect.ignoreLogged));
+            return;
           }
-        ];
-        
-        // Very basic filtering (to be enhanced with real implementation)
-        let filteredEntries = [...mockHistory];
-        if (options.filters) {
-          const filters = options.filters;
-          filteredEntries = filteredEntries.filter(entry => {
-            for (const [key, value] of Object.entries(filters)) {
-              if (entry[key as keyof JobHistoryEntry] !== value) {
-                return false;
-              }
+          
+          yield* _(telemetry.trackEvent({ 
+            category: 'dvm:status', 
+            action: 'stop_listening_attempt'
+          }).pipe(Effect.ignoreLogged));
+          
+          // Unsubscribe if we have a subscription
+          if (currentSubscription) {
+            try {
+              currentSubscription.unsub();
+              currentSubscription = null;
+            } catch (e) {
+              // Log error but continue (don't fail the stopListening)
+              yield* _(telemetry.trackEvent({ 
+                category: 'dvm:error', 
+                action: 'stop_listening_unsub_failure', 
+                label: e instanceof Error ? e.message : String(e) 
+              }).pipe(Effect.ignoreLogged));
             }
-            return true;
-          });
-        }
-        
-        // Pagination
-        const paginatedEntries = filteredEntries.slice(
-          (options.page - 1) * options.pageSize, 
-          options.page * options.pageSize
-        );
-        
-        return { entries: paginatedEntries, totalCount: filteredEntries.length };
-      }),
-
-      getJobStatistics: () => Effect.gen(function* (_) {
-        yield* _(telemetry.trackEvent({ 
-          category: 'dvm:stats', 
-          action: 'get_job_statistics_stub' 
-        }).pipe(Effect.ignoreLogged));
-        
-        // Mock statistics (to be replaced with actual calculations in a future task)
-        const mockStats: JobStatistics = {
-          totalJobsProcessed: 125,
-          totalSuccessfulJobs: 90,
-          totalFailedJobs: 15,
-          totalRevenueSats: 1850,
-          jobsPendingPayment: 20,
-          averageProcessingTimeMs: 3250,
-          modelUsageCounts: { 
-            "gemma2:latest": 70, 
-            "llama3:instruct": 20, 
-            "codellama:latest": 25,
-            "other_model": 10 
           }
-        };
-        
-        return mockStats;
-      })
+          
+          // Interrupt the invoice checking fiber if active
+          if (invoiceCheckFiber) {
+            Effect.runFork(Fiber.interrupt(invoiceCheckFiber));
+            invoiceCheckFiber = null;
+            yield* _(telemetry.trackEvent({ 
+              category: 'dvm:status', 
+              action: 'invoice_check_loop_stopped' 
+            }).pipe(Effect.ignoreLogged));
+          }
+          
+          // Update state
+          isActiveInternal = false;
+          
+          yield* _(telemetry.trackEvent({ 
+            category: 'dvm:status', 
+            action: 'stop_listening_success'
+          }).pipe(Effect.ignoreLogged));
+        }),
+      
+      isListening: (): Effect.Effect<boolean, DVMError | TrackEventError, never> => 
+        Effect.gen(function* (_) {
+          yield* _(telemetry.trackEvent({ 
+            category: 'dvm:status', 
+            action: 'check_listening_status', 
+            label: isActiveInternal ? 'active' : 'inactive'
+          }).pipe(Effect.ignoreLogged));
+          
+          return isActiveInternal;
+        }),
+
+      getJobHistory: (options: { page: number; pageSize: number; filters?: Partial<JobHistoryEntry> }): Effect.Effect<{ entries: JobHistoryEntry[]; totalCount: number }, DVMError | TrackEventError, never> => 
+        getJobHistoryStub(options).pipe(
+          Effect.provideService(TelemetryService, telemetry)
+        ),
+
+      getJobStatistics: (): Effect.Effect<JobStatistics, DVMError | TrackEventError, never> => 
+        Effect.gen(function* (_) {
+          yield* _(telemetry.trackEvent({ 
+            category: 'dvm:stats', 
+            action: 'get_job_statistics_stub' 
+          }).pipe(Effect.ignoreLogged));
+          
+          // Mock statistics (to be replaced with actual calculations in a future task)
+          const mockStats: JobStatistics = {
+            totalJobsProcessed: 125,
+            totalSuccessfulJobs: 90,
+            totalFailedJobs: 15,
+            totalRevenueSats: 1850,
+            jobsPendingPayment: 20,
+            averageProcessingTimeMs: 3250,
+            modelUsageCounts: { 
+              "gemma2:latest": 70, 
+              "llama3:instruct": 20, 
+              "codellama:latest": 25,
+              "other_model": 10 
+            }
+          };
+          
+          return mockStats;
+        })
     };
   })
 );
