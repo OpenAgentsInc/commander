@@ -26,7 +26,7 @@ const SellComputePane: React.FC = () => {
     runPromiseExit(Effect.provide(walletProgram, runtime)).then(exit => {
       if (Exit.isSuccess(exit)) setIsWalletConnected(exit.value);
       else {
-        console.error("Wallet status check failed:", Cause.squash(exit.cause));
+        console.error("Wallet status check failed:", exit);
         setIsWalletConnected(false);
       }
       setStatusLoading(s => ({ ...s, wallet: false }));
@@ -39,7 +39,7 @@ const SellComputePane: React.FC = () => {
     runPromiseExit(Effect.provide(ollamaProgram, runtime)).then(exit => {
       if (Exit.isSuccess(exit)) setIsOllamaConnected(exit.value);
       else {
-        console.error("Ollama status check failed:", Cause.squash(exit.cause));
+        console.error("Ollama status check failed:", exit);
         setIsOllamaConnected(false);
       }
       setStatusLoading(s => ({ ...s, ollama: false }));
@@ -52,7 +52,7 @@ const SellComputePane: React.FC = () => {
       if (Exit.isSuccess(exit)) {
         setIsOnline(exit.value);
       } else {
-        console.error("Failed to check DVM status:", Cause.squash(exit.cause));
+        console.error("Failed to check DVM status:", exit);
       }
     });
   }, [runtime]);
@@ -76,8 +76,7 @@ const SellComputePane: React.FC = () => {
           console.log(`Compute selling ${!isOnline ? 'started' : 'stopped'}`);
         } else {
           console.error(
-            `Failed to ${!isOnline ? 'start' : 'stop'} DVM:`, 
-            Cause.squash(exit.cause)
+            `Failed to ${!isOnline ? 'start' : 'stop'} DVM:`, exit
           );
           alert(`Failed to ${!isOnline ? 'start' : 'stop'} the service. Check console for details.`);
         }

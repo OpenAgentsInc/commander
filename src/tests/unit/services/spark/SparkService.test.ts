@@ -178,6 +178,11 @@ describe('SparkService', () => {
     getSingleUseDepositAddress: () => {
       // Return a mock address
       return Effect.succeed('bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh');
+    },
+    
+    checkWalletStatus: () => {
+      // Return wallet status
+      return Effect.succeed(true);
     }
   });
 
