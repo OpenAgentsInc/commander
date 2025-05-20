@@ -1,6 +1,6 @@
 // src/tests/unit/services/spark/SparkService.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Effect, Layer, Exit, Cause, Option, Context } from 'effect';
+import { Effect, Layer, Exit, Cause, Option } from 'effect';
 
 // Import mock classes and functions
 import {
@@ -51,7 +51,7 @@ import {
   SparkAuthenticationError,
   SparkRPCError,
   SparkNotImplementedError,
-  SparkServiceError,
+  // SparkServiceError, // Unused import removed
   SparkError,
   CreateLightningInvoiceParams,
   PayLightningInvoiceParams,
@@ -91,7 +91,7 @@ describe('SparkService', () => {
   const mockSparkConfig: SparkServiceConfig = {
     network: "REGTEST",
     mnemonicOrSeed: "test test test test test test test test test test test junk",
-    accountNumber: 0,
+    accountNumber: 2, // Must be ≥ 2 per SDK validation
     sparkSdkOptions: {
       grpcUrl: "http://localhost:8080",
       authToken: "test_token"
@@ -219,7 +219,7 @@ describe('SparkService', () => {
     sdkMethodMock: ReturnType<typeof vi.fn>,
     serviceMethodCall: Effect.Effect<A, SparkError | TrackEventError, SparkService>,
     sdkErrorInstance: Error, // Use the mock error type from ./mockSdk
-    expectedSparkErrorType: new (...args: any[]) => SparkError,
+    expectedSparkErrorType: { new(args: { readonly cause?: unknown; readonly message: string; readonly context?: Record<string, unknown> }): SparkError },
     expectedCategory: string,
     expectedActionPrefix: string
   ) => {
@@ -315,7 +315,7 @@ describe('SparkService', () => {
       expect(error).toBeInstanceOf(SparkValidationError);
       if (error instanceof SparkValidationError && error.cause) {
         expect(error.message).toContain("Invalid parameters for createLightningInvoice");
-        // @ts-ignore - Assuming cause is ParseError from effect/Schema
+        // @ts-expect-error - Assuming cause is ParseError from effect/Schema
         expect(error.cause._tag).toBe("ParseError");
       }
       expect(createLightningInvoiceMock).not.toHaveBeenCalled(); // Crucial: SDK method wasn't called
@@ -483,7 +483,7 @@ describe('SparkService', () => {
       expect(error).toBeInstanceOf(SparkValidationError);
       if (error instanceof SparkValidationError && error.cause) {
         expect(error.message).toContain("Invalid parameters for payLightningInvoice");
-        // @ts-ignore
+        // @ts-expect-error Assuming cause is ParseError from effect/Schema
         expect(error.cause._tag).toBe("ParseError");
       }
       expect(payLightningInvoiceMock).not.toHaveBeenCalled();
@@ -713,6 +713,45 @@ describe('SparkService', () => {
       if (error instanceof SparkConfigError) {
         expect(error.message).toContain('Failed to initialize SparkWallet');
       }
+    });
+    
+    it('should fail with validation error if accountNumber is 0 or 1', async () => {
+      // Setup a mock config with invalid account number
+      const invalidConfig: SparkServiceConfig = {
+        ...mockSparkConfig,
+        accountNumber: 0 // Invalid: must be ≥ 2
+      };
+      const invalidConfigLayer = Layer.succeed(SparkServiceConfigTag, invalidConfig);
+      const invalidTestLayer = Layer.provide(
+        SparkServiceLive,
+        Layer.merge(invalidConfigLayer, TelemetryTestLayer)
+      );
+      
+      // Prepare mock error - Spark SDK validation error for account number
+      const validationError = new MockValidationError("If an account number is provided, it must not be be 0 or 1");
+      initializeMock.mockRejectedValueOnce(validationError);
+      
+      // Attempt to use the service with invalid config
+      const program = Effect.flatMap(SparkService, s => Effect.succeed(s));
+      const exit = await safeRunEffect(program.pipe(Effect.provide(invalidTestLayer)));
+      
+      expect(Exit.isFailure(exit)).toBe(true);
+      const error = getFailure(exit);
+      expect(error).toBeInstanceOf(SparkConfigError);
+      
+      if (error instanceof SparkConfigError) {
+        // In this specific case, the SparkServiceImpl is using the default error message 
+        // rather than the specific one for ConfigurationError
+        expect(error.message).toContain('Failed to initialize SparkWallet');
+        expect(error.cause).toBe(validationError);
+      }
+      
+      // Verify telemetry was called for the error
+      expect(mockTrackEvent).toHaveBeenCalledWith(expect.objectContaining({
+        category: 'spark:error',
+        action: 'wallet_initialize_sdk_failure_raw',
+        label: expect.stringContaining('must not be be 0 or 1')
+      }));
     });
     
     it('should call wallet.cleanupConnections when the service layer scope is closed', async () => {
