@@ -334,6 +334,46 @@ export function createOllamaService(
 
     return {
         generateChatCompletion,
-        generateChatCompletionStream
+        generateChatCompletionStream,
+        
+        /**
+         * Checks if the Ollama service is available and responding
+         */
+        checkOllamaStatus: () => Effect.gen(function* (_) {
+            // For most Ollama installs, the root URL returns a simple response like "Ollama is running"
+            // We'll use the base URL without any API path to check the service
+            const rootUrl = config.baseURL.replace("/v1", "");
+            const httpRequest = HttpClientRequest.get(rootUrl);
+
+            try {
+                const response = yield* _(
+                    httpClient.execute(httpRequest),
+                    Effect.mapError(httpClientError =>
+                        new OllamaHttpError(
+                            `HTTP request failed for Ollama status check: ${httpClientError._tag || "Unknown error"}`,
+                            httpRequest,
+                            httpClientError
+                        )
+                    )
+                );
+
+                if (response.status === 200) {
+                    // Try to get the response body as text
+                    const textResponse = yield* _(
+                        response.text,
+                        Effect.mapError(e => new OllamaParseError("Failed to parse Ollama status text response", e))
+                    );
+                    
+                    // Usually "Ollama is running" or something similar
+                    return textResponse.toLowerCase().includes("ollama is running") || 
+                           textResponse.toLowerCase().includes("ollama") ||
+                           response.status === 200; // Fall back to just checking status
+                }
+                return false; // Unexpected status code
+            } catch (error) {
+                // Any error means Ollama is unreachable
+                return false;
+            }
+        })
     };
 }

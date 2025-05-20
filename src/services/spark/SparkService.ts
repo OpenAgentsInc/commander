@@ -152,6 +152,12 @@ export interface SparkService {
 
   getSingleUseDepositAddress(): Effect.Effect<string, SparkError | TrackEventError, never>;
 
+  /**
+   * Checks if the wallet is initialized and connected.
+   * Returns true if the wallet is connected and ready to use, false otherwise.
+   */
+  checkWalletStatus(): Effect.Effect<boolean, SparkError | TrackEventError, never>;
+
   // Additional methods could be added based on Spark SDK capabilities
 }
 

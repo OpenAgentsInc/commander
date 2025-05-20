@@ -7,3 +7,4 @@ export * from './setActivePane';
 export * from './openChatPane';
 export * from './createNip28ChannelPane';
 export * from './openNip90DashboardPane';
+export * from './openSellComputePane';

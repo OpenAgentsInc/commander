@@ -12,6 +12,7 @@ import {
   setActivePaneAction,
   createNip28ChannelPaneAction,
   openNip90DashboardPaneAction,
+  openSellComputePaneAction,
 } from "./panes/actions";
 import { 
   DEFAULT_NIP28_PANE_ID,
@@ -76,6 +77,7 @@ export const usePaneStore = create<PaneStoreType>()(
       setActivePane: (id: string | null) => setActivePaneAction(set, id),
       createNip28ChannelPane: (channelName?: string) => createNip28ChannelPaneAction(set, get, channelName),
       openNip90DashboardPane: () => openNip90DashboardPaneAction(set),
+      openSellComputePane: () => openSellComputePaneAction(set),
       resetHUDState: () => {
         const newInitialState: PaneState = {
             panes: getInitialPanes(),

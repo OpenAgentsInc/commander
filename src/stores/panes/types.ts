@@ -17,6 +17,7 @@ export interface PaneStoreType extends PaneState {
   setActivePane: (id: string | null) => void;
   createNip28ChannelPane: (channelName?: string) => void; // Add a NIP28 channel pane
   openNip90DashboardPane: () => void; // Open NIP-90 DVM dashboard pane
+  openSellComputePane: () => void; // Open Sell Compute pane
   resetHUDState: () => void;
 }
 

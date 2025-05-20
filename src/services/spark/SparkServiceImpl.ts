@@ -687,7 +687,57 @@ export const SparkServiceLive = Layer.scoped(
               errorContext: (err as SparkError).context
             })
           }))
-        )
+        ),
+        
+      /**
+       * Checks if the wallet is initialized and connected by attempting a lightweight operation
+       */
+      checkWalletStatus: () => Effect.gen(function* (_) {
+        yield* _(telemetry.trackEvent({
+          category: 'spark:status',
+          action: 'check_wallet_status_start',
+        }).pipe(Effect.ignoreLogged));
+
+        try {
+          // Attempting getBalance is a reasonable way to check if wallet is operational
+          const balanceInfoSDK = yield* _(
+            Effect.tryPromise({
+              try: () => wallet.getBalance(),
+              catch: (e) => new SparkBalanceError({ message: "getBalance failed during status check", cause: e }),
+            })
+          );
+          
+          // If getBalance succeeds, consider wallet connected and ready
+          yield* _(telemetry.trackEvent({
+            category: 'spark:status',
+            action: 'check_wallet_status_success',
+            label: `Wallet ready, balance: ${balanceInfoSDK.balance}`,
+          }).pipe(Effect.ignoreLogged));
+          
+          return true;
+        } catch (error) {
+          const sparkError = error as SparkError;
+          
+          if (sparkError instanceof SparkConfigError || 
+              (sparkError instanceof SparkServiceError && 
+               sparkError.message.toLowerCase().includes("initialize"))) {
+            yield* _(telemetry.trackEvent({
+              category: 'spark:status',
+              action: 'check_wallet_status_failure_not_initialized',
+              label: sparkError.message,
+            }).pipe(Effect.ignoreLogged));
+            return false;
+          }
+          
+          yield* _(telemetry.trackEvent({
+            category: 'spark:status',
+            action: 'check_wallet_status_failure_other',
+            label: sparkError.message,
+          }).pipe(Effect.ignoreLogged));
+          
+          return false;
+        }
+      }),
     };
   })
 );
