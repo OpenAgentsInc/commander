@@ -13,6 +13,8 @@ export interface JobHistoryEntry {
   ollamaModelUsed?: string; // Model used for processing
   tokensProcessed?: number; // If applicable, e.g., for text generation
   invoiceAmountSats?: number; // Amount in sats requested
+  invoiceBolt11?: string; // The BOLT11 invoice string sent to the client
+  invoicePaymentHash?: string; // The payment hash of the invoice
   paymentReceivedSats?: number; // Amount in sats actually received (for future payment verification)
   resultSummary?: string; // Brief summary of the result or "N/A"
   errorDetails?: string; // If status is 'error', details of the error

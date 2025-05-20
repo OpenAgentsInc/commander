@@ -1,4 +1,4 @@
-import { Effect, Layer, Schema, Option, Cause } from 'effect';
+import { Effect, Layer, Schema, Option, Cause, Fiber, Schedule, Duration } from 'effect';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { finalizeEvent, type EventTemplate } from 'nostr-tools/pure';
 import { TelemetryService } from '@/services/telemetry';
@@ -128,6 +128,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
     let isActiveInternal = config.active || false;
     let currentSubscription: Subscription | null = null;
     let currentDvmPublicKeyHex = useDVMSettingsStore.getState().getDerivedPublicKeyHex() || config.dvmPublicKeyHex;
+    let invoiceCheckFiber: Fiber.RuntimeFiber<void, never> | null = null;
     
     // Track service initialization
     yield* _(telemetry.trackEvent({
@@ -151,6 +152,112 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         ),
         Effect.ignoreLogged // Ignore errors for feedback, main flow continues
       );
+    
+    /**
+     * Periodically checks for invoices with pending payment status and updates their status
+     * by checking with the Spark service.
+     */
+    const checkAndUpdateInvoiceStatuses = (): Effect.Effect<void, DVMError | TrackEventError, Kind5050DVMService | SparkService | TelemetryService> => 
+      Effect.gen(function* (_) {
+        yield* _(telemetry.trackEvent({ 
+          category: 'dvm:payment_check', 
+          action: 'check_all_invoices_start' 
+        }).pipe(Effect.ignoreLogged));
+
+        // Access the service instance itself for calling getJobHistory
+        const dvmService = yield* _(Kind5050DVMService);
+        
+        // Get a large page of job history to find pending payment jobs
+        const historyResult = yield* _(dvmService.getJobHistory({ page: 1, pageSize: 500 }));
+        
+        // Filter for jobs with pending_payment status and invoiceBolt11
+        const pendingPaymentJobs = historyResult.entries.filter(
+          job => job.status === 'pending_payment' && job.invoiceBolt11
+        );
+
+        if (pendingPaymentJobs.length === 0) {
+          yield* _(telemetry.trackEvent({ 
+            category: 'dvm:payment_check', 
+            action: 'no_pending_invoices_found' 
+          }).pipe(Effect.ignoreLogged));
+          return;
+        }
+
+        yield* _(telemetry.trackEvent({ 
+          category: 'dvm:payment_check', 
+          action: 'checking_pending_invoices', 
+          value: String(pendingPaymentJobs.length) 
+        }).pipe(Effect.ignoreLogged));
+
+        // Process each pending payment job
+        for (const job of pendingPaymentJobs) {
+          if (!job.invoiceBolt11) continue; // Should not happen due to filter, but checking anyway
+
+          yield* _(telemetry.trackEvent({
+            category: 'dvm:payment_check',
+            action: 'check_invoice_attempt',
+            label: `Job ID: ${job.id}`,
+            value: job.invoiceBolt11.substring(0, 20) + '...'
+          }).pipe(Effect.ignoreLogged));
+
+          // Check invoice status via SparkService, handling errors individually
+          // so one failure doesn't stop checking others
+          const invoiceStatusResult = yield* _(
+            spark.checkInvoiceStatus(job.invoiceBolt11).pipe(
+              Effect.catchTag("SparkError", (err) => {
+                Effect.runFork(telemetry.trackEvent({
+                  category: 'dvm:payment_check_error',
+                  action: 'spark_check_invoice_failed',
+                  label: `Job ID: ${job.id}, Invoice: ${job.invoiceBolt11?.substring(0,20)}...`,
+                  value: err.message
+                }));
+                // Return a default error status, but don't fail the whole loop
+                return Effect.succeed({ status: 'error' as const, message: err.message });
+              })
+            )
+          );
+
+          // Handle paid invoices
+          if (invoiceStatusResult.status === 'paid') {
+            yield* _(telemetry.trackEvent({
+              category: 'dvm:payment_check',
+              action: 'invoice_paid',
+              label: `Job ID: ${job.id}`,
+              value: JSON.stringify({ amount: invoiceStatusResult.amountPaidMsats })
+            }).pipe(Effect.ignoreLogged));
+            
+            // TODO: Update job status to 'paid' in job history.
+            // For now, we just log it conceptually since we're using mock data
+            console.log(`[DVM] Job ${job.id} invoice PAID. Amount: ${invoiceStatusResult.amountPaidMsats} msats. Conceptual update to status: 'paid'.`);
+            
+            // In a real implementation with persistence, we would update the job in storage
+            // Example of what this would look like:
+            // yield* _(updateJobInHistory(job.id, { 
+            //   status: 'paid', 
+            //   paymentReceivedSats: Math.floor((invoiceStatusResult.amountPaidMsats || 0) / 1000) 
+            // }));
+          } 
+          // Handle expired or error invoices
+          else if (invoiceStatusResult.status === 'expired' || invoiceStatusResult.status === 'error') {
+            yield* _(telemetry.trackEvent({
+              category: 'dvm:payment_check',
+              action: `invoice_${invoiceStatusResult.status}`,
+              label: `Job ID: ${job.id}`,
+              value: invoiceStatusResult.status === 'error' 
+                ? (invoiceStatusResult as any).message 
+                : undefined
+            }).pipe(Effect.ignoreLogged));
+            
+            // TODO: Optionally update job status based on policy (e.g., to 'payment_failed' or 'cancelled')
+            console.log(`[DVM] Job ${job.id} invoice ${invoiceStatusResult.status}.`);
+          }
+        }
+
+        yield* _(telemetry.trackEvent({ 
+          category: 'dvm:payment_check', 
+          action: 'check_all_invoices_complete' 
+        }).pipe(Effect.ignoreLogged));
+      });
     
     /**
      * The main job processing logic
@@ -483,6 +590,32 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         currentSubscription = sub;
         isActiveInternal = true;
         
+        // Start the periodic invoice check
+        const invoiceCheckLoopEffect = checkAndUpdateInvoiceStatuses().pipe(
+          Effect.catchAllCause(cause =>
+            telemetry.trackEvent({
+              category: "dvm:error",
+              action: "invoice_check_loop_error",
+              label: "Error in periodic invoice check loop",
+              value: Cause.pretty(cause)
+            }).pipe(Effect.ignoreLogged)
+          )
+        );
+        
+        // Schedule the effect to run periodically (every 2 minutes)
+        const scheduledInvoiceCheck = Effect.repeat(
+          invoiceCheckLoopEffect,
+          Schedule.spaced(Duration.minutes(2))
+        );
+        
+        // Fork the scheduled effect into its own fiber
+        invoiceCheckFiber = Effect.runFork(scheduledInvoiceCheck);
+        
+        yield* _(telemetry.trackEvent({ 
+          category: 'dvm:status', 
+          action: 'invoice_check_loop_started' 
+        }).pipe(Effect.ignoreLogged));
+        
         yield* _(telemetry.trackEvent({ 
           category: 'dvm:status', 
           action: 'start_listening_success' 
@@ -517,6 +650,16 @@ export const Kind5050DVMServiceLive = Layer.scoped(
               label: e instanceof Error ? e.message : String(e) 
             }).pipe(Effect.ignoreLogged));
           }
+        }
+        
+        // Interrupt the invoice checking fiber if active
+        if (invoiceCheckFiber) {
+          Effect.runFork(Fiber.interrupt(invoiceCheckFiber));
+          invoiceCheckFiber = null;
+          yield* _(telemetry.trackEvent({ 
+            category: 'dvm:status', 
+            action: 'invoice_check_loop_stopped' 
+          }).pipe(Effect.ignoreLogged));
         }
         
         // Update state
@@ -558,6 +701,8 @@ export const Kind5050DVMServiceLive = Layer.scoped(
             ollamaModelUsed: 'gemma2:latest', 
             tokensProcessed: 120, 
             invoiceAmountSats: 20, 
+            invoiceBolt11: 'lnbcrt200n1pj9x8dgpp5d55rctgx5m72zzdrp23w43xx4zzvctp5jdcde7hvj0kkm3c9nwksdqqcqzzsxqyz5vqsp5paid_invoice_stub5jkgmqv9x4tx0cuv3h86f9v6c8m5h8txpvdnhveq9qyyssqyjm2z2ay3ta76c7u2hwkwkk6wdcqgd4hmgj6q8ru5s5y2vk6fafxxdc39z9kc5qjw0wc9cmgpz4a5pgm6jfygvcrg9jk9equcq07jcrp',
+            invoicePaymentHash: 'e7d0b290764720c4cc8a2a901abe98af7864a951a7cbc3090cd0faaa5fefd89f',
             paymentReceivedSats: 20, 
             resultSummary: 'Bonjour le monde' 
           },
@@ -581,7 +726,9 @@ export const Kind5050DVMServiceLive = Layer.scoped(
             inputSummary: 'Image generation: cat astronaut', 
             status: 'pending_payment', 
             ollamaModelUsed: 'dall-e-stub', 
-            invoiceAmountSats: 100 
+            invoiceAmountSats: 100,
+            invoiceBolt11: 'lnbcrt1u1pj9x8r7pp50erc4fkrzucva5m4nrz4vykza72zefnre8d76t4atqf4p4jjjtmsdqqcqzzsxqyz5vqsp5pending_invoice_stub4eqv6v8q35jcudq7lw9kwl0l2e5vs954fcpj92fsq9qyyssqfdaxj3mpkjspcvvell9v5kjvme7nrr5k49re94u3cyljrgysfdwy2td2j5vfaqvr9jl3tn786g0m75wu7hsuy7q453guqh2r08syqp2gc0vp',
+            invoicePaymentHash: '3db44da2b89d19a05b48c12a5533678cf127ff3f7abc1813d9b368800a343ac8' 
           },
           {
             id: 'job4',
@@ -594,6 +741,8 @@ export const Kind5050DVMServiceLive = Layer.scoped(
             ollamaModelUsed: 'llama3:instruct',
             tokensProcessed: 350,
             invoiceAmountSats: 50,
+            invoiceBolt11: 'lnbcrt500n1pj9x8p5pp5r7eqkj0cljdhtfvfgjzfq0ftfn9twp0j5gvdlhwujkty4atg32vqdqqcqzzsxqyz5vqsp5paid_invoice_stub7dz6drzn5wdl9tqq2ke6ewz50axpvtfv7l8tkvwysq9qyyssqmyec09j2fky6h3wsjhnmjynpx37v6gejnqv5jlnxr4cp808x4n65wh8h38kl9tlruvzhfgllkflm9jm46lxrfsnwvpnsdyl86qnqqutehcq',
+            invoicePaymentHash: '7cfceb3e2d169a61110c57e06f8ebd5823d781f3bb49fb4d25d5de132d6c6c2a',
             paymentReceivedSats: 50,
             resultSummary: 'Digital dreams in silicon sleep...'
           },
@@ -608,8 +757,38 @@ export const Kind5050DVMServiceLive = Layer.scoped(
             ollamaModelUsed: 'codellama:latest',
             tokensProcessed: 420,
             invoiceAmountSats: 60,
+            invoiceBolt11: 'lnbcrt600n1pj9x8zcpp5xvavgfdtkjz3zp2xsydqdk0hf2f0zu203fc2vj4v5hkrjmnk2j3qdqqcqzzsxqyz5vqsp5paid_invoice_stub57ycxrdht92tn76mnmcplzc88ck9dt52wt9dk3l3lq9qyyssq73upt3h5lcrqyux3r42cl46z2jd7jlu2vfylfsh7h3vl98lkh5jxkef2xf2vg6la3cgqu59x4mddmzwutjgufmv7kddl7uksvv8cpdgsfka',
+            invoicePaymentHash: '43dc85844c65e6fcae0d6dee11498d92c99bed6bf5d8f6720e5a7e39a5f0dd56',
             paymentReceivedSats: 60,
             resultSummary: 'Found issue in line 42...'
+          },
+          {
+            id: 'job6',
+            timestamp: Date.now() - 43200000, // 12 hours ago
+            jobRequestEventId: 'req6',
+            requesterPubkey: 'pk_requester4',
+            kind: 5100,
+            inputSummary: 'Analyze this data structure',
+            status: 'pending_payment',
+            ollamaModelUsed: 'codellama:latest',
+            tokensProcessed: 320,
+            invoiceAmountSats: 40,
+            invoiceBolt11: 'lnbcrt400n1pj9x83dpp50exzgcnpw4v2fsexvfs2w2h36zvhv65qtv3uav2dm0eckfk25cgsdqqcqzzsxqyz5vqsp5expired_invoice_stub57y48sfw39ztwnflzqwue6v62k9srdkx57a6mfhjxsq9qyyssq6a0hgpywl3kcp5kuxkva6dfwmwlv3qfglu2ftl67fh9ynvmpzfl2wvpq7zupg9v6m2qdp9fvzft2rjkqvhw8g36ukvnjm9qy7f5gq0u4qkf',
+            invoicePaymentHash: '8f735f5f36f8eb20b0e9f25c4c0d4e2c9e3d0f1b2a5c8e7d6f3a2b5c8d7e6f5a4'
+          },
+          {
+            id: 'job7',
+            timestamp: Date.now() - 21600000, // 6 hours ago
+            jobRequestEventId: 'req7',
+            requesterPubkey: 'pk_requester5',
+            kind: 5100,
+            inputSummary: 'Generate test cases for my API',
+            status: 'pending_payment',
+            ollamaModelUsed: 'llama3:instruct',
+            tokensProcessed: 280,
+            invoiceAmountSats: 35,
+            invoiceBolt11: 'lnbcrt350n1pj9x8zwpp5k5wjcr75r9wvtmg2wrzk0h0d29qpkjl09z6cjy2f4tkn68v2enmsdqqcqzzsxqyz5vqsp5error_invoice_stub57y4azwsfwcv4j3hprx7j5xc55gvdlexq65lf98ffq9qyyssqwj02ek6ftlal7kmk29v2uk5nj8h5zpfnqm5xfvprg5k4j0m8gpcfzmpdavnvmf6wctmk5hzjkf8qhjzejfmmp0j2l45e6s2hpyvspqf8ruw',
+            invoicePaymentHash: '1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7a8b9c0d1e2f'
           }
         ];
         
