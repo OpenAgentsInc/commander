@@ -100,11 +100,13 @@ export default function Nip90RequestForm() {
       };
 
       // 4. Use the NIP90Service from mainRuntime
-      const result = await pipe(
-        Effect.flatMap(NIP90Service, service => service.createJobRequest(jobParams)),
-        Effect.map(event => event.id),
-        runPromise(mainRuntime)
+      const programToRun = Effect.flatMap(NIP90Service, service =>
+        service.createJobRequest(jobParams) // This returns Effect<NostrEvent, ...>
+      ).pipe(
+        Effect.map(event => event.id) // `event` is NostrEvent here
       );
+
+      const result = await runPromise(Effect.provide(programToRun, mainRuntime));
 
       // Store successful event info
       setPublishedEventId(result);

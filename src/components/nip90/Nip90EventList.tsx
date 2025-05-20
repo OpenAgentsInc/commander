@@ -32,30 +32,25 @@ async function fetchNip90JobRequests(): Promise<NostrEvent[]> {
   }];
 
   // Use mainRuntime to get access to NIP90Service
-  return await pipe(
-    Effect.flatMap(NIP90Service, service => {
-      // For job requests, we're using direct NostrService functionality
-      // The service doesn't have a specific method just for listing job requests
-      // So we can use the NostrService that NIP90Service depends on
-      return Effect.gen(function* (_) {
-        const nostrService = yield* _(service["nostr"]);
-        const events = yield* _(nostrService.listEvents(filters));
-        console.log(`[Nip90Component] Fetched ${events.length} NIP-90 events`);
-        
-        if (events.length > 0) {
-          console.log("[Nip90Component] Event kinds distribution:", 
-            events.reduce((acc, ev) => {
-              acc[ev.kind] = (acc[ev.kind] || 0) + 1;
-              return acc;
-            }, {} as Record<number, number>)
-          );
-        }
-        
-        return events;
-      });
-    }),
-    runPromise(mainRuntime)
-  );
+  const program = Effect.gen(function* (_) {
+    const nostrSvc = yield* _(NIP90Service);
+    const nostrService = yield* _(nostrSvc["nostr"]);
+    const events: NostrEvent[] = yield* _(nostrService.listEvents(filters)); // Explicitly type events
+    console.log(`[Nip90EventList] Fetched ${events.length} NIP-90 events`);
+    if (events.length > 0) {
+      console.log("[Nip90Component] Event kinds distribution:", 
+        events.reduce((acc, ev) => { // ev is now NostrEvent
+          acc[ev.kind] = (acc[ev.kind] || 0) + 1;
+          return acc;
+        }, {} as Record<number, number>)
+      );
+    }
+    return events;
+  });
+  
+  // Now provide the runtime to the program and run it
+  const result: NostrEvent[] = await runPromise(Effect.provide(program, mainRuntime));
+  return result;
 }
 
 // Helper to format event tags for display
@@ -76,14 +71,18 @@ const useNip19Encoding = (hexValue: string, type: 'npub' | 'note') => {
     queryKey: ['nip19Encode', type, hexValue],
     queryFn: async () => {
       try {
-        return await pipe(
-          Effect.flatMap(NIP19Service, service => {
-            return type === 'npub' 
-              ? service.encodeNpub(hexValue)
-              : service.encodeNote(hexValue);
-          }),
-          runPromise(mainRuntime)
-        );
+        const program = Effect.gen(function* (_) {
+          const nip19Svc = yield* _(NIP19Service);
+          let encoded: string;
+          if (type === 'npub') {
+            encoded = yield* _(nip19Svc.encodeNpub(hexValue));
+          } else {
+            encoded = yield* _(nip19Svc.encodeNote(hexValue));
+          }
+          return encoded;
+        });
+        const result: string = await runPromise(Effect.provide(program, mainRuntime));
+        return result;
       } catch (err) {
         console.error(`[Nip90Component] Error encoding ${type}:`, err);
         return `${type}1${hexValue.substring(0, 8)}...`;
@@ -134,18 +133,22 @@ const Nip90EventCard: React.FC<Nip90EventCardProps> = ({ event }) => {
       }
       
       // Fetch job result using NIP90Service
-      const result = await pipe(
-        Effect.flatMap(NIP90Service, service => service.getJobResult(event.id, undefined, decryptionKey)),
-        runPromise(mainRuntime)
-      );
+      const resultProgram = Effect.gen(function* (_) {
+        const nip90Svc = yield* _(NIP90Service);
+        const result = yield* _(nip90Svc.getJobResult(event.id, undefined, decryptionKey));
+        return result;
+      });
+      const result = await runPromise(Effect.provide(resultProgram, mainRuntime));
       
       setJobResult(result);
       
       // Fetch job feedback using NIP90Service
-      const feedback = await pipe(
-        Effect.flatMap(NIP90Service, service => service.listJobFeedback(event.id, undefined, decryptionKey)),
-        runPromise(mainRuntime)
-      );
+      const feedbackProgram = Effect.gen(function* (_) {
+        const nip90Svc = yield* _(NIP90Service);
+        const feedback = yield* _(nip90Svc.listJobFeedback(event.id, undefined, decryptionKey));
+        return feedback;
+      });
+      const feedback = await runPromise(Effect.provide(feedbackProgram, mainRuntime));
       
       setJobFeedback(feedback);
     } catch (error) {
