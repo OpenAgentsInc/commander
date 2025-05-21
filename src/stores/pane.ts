@@ -33,51 +33,30 @@ import {
 
 // Function to get initial panes
 const getInitialPanes = (): Pane[] => {
-  const initialPanes: Pane[] = [];
   const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
   const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
 
-  // 1. Welcome Chat (NIP-28 Default) - Bottom-left, smaller, inactive
-  initialPanes.push({
-    id: DEFAULT_NIP28_PANE_ID,
-    type: 'nip28_channel',
-    title: DEFAULT_NIP28_CHANNEL_TITLE,
-    x: PANE_MARGIN,
-    y: screenHeight - WELCOME_CHAT_INITIAL_HEIGHT - PANE_MARGIN - HOTBAR_APPROX_HEIGHT,
-    width: WELCOME_CHAT_INITIAL_WIDTH,
-    height: WELCOME_CHAT_INITIAL_HEIGHT,
-    isActive: false, // Inactive by default
-    dismissable: true, // Allow user to close it
-    content: {
-      channelId: DEFAULT_NIP28_CHANNEL_ID,
-      channelName: DEFAULT_NIP28_CHANNEL_TITLE,
-    },
-  });
-
-  // 2. Sell Compute Pane - Central, larger, active
-  initialPanes.push({
+  // Only return the Sell Compute pane for focused "Compute Market" launch
+  return [{
     id: SELL_COMPUTE_PANE_ID_CONST,
     type: 'sell_compute',
     title: 'Sell Compute Power',
     x: Math.max(PANE_MARGIN, (screenWidth - SELL_COMPUTE_INITIAL_WIDTH) / 2),
-    y: Math.max(PANE_MARGIN, (screenHeight - SELL_COMPUTE_INITIAL_HEIGHT) / 3), // Positioned a bit higher than exact center
+    y: Math.max(PANE_MARGIN, (screenHeight - SELL_COMPUTE_INITIAL_HEIGHT) / 3),
     width: SELL_COMPUTE_INITIAL_WIDTH,
     height: SELL_COMPUTE_INITIAL_HEIGHT,
-    isActive: true, // Active by default
+    isActive: true,
     dismissable: true,
-    content: {}, // No specific content needed for this type at init
-  });
-
-  return initialPanes;
+    content: {},
+  }];
 };
 
 const initialState: PaneState = {
   panes: getInitialPanes(),
-  activePaneId: SELL_COMPUTE_PANE_ID_CONST, // Sell Compute is active
-  lastPanePosition: null,
+  activePaneId: SELL_COMPUTE_PANE_ID_CONST,
+  lastPanePosition: null, // Will be set below
 };
 
-// Set lastPanePosition based on the Sell Compute pane's initial position
 const sellComputePaneInitial = initialState.panes.find(p => p.id === SELL_COMPUTE_PANE_ID_CONST);
 if (sellComputePaneInitial) {
     initialState.lastPanePosition = {
@@ -138,49 +117,25 @@ export const usePaneStore = create<PaneStoreType>()(
         activePaneId: state.activePaneId,
       }),
       merge: (persistedState, currentState) => {
-        let merged = { ...currentState, ...(persistedState as Partial<PaneStoreType>) };
-
+        // For the focused "Compute Market" launch, we'll force the initial state
+        // to have just the Sell Compute pane
         const defaultInitialPanes = getInitialPanes();
         const defaultActiveId = SELL_COMPUTE_PANE_ID_CONST;
         const defaultSellComputePane = defaultInitialPanes.find(p => p.id === SELL_COMPUTE_PANE_ID_CONST);
-
-        // If panes are missing or Sell Compute is not primary, reset to defaults
-        if (!merged.panes || merged.panes.length === 0 || !merged.panes.some(p => p.id === SELL_COMPUTE_PANE_ID_CONST) || merged.activePaneId !== SELL_COMPUTE_PANE_ID_CONST) {
-          merged = {
-            ...merged,
-            panes: defaultInitialPanes,
-            activePaneId: defaultActiveId,
-            lastPanePosition: defaultSellComputePane ? {
-              x: defaultSellComputePane.x, y: defaultSellComputePane.y,
-              width: defaultSellComputePane.width, height: defaultSellComputePane.height
-            } : null
-          };
-        } else {
-          // Ensure the Welcome Chat (default NIP-28) exists with its bottom-left small config if not persisted correctly
-          const welcomeChatPane = merged.panes.find(p => p.id === DEFAULT_NIP28_PANE_ID);
-          const defaultWelcomeChat = defaultInitialPanes.find(p => p.id === DEFAULT_NIP28_PANE_ID)!;
-          if (!welcomeChatPane) {
-            merged.panes.unshift(defaultWelcomeChat); // Add to beginning (rendered first, lower z-index)
-          } else {
-            // If it exists, ensure it's not active if Sell Compute is active
-            if (merged.activePaneId === SELL_COMPUTE_PANE_ID_CONST && welcomeChatPane.isActive) {
-                const wcIndex = merged.panes.findIndex(p => p.id === DEFAULT_NIP28_PANE_ID);
-                if (wcIndex > -1) {
-                    merged.panes[wcIndex] = {...merged.panes[wcIndex], isActive: false};
-                }
-            }
-          }
-        }
-        // Ensure Sell Compute pane is last in array if it's active, for z-index stacking
-        if (merged.activePaneId === SELL_COMPUTE_PANE_ID_CONST) {
-            const scPane = merged.panes.find(p => p.id === SELL_COMPUTE_PANE_ID_CONST);
-            if (scPane) {
-                merged.panes = merged.panes.filter(p => p.id !== SELL_COMPUTE_PANE_ID_CONST);
-                merged.panes.push(scPane);
-            }
-        }
-
-        return merged;
+        
+        // Start with a clean initial state (ignoring persisted state)
+        // This ensures we only have Sell Compute pane visible on startup
+        return {
+          ...currentState,
+          panes: defaultInitialPanes,
+          activePaneId: defaultActiveId,
+          lastPanePosition: defaultSellComputePane ? {
+            x: defaultSellComputePane.x,
+            y: defaultSellComputePane.y,
+            width: defaultSellComputePane.width,
+            height: defaultSellComputePane.height
+          } : null
+        };
       },
     }
   )

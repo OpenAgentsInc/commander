@@ -1,13 +1,8 @@
 import React from 'react';
 import { cn } from '@/utils/tailwind';
 import { HotbarItem } from './HotbarItem';
-import { RefreshCw, Hand, MessageSquarePlus, Cpu, Store, History, TestTube, MessageSquare, Globe } from 'lucide-react';
+import { RefreshCw, Store, History } from 'lucide-react';
 import { usePaneStore } from '@/stores/pane';
-import { 
-  NIP90_DVM_TEST_PANE_ID, 
-  NIP90_CONSUMER_CHAT_PANE_ID,
-  NIP90_GLOBAL_FEED_PANE_ID
-} from '@/stores/panes/constants';
 
 interface HotbarProps {
   className?: string;
@@ -25,20 +20,9 @@ export const Hotbar: React.FC<HotbarProps> = ({
   onOpenDvmJobHistoryPane 
 }) => {
   const resetHUDState = usePaneStore((state) => state.resetHUDState);
-  const createNip28Channel = usePaneStore((state) => state.createNip28ChannelPane);
-  const openNip90Dashboard = usePaneStore((state) => state.openNip90DashboardPane);
-  const openNip90DvmTestPane = usePaneStore((state) => state.openNip90DvmTestPane);
-  const openNip90ConsumerChatPane = usePaneStore((state) => state.openNip90ConsumerChatPane);
-  const openNip90GlobalFeedPane = usePaneStore((state) => state.openNip90GlobalFeedPane);
   const activePaneId = usePaneStore((state) => state.activePaneId);
   const SELL_COMPUTE_PANE_ID = 'sell_compute';
   const DVM_JOB_HISTORY_PANE_ID = 'dvm_job_history';
-
-  const handleCreateChannel = () => {
-    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/:/g, '');
-    const defaultName = `Channel ${timestamp}`;
-    createNip28Channel(defaultName);
-  };
 
   return (
     <div
@@ -47,33 +31,22 @@ export const Hotbar: React.FC<HotbarProps> = ({
         className
       )}
     >
-      <HotbarItem slotNumber={1} onClick={resetHUDState} title="Reset HUD Layout">
-        <RefreshCw className="w-5 h-5 text-muted-foreground" />
-      </HotbarItem>
-      <HotbarItem slotNumber={2} onClick={onToggleHandTracking} title={isHandTrackingActive ? "Disable Hand Tracking" : "Enable Hand Tracking"} isActive={isHandTrackingActive}>
-        <Hand className="w-5 h-5 text-muted-foreground" />
-      </HotbarItem>
-      <HotbarItem slotNumber={3} onClick={handleCreateChannel} title="New NIP-28 Channel">
-        <MessageSquarePlus className="w-5 h-5 text-muted-foreground" />
-      </HotbarItem>
-      <HotbarItem slotNumber={4} onClick={openNip90Dashboard} title="NIP-90 DVM Dashboard" isActive={activePaneId === 'nip90-dashboard'}>
-        <Cpu className="w-5 h-5 text-muted-foreground" />
-      </HotbarItem>
-      <HotbarItem slotNumber={5} onClick={onOpenSellComputePane} title="Sell Compute" isActive={activePaneId === SELL_COMPUTE_PANE_ID}>
+      <HotbarItem slotNumber={1} onClick={onOpenSellComputePane} title="Sell Compute" isActive={activePaneId === SELL_COMPUTE_PANE_ID}>
         <Store className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
-      <HotbarItem slotNumber={6} onClick={onOpenDvmJobHistoryPane} title="DVM Job History" isActive={activePaneId === DVM_JOB_HISTORY_PANE_ID}>
+      <HotbarItem slotNumber={2} onClick={onOpenDvmJobHistoryPane} title="DVM Job History" isActive={activePaneId === DVM_JOB_HISTORY_PANE_ID}>
         <History className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
-      <HotbarItem slotNumber={7} onClick={openNip90DvmTestPane} title="NIP-90 DVM Test" isActive={activePaneId === NIP90_DVM_TEST_PANE_ID}>
-        <TestTube className="w-5 h-5 text-muted-foreground" />
+      <HotbarItem slotNumber={3} onClick={resetHUDState} title="Reset HUD Layout">
+        <RefreshCw className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
-      <HotbarItem slotNumber={8} onClick={openNip90ConsumerChatPane} title="NIP-90 Consumer Chat" isActive={activePaneId === NIP90_CONSUMER_CHAT_PANE_ID}>
-        <MessageSquare className="w-5 h-5 text-muted-foreground" />
-      </HotbarItem>
-      <HotbarItem slotNumber={9} onClick={openNip90GlobalFeedPane} title="NIP-90 Global Feed" isActive={activePaneId === NIP90_GLOBAL_FEED_PANE_ID}>
-        <Globe className="w-5 h-5 text-muted-foreground" />
-      </HotbarItem>
+      
+      {/* Fill the remaining 6 slots with empty HotbarItems */}
+      {Array.from({ length: 6 }).map((_, i) => (
+        <HotbarItem key={`empty-slot-${i}`} slotNumber={i + 4} isGhost>
+          <span className="w-5 h-5" />
+        </HotbarItem>
+      ))}
     </div>
   );
 };

@@ -5,6 +5,7 @@ import { HandTracking, HandPose } from "@/components/hands";
 import { type PinchCoordinates, type HandLandmarks } from "@/components/hands/handPoseTypes";
 import { usePaneStore } from "@/stores/pane";
 import { Hotbar } from "@/components/hud/Hotbar";
+import BitcoinBalanceDisplay from "@/components/hud/BitcoinBalanceDisplay";
 
 interface HandDataContext {
   activeHandPose: HandPose;
@@ -16,6 +17,7 @@ interface HandDataContext {
 const TITLE_BAR_HEIGHT = 32; // Title bar height is 2rem = 32px
 
 export default function HomePage() {
+  // Default hand tracking to off for "Compute Market" launch
   const [isHandTrackingActive, setIsHandTrackingActive] = useState(false);
   const [handData, setHandData] = useState<HandDataContext | null>(null);
 
@@ -119,7 +121,9 @@ export default function HomePage() {
     <div className="relative w-full h-full overflow-hidden">
       <SimpleGrid />
       <PaneManager />
-
+      <BitcoinBalanceDisplay />
+      
+      {/* HandTracking component is still here but its toggle is removed from UI */}
       <HandTracking
         showHandTracking={isHandTrackingActive}
         setShowHandTracking={setIsHandTrackingActive}
