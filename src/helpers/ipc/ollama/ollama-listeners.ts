@@ -12,7 +12,7 @@ import {
 } from "@/services/ollama/OllamaService";
 import { OllamaServiceLive } from "@/services/ollama/OllamaServiceImpl";
 import type { OllamaService as IOllamaService } from "@/services/ollama/OllamaService"; // For type annotation
-import { TelemetryService } from "@/services/telemetry";
+import { TelemetryService, DefaultTelemetryConfigLayer } from "@/services/telemetry";
 import { TelemetryServiceLive } from "@/services/telemetry/TelemetryServiceImpl";
 
 // Track active streams for cancellation
@@ -21,8 +21,18 @@ const activeStreams = new Map<string, () => void>();
 // For tracking chunk counts to reduce logging
 const chunkCounter: Record<string, number> = {};
 
+// Define interface for IPC error object
+interface IpcErrorObject {
+  __error: true;
+  name: string;
+  message: string;
+  stack?: string;
+  _tag?: string;
+  cause?: any;
+}
+
 // Helper function to extract error details suitable for IPC
-function extractErrorForIPC(error: any): object {
+function extractErrorForIPC(error: any): IpcErrorObject {
   // Helper for handling Effect Cause objects
   const causeDetails = (err: any) => {
     if (Cause.isCause(err)) {
@@ -85,15 +95,29 @@ export function addOllamaEventListeners() {
   // Create a combined layer for the Ollama service with all dependencies
   // MOVED INSIDE the function to ensure it's created at the right time in Electron's lifecycle
   let ollamaServiceLayer: Layer.Layer<IOllamaService, never, never>;
+  // Create a configured telemetry layer outside the try block
+  const configuredTelemetryLayer = TelemetryServiceLive.pipe(
+    Layer.provide(DefaultTelemetryConfigLayer)
+  );
+  
+  // Initialize ipcHandlerLayer outside the try block so it's in scope for the entire function
+  let ipcHandlerLayer: Layer.Layer<IOllamaService | TelemetryService, never, never>;
+  
   try {
     // Add telemetry to the layer for better observability
     ollamaServiceLayer = Layer.provide(
       OllamaServiceLive,
-      Layer.merge(
+      Layer.mergeAll(
         UiOllamaConfigLive, 
         NodeHttpClient.layer,
-        TelemetryServiceLive
+        configuredTelemetryLayer
       )
+    );
+    
+    // Create a comprehensive layer for IPC handlers that need services
+    ipcHandlerLayer = Layer.mergeAll(
+      ollamaServiceLayer,
+      configuredTelemetryLayer
     );
     console.log("[IPC Setup] Ollama service layer defined successfully inside addOllamaEventListeners.");
   } catch (e) {
@@ -107,7 +131,7 @@ export function addOllamaEventListeners() {
         message: "Ollama service not properly initialized",
         request: {},
         response: {}
-      } as any), // Cast to any to avoid TypeScript errors
+      }),
       generateChatCompletionStream: () => { 
         throw { 
           _tag: "OllamaHttpError", 
@@ -117,6 +141,12 @@ export function addOllamaEventListeners() {
         };
       }
     });
+    
+    // Also create a fallback ipcHandlerLayer
+    ipcHandlerLayer = Layer.mergeAll(
+      ollamaServiceLayer,
+      configuredTelemetryLayer
+    );
     console.log("[IPC Setup] Created fallback Ollama service layer");
   }
   try {
@@ -148,7 +178,7 @@ export function addOllamaEventListeners() {
       );
 
       try {
-        const result = await Effect.runPromise(program);
+        const result = await Effect.runPromise(program.pipe(Effect.provide(ipcHandlerLayer)));
         console.log(`[IPC Handler] Ollama status check result: ${result}`);
         return result;
       } catch (error) {
@@ -200,7 +230,7 @@ export function addOllamaEventListeners() {
       );
 
       try {
-        const result = await Effect.runPromise(program);
+        const result = await Effect.runPromise(program.pipe(Effect.provide(ipcHandlerLayer)));
         console.log("[IPC Handler] Chat completion generated successfully");
         return result;
       } catch (error) {
@@ -277,7 +307,7 @@ export function addOllamaEventListeners() {
       try {
         console.log(`[IPC Listener] Running program to get stream for ${requestId}`);
         // Run the program and get the stream result, with detailed error handling
-        const streamResult = await Effect.runPromiseExit(program);
+        const streamResult = await Effect.runPromiseExit(program.pipe(Effect.provide(ipcHandlerLayer)));
 
         if (Exit.isFailure(streamResult)) {
           // The program to get the stream itself failed
@@ -338,7 +368,7 @@ export function addOllamaEventListeners() {
                 value: requestId,
                 context: { chunks: chunkCounter[requestId] }
               }));
-            }).pipe(Effect.provide(ollamaServiceLayer), Effect.ignoreLogged));
+            }).pipe(Effect.provide(ipcHandlerLayer), Effect.ignoreLogged));
             
             event.sender.send(`${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL}:done`, requestId);
           } else {
@@ -354,7 +384,7 @@ export function addOllamaEventListeners() {
                 value: requestId,
                 context: { chunks: chunkCounter[requestId] }
               }));
-            }).pipe(Effect.provide(ollamaServiceLayer), Effect.ignoreLogged));
+            }).pipe(Effect.provide(ipcHandlerLayer), Effect.ignoreLogged));
           }
         } else { // Stream processing failed
           if (!signal.aborted) {
@@ -371,7 +401,7 @@ export function addOllamaEventListeners() {
                 value: requestId,
                 context: { chunks: chunkCounter[requestId], error: errorForIPC.message }
               }));
-            }).pipe(Effect.provide(ollamaServiceLayer), Effect.ignoreLogged));
+            }).pipe(Effect.provide(ipcHandlerLayer), Effect.ignoreLogged));
             
             event.sender.send(`${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL}:error`, requestId, errorForIPC);
           } else {
@@ -387,7 +417,7 @@ export function addOllamaEventListeners() {
                 value: requestId,
                 context: { chunks: chunkCounter[requestId] }
               }));
-            }).pipe(Effect.provide(ollamaServiceLayer), Effect.ignoreLogged));
+            }).pipe(Effect.provide(ipcHandlerLayer), Effect.ignoreLogged));
           }
         }
       } catch (initialProgramError) { // Catch synchronous errors from runPromiseExit or other setup

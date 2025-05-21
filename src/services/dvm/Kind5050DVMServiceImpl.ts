@@ -129,7 +129,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
     const config = yield* _(Kind5050DVMServiceConfigTag); // For default fallbacks
     const telemetry = yield* _(TelemetryService);
     const nostr = yield* _(NostrService);
-    const agentLanguageModel = yield* _(AgentLanguageModel.Tag);
+    const agentLanguageModel = yield* _(AgentLanguageModel);
     const spark = yield* _(SparkService);
     const nip04 = yield* _(NIP04Service);
     
@@ -511,7 +511,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
 
         const aiResponse = yield* _(agentLanguageModel.generateText(generateOptions).pipe(
           Effect.mapError(e => new DVMJobProcessingError({ 
-            message: `AI inference failed: ${e.message || "Unknown error"}`, 
+            message: `AI inference failed: ${e instanceof Error ? e.message : String(e) || "Unknown error"}`, 
             cause: e 
           }))
         ));
@@ -851,7 +851,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
 
         const aiResponse = yield* _(agentLanguageModel.generateText(generateOptions).pipe(
           Effect.mapError(e => new DVMJobProcessingError({ 
-            message: `AI inference failed: ${e.message || "Unknown error"}`, 
+            message: `AI inference failed: ${e instanceof Error ? e.message : String(e) || "Unknown error"}`, 
             cause: e 
           }))
         ));

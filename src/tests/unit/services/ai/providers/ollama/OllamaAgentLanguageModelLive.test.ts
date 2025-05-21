@@ -6,42 +6,75 @@ import { AgentLanguageModel } from '@/services/ai/core';
 import { AIProviderError } from '@/services/ai/core/AIError';
 import { OllamaAgentLanguageModelLive } from '@/services/ai/providers/ollama/OllamaAgentLanguageModelLive';
 import { OllamaOpenAIClientTag } from '@/services/ai/providers/ollama/OllamaAsOpenAIClientLive';
-import { OpenAiLanguageModel } from '@effect/ai-openai';
 
-// Mock OpenAiLanguageModel to fix the test
+// Mock the @effect/ai-openai imports
 vi.mock('@effect/ai-openai', async (importOriginal) => {
-  const actual = await importOriginal();
+  const actual = await importOriginal<typeof import('@effect/ai-openai')>();
   return {
-    ...actual,
-    OpenAiLanguageModel: {
-      model: (modelName: string) => Effect.succeed({
-        generateText: vi.fn().mockImplementation(() => 
-          Effect.succeed({ text: "Test response" })
-        ),
-        streamText: vi.fn().mockImplementation(() => 
-          Stream.succeed({ text: "Test response chunk" })
-        ),
-        generateStructured: vi.fn().mockImplementation(() => 
-          Effect.succeed({ text: "Test structured response" })
-        )
-      })
-    }
+    ...(actual || {})
   };
 });
 
 // Mock the OpenAI client
 const mockChatCompletionsCreate = vi.fn();
+const mockStream = vi.fn();
 const MockOllamaOpenAIClient = Layer.succeed(OllamaOpenAIClientTag, {
-  'chat.completions.create': mockChatCompletionsCreate,
-  'embeddings.create': vi.fn(),
-  'models.list': vi.fn()
+  client: {
+    chat: {
+      completions: {
+        create: mockChatCompletionsCreate
+      }
+    },
+    embeddings: {
+      create: vi.fn()
+    },
+    models: {
+      list: vi.fn()
+    }
+  },
+  streamRequest: vi.fn(),
+  stream: mockStream
 });
+
+// Mock the chat completions create to return test data
+mockChatCompletionsCreate.mockImplementation(() => Effect.succeed({
+  id: 'test-id',
+  object: 'chat.completion',
+  created: Date.now(),
+  model: 'gemma3:1b',
+  choices: [
+    {
+      index: 0,
+      message: { role: 'assistant', content: 'Test response' },
+      finish_reason: 'stop'
+    }
+  ],
+  usage: {
+    prompt_tokens: 10,
+    completion_tokens: 5,
+    total_tokens: 15
+  }
+}));
+
+// Mock the stream to return a Stream of chunks
+mockStream.mockImplementation(() => Stream.fromIterable([
+  {
+    parts: [
+      {
+        _tag: 'Content',
+        content: 'Test response chunk'
+      }
+    ],
+    text: { getOrElse: () => 'Test response chunk' }
+  }
+]));
 
 // Mock TelemetryService
 const mockTelemetryTrackEvent = vi.fn().mockImplementation(() => Effect.succeed(undefined));
 const MockTelemetryService = Layer.succeed(TelemetryService, {
   trackEvent: mockTelemetryTrackEvent,
-  trackError: vi.fn().mockImplementation(() => Effect.succeed(undefined))
+  isEnabled: vi.fn().mockImplementation(() => Effect.succeed(true)),
+  setEnabled: vi.fn().mockImplementation(() => Effect.succeed(undefined))
 });
 
 // Mock ConfigurationService
@@ -114,7 +147,7 @@ describe('OllamaAgentLanguageModelLive', () => {
 
   it.skip('should successfully build the layer and provide AgentLanguageModel', async () => {
     const program = Effect.gen(function*(_) {
-      const agentLM = yield* _(AgentLanguageModel.Tag);
+      const agentLM = yield* _(AgentLanguageModel);
       expect(agentLM).toBeDefined();
       expect(agentLM._tag).toBe('AgentLanguageModel');
       expect(typeof agentLM.generateText).toBe('function');
@@ -151,7 +184,7 @@ describe('OllamaAgentLanguageModelLive', () => {
     );
 
     const program = Effect.gen(function*(_) {
-      const agentLM = yield* _(AgentLanguageModel.Tag);
+      const agentLM = yield* _(AgentLanguageModel);
       const result = yield* _(agentLM.generateText({ prompt: 'test' }));
       return result;
     });
@@ -182,7 +215,7 @@ describe('OllamaAgentLanguageModelLive', () => {
 
   it.skip('should properly call generateText with correct parameters', async () => {
     const program = Effect.gen(function*(_) {
-      const agentLM = yield* _(AgentLanguageModel.Tag);
+      const agentLM = yield* _(AgentLanguageModel);
       const result = yield* _(agentLM.generateText({
         prompt: 'Test prompt',
         temperature: 0.7,
@@ -230,7 +263,7 @@ describe('OllamaAgentLanguageModelLive', () => {
     );
 
     const program = Effect.gen(function*(_) {
-      const agentLM = yield* _(AgentLanguageModel.Tag);
+      const agentLM = yield* _(AgentLanguageModel);
       return yield* _(agentLM.generateText({
         prompt: 'Test prompt'
       }));

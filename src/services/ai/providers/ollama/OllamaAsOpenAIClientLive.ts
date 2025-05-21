@@ -1,7 +1,11 @@
 // src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts
 import { Layer, Effect, Stream, Cause, Context } from "effect";
-import { OpenAiClient, OpenAiError } from "@effect/ai-openai";
-import type { ChatCompletion, ChatCompletionChunk, CreateChatCompletionRequest } from "@effect/ai-openai/OpenAiClient";
+import { OpenAiClient } from "@effect/ai-openai";
+import * as HttpClientError from "@effect/platform/HttpClientError";
+import { HttpClientRequest } from "@effect/platform/HttpClient";
+import { HttpClientResponse } from "@effect/platform/HttpClient";
+// Import Stream chunk here rather than as a type since we need to use it as a value
+import { StreamChunk } from "@effect/ai-openai/OpenAiClient";
 import { ConfigurationService } from "@/services/configuration";
 import { AIProviderError } from "@/services/ai/core/AIError";
 import { TelemetryService } from "@/services/telemetry";
@@ -35,164 +39,202 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
 
     // Implement the OpenAiClient interface
     return OllamaOpenAIClientTag.of({
-      "chat.completions.create": (params: CreateChatCompletionRequest) => {
-        const ipcParams = { ...params }; // Pass params as is; main process OllamaService handles defaults if needed.
-
-        if (params.stream) {
-          // Stream implementation
-          return Stream.asyncInterrupt<ChatCompletionChunk, OpenAiError>(emit => {
-            Effect.runFork(telemetry.trackEvent({ 
-              category: "ollama_adapter:stream", 
-              action: "create_start", 
-              label: params.model 
-            }));
-            
-            let ipcStreamCancel: (() => void) | undefined;
-            
-            try {
-              ipcStreamCancel = ollamaIPC.generateChatCompletionStream(
-                ipcParams,
-                (chunk) => {
-                  if (chunk && typeof chunk === 'object' && 'choices' in chunk) {
-                    emit.single(chunk as ChatCompletionChunk);
-                  } else {
-                    emit.failCause(Cause.die(new AIProviderError({
-                      message: "Ollama IPC stream received unexpected chunk format",
-                      provider: "OllamaAdapter(IPC-Stream)",
-                      context: { chunk }
-                    })));
-                  }
-                },
-                () => {
-                  Effect.runFork(telemetry.trackEvent({ 
-                    category: "ollama_adapter:stream", 
-                    action: "create_done", 
+      client: {
+        chat: {
+          completions: {
+            create: (params: any) => {
+              const ipcParams = { ...params }; // Pass params as is; main process OllamaService handles defaults if needed.
+              
+              // Non-streaming implementation (we handle streaming separately)
+              return Effect.tryPromise({
+                try: async () => {
+                  await Effect.runPromise(telemetry.trackEvent({ 
+                    category: "ollama_adapter:nonstream", 
+                    action: "create_start", 
                     label: params.model 
                   }));
-                  emit.end();
-                },
-                (error) => {
-                  const ipcError = error && typeof error === 'object' && error.hasOwnProperty('__error') 
-                    ? error as {__error: true, message: string} 
-                    : { __error: true, message: String(error) };
                   
-                  const providerError = new AIProviderError({
-                    message: `Ollama IPC stream error: ${ipcError.message}`,
-                    provider: "OllamaAdapter(IPC-Stream)",
-                    cause: ipcError,
+                  const response = await ollamaIPC.generateChatCompletion(ipcParams);
+                  
+                  if (response && response.__error) {
+                    const providerError = new AIProviderError({
+                      message: `Ollama IPC error: ${response.message}`,
+                      provider: "OllamaAdapter(IPC-NonStream)",
+                      cause: response,
+                      context: { model: params.model, originalError: response }
+                    });
+                    
+                    await Effect.runPromise(telemetry.trackEvent({ 
+                      category: "ollama_adapter:nonstream:error", 
+                      action: "ipc_error", 
+                      label: providerError.message 
+                    }));
+                    
+                    throw providerError;
+                  }
+                  
+                  await Effect.runPromise(telemetry.trackEvent({ 
+                    category: "ollama_adapter:nonstream", 
+                    action: "create_success", 
+                    label: params.model 
+                  }));
+                  
+                  // In practice, we'd need to properly map the response to match OpenAI's expected schema
+                  return response;
+                },
+                catch: (error) => {
+                  const providerError = error instanceof AIProviderError ? error : new AIProviderError({
+                    message: `Ollama IPC non-stream request failed: ${error instanceof Error ? error.message : String(error)}`,
+                    provider: "OllamaAdapter(IPC-NonStream)",
+                    cause: error,
                     context: { model: params.model }
                   });
                   
-                  Effect.runFork(telemetry.trackEvent({ 
-                    category: "ollama_adapter:stream:error", 
-                    action: "ipc_error", 
-                    label: providerError.message 
-                  }));
+                  if (!(error instanceof AIProviderError)) {
+                    Effect.runFork(telemetry.trackEvent({ 
+                      category: "ollama_adapter:nonstream:error", 
+                      action: "request_exception", 
+                      label: providerError.message 
+                    }));
+                  }
                   
-                  emit.failCause(Cause.die(providerError));
+                  return new HttpClientError.ResponseError({
+                    request: HttpClientRequest.get("ollama-ipc-nonstream"),
+                    response: HttpClientResponse.json(
+                      500, 
+                      { error: providerError.message }, 
+                      { headers: {} }
+                    )
+                  });
                 }
-              );
-            } catch (e) {
-              const setupError = new AIProviderError({
-                message: `Failed to setup Ollama IPC stream: ${e instanceof Error ? e.message : String(e)}`,
-                provider: "OllamaAdapterSetup(IPC-Stream)",
-                cause: e
               });
-              
-              Effect.runFork(telemetry.trackEvent({ 
-                category: "ollama_adapter:stream:error", 
-                action: "setup_exception", 
-                label: setupError.message 
-              }));
-              
-              emit.failCause(Cause.die(setupError));
             }
-            
-            // Return a cancellation function
-            return Effect.sync(() => {
-              if (ipcStreamCancel) {
-                Effect.runFork(telemetry.trackEvent({ 
-                  category: "ollama_adapter:stream", 
-                  action: "cancel_requested", 
-                  label: params.model 
-                }));
-                ipcStreamCancel();
-              }
-            });
-          }).pipe(
-            Stream.mapError(err => new OpenAiError({ error: err as any })) // Map AIProviderError to OpenAiError
-          );
-        } else {
-          // Non-streaming implementation
-          return Effect.tryPromise({
-            try: async () => {
-              await Effect.runPromise(telemetry.trackEvent({ 
-                category: "ollama_adapter:nonstream", 
-                action: "create_start", 
-                label: params.model 
-              }));
-              
-              const response = await ollamaIPC.generateChatCompletion(ipcParams);
-              
-              if (response && response.__error) {
-                const providerError = new AIProviderError({
-                  message: `Ollama IPC error: ${response.message}`,
-                  provider: "OllamaAdapter(IPC-NonStream)",
-                  cause: response,
-                  context: { model: params.model, originalError: response }
-                });
-                
-                await Effect.runPromise(telemetry.trackEvent({ 
-                  category: "ollama_adapter:nonstream:error", 
-                  action: "ipc_error", 
-                  label: providerError.message 
-                }));
-                
-                throw providerError;
-              }
-              
-              await Effect.runPromise(telemetry.trackEvent({ 
-                category: "ollama_adapter:nonstream", 
-                action: "create_success", 
-                label: params.model 
-              }));
-              
-              return response as ChatCompletion;
-            },
-            catch: (error) => {
-              const providerError = error instanceof AIProviderError ? error : new AIProviderError({
-                message: `Ollama IPC non-stream request failed: ${error instanceof Error ? error.message : String(error)}`,
-                provider: "OllamaAdapter(IPC-NonStream)",
-                cause: error,
-                context: { model: params.model }
-              });
-              
-              if (!(error instanceof AIProviderError)) {
-                Effect.runFork(telemetry.trackEvent({ 
-                  category: "ollama_adapter:nonstream:error", 
-                  action: "request_exception", 
-                  label: providerError.message 
-                }));
-              }
-              
-              return new OpenAiError({ error: providerError as any });
-            }
-          });
+          }
+        },
+        embeddings: {
+          create: () => Effect.die(new AIProviderError({ 
+            message: "OllamaAdapter: embeddings.create not implemented", 
+            provider: "OllamaAdapter" 
+          }))
+        },
+        models: {
+          list: () => Effect.die(new AIProviderError({ 
+            message: "OllamaAdapter: models.list not implemented", 
+            provider: "OllamaAdapter" 
+          }))
         }
       },
       
-      // Stub implementations for other required methods
-      "embeddings.create": (params) => 
-        Effect.die(new AIProviderError({ 
-          message: "OllamaAdapter: embeddings.create not implemented", 
-          provider: "OllamaAdapter" 
-        })),
+      streamRequest: (request) => Effect.die(new AIProviderError({ 
+        message: "OllamaAdapter: streamRequest not implemented directly, use stream instead", 
+        provider: "OllamaAdapter" 
+      })),
       
-      "models.list": () => 
-        Effect.die(new AIProviderError({ 
-          message: "OllamaAdapter: models.list not implemented", 
-          provider: "OllamaAdapter" 
-        })),
+      stream: (params: any) => {
+        // Stream implementation
+        return Stream.async<StreamChunk, HttpClientError.HttpClientError>(emit => {
+          Effect.runFork(telemetry.trackEvent({ 
+            category: "ollama_adapter:stream", 
+            action: "create_start", 
+            label: params.model 
+          }));
+          
+          let ipcStreamCancel: (() => void) | undefined;
+          
+          try {
+            ipcStreamCancel = ollamaIPC.generateChatCompletionStream(
+              params,
+              (chunk) => {
+                if (chunk && typeof chunk === 'object' && 'choices' in chunk) {
+                  // Convert chunk to StreamChunk
+                  // This is a simplification - in practice, we'd need to properly map the structure
+                  const streamChunk = new StreamChunk({
+                    parts: [
+                      {
+                        _tag: "Content",
+                        content: chunk.choices[0]?.message?.content || ""
+                      }
+                    ]
+                  });
+                  emit.single(streamChunk);
+                } else {
+                  emit.fail(new HttpClientError.ResponseError({
+                    request: HttpClientRequest.get("ollama-ipc-stream"),
+                    response: HttpClientResponse.json(
+                      500, 
+                      { error: "Ollama IPC stream received unexpected chunk format" }, 
+                      { headers: {} }
+                    )
+                  }));
+                }
+              },
+              () => {
+                Effect.runFork(telemetry.trackEvent({ 
+                  category: "ollama_adapter:stream", 
+                  action: "create_done", 
+                  label: params.model 
+                }));
+                emit.end();
+              },
+              (error) => {
+                const ipcError = error && typeof error === 'object' && error.hasOwnProperty('__error') 
+                  ? error as {__error: true, message: string} 
+                  : { __error: true, message: String(error) };
+                
+                Effect.runFork(telemetry.trackEvent({ 
+                  category: "ollama_adapter:stream:error", 
+                  action: "ipc_error", 
+                  label: ipcError.message || "Unknown IPC error" 
+                }));
+                
+                emit.fail(new HttpClientError.ResponseError({
+                  request: HttpClientRequest.get("ollama-ipc-stream"),
+                  response: HttpClientResponse.json(
+                    500, 
+                    { 
+                      error: `Ollama IPC stream error: ${ipcError.message || "Unknown error"}`,
+                      context: { model: params.model }
+                    }, 
+                    { headers: {} }
+                  )
+                }));
+              }
+            );
+          } catch (e) {
+            const errorMsg = `Failed to setup Ollama IPC stream: ${e instanceof Error ? e.message : String(e)}`;
+            
+            Effect.runFork(telemetry.trackEvent({ 
+              category: "ollama_adapter:stream:error", 
+              action: "setup_exception", 
+              label: errorMsg 
+            }));
+            
+            emit.fail(new HttpClientError.ResponseError({
+              request: HttpClientRequest.get("ollama-ipc-stream"),
+              response: HttpClientResponse.json(
+                500, 
+                { 
+                  error: errorMsg,
+                  provider: "OllamaAdapterSetup(IPC-Stream)"
+                }, 
+                { headers: {} }
+              )
+            }));
+          }
+          
+          // Return a cancellation function
+          return Effect.sync(() => {
+            if (ipcStreamCancel) {
+              Effect.runFork(telemetry.trackEvent({ 
+                category: "ollama_adapter:stream", 
+                action: "cancel_requested", 
+                label: params.model 
+              }));
+              ipcStreamCancel();
+            }
+          });
+        });
+      }
     });
   })
 );
