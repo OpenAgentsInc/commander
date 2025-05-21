@@ -2,6 +2,9 @@ import { createRoute } from "@tanstack/react-router";
 import { RootRoute } from "./__root";
 import HomePage from "../pages/HomePage";
 import SecondPage from "@/pages/SecondPage";
+import WalletSetupPage from "@/pages/WalletSetupPage";
+import SeedPhraseBackupPage from "@/pages/SeedPhraseBackupPage";
+import RestoreWalletPage from "@/pages/RestoreWalletPage";
 
 // TODO: Steps to add a new route:
 // 1. Create a new page component in the '../pages/' directory (e.g., NewPage.tsx)
@@ -34,4 +37,29 @@ export const SecondPageRoute = createRoute({
   component: SecondPage,
 });
 
-export const rootTree = RootRoute.addChildren([HomeRoute, SecondPageRoute]);
+// Add new wallet-related routes
+export const WalletSetupRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/setup-wallet",
+  component: WalletSetupPage,
+});
+
+export const SeedPhraseBackupRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/backup-seed-phrase",
+  component: SeedPhraseBackupPage,
+});
+
+export const RestoreWalletRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/restore-wallet",
+  component: RestoreWalletPage,
+});
+
+export const rootTree = RootRoute.addChildren([
+  HomeRoute, 
+  SecondPageRoute,
+  WalletSetupRoute,
+  SeedPhraseBackupRoute,
+  RestoreWalletRoute
+]);
