@@ -2,8 +2,8 @@
 import { Layer, Effect, Stream, Cause, Context } from "effect";
 import { OpenAiClient } from "@effect/ai-openai";
 import * as HttpClientError from "@effect/platform/HttpClientError";
-import { HttpClientRequest } from "@effect/platform/HttpClient";
-import { HttpClientResponse } from "@effect/platform/HttpClient";
+import * as HttpClientRequest from "@effect/platform/HttpClientRequest";
+import * as HttpClientResponse from "@effect/platform/HttpClientResponse";
 // Import Stream chunk here rather than as a type since we need to use it as a value
 import { StreamChunk } from "@effect/ai-openai/OpenAiClient";
 import { ConfigurationService } from "@/services/configuration";
@@ -104,7 +104,8 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                       500, 
                       { error: providerError.message }, 
                       { headers: {} }
-                    )
+                    ),
+                    reason: "StatusCode"
                   });
                 }
               });
@@ -164,7 +165,8 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                       500, 
                       { error: "Ollama IPC stream received unexpected chunk format" }, 
                       { headers: {} }
-                    )
+                    ),
+                    reason: "StatusCode"
                   }));
                 }
               },
@@ -196,7 +198,8 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                       context: { model: params.model }
                     }, 
                     { headers: {} }
-                  )
+                  ),
+                  reason: "StatusCode"
                 }));
               }
             );
@@ -218,7 +221,8 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                   provider: "OllamaAdapterSetup(IPC-Stream)"
                 }, 
                 { headers: {} }
-              )
+              ),
+              reason: "StatusCode"
             }));
           }
           

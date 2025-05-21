@@ -16,7 +16,26 @@ import type { AiResponse } from "@effect/ai/AiResponse";
 
 // Since OpenAiLanguageModel is not available in the current version of @effect/ai-openai,
 // we'll create a simplified version that provides the same functionality
-const createLanguageModel = (modelName: string, client: OpenAiClient.Service) => {
+// Define a type that matches the OpenAiClient.Service interface
+interface OpenAiClientService {
+  client: {
+    chat: {
+      completions: {
+        create: (params: any) => Effect.Effect<any, any>;
+      };
+    };
+    embeddings: {
+      create: (params: any) => Effect.Effect<any, any>;
+    };
+    models: {
+      list: () => Effect.Effect<any, any>;
+    };
+  };
+  streamRequest: (request: any) => Stream.Stream<any, any>;
+  stream: (params: any) => Stream.Stream<any, any>;
+}
+
+const createLanguageModel = (modelName: string, client: OpenAiClientService) => {
   return Effect.succeed({
     generateText: (params: any) => {
       return Effect.flatMap(
@@ -27,8 +46,8 @@ const createLanguageModel = (modelName: string, client: OpenAiClient.Service) =>
           max_tokens: params.maxTokens,
           stream: false
         }),
-        (completion) => Effect.succeed({ 
-          text: completion.choices[0]?.message?.content || "",
+        (completion: any) => Effect.succeed({ 
+          text: completion.choices?.[0]?.message?.content || "",
           usage: completion.usage
         })
       );
