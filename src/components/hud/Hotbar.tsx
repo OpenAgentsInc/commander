@@ -1,9 +1,13 @@
 import React from 'react';
 import { cn } from '@/utils/tailwind';
 import { HotbarItem } from './HotbarItem';
-import { RefreshCw, Hand, MessageSquarePlus, Cpu, Store, History, TestTube, MessageSquare } from 'lucide-react';
+import { RefreshCw, Hand, MessageSquarePlus, Cpu, Store, History, TestTube, MessageSquare, Globe } from 'lucide-react';
 import { usePaneStore } from '@/stores/pane';
-import { NIP90_DVM_TEST_PANE_ID, NIP90_CONSUMER_CHAT_PANE_ID } from '@/stores/panes/constants';
+import { 
+  NIP90_DVM_TEST_PANE_ID, 
+  NIP90_CONSUMER_CHAT_PANE_ID,
+  NIP90_GLOBAL_FEED_PANE_ID
+} from '@/stores/panes/constants';
 
 interface HotbarProps {
   className?: string;
@@ -25,6 +29,7 @@ export const Hotbar: React.FC<HotbarProps> = ({
   const openNip90Dashboard = usePaneStore((state) => state.openNip90DashboardPane);
   const openNip90DvmTestPane = usePaneStore((state) => state.openNip90DvmTestPane);
   const openNip90ConsumerChatPane = usePaneStore((state) => state.openNip90ConsumerChatPane);
+  const openNip90GlobalFeedPane = usePaneStore((state) => state.openNip90GlobalFeedPane);
   const activePaneId = usePaneStore((state) => state.activePaneId);
   const SELL_COMPUTE_PANE_ID = 'sell_compute';
   const DVM_JOB_HISTORY_PANE_ID = 'dvm_job_history';
@@ -66,11 +71,9 @@ export const Hotbar: React.FC<HotbarProps> = ({
       <HotbarItem slotNumber={8} onClick={openNip90ConsumerChatPane} title="NIP-90 Consumer Chat" isActive={activePaneId === NIP90_CONSUMER_CHAT_PANE_ID}>
         <MessageSquare className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
-      {Array.from({ length: 1 }).map((_, index) => (
-        <HotbarItem key={`empty-${9 + index}`} slotNumber={9 + index} title={`Slot ${9 + index}`} className="opacity-30 cursor-not-allowed hover:bg-background/70">
-          <div className="w-5 h-5 text-muted-foreground/50"></div>
-        </HotbarItem>
-      ))}
+      <HotbarItem slotNumber={9} onClick={openNip90GlobalFeedPane} title="NIP-90 Global Feed" isActive={activePaneId === NIP90_GLOBAL_FEED_PANE_ID}>
+        <Globe className="w-5 h-5 text-muted-foreground" />
+      </HotbarItem>
     </div>
   );
 };

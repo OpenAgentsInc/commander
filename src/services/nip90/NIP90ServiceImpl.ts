@@ -15,6 +15,7 @@ import {
   NIP90RequestError,
   NIP90ResultError,
   NIP90ValidationError,
+  NIP90ServiceError,
   NIP90JobFeedbackStatus,
   NIP90InputType
 } from './NIP90Service';
@@ -27,7 +28,62 @@ export const NIP90ServiceLive = Layer.effect(
     const nip04 = yield* _(NIP04Service);
     const telemetry = yield* _(TelemetryService);
 
+    const listPublicEvents = (limit: number = 50): Effect.Effect<NostrEvent[], NostrRequestError | NIP90ServiceError, never> =>
+      Effect.gen(function* (_) {
+        yield* _(telemetry.trackEvent({
+          category: 'nip90:fetch',
+          action: 'list_public_events_start',
+          value: String(limit),
+        }).pipe(Effect.ignoreLogged));
+
+        const nip90RequestKinds = Array.from({ length: 1000 }, (_, i) => 5000 + i);
+        const nip90ResultKinds = Array.from({ length: 1000 }, (_, i) => 6000 + i);
+        const filters: NostrFilter[] = [{
+          kinds: [...nip90RequestKinds, ...nip90ResultKinds, 7000],
+          limit: limit,
+        }];
+
+        // Use the NostrService dependency
+        const events = yield* _(nostr.listEvents(filters).pipe(
+          Effect.mapError(err => {
+            // Track failure
+            Effect.runFork(telemetry.trackEvent({
+              category: 'nip90:error',
+              action: 'list_public_events_failure',
+              label: err.message,
+            }).pipe(Effect.ignoreLogged));
+            
+            return err;
+          })
+        ));
+
+        yield* _(telemetry.trackEvent({
+          category: 'nip90:fetch',
+          action: 'list_public_events_success',
+          label: `Fetched ${events.length} NIP-90 events`,
+        }).pipe(Effect.ignoreLogged));
+        
+        return events;
+      }).pipe(
+        Effect.catchAll((err) => {
+          const errorToReport = err instanceof NostrRequestError ? err : new NIP90ServiceError({ 
+            message: "Failed to list NIP-90 public events", 
+            cause: err 
+          });
+          
+          return Effect.flatMap(
+            telemetry.trackEvent({
+              category: 'nip90:error',
+              action: 'list_public_events_failure',
+              label: errorToReport.message,
+            }).pipe(Effect.ignoreLogged),
+            () => Effect.fail(errorToReport)
+          );
+        })
+      );
+
     return {
+      listPublicEvents,
       createJobRequest: (params) => 
         Effect.gen(function* (_) {
           // Track start of createJobRequest

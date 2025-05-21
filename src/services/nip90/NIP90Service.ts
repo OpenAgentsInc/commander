@@ -169,6 +169,13 @@ export interface NIP90Service {
     decryptionKey: Uint8Array,
     onUpdate: (event: NIP90JobResult | NIP90JobFeedback) => void
   ): Effect.Effect<Subscription, NostrRequestError | NIP04DecryptError | NIP90ResultError, never>;
+  
+  /**
+   * Lists recent NIP-90 events (kinds 5000-5999, 6000-6999, 7000) from connected relays
+   * @param limit Maximum number of events to return, defaults to 50
+   * @returns Array of NIP-90 related events sorted by creation time (newest first)
+   */
+  listPublicEvents(limit?: number): Effect.Effect<NostrEvent[], NostrRequestError | NIP90ServiceError, never>;
 }
 
 // --- Service Tag ---

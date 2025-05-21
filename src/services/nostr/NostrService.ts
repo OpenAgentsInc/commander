@@ -96,7 +96,7 @@ export interface NostrService {
     filters: NostrFilter[],
     onEvent: (event: NostrEvent) => void,
     relays?: readonly string[],
-    onEOSE?: () => void
+    onEOSE?: (relay: string) => void
   ): Effect.Effect<Subscription, NostrRequestError, never>;
 }
 

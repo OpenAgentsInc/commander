@@ -1,8 +1,9 @@
-import { Effect, Layer, Schema, Option, Cause, Fiber, Schedule, Duration } from 'effect';
+import { Effect, Layer, Schema, Option, Cause, Schedule, Duration } from 'effect';
+import * as Fiber from 'effect/Fiber';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { finalizeEvent, type EventTemplate } from 'nostr-tools/pure';
 import { TelemetryService, TrackEventError } from '@/services/telemetry';
-import { NostrService, type NostrEvent, type NostrFilter, type Subscription, NostrPublishError } from '@/services/nostr';
+import { NostrService, type NostrEvent, type NostrFilter, type Subscription, NostrPublishError, NostrRequestError } from '@/services/nostr';
 import { OllamaService, type OllamaChatCompletionRequest, OllamaError } from '@/services/ollama';
 import { SparkService, type CreateLightningInvoiceParams, SparkError, LightningInvoice } from '@/services/spark';
 import { NIP04Service, NIP04DecryptError, NIP04EncryptError } from '@/services/nip04';
@@ -23,7 +24,7 @@ import {
   DVMPaymentError, 
   DVMError
 } from './Kind5050DVMService';
-import type { JobHistoryEntry, JobStatistics } from '@/types/dvm';
+import type { JobHistoryEntry, JobStatistics, JobStatus } from '@/types/dvm';
 
 /**
  * Helper to create NIP-90 feedback events (Kind 7000)
@@ -136,7 +137,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
     let currentSubscription: Subscription | null = null;
     let currentDvmPublicKeyHex = useDVMSettingsStore.getState().getDerivedPublicKeyHex() || config.dvmPublicKeyHex;
     // Use more specific typing for the fiber
-    let invoiceCheckFiber: Fiber.RuntimeFiber<void, never> | null = null;
+    let invoiceCheckFiber: Fiber.RuntimeFiber<number, never> | null = null;
     
     // Track service initialization
     yield* _(telemetry.trackEvent({
@@ -162,193 +163,197 @@ export const Kind5050DVMServiceLive = Layer.scoped(
       );
     
     /**
-     * Mock job history data function
-     * This function returns mock job history data with various invoice statuses
-     * Taking TelemetryService as a dependency through Effect context
+     * Real job history data function that fetches events from Nostr relays
+     * Taking TelemetryService and NostrService as dependencies through Effect context
      */
-    const getJobHistoryStub = (
+    const getJobHistory = (
       options: { page: number; pageSize: number; filters?: Partial<JobHistoryEntry> }
-    ): Effect.Effect<{ entries: JobHistoryEntry[]; totalCount: number }, DVMError | TrackEventError, TelemetryService> =>
+    ): Effect.Effect<{ entries: JobHistoryEntry[]; totalCount: number }, DVMError | TrackEventError, TelemetryService | NostrService> =>
       Effect.gen(function* (ctx) {
         const localTelemetry = yield* ctx(TelemetryService);
-        
-        yield* _(localTelemetry.trackEvent({ 
-          category: 'dvm:history', 
-          action: 'get_job_history_stub_called', 
-          label: `Page: ${options.page}` 
-        }).pipe(Effect.ignoreLogged));
-        
-        // Mock data for now - this will be replaced with actual persistence in a future task
-        const mockHistory: JobHistoryEntry[] = [
-          { 
-            id: 'job1', 
-            timestamp: Date.now() - 3600000, // 1 hour ago 
-            jobRequestEventId: 'req1', 
-            requesterPubkey: 'pk_requester1', 
-            kind: 5100, 
-            inputSummary: 'Translate to French: Hello world', 
-            status: 'completed', 
-            ollamaModelUsed: 'gemma2:latest', 
-            tokensProcessed: 120, 
-            invoiceAmountSats: 20, 
-            invoiceBolt11: 'paid_invoice_stub_1',
-            invoicePaymentHash: 'hash_for_paid_1',
-            paymentReceivedSats: 20, 
-            resultSummary: 'Bonjour le monde' 
-          },
-          { 
-            id: 'job2', 
-            timestamp: Date.now() - 7200000, // 2 hours ago
-            jobRequestEventId: 'req2', 
-            requesterPubkey: 'pk_requester2', 
-            kind: 5100, 
-            inputSummary: 'Summarize this article...', 
-            status: 'error', 
-            ollamaModelUsed: 'gemma2:latest', 
-            errorDetails: 'Ollama connection failed' 
-          },
-          { 
-            id: 'job3', 
-            timestamp: Date.now() - 10800000, // 3 hours ago
-            jobRequestEventId: 'req3', 
-            requesterPubkey: 'pk_requester1', 
-            kind: 5000, 
-            inputSummary: 'Image generation: cat astronaut', 
-            status: 'pending_payment', 
-            ollamaModelUsed: 'dall-e-stub', 
-            invoiceAmountSats: 100,
-            invoiceBolt11: 'pending_invoice_stub_1',
-            invoicePaymentHash: 'hash_for_pending_1' 
-          },
-          {
-            id: 'job4',
-            timestamp: Date.now() - 86400000, // 1 day ago
-            jobRequestEventId: 'req4',
-            requesterPubkey: 'pk_requester3',
-            kind: 5100,
-            inputSummary: 'Write a poem about technology',
-            status: 'completed',
-            ollamaModelUsed: 'llama3:instruct',
-            tokensProcessed: 350,
-            invoiceAmountSats: 50,
-            invoiceBolt11: 'expired_invoice_stub_1',
-            invoicePaymentHash: 'hash_for_expired_1',
-            paymentReceivedSats: 50,
-            resultSummary: 'Digital dreams in silicon sleep...'
-          },
-          {
-            id: 'job5',
-            timestamp: Date.now() - 172800000, // 2 days ago
-            jobRequestEventId: 'req5',
-            requesterPubkey: 'pk_requester2',
-            kind: 5100,
-            inputSummary: 'Debug this JavaScript code...',
-            status: 'paid',
-            ollamaModelUsed: 'codellama:latest',
-            tokensProcessed: 420,
-            invoiceAmountSats: 60,
-            invoiceBolt11: 'paid_invoice_stub_2',
-            invoicePaymentHash: 'hash_for_paid_2',
-            paymentReceivedSats: 60,
-            resultSummary: 'Found issue in line 42...'
-          },
-          {
-            id: 'job6',
-            timestamp: Date.now() - 43200000, // 12 hours ago
-            jobRequestEventId: 'req6',
-            requesterPubkey: 'pk_requester4',
-            kind: 5100,
-            inputSummary: 'Analyze this data structure',
-            status: 'pending_payment',
-            ollamaModelUsed: 'codellama:latest',
-            tokensProcessed: 320,
-            invoiceAmountSats: 40,
-            invoiceBolt11: 'expired_invoice_stub_1',
-            invoicePaymentHash: 'hash_for_expired_1'
-          },
-          {
-            id: 'job7',
-            timestamp: Date.now() - 21600000, // 6 hours ago
-            jobRequestEventId: 'req7',
-            requesterPubkey: 'pk_requester5',
-            kind: 5100,
-            inputSummary: 'Generate test cases for my API',
-            status: 'pending_payment',
-            ollamaModelUsed: 'llama3:instruct',
-            tokensProcessed: 280,
-            invoiceAmountSats: 35,
-            invoiceBolt11: 'error_invoice_stub_1',
-            invoicePaymentHash: 'hash_for_error_1'
-          }
-        ];
-        
-        // Very basic filtering (to be enhanced with real implementation)
-        let filteredEntries = [...mockHistory];
-        if (options.filters) {
-          const filters = options.filters;
-          filteredEntries = filteredEntries.filter(entry => {
-            for (const [key, value] of Object.entries(filters)) {
-              if (entry[key as keyof JobHistoryEntry] !== value) {
-                return false;
-              }
-            }
-            return true;
-          });
+        const localNostr = yield* ctx(NostrService);
+        const effectiveConfig = useDVMSettingsStore.getState().getEffectiveConfig();
+        const dvmPk = effectiveConfig.dvmPublicKeyHex;
+
+        if (!dvmPk) {
+          yield* _(localTelemetry.trackEvent({ category: 'dvm:history', action: 'get_job_history_no_dvm_pk' }).pipe(Effect.ignoreLogged));
+          return { entries: [], totalCount: 0 };
         }
-        
-        // Pagination
-        const paginatedEntries = filteredEntries.slice(
-          (options.page - 1) * options.pageSize, 
-          options.page * options.pageSize
+
+        yield* _(localTelemetry.trackEvent({
+          category: 'dvm:history',
+          action: 'get_job_history_start',
+          label: `Page: ${options.page}, DVM PK: ${dvmPk.substring(0,8)}...`
+        }).pipe(Effect.ignoreLogged));
+
+        const resultKinds = Array.from({ length: 1000 }, (_, i) => 6000 + i);
+        const filters: NostrFilter[] = [
+          { kinds: resultKinds, authors: [dvmPk], limit: options.pageSize * options.page }, // Fetch up to current page for sorting
+          { kinds: [7000], authors: [dvmPk], "#s": ["success"], limit: options.pageSize * options.page }
+        ];
+
+        const fetchedEvents = yield* _(localNostr.listEvents(filters).pipe(
+          Effect.mapError(e => new DVMConnectionError({ message: "Failed to fetch DVM history from relays", cause: e}))
+        ));
+
+        // Sort all fetched events by created_at descending
+        const sortedEvents = fetchedEvents.sort((a, b) => b.created_at - a.created_at);
+
+        // Paginate after sorting
+        const paginatedEvents = sortedEvents.slice(
+            (options.page - 1) * options.pageSize,
+            options.page * options.pageSize
         );
-        
-        return { entries: paginatedEntries, totalCount: filteredEntries.length };
+
+        const entries: JobHistoryEntry[] = paginatedEvents.map(event => {
+          const requestTag = event.tags.find(t => t[0] === 'e');
+          const requesterTag = event.tags.find(t => t[0] === 'p');
+          const amountTag = event.tags.find(t => t[0] === 'amount');
+
+          let jobStatus: JobStatus = 'completed'; // Default for kind 6xxx
+          if (event.kind === 7000) {
+            const statusTag = event.tags.find(t => t[0] === 'status');
+            jobStatus = statusTag?.[1] as JobStatus || 'completed'; // Assume 'success' maps to 'completed'
+          }
+
+          return {
+            id: event.id,
+            timestamp: event.created_at * 1000,
+            jobRequestEventId: requestTag?.[1] || 'N/A',
+            requesterPubkey: requesterTag?.[1] || 'N/A',
+            kind: event.kind, // This is the result/feedback kind. Original request kind needs more work.
+            inputSummary: 'N/A', // Requires fetching original request or different storage
+            status: jobStatus,
+            ollamaModelUsed: 'N/A', // Not available in 6xxx/7000 unless explicitly tagged
+            tokensProcessed: undefined,
+            invoiceAmountSats: amountTag?.[1] ? Math.floor(parseInt(amountTag[1], 10) / 1000) : undefined,
+            invoiceBolt11: amountTag?.[2],
+            resultSummary: event.content.substring(0, 100) + (event.content.length > 100 ? '...' : ''),
+          };
+        });
+
+        yield* _(localTelemetry.trackEvent({
+          category: 'dvm:history',
+          action: 'get_job_history_success',
+          value: `${entries.length} entries fetched`
+        }).pipe(Effect.ignoreLogged));
+
+        // For totalCount, we'd ideally query count from relay or fetch all and count.
+        // For now, use the length of initially fetched (potentially larger than one page) sorted events as a proxy.
+        return { entries, totalCount: sortedEvents.length };
       });
-    
+
     /**
-     * Periodically checks for invoices with pending payment status and updates their status
-     * by checking with the Spark service. Refactored to not use 'this' and use proper typing.
+     * Real job statistics function that calculates metrics from fetched events
+     * Taking TelemetryService and NostrService as dependencies through Effect context  
      */
-    const checkAndUpdateInvoiceStatuses = (): Effect.Effect<void, DVMError | TrackEventError, SparkService | TelemetryService> =>
+    const getJobStatistics = (): Effect.Effect<JobStatistics, DVMError | TrackEventError, TelemetryService | NostrService> =>
+      Effect.gen(function*(ctx) {
+        const localTelemetry = yield* ctx(TelemetryService);
+        const localNostr = yield* ctx(NostrService);
+        const effectiveConfig = useDVMSettingsStore.getState().getEffectiveConfig();
+        const dvmPk = effectiveConfig.dvmPublicKeyHex;
+
+        if (!dvmPk) {
+          yield* _(localTelemetry.trackEvent({ category: 'dvm:stats', action: 'get_stats_no_dvm_pk' }).pipe(Effect.ignoreLogged));
+          return { totalJobsProcessed: 0, totalSuccessfulJobs: 0, totalFailedJobs: 0, totalRevenueSats: 0, jobsPendingPayment: 0 };
+        }
+
+        yield* _(localTelemetry.trackEvent({ category: 'dvm:stats', action: 'get_job_statistics_start' }).pipe(Effect.ignoreLogged));
+
+        const resultKinds = Array.from({ length: 1000 }, (_, i) => 6000 + i);
+        const filters: NostrFilter[] = [
+          { kinds: resultKinds, authors: [dvmPk], limit: 500 }, // Fetch more for stats
+          { kinds: [7000], authors: [dvmPk], limit: 500 }        // Fetch all feedback
+        ];
+        const allEvents = yield* _(localNostr.listEvents(filters).pipe(
+            Effect.mapError(e => new DVMConnectionError({ message: "Failed to fetch DVM stats from relays", cause: e}))
+        ));
+
+        const stats: JobStatistics = {
+          totalJobsProcessed: 0,
+          totalSuccessfulJobs: 0,
+          totalFailedJobs: 0,
+          totalRevenueSats: 0,
+          jobsPendingPayment: 0,
+          modelUsageCounts: {}
+        };
+
+        const processedJobRequestIds = new Set<string>();
+
+        allEvents.forEach(event => {
+          const requestTag = event.tags.find(t => t[0] === 'e');
+          if (requestTag?.[1]) processedJobRequestIds.add(requestTag[1]);
+
+          if (event.kind >= 6000 && event.kind <= 6999) {
+            stats.totalSuccessfulJobs++; // Assume all 6xxx are successful results
+            const amountTag = event.tags.find(t => t[0] === 'amount');
+            if (amountTag?.[1]) {
+              stats.totalRevenueSats += Math.floor(parseInt(amountTag[1], 10) / 1000);
+            }
+          } else if (event.kind === 7000) {
+            const statusTag = event.tags.find(t => t[0] === 'status');
+            if (statusTag?.[1] === 'success') {
+              stats.totalSuccessfulJobs++;
+              const amountTag = event.tags.find(t => t[0] === 'amount');
+              if (amountTag?.[1]) {
+                  stats.totalRevenueSats += Math.floor(parseInt(amountTag[1], 10) / 1000);
+              }
+            } else if (statusTag?.[1] === 'error') {
+              stats.totalFailedJobs++;
+            } else if (statusTag?.[1] === 'payment-required') {
+              stats.jobsPendingPayment++;
+            }
+          }
+        });
+        stats.totalJobsProcessed = processedJobRequestIds.size;
+
+        yield* _(localTelemetry.trackEvent({ category: 'dvm:stats', action: 'get_job_statistics_success', value: JSON.stringify(stats) }).pipe(Effect.ignoreLogged));
+        return stats;
+      });
+
+    /** 
+     * Check for invoice status updates and update job statuses
+     * Runs periodically when DVM is active
+     */
+    const checkAndUpdateInvoiceStatuses = (): Effect.Effect<void, DVMError | TrackEventError, SparkService | TelemetryService | NostrService> =>
       Effect.gen(function* (ctx) {
-        // Get services from the effect context
         const localTelemetry = yield* ctx(TelemetryService);
         const localSpark = yield* ctx(SparkService);
-        
-        yield* _(localTelemetry.trackEvent({ 
-          category: 'dvm:payment_check', 
-          action: 'check_all_invoices_start' 
+        const localNostr = yield* ctx(NostrService);
+
+        yield* _(localTelemetry.trackEvent({
+          category: 'dvm:payment_check',
+          action: 'check_all_invoices_start'
         }).pipe(Effect.ignoreLogged));
-        
-        // Get job history by calling our stub with TelemetryService provided
+
         const historyResult = yield* _(
-          getJobHistoryStub({ page: 1, pageSize: 500 }).pipe(
-            Effect.provideService(TelemetryService, localTelemetry)
+          getJobHistory({ page: 1, pageSize: 500 }).pipe( // Use the real getJobHistory
+            Effect.provideService(TelemetryService, localTelemetry),
+            Effect.provideService(NostrService, localNostr)
           )
         );
-        
-        // Filter for jobs with pending_payment status and invoiceBolt11
+
         const pendingPaymentJobs = historyResult.entries.filter(
           job => job.status === 'pending_payment' && job.invoiceBolt11
         );
 
         if (pendingPaymentJobs.length === 0) {
-          yield* _(localTelemetry.trackEvent({ 
-            category: 'dvm:payment_check', 
-            action: 'no_pending_invoices_found' 
+          yield* _(localTelemetry.trackEvent({
+            category: 'dvm:payment_check',
+            action: 'no_pending_invoices_found'
           }).pipe(Effect.ignoreLogged));
           return;
         }
 
-        yield* _(localTelemetry.trackEvent({ 
-          category: 'dvm:payment_check', 
-          action: 'checking_pending_invoices', 
-          value: String(pendingPaymentJobs.length) 
+        yield* _(localTelemetry.trackEvent({
+          category: 'dvm:payment_check',
+          action: 'checking_pending_invoices',
+          value: String(pendingPaymentJobs.length)
         }).pipe(Effect.ignoreLogged));
 
-        // Process each pending payment job
         for (const job of pendingPaymentJobs) {
-          if (!job.invoiceBolt11) continue; // Should not happen due to filter, but checking anyway
+          if (!job.invoiceBolt11) continue;
 
           yield* _(localTelemetry.trackEvent({
             category: 'dvm:payment_check',
@@ -357,8 +362,6 @@ export const Kind5050DVMServiceLive = Layer.scoped(
             value: job.invoiceBolt11.substring(0, 20) + '...'
           }).pipe(Effect.ignoreLogged));
 
-          // Check invoice status via SparkService, handling errors individually
-          // so one failure doesn't stop checking others
           const invoiceStatusResult: InvoiceStatusResult = yield* _(
             localSpark.checkInvoiceStatus(job.invoiceBolt11).pipe(
               Effect.catchAll((err) => {
@@ -369,16 +372,14 @@ export const Kind5050DVMServiceLive = Layer.scoped(
                   label: `Job ID: ${job.id}, Invoice: ${job.invoiceBolt11?.substring(0,20)}...`,
                   value: sparkErr.message
                 }));
-                // Return a default error status, but don't fail the whole loop
-                return Effect.succeed<InvoiceStatusResult>({ 
-                  status: 'error' as const, 
-                  message: sparkErr.message 
+                return Effect.succeed<InvoiceStatusResult>({
+                  status: 'error' as const,
+                  message: sparkErr.message
                 });
               })
             )
           );
 
-          // Handle paid invoices
           if (invoiceStatusResult.status === 'paid') {
             yield* _(localTelemetry.trackEvent({
               category: 'dvm:payment_check',
@@ -386,108 +387,74 @@ export const Kind5050DVMServiceLive = Layer.scoped(
               label: `Job ID: ${job.id}`,
               value: JSON.stringify({ amount: invoiceStatusResult.amountPaidMsats })
             }).pipe(Effect.ignoreLogged));
-            
-            // TODO: Update job status to 'paid' in job history.
-            // For now, we just log it conceptually since we're using mock data
+            // TODO: Update job status to 'paid' in actual persistence.
             console.log(`[DVM] Job ${job.id} invoice PAID. Amount: ${invoiceStatusResult.amountPaidMsats} msats. Conceptual update to status: 'paid'.`);
-            
-            // In a real implementation with persistence, we would update the job in storage
-            // Example of what this would look like:
-            // yield* _(updateJobInHistory(job.id, { 
-            //   status: 'paid', 
-            //   paymentReceivedSats: Math.floor((invoiceStatusResult.amountPaidMsats || 0) / 1000) 
-            // }));
-          } 
-          // Handle expired or error invoices
+          }
           else if (invoiceStatusResult.status === 'expired' || invoiceStatusResult.status === 'error') {
             yield* _(localTelemetry.trackEvent({
               category: 'dvm:payment_check',
               action: `invoice_${invoiceStatusResult.status}`,
               label: `Job ID: ${job.id}`,
-              value: invoiceStatusResult.status === 'error' 
-                ? invoiceStatusResult.message 
+              value: invoiceStatusResult.status === 'error'
+                ? invoiceStatusResult.message
                 : undefined
             }).pipe(Effect.ignoreLogged));
-            
-            // TODO: Optionally update job status based on policy (e.g., to 'payment_failed' or 'cancelled')
             console.log(`[DVM] Job ${job.id} invoice ${invoiceStatusResult.status}.`);
           }
         }
 
-        yield* _(localTelemetry.trackEvent({ 
-          category: 'dvm:payment_check', 
-          action: 'check_all_invoices_complete' 
+        yield* _(localTelemetry.trackEvent({
+          category: 'dvm:payment_check',
+          action: 'check_all_invoices_complete'
         }).pipe(Effect.ignoreLogged));
       });
-    
-    /**
-     * The main job processing logic
-     * This handles the complete workflow for a job request:
-     * 1. Parse and validate
-     * 2. Send processing feedback
-     * 3. Perform inference
-     * 4. Generate invoice
-     * 5. Send result with payment request
-     * 6. Send success feedback
-     */
+
     const processJobRequestInternal = (jobRequestEvent: NostrEvent): Effect.Effect<void, DVMError, never> =>
       Effect.gen(function* (_) {
-        // Get effective config at the beginning of job processing
-        // This ensures we're using the latest settings for each job
         const effectiveConfig = useDVMSettingsStore.getState().getEffectiveConfig();
         const dvmPrivateKeyHex = effectiveConfig.dvmPrivateKeyHex;
         const textGenConfig = effectiveConfig.defaultTextGenerationJobConfig;
-        
-        // Track job received
-        yield* _(telemetry.trackEvent({ 
-          category: "dvm:job", 
-          action: "job_request_received", 
-          label: jobRequestEvent.id, 
-          value: `Kind: ${jobRequestEvent.kind}` 
+
+        yield* _(telemetry.trackEvent({
+          category: "dvm:job",
+          action: "job_request_received",
+          label: jobRequestEvent.id,
+          value: `Kind: ${jobRequestEvent.kind}`
         }).pipe(Effect.ignoreLogged));
 
-        // 1. Parse and Validate Request
         let inputsSource = jobRequestEvent.tags;
         let isRequestEncrypted = false;
 
-        // Check if request is encrypted
         if (jobRequestEvent.tags.some(t => t[0] === "encrypted")) {
           isRequestEncrypted = true;
-          
-          // Decrypt the content using effective private key
           const dvmSkBytes = hexToBytes(dvmPrivateKeyHex);
           const decryptedContentStr = yield* _(nip04.decrypt(
-            dvmSkBytes, 
-            jobRequestEvent.pubkey, 
+            dvmSkBytes,
+            jobRequestEvent.pubkey,
             jobRequestEvent.content
           ).pipe(
-            Effect.mapError(e => new DVMJobRequestError({ 
-              message: "Failed to decrypt NIP-90 request content", 
+            Effect.mapError(e => new DVMJobRequestError({
+              message: "Failed to decrypt NIP-90 request content",
               cause: e
             }))
           ));
-          
           try {
-            // Parse decrypted content as tags array
             inputsSource = JSON.parse(decryptedContentStr) as Array<[string, ...string[]]>;
           } catch (e) {
-            return yield* _(Effect.fail(new DVMJobRequestError({ 
-              message: "Failed to parse decrypted JSON tags", 
+            return yield* _(Effect.fail(new DVMJobRequestError({
+              message: "Failed to parse decrypted JSON tags",
               cause: e
             })));
           }
         }
 
-        // Extract inputs, params, and other request details
         const inputs: NIP90Input[] = [];
         const paramsMap = new Map<string, string>();
-        let outputMimeType = "text/plain"; // Default
+        let outputMimeType = "text/plain";
         let bidMillisats: number | undefined;
 
-        // Parse all tags
         inputsSource.forEach(tag => {
           if (tag[0] === 'i' && tag.length >= 3) {
-            // Ensure we have at least value and type
             const value = tag[1];
             const type = tag[2] as NIP90InputType;
             const opt1 = tag.length > 3 ? tag[3] : undefined;
@@ -499,49 +466,30 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           if (tag[0] === 'bid') bidMillisats = parseInt(tag[1], 10) || undefined;
         });
 
-        // Validate inputs
         if (inputs.length === 0) {
-          const feedback = createNip90FeedbackEvent(
-            dvmPrivateKeyHex, 
-            jobRequestEvent, 
-            "error", 
-            "No inputs provided."
-          );
+          const feedback = createNip90FeedbackEvent( dvmPrivateKeyHex, jobRequestEvent, "error", "No inputs provided.");
           yield* _(publishFeedback(feedback));
           return yield* _(Effect.fail(new DVMJobRequestError({ message: "No inputs provided" })));
         }
 
-        // For text generation, require a text input
         const textInput = inputs.find(inp => inp[1] === "text");
         if (!textInput || !textInput[0]) {
-          const feedback = createNip90FeedbackEvent(
-            dvmPrivateKeyHex, 
-            jobRequestEvent, 
-            "error", 
-            "No 'text' input found for text generation job."
-          );
+          const feedback = createNip90FeedbackEvent(dvmPrivateKeyHex, jobRequestEvent, "error", "No 'text' input found for text generation job.");
           yield* _(publishFeedback(feedback));
           return yield* _(Effect.fail(new DVMJobRequestError({ message: "No text input found" })));
         }
         const prompt = textInput[0];
 
-        // 2. Send "processing" Feedback
-        const processingFeedback = createNip90FeedbackEvent(
-          dvmPrivateKeyHex, 
-          jobRequestEvent, 
-          "processing"
-        );
+        const processingFeedback = createNip90FeedbackEvent(dvmPrivateKeyHex, jobRequestEvent, "processing");
         yield* _(publishFeedback(processingFeedback));
-        
-        // Prepare Ollama request with parameters from request or defaults
+
         const ollamaModel = paramsMap.get("model") || textGenConfig.model;
         const ollamaRequest: OllamaChatCompletionRequest = {
           model: ollamaModel,
           messages: [{ role: "user", content: prompt }],
-          stream: false // DVMs don't stream results in NIP-90
+          stream: false
         };
-        
-        // Log the parameters that would be used
+
         yield* _(telemetry.trackEvent({
           category: "dvm:job",
           action: "ollama_params_intended",
@@ -559,55 +507,48 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           })
         }).pipe(Effect.ignoreLogged));
 
-        // Generate completion
         const ollamaResult = yield* _(ollama.generateChatCompletion(ollamaRequest).pipe(
           Effect.mapError(e => new DVMJobProcessingError({ message: "Ollama inference failed", cause: e }))
         ));
-        
-        // Extract output and token count
+
         const ollamaOutput = ollamaResult.choices[0]?.message.content || "";
-        const usage = ollamaResult.usage || { 
-          prompt_tokens: Math.ceil(prompt.length / 4), 
-          completion_tokens: Math.ceil(ollamaOutput.length / 4), 
-          total_tokens: Math.ceil((prompt.length + ollamaOutput.length) / 4) 
+        const usage = ollamaResult.usage || {
+          prompt_tokens: Math.ceil(prompt.length / 4),
+          completion_tokens: Math.ceil(ollamaOutput.length / 4),
+          total_tokens: Math.ceil((prompt.length + ollamaOutput.length) / 4)
         };
         const totalTokens = usage.total_tokens;
 
-        // 4. Generate Invoice (SparkService)
-        // Calculate price based on token count and config
         const priceSats = Math.max(
           textGenConfig.minPriceSats,
           Math.ceil((totalTokens / 1000) * textGenConfig.pricePer1kTokens)
         );
         const invoiceAmountMillisats = priceSats * 1000;
 
-        // Create invoice via SparkService
-        const invoiceParams: CreateLightningInvoiceParams = { 
-          amountSats: priceSats, 
-          memo: `NIP-90 Job: ${jobRequestEvent.id.substring(0, 8)}` 
+        const invoiceParams: CreateLightningInvoiceParams = {
+          amountSats: priceSats,
+          memo: `NIP-90 Job: ${jobRequestEvent.id.substring(0, 8)}`
         };
         const invoiceResult = yield* _(spark.createLightningInvoice(invoiceParams).pipe(
           Effect.mapError(e => new DVMPaymentError({ message: "Spark invoice creation failed", cause: e }))
         ));
         const bolt11Invoice = invoiceResult.invoice.encodedInvoice;
 
-        // 5. Prepare final output content (encrypt if original was encrypted)
         let finalOutputContent = ollamaOutput;
         if (isRequestEncrypted) {
           const dvmSkBytes = hexToBytes(dvmPrivateKeyHex);
           finalOutputContent = yield* _(nip04.encrypt(
-            dvmSkBytes, 
-            jobRequestEvent.pubkey, 
+            dvmSkBytes,
+            jobRequestEvent.pubkey,
             ollamaOutput
           ).pipe(
-            Effect.mapError(e => new DVMJobProcessingError({ 
-              message: "Failed to encrypt NIP-90 job result", 
-              cause: e 
+            Effect.mapError(e => new DVMJobProcessingError({
+              message: "Failed to encrypt NIP-90 job result",
+              cause: e
             }))
           ));
         }
 
-        // Create and publish job result event
         const jobResultEvent = createNip90JobResultEvent(
           dvmPrivateKeyHex,
           jobRequestEvent,
@@ -616,346 +557,401 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           bolt11Invoice,
           isRequestEncrypted
         );
-        
-        yield* _(nostr.publishEvent(jobResultEvent).pipe(
-          Effect.mapError(e => new DVMJobProcessingError({ 
-            message: "Failed to publish job result event", 
-            cause: e 
-          }))
-        ));
 
-        // 6. Send "success" Feedback
-        const successFeedback = createNip90FeedbackEvent(
-          dvmPrivateKeyHex, 
-          jobRequestEvent, 
-          "success",
-          undefined,
-          { amountMillisats: invoiceAmountMillisats, invoice: bolt11Invoice }
-        );
-        yield* _(publishFeedback(successFeedback));
-
-        // Track successful job completion
-        yield* _(telemetry.trackEvent({ 
-          category: "dvm:job", 
-          action: "job_request_processed_success", 
-          label: jobRequestEvent.id 
+        yield* _(telemetry.trackEvent({
+          category: "dvm:job",
+          action: "job_result_ready",
+          label: `Job ID: ${jobRequestEvent.id}`,
+          value: JSON.stringify({
+            totalTokens,
+            priceSats,
+            outputLength: ollamaOutput.length,
+            encrypted: isRequestEncrypted
+          })
         }).pipe(Effect.ignoreLogged));
-      }).pipe(
-        // Centralized error handling for job processing
-        Effect.catchAllCause(cause => {
-          // Get latest effective config for error handling
-          const effectiveConfigForError = useDVMSettingsStore.getState().getEffectiveConfig();
-          const dvmPrivateKeyHexForError = effectiveConfigForError.dvmPrivateKeyHex;
-          
-          // Extract error or create a generic one
-          const dvmError = Option.getOrElse(Cause.failureOption(cause), () =>
-            new DVMJobProcessingError({ 
-              message: "Unknown error during DVM job processing", 
-              cause 
-            })
+
+        // Publish result
+        const publishResultEffect = nostr.publishEvent(jobResultEvent).pipe(
+          Effect.tap(_ => {
+            // Create a payment-required feedback after successful result publication
+            const paymentRequiredFeedback = createNip90FeedbackEvent(
+              dvmPrivateKeyHex,
+              jobRequestEvent,
+              "payment-required",
+              `Payment requested: ${priceSats} sats (${totalTokens} tokens)`,
+              { amountMillisats: invoiceAmountMillisats, invoice: bolt11Invoice }
+            );
+            // Publish payment-required feedback as fire-and-forget
+            return publishFeedback(paymentRequiredFeedback);
+          }),
+          Effect.mapError(e => new DVMConnectionError({
+            message: "Failed to publish NIP-90 job result", 
+            cause: e
+          }))
+        );
+
+        yield* _(publishResultEffect);
+
+        yield* _(telemetry.trackEvent({
+          category: "dvm:job",
+          action: "job_result_published",
+          label: `Job ID: ${jobRequestEvent.id}`,
+          value: jobResultEvent.id
+        }).pipe(Effect.ignoreLogged));
+      });
+    
+    /**
+     * Start listening for NIP-90 job requests from Nostr relays
+     * Once started, the DVM will process incoming jobs automatically
+     */
+    const startListening = (): Effect.Effect<void, DVMError | TrackEventError, never> =>
+      Effect.gen(function* (_) {
+        const effectiveConfig = useDVMSettingsStore.getState().getEffectiveConfig();
+        const dvmPrivateKeyHex = effectiveConfig.dvmPrivateKeyHex;
+        const dvmPublicKeyHex = effectiveConfig.dvmPublicKeyHex;
+        const relays = effectiveConfig.relays;
+
+        yield* _(telemetry.trackEvent({ 
+          category: 'dvm:admin', 
+          action: 'start_listening_attempt',
+          label: dvmPublicKeyHex,
+          value: `Relays: ${relays.length}`
+        }).pipe(Effect.ignoreLogged));
+
+        if (!dvmPrivateKeyHex) {
+          yield* _(telemetry.trackEvent({ 
+            category: 'dvm:error', 
+            action: 'start_listening_no_private_key'
+          }).pipe(Effect.ignoreLogged));
+          return yield* _(Effect.fail(new DVMConfigError({ 
+            message: "No DVM private key specified. Set a key in DVM settings." 
+          })));
+        }
+
+        if (relays.length === 0) {
+          yield* _(telemetry.trackEvent({ 
+            category: 'dvm:error', 
+            action: 'start_listening_no_relays'
+          }).pipe(Effect.ignoreLogged));
+          return yield* _(Effect.fail(new DVMConfigError({ 
+            message: "No relays specified for DVM. Configure relays in DVM settings." 
+          })));
+        }
+
+        // Only start listening if not already listening
+        if (isActiveInternal && currentSubscription) {
+          yield* _(telemetry.trackEvent({ 
+            category: 'dvm:admin', 
+            action: 'already_listening_noop'
+          }).pipe(Effect.ignoreLogged));
+          return;
+        }
+
+        // Get supported job kinds from config
+        const supportedKinds = effectiveConfig.supportedJobKinds;
+
+        // Create subscription filter to listen for job requests
+        const filters: NostrFilter[] = [
+          { 
+            kinds: supportedKinds,
+            '#p': [dvmPublicKeyHex],
+            since: Math.floor(Date.now() / 1000) - 60 // Last minute only
+          }
+        ];
+
+        // Start the invoice check fiber if it's not already running or if it's completed
+        // Since there's no direct isRunning method, we simply start a new fiber if needed
+        if (!invoiceCheckFiber) {
+          const scheduledInvoiceChecks = Effect.repeat(
+            checkAndUpdateInvoiceStatuses().pipe(
+              Effect.provideService(SparkService, spark),
+              Effect.provideService(NostrService, nostr),
+              Effect.provideService(TelemetryService, telemetry),
+              Effect.catchAllCause(cause => {
+                console.error("Invoice check error:", Cause.pretty(cause));
+                return Effect.logInfo("Continuing with invoice checks despite error");
+              })
+            ),
+            Schedule.spaced(Duration.seconds(60)) // Check every minute
           );
 
-          // Send error feedback
-          const feedback = createNip90FeedbackEvent(
-            dvmPrivateKeyHexForError, 
-            jobRequestEvent, 
-            "error", 
-            dvmError.message
-          );
-          
-          // Fork feedback publish so it doesn't block the main error flow
-          Effect.runFork(publishFeedback(feedback));
+          invoiceCheckFiber = Effect.runFork(scheduledInvoiceChecks);
+        }
 
-          // Track error and propagate it
-          return telemetry.trackEvent({
-            category: "dvm:error", 
-            action: "job_request_processing_failure",
-            label: jobRequestEvent.id, 
-            value: dvmError.message
-          }).pipe(
-            Effect.ignoreLogged,
-            Effect.andThen(Effect.fail(dvmError as DVMError))
-          );
-        })
-      );
+        // Make subscription to Nostr relays
+        const onEvent = (event: NostrEvent) => {
+          if (isActiveInternal) {
+            // Use Effect.runFork instead of yield* for non-generator callback
+            Effect.runFork(telemetry.trackEvent({ 
+              category: 'dvm:event', 
+              action: 'received_job_request',
+              label: event.id,
+              value: `Kind: ${event.kind}` 
+            }).pipe(Effect.ignoreLogged));
+            Effect.runFork(processJobRequestInternal(event));
+          }
+        };
+
+        const onEOSE = (relay: string) => {
+          // Use Effect.runFork instead of yield* for non-generator callback
+          Effect.runFork(telemetry.trackEvent({ 
+            category: 'dvm:event', 
+            action: 'eose_received',
+            label: relay
+          }).pipe(Effect.ignoreLogged));
+        };
+
+        try {
+          const sub = yield* _(nostr.subscribeToEvents(filters, onEvent, relays, onEOSE).pipe(
+            Effect.mapError(e => new DVMConnectionError({ message: "Failed to establish relay connection", cause: e }))
+          ));
+          currentSubscription = sub;
+          isActiveInternal = true;
+          currentDvmPublicKeyHex = dvmPublicKeyHex;
+
+          yield* _(telemetry.trackEvent({ 
+            category: 'dvm:admin', 
+            action: 'start_listening_success',
+            label: currentDvmPublicKeyHex,
+            value: `Relays: ${relays.length}, Kinds: ${supportedKinds.join(',')}` 
+          }).pipe(Effect.ignoreLogged));
+        } catch (e) {
+          yield* _(telemetry.trackEvent({ 
+            category: 'dvm:error', 
+            action: 'start_listening_exception',
+            value: String(e) 
+          }).pipe(Effect.ignoreLogged));
+          return yield* _(Effect.fail(new DVMConnectionError({ 
+            message: "Failed to start listening for job requests", 
+            cause: e 
+          })));
+        }
+      });
+    
+    /**
+     * Stop listening for NIP-90 job requests
+     */
+    const stopListening = (): Effect.Effect<void, DVMError | TrackEventError, never> => 
+      Effect.gen(function* (_) {
+        yield* _(telemetry.trackEvent({ 
+          category: 'dvm:admin', 
+          action: 'stop_listening'
+        }).pipe(Effect.ignoreLogged));
+
+        if (!isActiveInternal || !currentSubscription) {
+          yield* _(telemetry.trackEvent({ 
+            category: 'dvm:admin', 
+            action: 'stop_listening_noop', 
+            label: 'Not currently listening'
+          }).pipe(Effect.ignoreLogged));
+          return;
+        }
+
+        try {
+          // Unsubscribe from events
+          currentSubscription.unsub();
+          currentSubscription = null;
+          isActiveInternal = false;
+
+          // Cancel invoice check fiber if it's running
+          if (invoiceCheckFiber) {
+            Fiber.interrupt(invoiceCheckFiber);
+            invoiceCheckFiber = null;
+          }
+          
+          yield* _(telemetry.trackEvent({ 
+            category: 'dvm:admin', 
+            action: 'stop_listening_success'
+          }).pipe(Effect.ignoreLogged));
+        } catch (e) {
+          yield* _(telemetry.trackEvent({ 
+            category: 'dvm:error', 
+            action: 'stop_listening_exception',
+            value: String(e) 
+          }).pipe(Effect.ignoreLogged));
+          return yield* _(Effect.fail(new DVMConnectionError({ 
+            message: "Failed to stop listening for job requests", 
+            cause: e 
+          })));
+        }
+      });
+    
+    /**
+     * Check if the DVM is currently listening for job requests
+     */
+    const isListening = (): Effect.Effect<boolean, DVMError | TrackEventError, never> => 
+      Effect.gen(function* (_) {
+        yield* _(telemetry.trackEvent({ 
+          category: 'dvm:admin', 
+          action: 'check_listening_status',
+          value: isActiveInternal ? "active" : "inactive"
+        }).pipe(Effect.ignoreLogged));
+        return isActiveInternal;
+      });
 
     /**
-     * Process a local test job (not involving Nostr network)
-     * For testing the DVM functionality locally
+     * Process a local test job without involving Nostr network
+     * This method is used for testing the DVM functionality locally
+     * 
+     * @param prompt The text prompt to process
+     * @param requesterPkOverride Optional: simulates a request from a specific pubkey
+     * @returns The processed job result text
      */
     const processLocalTestJob = (
       prompt: string,
       requesterPkOverride?: string
-    ): Effect.Effect<string, DVMError | OllamaError | SparkError | NIP04EncryptError | NIP04DecryptError> =>
+    ): Effect.Effect<string, DVMError | OllamaError | SparkError | NIP04EncryptError | NIP04DecryptError, never> =>
       Effect.gen(function* (_) {
-        // Use effectiveConfig for DVM keys and text generation defaults
         const effectiveConfig = useDVMSettingsStore.getState().getEffectiveConfig();
         const dvmPrivateKeyHex = effectiveConfig.dvmPrivateKeyHex;
+        const dvmPublicKeyHex = effectiveConfig.dvmPublicKeyHex;
         const textGenConfig = effectiveConfig.defaultTextGenerationJobConfig;
 
         yield* _(telemetry.trackEvent({
-          category: "dvm:test_job",
-          action: "local_test_job_start",
-          label: `Prompt: ${prompt.substring(0,30)}...`
+          category: "dvm:local_test",
+          action: "process_local_test_job",
+          label: prompt.substring(0, 30) + (prompt.length > 30 ? "..." : "")
         }).pipe(Effect.ignoreLogged));
 
-        // 1. Perform Ollama Inference
-        const ollamaRequest: OllamaChatCompletionRequest = {
-          model: textGenConfig.model, // Use configured model
-          messages: [{ role: "user", content: prompt }],
-          stream: false,
-        };
-        const ollamaResult = yield* _(ollama.generateChatCompletion(ollamaRequest).pipe(
-          Effect.mapError(e => new DVMJobProcessingError({ message: "Test job: Ollama inference failed", cause: e }))
-        ));
-        const ollamaOutput = ollamaResult.choices[0]?.message.content || "";
-
-        // 2. (Mock) Invoice Generation - we don't need a real invoice for a local test
-        const mockInvoiceAmountSats = textGenConfig.minPriceSats; // Use min price as placeholder
-        const mockBolt11Invoice = `mockinvoice_for_testjob_${Date.now()}`;
-
-        yield* _(telemetry.trackEvent({
-          category: "dvm:test_job",
-          action: "mock_invoice_generated",
-          label: `Test Job: ${mockBolt11Invoice}`
-        }).pipe(Effect.ignoreLogged));
-
-        // 3. (Optional) Encryption if requesterPkOverride is provided
-        let finalOutputContent = ollamaOutput;
-        if (requesterPkOverride) {
-          const dvmSkBytes = hexToBytes(dvmPrivateKeyHex);
-          finalOutputContent = yield* _(nip04.encrypt(dvmSkBytes, requesterPkOverride, ollamaOutput).pipe(
-            Effect.mapError(e => new DVMJobProcessingError({ message: "Test job: Failed to encrypt result", cause: e }))
-          ));
+        if (!dvmPrivateKeyHex || !dvmPublicKeyHex) {
+          return yield* _(Effect.fail(new DVMConfigError({ 
+            message: "No DVM keypair available. Configure DVM settings first." 
+          })));
         }
 
+        // Create a simulated NIP-90 job request event
+        const requesterPk = requesterPkOverride || "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+        const simulatedRequestEvent: NostrEvent = {
+          id: "local_test_event_" + Date.now().toString(16),
+          pubkey: requesterPk,
+          created_at: Math.floor(Date.now() / 1000),
+          kind: 5100, // Kind 5100 is a general text generation job
+          tags: [
+            ["i", prompt, "text"],
+            ["output", "text/plain"]
+          ],
+          content: "", 
+          sig: "simulated_signature_for_test_only"
+        };
+
+        // Process the job using existing logic
+        const ollamaModel = textGenConfig.model;
+        const ollamaRequest: OllamaChatCompletionRequest = {
+          model: ollamaModel,
+          messages: [{ role: "user", content: prompt }],
+          stream: false
+        };
+
+        const ollamaResult = yield* _(ollama.generateChatCompletion(ollamaRequest).pipe(
+          Effect.mapError(e => new DVMJobProcessingError({ message: "Ollama inference failed", cause: e }))
+        ));
+
+        const ollamaOutput = ollamaResult.choices[0]?.message.content || "";
+        const usage = ollamaResult.usage || {
+          prompt_tokens: Math.ceil(prompt.length / 4),
+          completion_tokens: Math.ceil(ollamaOutput.length / 4),
+          total_tokens: Math.ceil((prompt.length + ollamaOutput.length) / 4)
+        };
+        const totalTokens = usage.total_tokens;
+
+        const priceSats = Math.max(
+          textGenConfig.minPriceSats,
+          Math.ceil((totalTokens / 1000) * textGenConfig.pricePer1kTokens)
+        );
+        const invoiceAmountMillisats = priceSats * 1000;
+
+        const invoiceParams: CreateLightningInvoiceParams = {
+          amountSats: priceSats,
+          memo: `NIP-90 Local Test Job`
+        };
+        const invoiceResult = yield* _(spark.createLightningInvoice(invoiceParams).pipe(
+          Effect.mapError(e => new DVMPaymentError({ message: "Spark invoice creation failed", cause: e }))
+        ));
+        const bolt11Invoice = invoiceResult.invoice.encodedInvoice;
+
         yield* _(telemetry.trackEvent({
-          category: "dvm:test_job",
-          action: "local_test_job_success",
-          label: `Result length: ${finalOutputContent.length}`
+          category: "dvm:local_test",
+          action: "local_test_job_complete",
+          value: JSON.stringify({
+            totalTokens,
+            priceSats,
+            outputLength: ollamaOutput.length
+          })
         }).pipe(Effect.ignoreLogged));
 
-        return finalOutputContent; // Return the processed (and possibly encrypted) content
-      }).pipe(
-        Effect.catchAllCause(cause => {
-          const dvmError = Option.getOrElse(Cause.failureOption(cause), () =>
-            new DVMJobProcessingError({ message: "Unknown error during local test job", cause })
-          );
-          return telemetry.trackEvent({
-            category: "dvm:error",
-            action: "local_test_job_failure",
-            label: dvmError.message
-          }).pipe(Effect.ignoreLogged, Effect.andThen(Effect.fail(dvmError as DVMError)));
-        })
-      );
+        // Return the output directly for local test job
+        return `${ollamaOutput}\n\n---\nTokens: ${totalTokens} | Price: ${priceSats} sats | Invoice: ${bolt11Invoice.substring(0, 20)}...`;
+      });
 
-    // Return the service interface
+    /**
+     * Return the service interface with implementations of all methods
+     */
     return {
-      startListening: (): Effect.Effect<void, DVMConfigError | DVMConnectionError | TrackEventError, never> => 
-        Effect.gen(function* (_) {
-          // Check if already active
-          if (isActiveInternal) {
-            yield* _(telemetry.trackEvent({ 
-              category: 'dvm:status', 
-              action: 'start_listening_already_active' 
+      startListening: () => 
+        startListening().pipe(
+          Effect.catchAllCause(cause => {
+            // Use Effect.runFork instead of yield* for non-generator callback
+            Effect.runFork(telemetry.trackEvent({
+              category: 'dvm:error',
+              action: 'startListening_uncaught_error',
+              value: Cause.pretty(cause)
             }).pipe(Effect.ignoreLogged));
-            return;
-          }
-
-          // Get effective settings from a single call
-          const effectiveConfig = useDVMSettingsStore.getState().getEffectiveConfig();
-          currentDvmPublicKeyHex = effectiveConfig.dvmPublicKeyHex;
-
-          // Check for required config
-          if (!effectiveConfig.dvmPrivateKeyHex) {
-            return yield* _(Effect.fail(new DVMConfigError({ 
-              message: "DVM private key not configured." 
-            })));
-          }
-          
-          if (effectiveConfig.relays.length === 0) {
-            return yield* _(Effect.fail(new DVMConfigError({ 
-              message: "No DVM relays configured." 
-            })));
-          }
-
-          yield* _(telemetry.trackEvent({
-            category: 'dvm:status',
-            action: 'start_listening_attempt',
-            label: `Relays: ${effectiveConfig.relays.join(', ')}, Kinds: ${effectiveConfig.supportedJobKinds.join(', ')}`
-          }).pipe(Effect.ignoreLogged));
-
-          // Create filter for job requests
-          const jobRequestFilter: NostrFilter = {
-            kinds: effectiveConfig.supportedJobKinds,
-            since: Math.floor(Date.now() / 1000) - 300, // Look for recent jobs (last 5 mins)
-          };
-
-          // Subscribe to events with custom relays from effective config
-          const sub = yield* _(nostr.subscribeToEvents(
-            [jobRequestFilter],
-            (event: NostrEvent) => {
-              // Get latest config for this check to handle potential settings changes during runtime
-              const latestConfig = useDVMSettingsStore.getState().getEffectiveConfig();
-              if (event.pubkey === latestConfig.dvmPublicKeyHex && 
-                (event.kind === 7000 || (event.kind >= 6000 && event.kind <= 6999))) {
-                return;
-              }
-              
-              // Fork job processing so it runs independently
-              Effect.runFork(processJobRequestInternal(event));
-            },
-            effectiveConfig.relays, // Pass the effective relays from user settings
-            () => { // onEOSE callback
-              Effect.runFork(telemetry.trackEvent({
-                category: "dvm:nostr",
-                action: "subscription_eose",
-                label: `EOSE received for DVM job kinds: ${effectiveConfig.supportedJobKinds.join(', ')}`
-              }).pipe(Effect.ignoreLogged));
-            }
-          ).pipe(
-            Effect.mapError(e => new DVMConnectionError({ 
-              message: "Failed to subscribe to Nostr for DVM requests", 
-              cause: e 
-            }))
-          ));
-
-          // Store subscription and update state
-          currentSubscription = sub;
-          isActiveInternal = true;
-          
-          // Create the invoice check effect with proper error handling
-          const invoiceCheckLoopEffect = checkAndUpdateInvoiceStatuses().pipe(
-            Effect.catchAllCause(cause => 
-              telemetry.trackEvent({
-                category: "dvm:error",
-                action: "invoice_check_loop_error",
-                label: "Error in periodic invoice check loop",
-                value: Cause.pretty(cause)
-              }).pipe(Effect.ignoreLogged)
-            )
-          );
-          
-          // Schedule the effect to run periodically (every 2 minutes)
-          const scheduledInvoiceCheck = Effect.repeat(
-            invoiceCheckLoopEffect,
-            Schedule.spaced(Duration.minutes(2))
-          );
-          
-          // Provide the required services to the scheduled effect
-          const fullyProvidedCheck = scheduledInvoiceCheck.pipe(
-            Effect.provideService(SparkService, spark),
-            Effect.provideService(TelemetryService, telemetry)
-          );
-          
-          // Fork the scheduled effect into its own fiber - properly typed now
-          invoiceCheckFiber = Effect.runFork(fullyProvidedCheck) as Fiber.RuntimeFiber<void, never>;
-          
-          yield* _(telemetry.trackEvent({ 
-            category: 'dvm:status', 
-            action: 'invoice_check_loop_started' 
-          }).pipe(Effect.ignoreLogged));
-          
-          yield* _(telemetry.trackEvent({ 
-            category: 'dvm:status', 
-            action: 'start_listening_success' 
-          }).pipe(Effect.ignoreLogged));
-        }),
-      
-      stopListening: (): Effect.Effect<void, DVMError | TrackEventError, never> => 
-        Effect.gen(function* (_) {
-          // Check if already inactive
-          if (!isActiveInternal) {
-            yield* _(telemetry.trackEvent({ 
-              category: 'dvm:status', 
-              action: 'stop_listening_already_inactive'
-            }).pipe(Effect.ignoreLogged));
-            return;
-          }
-          
-          yield* _(telemetry.trackEvent({ 
-            category: 'dvm:status', 
-            action: 'stop_listening_attempt'
-          }).pipe(Effect.ignoreLogged));
-          
-          // Unsubscribe if we have a subscription
-          if (currentSubscription) {
-            try {
-              currentSubscription.unsub();
-              currentSubscription = null;
-            } catch (e) {
-              // Log error but continue (don't fail the stopListening)
-              yield* _(telemetry.trackEvent({ 
-                category: 'dvm:error', 
-                action: 'stop_listening_unsub_failure', 
-                label: e instanceof Error ? e.message : String(e) 
-              }).pipe(Effect.ignoreLogged));
-            }
-          }
-          
-          // Interrupt the invoice checking fiber if active
-          if (invoiceCheckFiber) {
-            Effect.runFork(Fiber.interrupt(invoiceCheckFiber));
-            invoiceCheckFiber = null;
-            yield* _(telemetry.trackEvent({ 
-              category: 'dvm:status', 
-              action: 'invoice_check_loop_stopped' 
-            }).pipe(Effect.ignoreLogged));
-          }
-          
-          // Update state
-          isActiveInternal = false;
-          
-          yield* _(telemetry.trackEvent({ 
-            category: 'dvm:status', 
-            action: 'stop_listening_success'
-          }).pipe(Effect.ignoreLogged));
-        }),
-      
-      isListening: (): Effect.Effect<boolean, DVMError | TrackEventError, never> => 
-        Effect.gen(function* (_) {
-          yield* _(telemetry.trackEvent({ 
-            category: 'dvm:status', 
-            action: 'check_listening_status', 
-            label: isActiveInternal ? 'active' : 'inactive'
-          }).pipe(Effect.ignoreLogged));
-          
-          return isActiveInternal;
-        }),
-
-      getJobHistory: (options: { page: number; pageSize: number; filters?: Partial<JobHistoryEntry> }): Effect.Effect<{ entries: JobHistoryEntry[]; totalCount: number }, DVMError | TrackEventError, never> => 
-        getJobHistoryStub(options).pipe(
-          Effect.provideService(TelemetryService, telemetry)
+            return Effect.failCause(cause);
+          })
         ),
 
+      stopListening: () => 
+        stopListening().pipe(
+          Effect.catchAllCause(cause => {
+            // Use Effect.runFork instead of yield* for non-generator callback
+            Effect.runFork(telemetry.trackEvent({
+              category: 'dvm:error',
+              action: 'stopListening_uncaught_error',
+              value: Cause.pretty(cause)
+            }).pipe(Effect.ignoreLogged));
+            return Effect.failCause(cause);
+          })
+        ),
+
+      isListening: () =>
+        isListening().pipe(
+          Effect.catchAllCause(cause => {
+            // Use Effect.runFork instead of yield* for non-generator callback
+            Effect.runFork(telemetry.trackEvent({
+              category: 'dvm:error',
+              action: 'isListening_uncaught_error',
+              value: Cause.pretty(cause)
+            }).pipe(Effect.ignoreLogged));
+            return Effect.failCause(cause);
+          })
+        ),
+
+      processLocalTestJob: (prompt, requesterPkOverride) =>
+        processLocalTestJob(prompt, requesterPkOverride).pipe(
+          Effect.catchAllCause(cause => {
+            // Use Effect.runFork instead of yield* for non-generator callback
+            Effect.runFork(telemetry.trackEvent({
+              category: 'dvm:error',
+              action: 'processLocalTestJob_uncaught_error',
+              value: Cause.pretty(cause)
+            }).pipe(Effect.ignoreLogged));
+            return Effect.failCause(cause);
+          })
+        ),
+
+      // Replace mock implementation with real implementation
+      getJobHistory: (options: { page: number; pageSize: number; filters?: Partial<JobHistoryEntry> }): Effect.Effect<{ entries: JobHistoryEntry[]; totalCount: number }, DVMError | TrackEventError, never> => 
+        getJobHistory(options).pipe(
+          Effect.provideService(TelemetryService, telemetry),
+          Effect.provideService(NostrService, nostr)
+        ),
+
+      // Replace mock implementation with real implementation
       getJobStatistics: (): Effect.Effect<JobStatistics, DVMError | TrackEventError, never> => 
-        Effect.gen(function* (_) {
-          yield* _(telemetry.trackEvent({ 
-            category: 'dvm:stats', 
-            action: 'get_job_statistics_stub' 
-          }).pipe(Effect.ignoreLogged));
-          
-          // Mock statistics (to be replaced with actual calculations in a future task)
-          const mockStats: JobStatistics = {
-            totalJobsProcessed: 125,
-            totalSuccessfulJobs: 90,
-            totalFailedJobs: 15,
-            totalRevenueSats: 1850,
-            jobsPendingPayment: 20,
-            averageProcessingTimeMs: 3250,
-            modelUsageCounts: { 
-              "gemma2:latest": 70, 
-              "llama3:instruct": 20, 
-              "codellama:latest": 25,
-              "other_model": 10 
-            }
-          };
-          
-          return mockStats;
-        }),
-        
-      // Add the processLocalTestJob method to the returned service
-      processLocalTestJob
+        getJobStatistics().pipe(
+          Effect.provideService(TelemetryService, telemetry),
+          Effect.provideService(NostrService, nostr)
+        ),
     };
   })
 );
