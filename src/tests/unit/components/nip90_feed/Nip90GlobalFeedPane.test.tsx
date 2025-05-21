@@ -2,33 +2,48 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import Nip90GlobalFeedPane from '@/components/nip90_feed/Nip90GlobalFeedPane';
-import { NostrEvent } from '@/services/nostr/NostrService';
-import { NIP90Service } from '@/services/nip90/NIP90Service';
-import { Effect } from 'effect';
-import { TelemetryService } from '@/services/telemetry';
-import { useQuery } from '@tanstack/react-query';
 import type { Mock } from 'vitest';
 
 // Set test environment
 process.env.NODE_ENV = 'test';
+
+// Mock specific functions only
+vi.mock('effect', () => {
+  return {
+    Effect: {
+      // Only mock runFork
+      runFork: vi.fn(),
+      // Add other functions that might be used
+      flatMap: vi.fn(),
+      succeed: vi.fn(),
+      provide: vi.fn(),
+      gen: vi.fn()
+    },
+    Exit: { 
+      succeed: vi.fn(),
+      isSuccess: vi.fn()
+    },
+    Cause: {
+      squash: vi.fn()
+    },
+    Data: {
+      TaggedError: () => class MockError extends Error {}
+    }
+  };
+});
 
 // Mock the @tanstack/react-query module
 vi.mock('@tanstack/react-query', () => ({
   useQuery: vi.fn(),
 }));
 
-// Simply mock Effect.runFork to avoid errors
-vi.mock('effect', async () => {
-  const actual = await vi.importActual('effect');
-  return {
-    ...actual,
-    Effect: {
-      ...actual.Effect,
-      runFork: vi.fn(),
-    }
-  };
-});
+// Import after mocks are defined
+import Nip90GlobalFeedPane from '@/components/nip90_feed/Nip90GlobalFeedPane';
+import { NostrEvent } from '@/services/nostr/NostrService';
+import { NIP90Service } from '@/services/nip90/NIP90Service';
+import { Effect } from 'effect';
+import { TelemetryService } from '@/services/telemetry';
+import { useQuery } from '@tanstack/react-query';
 
 // Mock dependencies
 vi.mock('@/services/runtime', () => ({
