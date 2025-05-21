@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { Effect, Layer, Context, Stream } from "effect";
+import { Effect, Layer, Context, Stream, Chunk } from "effect";
+import type { AiError } from "@effect/ai/AiError";
+import type { AiResponse } from "@effect/ai/AiResponse";
 import {
   AgentLanguageModel, 
   type AiTextChunk,
@@ -9,19 +11,21 @@ import {
 } from "@/services/ai/core/AgentLanguageModel";
 import { AIGenericError } from "@/services/ai/core/AIError";
 
-// Mock AiResponse since we're not importing from @effect/ai
-type AiResponse = {
+// Create a type that mimics AiResponse but has only what we need for testing
+interface MockAiResponse {
   text: string;
-};
+}
 
 // Create a mock error for testing
-class MockAiError extends AIGenericError {
+class MockAiError extends AIGenericError implements AiError {
+  name: string;
   provider: string;
   
   constructor() {
     super({
       message: "Mock AI Error",
     });
+    this.name = "AiProviderError";
     this._tag = "AiProviderError";
     this.provider = "MockProvider";
   }
@@ -30,11 +34,11 @@ class MockAiError extends AIGenericError {
 class MockAgentLanguageModel implements AgentLanguageModel {
   readonly _tag = "AgentLanguageModel";
 
-  generateText = vi.fn((params: GenerateTextOptions) => 
-    Effect.succeed({ text: "Mock generated text response" } as AiResponse)
+  generateText = vi.fn((_params: GenerateTextOptions) => 
+    Effect.succeed({ text: "Mock generated text response" } as MockAiResponse as AiResponse)
   );
 
-  streamText = vi.fn((params: StreamTextOptions) => 
+  streamText = vi.fn((_params: StreamTextOptions) => 
     Stream.fromIterable([
       { text: "Mock " },
       { text: "stream " },
@@ -42,8 +46,8 @@ class MockAgentLanguageModel implements AgentLanguageModel {
     ] as AiTextChunk[])
   );
 
-  generateStructured = vi.fn((params: GenerateStructuredOptions) => 
-    Effect.succeed({ text: "Mock structured response" } as AiResponse)
+  generateStructured = vi.fn((_params: GenerateStructuredOptions) => 
+    Effect.succeed({ text: "Mock structured response" } as MockAiResponse as AiResponse)
   );
 }
 
@@ -91,7 +95,8 @@ describe("AgentLanguageModel Service", () => {
     it("generateText should properly propagate errors", async () => {
       const mockService = new MockAgentLanguageModel();
       const mockError = new MockAiError();
-      mockService.generateText.mockReturnValueOnce(Effect.fail(mockError));
+      // Cast the mockReturnValue to handle the AiError type
+      mockService.generateText.mockReturnValueOnce(Effect.fail(mockError) as Effect.Effect<AiResponse, AiError>);
       
       const testLayer = Layer.succeed(AgentLanguageModel, mockService);
       const params: GenerateTextOptions = { prompt: "Test prompt" };
@@ -107,7 +112,7 @@ describe("AgentLanguageModel Service", () => {
         );
         // Should not reach here
         expect(true).toBe(false);
-      } catch (error) {
+      } catch (error: any) {
         expect(error).toBeDefined();
         expect(error.message).toBe("Mock AI Error");
       }
@@ -115,38 +120,39 @@ describe("AgentLanguageModel Service", () => {
 
     it("streamText should be callable and provide stream", async () => {
       const mockService = new MockAgentLanguageModel();
+      
+      // Create test data
+      const testChunks = [
+        { text: "Mock " },
+        { text: "stream " },
+        { text: "response" }
+      ] as AiTextChunk[];
+      
+      // Use a simpler approach - directly mock the implementation
+      mockService.streamText.mockImplementation(() => {
+        return Stream.fromIterable(testChunks);
+      });
+
       const testLayer = Layer.succeed(AgentLanguageModel, mockService);
       const params: StreamTextOptions = { prompt: "Test prompt" };
 
-      // Create a simple stream with chunks directly
-      const mockStream = Stream.fromIterable([
-        { text: "Mock " },
-        { text: "stream " },
-        { text: "response" }
-      ] as AiTextChunk[]);
+      // Use Effect.gen to get the stream and collect it
+      const program = Effect.gen(function*($) {
+        const model = yield* $(AgentLanguageModel);
+        const stream = model.streamText(params);
+        const chunks = yield* $(Stream.runCollect(stream));
+        return chunks;
+      });
       
-      // Override the mock to return our predefined stream
-      mockService.streamText.mockReturnValue(mockStream);
-
-      const program = Effect.flatMap(
-        AgentLanguageModel,
-        (service) => service.streamText(params)
+      const collected = await Effect.runPromise(
+        program.pipe(Effect.provide(testLayer))
       );
-
-      // Collect the stream chunks directly from the program
-      const chunks: AiTextChunk[] = [];
-      await Stream.runCollect(program.pipe(Effect.provide(testLayer)))
-        .pipe(Effect.map(collected => {
-          collected.forEach(chunk => chunks.push(chunk));
-        }))
-        .pipe(Effect.runPromise);
+      
+      // Convert Chunk to array for comparison
+      const result = Array.from(collected);
       
       expect(mockService.streamText).toHaveBeenCalledWith(params);
-      expect(chunks).toEqual([
-        { text: "Mock " },
-        { text: "stream " },
-        { text: "response" }
-      ]);
+      expect(result).toEqual(testChunks);
     });
 
     it("generateStructured should be callable and return mock response", async () => {
