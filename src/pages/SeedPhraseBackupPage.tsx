@@ -7,7 +7,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Copy, Check, Loader2 } from 'lucide-react';
-import { shallow } from 'zustand/shallow';
 import SelfCustodyNoticeDialog from '@/components/wallet/SelfCustodyNoticeDialog';
 
 interface SeedPhraseBackupPageProps {
@@ -17,16 +16,13 @@ interface SeedPhraseBackupPageProps {
 
 const SeedPhraseBackupPage: React.FC<SeedPhraseBackupPageProps> = ({ seedPhrase, paneId }) => {
   // Get wallet store methods
-  const { _initializeWalletWithSeed, hasSeenSelfCustodyNotice, error, isLoading, clearError } = useWalletStore(
-    (state) => ({
-      _initializeWalletWithSeed: state._initializeWalletWithSeed,
-      hasSeenSelfCustodyNotice: state.hasSeenSelfCustodyNotice,
-      error: state.error,
-      isLoading: state.isLoading,
-      clearError: state.clearError,
-    }),
-    shallow // Add shallow equality check to prevent unnecessary re-renders
-  );
+  const { _initializeWalletWithSeed, hasSeenSelfCustodyNotice, error, isLoading, clearError } = useWalletStore((state) => ({
+    _initializeWalletWithSeed: state._initializeWalletWithSeed,
+    hasSeenSelfCustodyNotice: state.hasSeenSelfCustodyNotice,
+    error: state.error,
+    isLoading: state.isLoading,
+    clearError: state.clearError,
+  }));
   
   const removePane = usePaneStore((state) => state.removePane);
   

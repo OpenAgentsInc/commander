@@ -10,7 +10,6 @@ import { Nip90DvmTestPane } from '@/components/nip90_dvm_test';
 import { Nip90ConsumerChatPane } from '@/components/nip90_consumer_chat';
 import { Nip90GlobalFeedPane } from '@/components/nip90_feed';
 import { WalletPane } from '@/components/wallet';
-import { shallow } from 'zustand/shallow';
 // Import page components that will now be rendered in panes
 import SecondPage from '@/pages/SecondPage';
 import WalletSetupPage from '@/pages/WalletSetupPage';
@@ -32,13 +31,10 @@ const PlaceholderDefaultComponent = ({ type }: { type: string }) => <div classNa
 
 
 export const PaneManager = () => {
-  const { panes, activePaneId } = usePaneStore(
-    (state) => ({
-      panes: state.panes,
-      activePaneId: state.activePaneId
-    }),
-    shallow // Add shallow equality check to prevent unnecessary re-renders
-  );
+  const { panes, activePaneId } = usePaneStore((state) => ({
+    panes: state.panes,
+    activePaneId: state.activePaneId
+  }));
   // const createNip28Channel = usePaneStore((state) => state.createNip28ChannelPane); // No longer needed here
 
   const stripIdPrefix = (id: string): string => {

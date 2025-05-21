@@ -5,7 +5,6 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, KeyRound } from 'lucide-react';
-import { shallow } from 'zustand/shallow';
 import SelfCustodyNoticeDialog from '@/components/wallet/SelfCustodyNoticeDialog';
 
 interface RestoreWalletPageProps {
@@ -13,24 +12,18 @@ interface RestoreWalletPageProps {
 }
 
 const RestoreWalletPage: React.FC<RestoreWalletPageProps> = ({ paneId }) => {
-  const { restoreWallet, hasSeenSelfCustodyNotice, error, isLoading, clearError } = useWalletStore(
-    (state) => ({
-      restoreWallet: state.restoreWallet,
-      hasSeenSelfCustodyNotice: state.hasSeenSelfCustodyNotice,
-      error: state.error,
-      isLoading: state.isLoading,
-      clearError: state.clearError,
-    }),
-    shallow
-  );
+  const { restoreWallet, hasSeenSelfCustodyNotice, error, isLoading, clearError } = useWalletStore((state) => ({
+    restoreWallet: state.restoreWallet,
+    hasSeenSelfCustodyNotice: state.hasSeenSelfCustodyNotice,
+    error: state.error,
+    isLoading: state.isLoading,
+    clearError: state.clearError,
+  }));
   
-  const { removePane, openWalletSetupPane } = usePaneStore(
-    (state) => ({
-      removePane: state.removePane,
-      openWalletSetupPane: state.openWalletSetupPane
-    }),
-    shallow
-  );
+  const { removePane, openWalletSetupPane } = usePaneStore((state) => ({
+    removePane: state.removePane,
+    openWalletSetupPane: state.openWalletSetupPane
+  }));
   
   const [seedPhrase, setSeedPhrase] = useState('');
   const [isRestoring, setIsRestoring] = useState(false);
