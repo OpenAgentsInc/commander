@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
 import { usePaneStore } from '@/stores/pane';
+import { useShallow } from 'zustand/react/shallow';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -16,15 +17,17 @@ interface SeedPhraseBackupPageProps {
 
 const SeedPhraseBackupPage: React.FC<SeedPhraseBackupPageProps> = ({ seedPhrase, paneId }) => {
   // Get wallet store methods
-  const { _initializeWalletWithSeed, hasSeenSelfCustodyNotice, error, isLoading, clearError } = useWalletStore((state) => ({
-    _initializeWalletWithSeed: state._initializeWalletWithSeed,
-    hasSeenSelfCustodyNotice: state.hasSeenSelfCustodyNotice,
-    error: state.error,
-    isLoading: state.isLoading,
-    clearError: state.clearError,
-  }));
+  const { _initializeWalletWithSeed, hasSeenSelfCustodyNotice, error, isLoading, clearError } = useWalletStore(
+    useShallow((state) => ({
+      _initializeWalletWithSeed: state._initializeWalletWithSeed,
+      hasSeenSelfCustodyNotice: state.hasSeenSelfCustodyNotice,
+      error: state.error,
+      isLoading: state.isLoading,
+      clearError: state.clearError,
+    }))
+  );
   
-  const removePane = usePaneStore((state) => state.removePane);
+  const removePane = usePaneStore(state => state.removePane);
   
   // Local state
   const [isSaved, setIsSaved] = useState(false);
@@ -32,14 +35,14 @@ const SeedPhraseBackupPage: React.FC<SeedPhraseBackupPageProps> = ({ seedPhrase,
   const [isInitializing, setIsInitializing] = useState(false);
   const [showSelfCustodyNotice, setShowSelfCustodyNotice] = useState(false);
 
-  const handleCopyToClipboard = () => {
+  const handleCopyToClipboard = useCallback(() => {
     navigator.clipboard.writeText(seedPhrase).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
-  };
+  }, [seedPhrase]);
 
-  const displaySeedPhraseWords = () => {
+  const displaySeedPhraseWords = useCallback(() => {
     if (!seedPhrase) return null;
     
     const words = seedPhrase.split(' ');
@@ -55,9 +58,9 @@ const SeedPhraseBackupPage: React.FC<SeedPhraseBackupPageProps> = ({ seedPhrase,
         ))}
       </div>
     );
-  };
+  }, [seedPhrase]);
 
-  const handleContinue = async () => {
+  const handleContinue = useCallback(async () => {
     if (!seedPhrase) return;
     
     setIsInitializing(true);
@@ -78,7 +81,7 @@ const SeedPhraseBackupPage: React.FC<SeedPhraseBackupPageProps> = ({ seedPhrase,
     } finally {
       setIsInitializing(false);
     }
-  };
+  }, [seedPhrase, clearError, _initializeWalletWithSeed, removePane, paneId, hasSeenSelfCustodyNotice]);
 
   return (
     <div className="container flex items-center justify-center min-h-full p-4">
@@ -119,7 +122,7 @@ const SeedPhraseBackupPage: React.FC<SeedPhraseBackupPageProps> = ({ seedPhrase,
           </Button>
           
           <div className="flex items-start space-x-2 pt-4">
-            <Checkbox id="confirm-saved" checked={isSaved} onCheckedChange={() => setIsSaved(!isSaved)} />
+            <Checkbox id="confirm-saved" checked={isSaved} onCheckedChange={(checked) => setIsSaved(Boolean(checked))} />
             <Label htmlFor="confirm-saved" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
               I have saved my seed phrase securely.
             </Label>

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
 import { usePaneStore } from '@/stores/pane';
+import { useShallow } from 'zustand/react/shallow';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,29 +13,33 @@ interface RestoreWalletPageProps {
 }
 
 const RestoreWalletPage: React.FC<RestoreWalletPageProps> = ({ paneId }) => {
-  const { restoreWallet, hasSeenSelfCustodyNotice, error, isLoading, clearError } = useWalletStore((state) => ({
-    restoreWallet: state.restoreWallet,
-    hasSeenSelfCustodyNotice: state.hasSeenSelfCustodyNotice,
-    error: state.error,
-    isLoading: state.isLoading,
-    clearError: state.clearError,
-  }));
+  const { restoreWallet, hasSeenSelfCustodyNotice, error, isLoading, clearError } = useWalletStore(
+    useShallow((state) => ({
+      restoreWallet: state.restoreWallet,
+      hasSeenSelfCustodyNotice: state.hasSeenSelfCustodyNotice,
+      error: state.error,
+      isLoading: state.isLoading,
+      clearError: state.clearError,
+    }))
+  );
   
-  const { removePane, openWalletSetupPane } = usePaneStore((state) => ({
-    removePane: state.removePane,
-    openWalletSetupPane: state.openWalletSetupPane
-  }));
+  const { removePane, openWalletSetupPane } = usePaneStore(
+    useShallow((state) => ({
+      removePane: state.removePane,
+      openWalletSetupPane: state.openWalletSetupPane
+    }))
+  );
   
   const [seedPhrase, setSeedPhrase] = useState('');
   const [isRestoring, setIsRestoring] = useState(false);
   const [showSelfCustodyNotice, setShowSelfCustodyNotice] = useState(false);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setSeedPhrase(e.target.value);
     if (error) clearError(); // Clear any previous errors when input changes
-  };
+  }, [error, clearError]);
 
-  const handleRestore = async () => {
+  const handleRestore = useCallback(async () => {
     if (!seedPhrase.trim()) return;
     
     setIsRestoring(true);
@@ -55,7 +60,13 @@ const RestoreWalletPage: React.FC<RestoreWalletPageProps> = ({ paneId }) => {
     } finally {
       setIsRestoring(false);
     }
-  };
+  }, [seedPhrase, clearError, restoreWallet, removePane, paneId, hasSeenSelfCustodyNotice]);
+
+  const handleBackToSetup = useCallback(() => {
+    clearError();
+    removePane(paneId); // Close this pane
+    openWalletSetupPane(); // Open wallet setup pane
+  }, [clearError, removePane, paneId, openWalletSetupPane]);
 
   return (
     <div className="container flex items-center justify-center min-h-full p-4">
@@ -94,11 +105,7 @@ const RestoreWalletPage: React.FC<RestoreWalletPageProps> = ({ paneId }) => {
           </Button>
           
           <Button
-            onClick={() => {
-              clearError();
-              removePane(paneId); // Close this pane
-              openWalletSetupPane(); // Open wallet setup pane
-            }}
+            onClick={handleBackToSetup}
             variant="outline"
             className="w-full"
           >

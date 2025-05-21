@@ -1,5 +1,6 @@
 import React from 'react';
 import { usePaneStore } from '@/stores/pane';
+import { useShallow } from 'zustand/react/shallow';
 import { Pane as PaneComponent } from '@/panes/Pane';
 import { Pane as PaneType } from '@/types/pane';
 import { Nip28ChannelChat } from '@/components/nip28';
@@ -31,10 +32,12 @@ const PlaceholderDefaultComponent = ({ type }: { type: string }) => <div classNa
 
 
 export const PaneManager = () => {
-  const { panes, activePaneId } = usePaneStore((state) => ({
-    panes: state.panes,
-    activePaneId: state.activePaneId
-  }));
+  const { panes, activePaneId } = usePaneStore(
+    useShallow((state) => ({
+      panes: state.panes,
+      activePaneId: state.activePaneId
+    }))
+  );
   // const createNip28Channel = usePaneStore((state) => state.createNip28ChannelPane); // No longer needed here
 
   const stripIdPrefix = (id: string): string => {

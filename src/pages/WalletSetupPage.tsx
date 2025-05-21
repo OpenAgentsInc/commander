@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
 import { usePaneStore } from '@/stores/pane';
+import { useShallow } from 'zustand/react/shallow';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, Wallet } from 'lucide-react';
@@ -10,18 +11,22 @@ interface WalletSetupPageProps {
 }
 
 const WalletSetupPage: React.FC<WalletSetupPageProps> = ({ paneId }) => {
-  const { generateNewWallet, isLoading, error, clearError } = useWalletStore((state) => ({
-    generateNewWallet: state.generateNewWallet,
-    isLoading: state.isLoading,
-    error: state.error,
-    clearError: state.clearError,
-  }));
+  const { generateNewWallet, isLoading, error, clearError } = useWalletStore(
+    useShallow((state) => ({
+      generateNewWallet: state.generateNewWallet,
+      isLoading: state.isLoading,
+      error: state.error,
+      clearError: state.clearError,
+    }))
+  );
   
-  const { openSeedPhraseBackupPane, openRestoreWalletPane, removePane } = usePaneStore((state) => ({
-    openSeedPhraseBackupPane: state.openSeedPhraseBackupPane,
-    openRestoreWalletPane: state.openRestoreWalletPane,
-    removePane: state.removePane,
-  }));
+  const { openSeedPhraseBackupPane, openRestoreWalletPane, removePane } = usePaneStore(
+    useShallow((state) => ({
+      openSeedPhraseBackupPane: state.openSeedPhraseBackupPane,
+      openRestoreWalletPane: state.openRestoreWalletPane,
+      removePane: state.removePane,
+    }))
+  );
   
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -81,7 +86,7 @@ const WalletSetupPage: React.FC<WalletSetupPageProps> = ({ paneId }) => {
             className="w-full"
             size="lg"
             variant="outline"
-            disabled={isLoading}
+            disabled={isLoading || isGenerating}
           >
             Restore Existing Wallet
           </Button>
