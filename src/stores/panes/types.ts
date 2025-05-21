@@ -19,6 +19,8 @@ export interface PaneStoreType extends PaneState {
   openNip90DashboardPane: () => void; // Open NIP-90 DVM dashboard pane
   openSellComputePane: () => void; // Open Sell Compute pane
   openDvmJobHistoryPane: () => void; // Open DVM Job History pane
+  openNip90DvmTestPane: () => void; // Open NIP-90 DVM Test pane
+  openNip90ConsumerChatPane: () => void; // Open NIP-90 Consumer Chat pane
   resetHUDState: () => void;
 }
 

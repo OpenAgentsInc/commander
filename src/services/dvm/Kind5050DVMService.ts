@@ -4,6 +4,9 @@ import { TrackEventError } from '@/services/telemetry/TelemetryService';
 import { generateSecretKey, getPublicKey } from 'nostr-tools/pure';
 import { bytesToHex } from '@noble/hashes/utils';
 import type { JobHistoryEntry, JobStatistics } from '@/types/dvm';
+import { OllamaError } from '@/services/ollama';
+import { SparkError } from '@/services/spark';
+import { NIP04EncryptError, NIP04DecryptError } from '@/services/nip04';
 
 /**
  * DVM service errors
@@ -70,7 +73,7 @@ export const defaultKind5050DVMServiceConfig: Kind5050DVMServiceConfig = {
   dvmPrivateKeyHex: devDvmSkHex, // Use a default development SK
   dvmPublicKeyHex: devDvmPkHex,  // Corresponding PK
   relays: ["wss://relay.damus.io", "wss://relay.nostr.band", "wss://nos.lol"],
-  supportedJobKinds: [5100],    // Support text generation (kind 5100)
+  supportedJobKinds: [5050, 5100], // Support kind 5050 and 5100 for text generation
   defaultTextGenerationJobConfig: {
     model: "gemma2:latest",     // Default model for Ollama
     max_tokens: 512,
@@ -108,6 +111,19 @@ export interface Kind5050DVMService {
    * Returns the current listening status
    */
   isListening(): Effect.Effect<boolean, DVMError | TrackEventError, never>;
+
+  /**
+   * Processes a local test job without involving Nostr network
+   * This method is used for testing the DVM functionality locally
+   * 
+   * @param prompt The text prompt to process
+   * @param requesterPkOverride Optional: simulates a request from a specific pubkey
+   * @returns The processed job result text or error
+   */
+  processLocalTestJob(
+    prompt: string,
+    requesterPkOverride?: string
+  ): Effect.Effect<string, DVMError | OllamaError | SparkError | NIP04EncryptError | NIP04DecryptError>;
 
   /**
    * Retrieves job history entries with pagination and optional filtering

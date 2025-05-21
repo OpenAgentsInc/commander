@@ -90,12 +90,13 @@ export const NIP90ServiceLive = Layer.effect(
             // Create the effect for the job request creation
             const jobEventEffect = createNip90JobRequest(
               validatedParams.requesterSk,
-              validatedParams.targetDvmPubkeyHex || "", // Empty string if not provided, helper handles it
+              validatedParams.targetDvmPubkeyHex, // Can be undefined, helper handles it
               mutableInputs,
               validatedParams.outputMimeType || "text/plain",
               validatedParams.bidMillisats,
               validatedParams.kind,
-              mutableAdditionalParams
+              validatedParams.targetDvmPubkeyHex, // Using the same value for p-tag by default
+              mutableAdditionalParams as Array<[string, string, string]> | undefined
             );
             
             // Provide NIP04Service from the closure

@@ -9,3 +9,5 @@ export * from './createNip28ChannelPane';
 export * from './openNip90DashboardPane';
 export * from './openSellComputePane';
 export * from './openDvmJobHistoryPane';
+export * from './openNip90DvmTestPane';
+export * from './openNip90ConsumerChatPane';

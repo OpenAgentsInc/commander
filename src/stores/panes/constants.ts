@@ -21,3 +21,9 @@ export const SELL_COMPUTE_INITIAL_HEIGHT = 420;
 
 // Approximate height of the Hotbar for positioning calculations
 export const HOTBAR_APPROX_HEIGHT = 60; // pixels
+
+// Constants for NIP-90 DVM Test and Consumer Chat panes
+export const NIP90_DVM_TEST_PANE_ID = 'nip90_dvm_test';
+export const NIP90_DVM_TEST_PANE_TITLE = 'NIP-90 DVM Test';
+export const NIP90_CONSUMER_CHAT_PANE_ID = 'nip90_consumer_chat';
+export const NIP90_CONSUMER_CHAT_PANE_TITLE = 'NIP-90 Consumer (Text Inference)';
