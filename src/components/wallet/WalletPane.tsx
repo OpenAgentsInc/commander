@@ -5,6 +5,7 @@ import { Effect, Exit, Cause } from 'effect';
 import { SparkService, type BalanceInfo, type LightningInvoice, type LightningPayment, type CreateLightningInvoiceParams, type PayLightningInvoiceParams } from '@/services/spark';
 import { getMainRuntime } from '@/services/runtime';
 import { TelemetryService } from '@/services/telemetry';
+import { useWalletStore } from '@/stores/walletStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,12 +13,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { Bitcoin, Zap, ArrowDownToLine, Send, Copy, Loader2, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Bitcoin, Zap, ArrowDownToLine, Send, Copy, Loader2, AlertTriangle, CheckCircle2, RefreshCw, Key, LogOut } from 'lucide-react';
 import { cn } from '@/utils/tailwind';
+import ViewSeedPhraseDialog from './ViewSeedPhraseDialog';
+import LogoutWarningDialog from './LogoutWarningDialog';
 
 const WalletPane: React.FC = () => {
   const runtime = getMainRuntime();
   const [activeTab, setActiveTab] = useState("balance");
+  
+  // Get wallet initialization status
+  const walletIsInitialized = useWalletStore((state) => state.isInitialized);
 
   // --- Balance State ---
   const { data: balanceData, isLoading: isLoadingBalance, error: balanceError, refetch: refetchBalance } = useQuery<BalanceInfo, Error>({
@@ -161,6 +167,19 @@ const WalletPane: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-1 flex-grow overflow-hidden">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <ViewSeedPhraseDialog>
+              <Button variant="outline" size="sm" className="text-xs">
+                <Key className="h-3 w-3 mr-1.5" /> View Seed Phrase
+              </Button>
+            </ViewSeedPhraseDialog>
+            <LogoutWarningDialog>
+              <Button variant="outline" size="sm" className="text-xs">
+                <LogOut className="h-3 w-3 mr-1.5" /> Logout
+              </Button>
+            </LogoutWarningDialog>
+          </div>
+          
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
             <TabsList className="grid w-full grid-cols-3 mb-1 h-8">
               <TabsTrigger value="balance" className="text-xs h-6">Balance</TabsTrigger>
