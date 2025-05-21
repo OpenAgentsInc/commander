@@ -41,7 +41,7 @@ export const HotbarItem: React.FC<HotbarItemProps> = ({
         >
           {children}
           {!isGhost && (
-            <div className="absolute bottom-0.5 right-0.5 flex items-center text-[0.5rem] text-muted-foreground px-0.5 bg-background/50 rounded-sm leading-none">
+            <div className="absolute bottom-0.5 right-0.5 flex items-center text-[0.6rem] text-muted-foreground px-0.5 bg-background/50 rounded-sm leading-none">
               <span className="font-sans">{modifierPrefix}</span>
               <span>{slotNumber}</span>
             </div>

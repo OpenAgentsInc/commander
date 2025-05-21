@@ -79,7 +79,7 @@ describe('OpenAIClientLive', () => {
       Layer.mergeAll(httpLayer, configLayer, telemetryLayer)
     );
 
-    const result = await runPromiseAny(program.pipe(Effect.provide(testLayer)));
+    const result = await runPromiseAny(Effect.provide(program, testLayer));
 
     // Verify mock calls
     expect(MockConfigurationService.getSecret).toHaveBeenCalledWith('OPENAI_API_KEY');
@@ -128,13 +128,16 @@ describe('OpenAIClientLive', () => {
     );
 
     try {
-      await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
+      await Effect.runPromise(Effect.provide(program, testLayer));
       // Should not reach here
       expect(true).toBe(false);
     } catch (error: any) {
-      expect(error).toBeInstanceOf(AIConfigurationError);
-      expect(error.message).toContain('OpenAI API Key not found');
-      expect(error.context).toHaveProperty('keyName', 'OPENAI_API_KEY');
+      // First unwrap the FiberFailure if needed
+      const actualError = error._id === 'FiberFailure' ? error.cause.defect : error;
+      
+      expect(actualError).toBeInstanceOf(AIConfigurationError);
+      expect(actualError.message).toContain('OpenAI API Key not found');
+      expect(actualError.context).toHaveProperty('keyName', 'OPENAI_API_KEY');
       
       // Verify telemetry error event
       expect(MockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
@@ -163,7 +166,7 @@ describe('OpenAIClientLive', () => {
     );
 
     try {
-      await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
+      await Effect.runPromise(Effect.provide(program, testLayer));
       // Should not reach here
       expect(true).toBe(false);
     } catch (error: any) {
@@ -200,7 +203,7 @@ describe('OpenAIClientLive', () => {
       Layer.mergeAll(httpLayer, configLayer, telemetryLayer)
     );
 
-    const result = await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
+    const result = await Effect.runPromise(Effect.provide(program, testLayer));
 
     // Verify mock calls
     expect(MockConfigurationService.getSecret).toHaveBeenCalledWith('OPENAI_API_KEY');

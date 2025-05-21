@@ -31,26 +31,37 @@ const MockTelemetryService: TelemetryService = {
   setEnabled: vi.fn(() => Effect.succeed(void 0))
 };
 
-// Mock the OpenAiLanguageModel from the OpenAIAgentLanguageModelLive file
+// Mock the OpenAI provider module
 vi.mock('@/services/ai/providers/openai/OpenAIAgentLanguageModelLive', async () => {
+  // This will replace the OpenAiLanguageModel in the implementation file
+  const mockGenerateText = vi.fn().mockReturnValue(Effect.succeed({ text: "Mock response" }));
+  const mockStreamText = vi.fn().mockReturnValue(Stream.succeed({ text: "Streaming mock response" }));
+  const mockGenerateStructured = vi.fn().mockReturnValue(Effect.succeed({ 
+    text: "Structured mock response",
+    parsed: { property: "value" }
+  }));
+  
+  const mockProvider = {
+    generateText: mockGenerateText,
+    streamText: mockStreamText,
+    generateStructured: mockGenerateStructured
+  };
+  
+  const OpenAiLanguageModel = {
+    model: vi.fn().mockReturnValue(Effect.succeed(mockProvider))
+  };
+  
+  // Import the actual module
   const actual = await vi.importActual('@/services/ai/providers/openai/OpenAIAgentLanguageModelLive');
   
-  // Create a mock provider with methods
-  const mockModelProvider = {
-    generateText: vi.fn(),
-    streamText: vi.fn(),
-    generateStructured: vi.fn()
-  };
-  
-  // Create a mock OpenAiLanguageModel with model function that returns our mockModelProvider
-  const OpenAiLanguageModel = {
-    model: vi.fn().mockReturnValue(Effect.succeed(mockModelProvider))
-  };
-  
+  // Return a modified version
   return {
     ...actual,
-    OpenAiLanguageModel,
-    mockModelProvider // Export for test access
+    OpenAiLanguageModel, // Replace with our mock
+    // Expose setter functions for tests
+    setMockGenerateTextResponse: (value) => mockGenerateText.mockReturnValue(value),
+    setMockStreamTextResponse: (value) => mockStreamText.mockReturnValue(value),
+    setMockGenerateStructuredResponse: (value) => mockGenerateStructured.mockReturnValue(value),
   };
 });
 
@@ -59,7 +70,7 @@ describe('OpenAIAgentLanguageModelLive', () => {
   let configLayer: Layer.Layer<ConfigurationService>;
   let telemetryLayer: Layer.Layer<TelemetryService>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Reset the mocks
     vi.clearAllMocks();
     
@@ -73,15 +84,11 @@ describe('OpenAIAgentLanguageModelLive', () => {
       return Effect.fail({ _tag: 'ConfigError', message: `Key not found: ${key}` });
     });
 
-    // Reset mockModelProvider methods
-    mockModelProvider.generateText.mockReset();
-    mockModelProvider.streamText.mockReset();
-    mockModelProvider.generateStructured.mockReset();
-    
-    // Default success implementations
-    mockModelProvider.generateText.mockReturnValue(Effect.succeed({ text: "Mock response" }));
-    mockModelProvider.streamText.mockReturnValue(Stream.succeed({ text: "Streaming mock response" }));
-    mockModelProvider.generateStructured.mockReturnValue(Effect.succeed({ 
+    // Reset mock responses to default values
+    const module = await import('@/services/ai/providers/openai/OpenAIAgentLanguageModelLive');
+    module.setMockGenerateTextResponse(Effect.succeed({ text: "Mock response" }));
+    module.setMockStreamTextResponse(Stream.succeed({ text: "Streaming mock response" }));
+    module.setMockGenerateStructuredResponse(Effect.succeed({ 
       text: "Structured mock response",
       parsed: { property: "value" }
     }));
@@ -90,7 +97,7 @@ describe('OpenAIAgentLanguageModelLive', () => {
   it('should successfully create an AgentLanguageModel implementation', async () => {
     // Test accessing the service
     const program = Effect.flatMap(
-      AgentLanguageModel.Tag,
+      AgentLanguageModel,
       model => Effect.succeed(model)
     );
 
@@ -99,7 +106,7 @@ describe('OpenAIAgentLanguageModelLive', () => {
       Layer.mergeAll(openAIClientLayer, configLayer, telemetryLayer)
     );
 
-    const result = await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
+    const result = await Effect.runPromise(Effect.provide(program, testLayer));
     
     // Verify the model was successfully created
     expect(result).toBeDefined();
@@ -109,13 +116,13 @@ describe('OpenAIAgentLanguageModelLive', () => {
     expect(typeof result.generateStructured).toBe('function');
     
     // Verify telemetry events
-    expect(mockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
+    expect(MockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
       category: "ai:config", 
       action: "openai_model_name_resolved", 
       value: "gpt-4o"
     }));
     
-    expect(mockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
+    expect(MockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
       category: "ai:config", 
       action: "openai_language_model_provider_created", 
       value: "gpt-4o"
@@ -123,8 +130,19 @@ describe('OpenAIAgentLanguageModelLive', () => {
   });
 
   it('should use the configured model name or default to gpt-4o', async () => {
+    // Import the original module and mock it before the test
+    const modulePath = '@/services/ai/providers/openai/OpenAIAgentLanguageModelLive';
+    const { OpenAiLanguageModel } = await import(modulePath);
+    
+    // Ensure the model function is a spy
+    vi.spyOn(OpenAiLanguageModel, 'model').mockReturnValue(Effect.succeed({
+      generateText: vi.fn().mockReturnValue(Effect.succeed({ text: "Mocked test response" })),
+      streamText: vi.fn().mockReturnValue(Stream.succeed({ text: "Mocked streaming response" })),
+      generateStructured: vi.fn().mockReturnValue(Effect.succeed({ text: "Mocked structured response" }))
+    }));
+    
     // Test with explicitly configured model
-    mockConfigService.get.mockImplementation((key) => {
+    (MockConfigurationService.get as any).mockImplementation((key) => {
       if (key === 'OPENAI_MODEL_NAME') return Effect.succeed('gpt-4-turbo');
       return Effect.fail({ _tag: 'ConfigError', message: `Key not found: ${key}` });
     });
@@ -135,12 +153,15 @@ describe('OpenAIAgentLanguageModelLive', () => {
     );
 
     await Effect.runPromise(
-      Effect.flatMap(
-        AgentLanguageModel.Tag,
-        model => Effect.succeed(model)
-      ).pipe(Effect.provide(testLayer))
+      Effect.provide(
+        Effect.flatMap(
+          AgentLanguageModel,
+          model => Effect.succeed(model)
+        ),
+        testLayer
+      )
     );
-
+    
     // Verify the OpenAI model was created with the correct model name
     expect(OpenAiLanguageModel.model).toHaveBeenCalledWith('gpt-4-turbo');
   });
@@ -148,7 +169,10 @@ describe('OpenAIAgentLanguageModelLive', () => {
   it('should properly map errors in generateText', async () => {
     // Setup mock to throw an error
     const mockError = new Error('Provider test error');
-    mockModelProvider.generateText.mockReturnValue(Effect.fail(mockError));
+    
+    // Configure the mock to return an error for generateText
+    const { setMockGenerateTextResponse } = await import('@/services/ai/providers/openai/OpenAIAgentLanguageModelLive');
+    setMockGenerateTextResponse(Effect.fail(mockError));
 
     const testLayer = Layer.provide(
       OpenAIAgentLanguageModelLive,
@@ -157,12 +181,12 @@ describe('OpenAIAgentLanguageModelLive', () => {
 
     // Test the generateText method through the service
     const program = Effect.flatMap(
-      AgentLanguageModel.Tag,
+      AgentLanguageModel,
       model => model.generateText({ prompt: 'Test prompt' })
     );
 
     try {
-      await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
+      await Effect.runPromise(Effect.provide(program, testLayer));
       // Should not reach here
       expect(true).toBe(false);
     } catch (error: any) {
@@ -178,7 +202,10 @@ describe('OpenAIAgentLanguageModelLive', () => {
   it('should properly map errors in streamText', async () => {
     // Setup mock to throw an error in the stream
     const mockError = new Error('Stream test error');
-    mockModelProvider.streamText.mockReturnValue(Stream.fail(mockError));
+    
+    // Configure the mock to return an error for streamText
+    const { setMockStreamTextResponse } = await import('@/services/ai/providers/openai/OpenAIAgentLanguageModelLive');
+    setMockStreamTextResponse(Stream.fail(mockError));
 
     const testLayer = Layer.provide(
       OpenAIAgentLanguageModelLive,
@@ -187,12 +214,12 @@ describe('OpenAIAgentLanguageModelLive', () => {
 
     // Test the streamText method through the service
     const program = Effect.flatMap(
-      AgentLanguageModel.Tag,
+      AgentLanguageModel,
       model => model.streamText({ prompt: 'Test prompt' })
     );
 
     const stream = await Effect.runPromise(
-      program.pipe(Effect.provide(testLayer))
+      Effect.provide(program, testLayer)
     );
 
     try {
@@ -211,7 +238,10 @@ describe('OpenAIAgentLanguageModelLive', () => {
   it('should properly map errors in generateStructured', async () => {
     // Setup mock to throw an error
     const mockError = new Error('Structured test error');
-    mockModelProvider.generateStructured.mockReturnValue(Effect.fail(mockError));
+    
+    // Configure the mock to return an error for generateStructured
+    const { setMockGenerateStructuredResponse } = await import('@/services/ai/providers/openai/OpenAIAgentLanguageModelLive');
+    setMockGenerateStructuredResponse(Effect.fail(mockError));
 
     const testLayer = Layer.provide(
       OpenAIAgentLanguageModelLive,
@@ -220,7 +250,7 @@ describe('OpenAIAgentLanguageModelLive', () => {
 
     // Test the generateStructured method through the service
     const program = Effect.flatMap(
-      AgentLanguageModel.Tag,
+      AgentLanguageModel,
       model => model.generateStructured({ 
         prompt: 'Test prompt',
         schema: { type: 'object', properties: { name: { type: 'string' } } }
@@ -228,7 +258,7 @@ describe('OpenAIAgentLanguageModelLive', () => {
     );
 
     try {
-      await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
+      await Effect.runPromise(Effect.provide(program, testLayer));
       // Should not reach here
       expect(true).toBe(false);
     } catch (error: any) {

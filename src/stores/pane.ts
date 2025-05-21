@@ -129,43 +129,45 @@ export const usePaneStore = create<PaneStoreType>()(
         const paneId = SELL_COMPUTE_PANE_ID_CONST;
         const existingPane = state.panes.find(p => p.id === paneId);
         
-        if (existingPane && state.activePaneId === paneId) {
-          // Pane is open and active, so remove it
-          const remainingPanes = state.panes.filter(pane => pane.id !== paneId);
-          let newActivePaneId: string | null = null;
-          if (remainingPanes.length > 0) {
-            newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
-          }
-          const updatedPanes = remainingPanes.map(p => ({ 
-            ...p, 
-            isActive: p.id === newActivePaneId 
-          }));
-          
-          return { 
-            ...state, 
-            panes: updatedPanes, 
-            activePaneId: newActivePaneId 
-          };
-        } else {
-          // Pane doesn't exist or isn't active, so open/activate it
-          if (existingPane) {
-            // Pane exists but isn't active, bring it to front
-            const updatedPanes = state.panes.map(p => ({
-              ...p,
-              isActive: p.id === paneId
+        // If the pane exists
+        if (existingPane) {
+          // If it's already the active pane, close it
+          if (state.activePaneId === paneId) {
+            const remainingPanes = state.panes.filter(pane => pane.id !== paneId);
+            let newActivePaneId: string | null = null;
+            if (remainingPanes.length > 0) {
+              newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
+            }
+            const updatedPanes = remainingPanes.map(p => ({ 
+              ...p, 
+              isActive: p.id === newActivePaneId 
             }));
+            
+            return { 
+              ...state, 
+              panes: updatedPanes, 
+              activePaneId: newActivePaneId 
+            };
+          } 
+          // If it exists but isn't active, bring it to front
+          else {
+            // Move the pane to the end of the array to bring it to the front
+            const panesWithoutTarget = state.panes.filter(p => p.id !== paneId);
+            const updatedTargetPane = { ...existingPane, isActive: true };
+            const updatedOtherPanes = panesWithoutTarget.map(p => ({ ...p, isActive: false }));
             
             return {
               ...state,
-              panes: updatedPanes,
+              panes: [...updatedOtherPanes, updatedTargetPane],
               activePaneId: paneId
             };
-          } else {
-            // Pane doesn't exist, create it
-            const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
-            const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
-            
-            const newPaneInput: PaneInput = {
+          }
+        } else {
+          // Pane doesn't exist, create it
+          const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+          const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+          
+          const newPaneInput: PaneInput = {
               id: paneId,
               type: 'sell_compute',
               title: 'Sell Compute Power',
@@ -175,10 +177,9 @@ export const usePaneStore = create<PaneStoreType>()(
               height: SELL_COMPUTE_INITIAL_HEIGHT,
               dismissable: true,
               content: {}
-            };
-            
-            return addPaneActionLogic(state, newPaneInput, false);
-          }
+          };
+          
+          return addPaneActionLogic(state, newPaneInput, false);
         }
       }),
 
@@ -186,43 +187,45 @@ export const usePaneStore = create<PaneStoreType>()(
         const paneId = WALLET_PANE_ID;
         const existingPane = state.panes.find(p => p.id === paneId);
         
-        if (existingPane && state.activePaneId === paneId) {
-          // Pane is open and active, so remove it
-          const remainingPanes = state.panes.filter(pane => pane.id !== paneId);
-          let newActivePaneId: string | null = null;
-          if (remainingPanes.length > 0) {
-            newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
-          }
-          const updatedPanes = remainingPanes.map(p => ({ 
-            ...p, 
-            isActive: p.id === newActivePaneId 
-          }));
-          
-          return { 
-            ...state, 
-            panes: updatedPanes, 
-            activePaneId: newActivePaneId 
-          };
-        } else {
-          // Pane doesn't exist or isn't active, so open/activate it
-          if (existingPane) {
-            // Pane exists but isn't active, bring it to front
-            const updatedPanes = state.panes.map(p => ({
-              ...p,
-              isActive: p.id === paneId
+        // If the pane exists
+        if (existingPane) {
+          // If it's already the active pane, close it
+          if (state.activePaneId === paneId) {
+            const remainingPanes = state.panes.filter(pane => pane.id !== paneId);
+            let newActivePaneId: string | null = null;
+            if (remainingPanes.length > 0) {
+              newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
+            }
+            const updatedPanes = remainingPanes.map(p => ({ 
+              ...p, 
+              isActive: p.id === newActivePaneId 
             }));
+            
+            return { 
+              ...state, 
+              panes: updatedPanes, 
+              activePaneId: newActivePaneId 
+            };
+          } 
+          // If it exists but isn't active, bring it to front
+          else {
+            // Move the pane to the end of the array to bring it to the front
+            const panesWithoutTarget = state.panes.filter(p => p.id !== paneId);
+            const updatedTargetPane = { ...existingPane, isActive: true };
+            const updatedOtherPanes = panesWithoutTarget.map(p => ({ ...p, isActive: false }));
             
             return {
               ...state,
-              panes: updatedPanes,
+              panes: [...updatedOtherPanes, updatedTargetPane],
               activePaneId: paneId
             };
-          } else {
-            // Pane doesn't exist, create it
-            const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
-            const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
-            
-            const newPaneInput: PaneInput = {
+          }
+        } else {
+          // Pane doesn't exist, create it
+          const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+          const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+          
+          const newPaneInput: PaneInput = {
               id: paneId,
               type: 'wallet',
               title: WALLET_PANE_TITLE,
@@ -232,10 +235,9 @@ export const usePaneStore = create<PaneStoreType>()(
               height: 550,
               dismissable: true,
               content: {}
-            };
-            
-            return addPaneActionLogic(state, newPaneInput, false);
-          }
+          };
+          
+          return addPaneActionLogic(state, newPaneInput, false);
         }
       }),
 
@@ -243,43 +245,45 @@ export const usePaneStore = create<PaneStoreType>()(
         const paneId = DVM_JOB_HISTORY_PANE_ID;
         const existingPane = state.panes.find(p => p.id === paneId);
         
-        if (existingPane && state.activePaneId === paneId) {
-          // Pane is open and active, so remove it
-          const remainingPanes = state.panes.filter(pane => pane.id !== paneId);
-          let newActivePaneId: string | null = null;
-          if (remainingPanes.length > 0) {
-            newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
-          }
-          const updatedPanes = remainingPanes.map(p => ({ 
-            ...p, 
-            isActive: p.id === newActivePaneId 
-          }));
-          
-          return { 
-            ...state, 
-            panes: updatedPanes, 
-            activePaneId: newActivePaneId 
-          };
-        } else {
-          // Pane doesn't exist or isn't active, so open/activate it
-          if (existingPane) {
-            // Pane exists but isn't active, bring it to front
-            const updatedPanes = state.panes.map(p => ({
-              ...p,
-              isActive: p.id === paneId
+        // If the pane exists
+        if (existingPane) {
+          // If it's already the active pane, close it
+          if (state.activePaneId === paneId) {
+            const remainingPanes = state.panes.filter(pane => pane.id !== paneId);
+            let newActivePaneId: string | null = null;
+            if (remainingPanes.length > 0) {
+              newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
+            }
+            const updatedPanes = remainingPanes.map(p => ({ 
+              ...p, 
+              isActive: p.id === newActivePaneId 
             }));
+            
+            return { 
+              ...state, 
+              panes: updatedPanes, 
+              activePaneId: newActivePaneId 
+            };
+          } 
+          // If it exists but isn't active, bring it to front
+          else {
+            // Move the pane to the end of the array to bring it to the front
+            const panesWithoutTarget = state.panes.filter(p => p.id !== paneId);
+            const updatedTargetPane = { ...existingPane, isActive: true };
+            const updatedOtherPanes = panesWithoutTarget.map(p => ({ ...p, isActive: false }));
             
             return {
               ...state,
-              panes: updatedPanes,
+              panes: [...updatedOtherPanes, updatedTargetPane],
               activePaneId: paneId
             };
-          } else {
-            // Pane doesn't exist, create it
-            const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
-            const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
-            
-            const newPaneInput: PaneInput = {
+          }
+        } else {
+          // Pane doesn't exist, create it
+          const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+          const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+          
+          const newPaneInput: PaneInput = {
               id: paneId,
               type: 'dvm_job_history',
               title: 'DVM Job History & Stats',
@@ -289,10 +293,9 @@ export const usePaneStore = create<PaneStoreType>()(
               height: 600,
               dismissable: true,
               content: {}
-            };
-            
-            return addPaneActionLogic(state, newPaneInput, false);
-          }
+          };
+          
+          return addPaneActionLogic(state, newPaneInput, false);
         }
       }),
     }),
