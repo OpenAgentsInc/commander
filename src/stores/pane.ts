@@ -24,6 +24,9 @@ import {
   openWalletSetupPaneAction,
   openSeedPhraseBackupPaneAction,
   openRestoreWalletPaneAction,
+  // Agent chat pane actions
+  openAgentChatPaneAction,
+  toggleAgentChatPaneAction,
 } from "./panes/actions";
 import { 
   DEFAULT_NIP28_PANE_ID,
@@ -37,7 +40,11 @@ import {
   SELL_COMPUTE_INITIAL_HEIGHT,
   HOTBAR_APPROX_HEIGHT,
   WALLET_PANE_ID,
-  WALLET_PANE_TITLE
+  WALLET_PANE_TITLE,
+  AGENT_CHAT_PANE_ID,
+  AGENT_CHAT_PANE_TITLE,
+  AGENT_CHAT_PANE_DEFAULT_WIDTH,
+  AGENT_CHAT_PANE_DEFAULT_HEIGHT
 } from "./panes/constants";
 import { DVM_JOB_HISTORY_PANE_ID } from "./panes/actions/openDvmJobHistoryPane";
 
@@ -101,6 +108,9 @@ export const usePaneStore = create<PaneStoreType>()(
       openWalletSetupPane: () => openWalletSetupPaneAction(set),
       openSeedPhraseBackupPane: (params) => openSeedPhraseBackupPaneAction(set, params),
       openRestoreWalletPane: () => openRestoreWalletPaneAction(set),
+      // Agent chat pane
+      openAgentChatPane: () => openAgentChatPaneAction(set),
+      toggleAgentChatPane: () => toggleAgentChatPaneAction(set, get),
       resetHUDState: () => {
         // Force recreate initial panes with current screen dimensions
         const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;

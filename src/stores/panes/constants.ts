@@ -48,3 +48,9 @@ export const SEED_PHRASE_BACKUP_PANE_TITLE = 'Backup Seed Phrase';
 
 export const RESTORE_WALLET_PANE_ID = 'restore_wallet_pane_id';
 export const RESTORE_WALLET_PANE_TITLE = 'Restore Wallet';
+
+// Constants for Agent Chat pane
+export const AGENT_CHAT_PANE_ID = 'agent_chat_main';
+export const AGENT_CHAT_PANE_TITLE = 'Agent Chat';
+export const AGENT_CHAT_PANE_DEFAULT_WIDTH = 500;
+export const AGENT_CHAT_PANE_DEFAULT_HEIGHT = 600;
