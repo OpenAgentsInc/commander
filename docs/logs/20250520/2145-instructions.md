@@ -1,11 +1,39 @@
+Okay, this is a CORS (Cross-Origin Resource Sharing) issue. The previous CSP fix allowed the browser to *attempt* the connection, but now the Ollama server itself is rejecting the request during the CORS preflight check.
+
+The error message `Request header field traceparent is not allowed by Access-Control-Allow-Headers in preflight response` means:
+1.  Your application (running on `http://localhost:5173`) is trying to send a request to Ollama (`http://localhost:11434`).
+2.  This request includes a header called `traceparent`. This header is often added automatically by tracing libraries or modern HTTP clients (like `@effect/platform/HttpClient`) for distributed tracing.
+3.  Because this is a cross-origin request with a non-standard header, the browser sends a "preflight" `OPTIONS` request to the Ollama server to ask for permission.
+4.  The Ollama server's response to this preflight request does *not* include `traceparent` in its `Access-Control-Allow-Headers` list. Therefore, the browser blocks the actual request.
+
+The fix is to **prevent the `traceparent` header from being sent** when your application communicates with the Ollama server, as we likely don't control Ollama's CORS headers. The `@effect/platform/HttpClient` provides a way to do this.
+
+Here are the specific instructions for the coding agent:
+
+**Goal:** Modify `OllamaServiceImpl.ts` to use an `HttpClient` instance that has tracer propagation disabled, specifically for Ollama requests.
+
+**1. Modify `src/services/ollama/OllamaServiceImpl.ts`:**
+
+*   **File:** `src/services/ollama/OllamaServiceImpl.ts`
+*   **Action:**
+    *   Ensure `HttpClient` (the Tag) is imported correctly from `@effect/platform/HttpClient`.
+    *   In the `OllamaServiceLive` layer definition, after yielding the base `HttpClient` service, create a new `HttpClient` instance specifically for Ollama by calling `HttpClient.withTracerPropagation(baseHttpClient, false)`.
+    *   Pass this *new*, modified `HttpClient` instance to the `createOllamaService` factory function.
+
+**Here's how the relevant part of `src/services/ollama/OllamaServiceImpl.ts` should be updated:**
+
+```typescript
+// src/services/ollama/OllamaServiceImpl.ts
 import { Effect, Schema, Context, Layer, Stream, Option } from "effect";
-import { HttpClient } from "@effect/platform/HttpClient"; // This is the Tag
-import type { HttpClient as HttpClientService } from "@effect/platform/HttpClient"; // Import the service type alias
-import * as HttpClientModule from "@effect/platform/HttpClient"; // Import the entire module for utility functions
+// Ensure HttpClient (Tag) and withTracerPropagation function are imported correctly
+import { HttpClient, type HttpClient as HttpClientService } from "@effect/platform/HttpClient";
 import * as HttpClientRequest from "@effect/platform/HttpClientRequest";
 import * as HttpClientResponse from "@effect/platform/HttpClientResponse";
 import * as HttpBody from "@effect/platform/HttpBody";
 import * as HttpClientError from "@effect/platform/HttpClientError";
+// Remove the incorrect internal import if it exists:
+// import * as internalHttpClient from "@effect/platform/src/internal/httpClient"; // REMOVE THIS IF PRESENT
+
 import {
     OllamaService,
     OllamaServiceConfig,
@@ -27,33 +55,45 @@ export const OllamaServiceLive = Layer.effect(
     OllamaService,
     Effect.gen(function* (_) {
         const config = yield* _(OllamaServiceConfigTag);
-        
-        // Get the base HttpClient
-        const baseHttpClient = yield* _(HttpClient);
-        
+        const baseHttpClient = yield* _(HttpClient); // Get the base HttpClient
+
+        // --- MODIFICATION START ---
         // Create a new HttpClient instance specifically for Ollama,
-        // with tracer propagation disabled to prevent CORS issues with the traceparent header
-        const ollamaHttpClient = HttpClientModule.withTracerPropagation(baseHttpClient, false);
-        
+        // with tracer propagation disabled.
+        const ollamaHttpClient = HttpClient.withTracerPropagation(baseHttpClient, false);
+        // --- MODIFICATION END ---
+
+        // Pass the modified httpClient to the factory
         return createOllamaService(config, ollamaHttpClient);
     })
 );
 
+// createOllamaService function remains largely the same,
+// but it will now use the httpClient instance passed to it,
+// which has tracing disabled.
 export function createOllamaService(
     config: OllamaServiceConfig,
-    httpClient: HttpClientService
+    httpClient: HttpClientService // This now receives the modified client
 ): OllamaService {
+    // ... (rest of the createOllamaService implementation remains the same)
+    // Ensure all calls to httpClient.execute use the `httpClient` parameter passed to this function.
+    // For example:
+    // const response = yield* _(
+    //     httpClient.execute(httpRequest), // Uses the passed-in httpClient
+    //     Effect.mapError(...)
+    // );
+    // ...
+// --- COPIED FROM PREVIOUS LOG - ENSURE THIS IS THE FULL FUNCTION BODY ---
     const makeUrl = (path: string) => `${config.baseURL}${path}`;
 
     const generateChatCompletion = (requestBody: OllamaChatCompletionRequest): Effect.Effect<OllamaChatCompletionResponse, OllamaHttpError | OllamaParseError, never> => {
         return Effect.gen(function* (_) {
             const url = makeUrl("/chat/completions");
 
-            // Validate request body using Schema
             const decodedRequest = yield* _(
                 Schema.decodeUnknown(OllamaChatCompletionRequestSchema)(requestBody),
                 Effect.mapError(parseError => new OllamaParseError(
-                    "Invalid request format", 
+                    "Invalid request format",
                     parseError
                 ))
             );
@@ -63,8 +103,6 @@ export function createOllamaService(
                 model: decodedRequest.model || config.defaultModel,
             };
 
-            // Create HTTP request using HttpClient
-            // First create the body
             const body = yield* _(
                 Effect.tryPromise({
                     try: () => Promise.resolve(HttpBody.text(JSON.stringify(finalRequestBody), "application/json")),
@@ -75,16 +113,14 @@ export function createOllamaService(
                 })
             );
 
-            // Then create the request with the body
             const httpRequest = HttpClientRequest.post(url).pipe(
                 HttpClientRequest.setHeader("Content-Type", "application/json"),
                 HttpClientRequest.setBody(body)
             );
 
-            // Execute the request
             const response = yield* _(
-                httpClient.execute(httpRequest),
-                Effect.mapError(httpClientError => 
+                httpClient.execute(httpRequest), // Uses the httpClient passed to createOllamaService
+                Effect.mapError(httpClientError =>
                     new OllamaHttpError(
                         `HTTP request failed: ${httpClientError._tag || "Unknown error"}`,
                         httpRequest,
@@ -93,14 +129,12 @@ export function createOllamaService(
                 )
             );
 
-            // Handle error responses
             if (response.status >= 400) {
-                // Access json method directly on the response object
                 const errorJson = yield* _(
                     response.json,
                     Effect.catchAll(() => Effect.succeed({ error: "Unknown API error structure" }))
                 );
-                
+
                 return yield* _(Effect.fail(new OllamaHttpError(
                     `Ollama API Error: ${response.status} - ${JSON.stringify(errorJson)}`,
                     httpRequest,
@@ -108,13 +142,11 @@ export function createOllamaService(
                 )));
             }
 
-            // Parse the successful response - access json method directly on the response object
             const json = yield* _(
                 response.json,
                 Effect.mapError(e => new OllamaParseError("Failed to parse success JSON response", e))
             );
 
-            // Validate the response shape using Schema
             return yield* _(
                 Schema.decodeUnknown(OllamaChatCompletionResponseSchema)(json),
                 Effect.mapError(parseError => new OllamaParseError(
@@ -130,8 +162,6 @@ export function createOllamaService(
     ): Stream.Stream<OllamaOpenAIChatStreamChunk, OllamaHttpError | OllamaParseError, never> => {
         const prepareRequestEffect = Effect.gen(function*(_) {
             const url = makeUrl("/chat/completions");
-
-            // Validate request body using Schema
             const validatedRequestBody = yield* _(
                 Schema.decodeUnknown(OllamaChatCompletionRequestSchema)(requestBody),
                 Effect.mapError(parseError => new OllamaParseError(
@@ -139,13 +169,11 @@ export function createOllamaService(
                     parseError
                 ))
             );
-
             const finalRequestBody = {
                 ...validatedRequestBody,
                 model: validatedRequestBody.model || config.defaultModel,
-                stream: true // Explicitly set stream to true for this method
+                stream: true
             };
-
             const httpBody = yield* _(
                 HttpBody.json(finalRequestBody),
                 Effect.mapError(bodyError =>
@@ -155,28 +183,19 @@ export function createOllamaService(
                     )
                 )
             );
-
             return HttpClientRequest.post(url).pipe(
                 HttpClientRequest.setHeader("Content-Type", "application/json"),
                 HttpClientRequest.setBody(httpBody)
             );
         }).pipe(Effect.mapError(e => e as OllamaParseError | OllamaHttpError));
 
-        console.log("[Service] generateChatCompletionStream: Preparing to unwrap effect for stream");
-        
-        // Here we create an effect that yields a stream of the correct type
         type StreamResult = Stream.Stream<OllamaOpenAIChatStreamChunk, OllamaHttpError | OllamaParseError, never>;
-        
-        // Create an effect that will yield our stream
-        const streamEffect: Effect.Effect<StreamResult, OllamaHttpError | OllamaParseError, never> = 
+
+        const streamEffect: Effect.Effect<StreamResult, OllamaHttpError | OllamaParseError, never> =
             Effect.gen(function*(_) {
-                // Get HTTP request
                 const httpRequest = yield* _(prepareRequestEffect);
-                console.log("[Service Stream] HTTP Request prepared:", JSON.stringify(httpRequest.urlParams));
-                
-                // Execute request and get response
                 const response = yield* _(
-                    httpClient.execute(httpRequest),
+                    httpClient.execute(httpRequest), // Uses the httpClient passed to createOllamaService
                     Effect.mapError(httpClientError =>
                         new OllamaHttpError(
                             `HTTP request failed for streaming chat: ${httpClientError._tag || "Unknown error"}`,
@@ -185,15 +204,12 @@ export function createOllamaService(
                         )
                     )
                 );
-                console.log("[Service Stream] HTTP Response status:", response.status);
 
-                // Handle error responses
                 if (response.status >= 400) {
                     const errorJson = yield* _(
                         response.json,
                         Effect.catchAll(() => Effect.succeed({ error: "Unknown API error structure during stream initiation" }))
                     );
-                    console.error("[Service Stream] HTTP Error for stream init:", response.status, JSON.stringify(errorJson));
                     throw new OllamaHttpError(
                         `Ollama API Error on stream initiation (chat/completions): ${response.status} - ${JSON.stringify(errorJson)}`,
                         httpRequest,
@@ -201,93 +217,47 @@ export function createOllamaService(
                     );
                 }
 
-                console.log("[Service Stream] Successfully got response, building stream processing pipeline");
-        
-        // For tracking parsed chunks to reduce logging
-        let parsedJsonLogged = false;
-                
-                // STEP 1: Get the raw bytes stream
                 const rawStream = response.stream;
-                
-                // STEP 2: Decode bytes to text
-                console.log("[Service Stream] Applying decodeText");
                 const textStream = Stream.decodeText(rawStream);
-                
-                // STEP 3: Split text into lines
-                console.log("[Service Stream] Applying splitLines");
                 const lineStream = Stream.splitLines(textStream);
-                
-                // STEP 4: Process each line and convert to Option<OllamaOpenAIChatStreamChunk>
-                console.log("[Service Stream] Applying mapEffect for line processing");
-                
-                // Define a function for processing each line
-                const processLine = (line: string) => {
+
+                const processLine = (line: string) => { /* ... as before, no changes needed inside here ... */
                     const lineStr = String(line).trim();
-                    // Skip line-by-line logging to reduce noise
-                    // console.log("[Service Stream] Processing line");
-                    
-                    // Skip empty lines and [DONE] marker
                     if (lineStr === "" || lineStr === "data: [DONE]") {
                         return Effect.succeed(Option.none<OllamaOpenAIChatStreamChunk>());
                     }
-                    
-                    // Process SSE data lines
                     if (lineStr.startsWith("data: ")) {
                         const jsonData = lineStr.substring("data: ".length);
-                        
                         try {
-                            // Parse JSON
                             const parsedJson = JSON.parse(jsonData);
-                            // Log first chunk and completion only
-                            if (!parsedJsonLogged) {
-                                console.log("[Service Stream] First chunk parsed successfully");
-                                parsedJsonLogged = true;
-                            } else if (parsedJson.choices?.[0]?.finish_reason) {
-                                console.log("[Service Stream] Final completion chunk received");
-                            }
-                            
-                            // Validate against schema and convert to Option.some
                             return Schema.decodeUnknown(OllamaOpenAIChatStreamChunkSchema)(parsedJson).pipe(
                                 Effect.map(chunk => Option.some(chunk)),
                                 Effect.catchTag("ParseError", parseError =>
                                     Effect.fail(new OllamaParseError(
-                                        "Schema parse error in OpenAI stream chunk", 
+                                        "Schema parse error in OpenAI stream chunk",
                                         { line: jsonData, error: parseError }
                                     ))
                                 )
                             );
                         } catch (error) {
-                            // Handle JSON parse errors
-                            const errorMessage = error instanceof Error ? error.message : String(error);
-                            console.error("[Service Stream Pipe] Error processing line:", errorMessage, 
-                                jsonData.substring(0, Math.min(100, jsonData.length)));
-                            
                             return Effect.fail(new OllamaParseError(
-                                "JSON parse error in OpenAI stream chunk", 
+                                "JSON parse error in OpenAI stream chunk",
                                 { line: jsonData, error }
                             ));
                         }
                     }
-                    
-                    // Any other format is unexpected
-                    console.error("[Service Stream Pipe] Unexpected line format:", lineStr);
                     return Effect.fail(new OllamaParseError(
-                        "Unexpected line format in OpenAI stream", 
+                        "Unexpected line format in OpenAI stream",
                         { line: lineStr }
                     ));
                 };
-                
-                // Apply processLine to each line
+
                 const parsedStream = Stream.mapEffect(processLine)(lineStream) as Stream.Stream<
-                    Option.Option<OllamaOpenAIChatStreamChunk>, 
-                    OllamaHttpError | OllamaParseError, 
+                    Option.Option<OllamaOpenAIChatStreamChunk>,
+                    OllamaHttpError | OllamaParseError,
                     never
                 >;
-                
-                // STEP 5: Filter out None values and unwrap Some values
-                console.log("[Service Stream] Applying filterMap to handle Options");
-                
-                // Define a function to filter and unwrap Options
+
                 const extractOptionValue = (
                     maybeChunk: Option.Option<OllamaOpenAIChatStreamChunk>
                 ): Option.Option<OllamaOpenAIChatStreamChunk> => {
@@ -296,66 +266,42 @@ export function createOllamaService(
                     }
                     return Option.none();
                 };
-                
-                // Apply the filterMap with our extract function
+
                 const filteredStream = Stream.filterMap(parsedStream, extractOptionValue) as Stream.Stream<
-                    OllamaOpenAIChatStreamChunk, 
-                    OllamaHttpError | OllamaParseError, 
+                    OllamaOpenAIChatStreamChunk,
+                    OllamaHttpError | OllamaParseError,
                     never
                 >;
-                
-                // STEP 6: Do final error mapping to ensure consistent error types
-                console.log("[Service Stream] Applying error mapping");
-                
-                // Define a function to map errors to our custom error types
-                const mapStreamError = (err: unknown): OllamaHttpError | OllamaParseError => {
-                    // We already have our custom error types
+
+                const mapStreamError = (err: unknown): OllamaHttpError | OllamaParseError => { /* ... as before ... */
                     if (err instanceof OllamaParseError || err instanceof OllamaHttpError) {
                         return err;
                     }
-                    
-                    // HTTP client errors
                     if (err instanceof HttpClientError.ResponseError) {
                         return new OllamaHttpError("OpenAI stream body processing error", httpRequest, err);
                     }
-                    
-                    // Schema.ParseError (via _tag)
                     if (err && typeof err === 'object' && '_tag' in err && (err as any)._tag === 'ParseError') {
                         return new OllamaParseError("Schema parse error in OpenAI stream chunk", err);
                     }
-                    
-                    // Any other error
                     return new OllamaParseError("Unknown OpenAI stream error", err);
                 };
-                
-                // Apply error mapping
+
                 const finalStream = Stream.mapError(filteredStream, mapStreamError);
-                console.log("[Service Stream] Stream processing pipeline complete");
-                
-                // Return the fully processed stream
                 return finalStream as StreamResult;
             });
-            
-        // Unwrap the effect to get the stream
+
         return Stream.unwrap(streamEffect);
     };
 
     return {
         generateChatCompletion,
         generateChatCompletionStream,
-        
-        /**
-         * Checks if the Ollama service is available and responding
-         */
         checkOllamaStatus: () => Effect.gen(function* (_) {
-            // For most Ollama installs, the root URL returns a simple response like "Ollama is running"
-            // We'll use the base URL without any API path to check the service
             const rootUrl = config.baseURL.replace("/v1", "");
             const httpRequest = HttpClientRequest.get(rootUrl);
-
             try {
                 const response = yield* _(
-                    httpClient.execute(httpRequest),
+                    httpClient.execute(httpRequest), // Uses the httpClient passed to createOllamaService
                     Effect.mapError(httpClientError =>
                         new OllamaHttpError(
                             `HTTP request failed for Ollama status check: ${httpClientError._tag || "Unknown error"}`,
@@ -364,24 +310,63 @@ export function createOllamaService(
                         )
                     )
                 );
-
                 if (response.status === 200) {
-                    // Try to get the response body as text
                     const textResponse = yield* _(
                         response.text,
                         Effect.mapError(e => new OllamaParseError("Failed to parse Ollama status text response", e))
                     );
-                    
-                    // Usually "Ollama is running" or something similar
-                    return textResponse.toLowerCase().includes("ollama is running") || 
+                    return textResponse.toLowerCase().includes("ollama is running") ||
                            textResponse.toLowerCase().includes("ollama") ||
-                           response.status === 200; // Fall back to just checking status
+                           response.status === 200;
                 }
-                return false; // Unexpected status code
+                return false;
             } catch (error) {
-                // Any error means Ollama is unreachable
                 return false;
             }
         })
     };
+// --- END COPIED FROM PREVIOUS LOG ---
 }
+```
+
+**2. Create a new log file for this specific fix:**
+
+*   **File:** `docs/logs/20250520/2128-cors-fix.md` (or similar, incrementing the timestamp)
+*   **Content:**
+    ```markdown
+    # CORS Fix for Ollama `traceparent` Header
+
+    ## Problem
+    The application was encountering a CORS preflight error when trying to connect to the Ollama API at `http://localhost:11434/`. The error message was:
+    `Access to XMLHttpRequest at 'http://localhost:11434/' from origin 'http://localhost:5173' has been blocked by CORS policy: Request header field traceparent is not allowed by Access-Control-Allow-Headers in preflight response.`
+
+    This indicated that the `traceparent` header, automatically added by the `@effect/platform/HttpClient` for distributed tracing, was not an allowed header by the Ollama server's CORS policy.
+
+    ## Solution
+    The solution was to prevent the client-side HTTP requests made by `OllamaService` from including the `traceparent` header. This was achieved by modifying `src/services/ollama/OllamaServiceImpl.ts`:
+
+    1.  In the `OllamaServiceLive` layer definition, after yielding the base `HttpClient`, a new `HttpClient` instance is created specifically for Ollama interactions. This new instance is configured to disable tracer propagation:
+        ```typescript
+        // src/services/ollama/OllamaServiceImpl.ts
+        // ...
+        export const OllamaServiceLive = Layer.effect(
+            OllamaService,
+            Effect.gen(function* (_) {
+                const config = yield* _(OllamaServiceConfigTag);
+                const baseHttpClient = yield* _(HttpClient); // Get the base HttpClient
+
+                // Create a new HttpClient instance with tracer propagation disabled
+                const ollamaHttpClient = HttpClient.withTracerPropagation(baseHttpClient, false);
+
+                // Pass this modified client to the service factory
+                return createOllamaService(config, ollamaHttpClient);
+            })
+        );
+        // ...
+        ```
+    2.  The `createOllamaService` factory function now uses this `ollamaHttpClient` instance, which will not send the `traceparent` header, thereby avoiding the CORS preflight issue with Ollama.
+
+    This ensures that only for Ollama communication, the problematic header is omitted, while other HTTP requests made by different services can still use tracing if needed.
+    ```
+
+After applying these changes, restart the development server. The CORS error related to `traceparent` should be resolved, and Ollama connections should work as expected (provided Ollama is running and accessible).
