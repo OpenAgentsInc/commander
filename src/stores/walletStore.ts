@@ -50,7 +50,7 @@ export const useWalletStore = create<WalletState & WalletActions>()(
           set({ isLoading: false });
           return newSeedPhrase;
         } else {
-          const error = Effect.Cause.squash(result.cause);
+          const error = result.cause;
           console.error("Failed to generate mnemonic:", error);
           set({ 
             isLoading: false, 
@@ -98,7 +98,7 @@ export const useWalletStore = create<WalletState & WalletActions>()(
           return get()._initializeWalletWithSeed(mnemonic.trim(), false);
         } else {
           const errorMsg = (validationResult._tag === 'Failure')
-            ? (Effect.Cause.squash(validationResult.cause) as Error).message
+            ? validationResult.cause instanceof Error ? validationResult.cause.message : "Validation error"
             : "Invalid seed phrase.";
           set({ isLoading: false, error: errorMsg });
           return false;

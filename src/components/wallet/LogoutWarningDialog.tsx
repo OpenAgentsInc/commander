@@ -39,7 +39,7 @@ const LogoutWarningDialog: React.FC<LogoutWarningDialogProps> = ({ children }) =
             If you haven't backed up your seed phrase, you won't be able to access your funds.
           </DialogDescription>
         </DialogHeader>
-        <Alert variant="warning" className="my-4 border-orange-500/50 bg-orange-500/10">
+        <Alert className="my-4 border-orange-500/50 bg-orange-500/10">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertDescription className="text-orange-500">
             Make sure you've saved your seed phrase before logging out!

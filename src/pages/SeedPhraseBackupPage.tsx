@@ -12,7 +12,9 @@ import SelfCustodyNoticeDialog from '@/components/wallet/SelfCustodyNoticeDialog
 const SeedPhraseBackupPage: React.FC = () => {
   const navigate = useNavigate();
   const search = useSearch({ from: '/backup-seed-phrase' });
-  const { seedPhrase: seedPhraseFromURL } = search;
+  // Access the search params safely
+  const searchParams = new URLSearchParams(window.location.search);
+  const seedPhraseFromURL = searchParams.get('seedPhrase');
   
   // Get wallet store methods
   const _initializeWalletWithSeed = useWalletStore(state => state._initializeWalletWithSeed);
