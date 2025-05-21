@@ -48,7 +48,7 @@ const MockOllamaOpenAIClient = Layer.succeed(
 const mockHttpClient = {
   request: vi.fn(() => Effect.succeed({ status: 200, body: {} })),
 };
-const MockHttpClient = Layer.succeed(HttpClient.HttpClient, mockHttpClient);
+const MockHttpClient = Layer.succeed(HttpClient, mockHttpClient);
 
 // Mock the chat completions create to return test data
 mockChatCompletionsCreate.mockImplementation(() =>
@@ -165,7 +165,7 @@ describe("OllamaAgentLanguageModelLive", () => {
     vi.restoreAllMocks();
   });
 
-  it.skip("should successfully build the layer and provide AgentLanguageModel", async () => {
+  it("should successfully build the layer and provide AgentLanguageModel", async () => {
     const program = Effect.gen(function* (_) {
       const agentLM = yield* _(AgentLanguageModel);
       expect(agentLM).toBeDefined();
@@ -198,7 +198,7 @@ describe("OllamaAgentLanguageModelLive", () => {
     expect(mockTelemetryTrackEvent).toHaveBeenCalled();
   });
 
-  it.skip("should use default model name if config value is not found", async () => {
+  it("should use default model name if config value is not found", async () => {
     // Override mock to simulate missing config
     mockConfigGet.mockImplementation(() =>
       Effect.fail({ message: "Key not found: OLLAMA_MODEL_NAME" }),
@@ -235,7 +235,7 @@ describe("OllamaAgentLanguageModelLive", () => {
     );
   });
 
-  it.skip("should properly call generateText with correct parameters", async () => {
+  it("should properly call generateText with correct parameters", async () => {
     const program = Effect.gen(function* (_) {
       const agentLM = yield* _(AgentLanguageModel);
       const result = yield* _(
@@ -281,7 +281,7 @@ describe("OllamaAgentLanguageModelLive", () => {
     );
   });
 
-  it.skip("should properly map errors from the client to AIProviderError", async () => {
+  it("should properly map errors from the client to AIProviderError", async () => {
     // Mock an error response
     mockChatCompletionsCreate.mockImplementation(() =>
       Effect.fail({ message: "Test error" }),

@@ -52,26 +52,26 @@ describe("OllamaAsOpenAIClientLive", () => {
     vi.restoreAllMocks();
   });
 
-  it.skip("should successfully build the layer when IPC functions are available", async () => {
+  it("should successfully build the layer when IPC functions are available", async () => {
     const program = Effect.gen(function* (_) {
-      const client = yield* _(OllamaOpenAIClientTag);
-      expect(client).toBeDefined();
+      const resolvedClient = yield* _(OllamaOpenAIClientTag);
+      expect(resolvedClient).toBeDefined();
 
       // Use runtime type checking instead of static typing
       // Check client structure according to OpenAiClient.Service interface
-      expect(client).toHaveProperty("client");
-      expect(client.client).toHaveProperty("chat");
-      expect(client.client.chat).toHaveProperty("completions");
-      expect(client.client.chat.completions).toHaveProperty("create");
-      expect(typeof client.client.chat.completions.create).toBe("function");
+      expect(resolvedClient).toHaveProperty("client");
+      expect(resolvedClient.client).toHaveProperty("chat");
+      expect(resolvedClient.client.chat).toHaveProperty("completions");
+      expect(resolvedClient.client.chat.completions).toHaveProperty("create");
+      expect(typeof resolvedClient.client.chat.completions.create).toBe("function");
 
       // Check the top-level stream method
-      expect(client).toHaveProperty("stream");
-      expect(typeof client.stream).toBe("function");
+      expect(resolvedClient).toHaveProperty("stream");
+      expect(typeof resolvedClient.stream).toBe("function");
 
       // Check the streamRequest method
-      expect(client).toHaveProperty("streamRequest");
-      expect(typeof client.streamRequest).toBe("function");
+      expect(resolvedClient).toHaveProperty("streamRequest");
+      expect(typeof resolvedClient.streamRequest).toBe("function");
 
       return true;
     });
@@ -114,7 +114,7 @@ describe("OllamaAsOpenAIClientLive", () => {
     (globalThis as any).window.electronAPI = originalElectronAPI;
   });
 
-  it.skip("should call IPC generateChatCompletion for non-streaming requests", async () => {
+  it("should call IPC generateChatCompletion for non-streaming requests", async () => {
     // Setup mock response
     const mockResponse = {
       id: "test-id",
@@ -141,10 +141,10 @@ describe("OllamaAsOpenAIClientLive", () => {
     mockGenerateChatCompletion.mockResolvedValue(mockResponse);
 
     const program = Effect.gen(function* (_) {
-      const client = yield* _(OllamaOpenAIClientTag);
+      const resolvedClient = yield* _(OllamaOpenAIClientTag);
       // Access the create method via the client.client.chat.completions path
       const result = yield* _(
-        client.client.chat.completions.create({
+        resolvedClient.client.chat.completions.create({
           model: "test-model",
           messages: [{ role: "user", content: "Test prompt" }],
           stream: false,
