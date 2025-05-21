@@ -1,6 +1,6 @@
 // src/tests/unit/services/ai/providers/openai/OpenAIClientLive.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Effect, Layer, Context, Option } from 'effect';
+import { Effect, Layer, Context } from 'effect';
 import * as HttpClient from '@effect/platform/HttpClient';
 import { OpenAiClient } from '@effect/ai-openai';
 import { OpenAIClientLive } from '@/services/ai/providers/openai';
@@ -9,7 +9,9 @@ import { AIConfigurationError } from '@/services/ai/core/AIError';
 import { TelemetryService } from '@/services/telemetry';
 
 // Helper for type issues in tests
-const runPromiseAny = (effect: any) => Effect.runPromise(effect);
+const runEffect = async (effect: Effect.Effect<any, any, any>) => {
+  return Effect.runPromise(effect);
+};
 
 // Create a mock HttpClient
 const MockHttpClient: any = {
@@ -79,7 +81,7 @@ describe('OpenAIClientLive', () => {
       Layer.mergeAll(httpLayer, configLayer, telemetryLayer)
     );
 
-    const result = await runPromiseAny(Effect.provide(program, testLayer));
+    const result = await runEffect(Effect.provide(program, testLayer));
 
     // Verify mock calls
     expect(MockConfigurationService.getSecret).toHaveBeenCalledWith('OPENAI_API_KEY');
@@ -128,7 +130,7 @@ describe('OpenAIClientLive', () => {
     );
 
     try {
-      await Effect.runPromise(Effect.provide(program, testLayer));
+      await runEffect(Effect.provide(program, testLayer));
       // Should not reach here
       expect(true).toBe(false);
     } catch (error: any) {
@@ -166,12 +168,15 @@ describe('OpenAIClientLive', () => {
     );
 
     try {
-      await Effect.runPromise(Effect.provide(program, testLayer));
+      await runEffect(Effect.provide(program, testLayer));
       // Should not reach here
       expect(true).toBe(false);
     } catch (error: any) {
-      expect(error).toBeInstanceOf(AIConfigurationError);
-      expect(error.message).toBe('OpenAI API Key cannot be empty.');
+      // First unwrap the FiberFailure if needed
+      const actualError = error._id === 'FiberFailure' ? error.cause.defect : error;
+      
+      expect(actualError).toBeInstanceOf(AIConfigurationError);
+      expect(actualError.message).toBe('OpenAI API Key cannot be empty.');
       
       // Verify telemetry events
       expect(MockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
@@ -203,7 +208,7 @@ describe('OpenAIClientLive', () => {
       Layer.mergeAll(httpLayer, configLayer, telemetryLayer)
     );
 
-    const result = await Effect.runPromise(Effect.provide(program, testLayer));
+    const result = await runEffect(Effect.provide(program, testLayer));
 
     // Verify mock calls
     expect(MockConfigurationService.getSecret).toHaveBeenCalledWith('OPENAI_API_KEY');
