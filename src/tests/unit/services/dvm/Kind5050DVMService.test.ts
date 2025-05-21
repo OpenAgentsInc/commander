@@ -2,13 +2,13 @@ import { expect, describe, it, vi, beforeEach, afterEach } from "vitest";
 import { Effect, Layer, Context } from "effect";
 import {
   Kind5050DVMService,
-  Kind5050DVMServiceLive,
   DVMError,
   DVMJobRequestError,
   DVMConfigError,
   Kind5050DVMServiceConfigTag,
   defaultKind5050DVMServiceConfig,
 } from "@/services/dvm/Kind5050DVMService";
+import { Kind5050DVMServiceLive } from "@/services/dvm";
 import { NostrService, NostrEvent, NostrFilter, Subscription } from "@/services/nostr";
 import { OllamaService, OllamaChatCompletionResponse } from "@/services/ollama";
 import { SparkService, LightningInvoice } from "@/services/spark";
@@ -139,11 +139,12 @@ describe("Kind5050DVMService", () => {
 
     // Create mock Ollama service
     mockOllamaService = {
-      listModels: vi.fn().mockImplementation(() => Effect.succeed(["gemma2:latest"])),
       generateChatCompletion: vi.fn().mockImplementation(() => {
         const response: OllamaChatCompletionResponse = {
+          object: "chat.completion",
           model: "gemma2:latest",
-          created_at: new Date().toISOString(),
+          id: "mock-completion-id",
+          created: Math.floor(Date.now() / 1000),
           choices: [
             {
               index: 0,
@@ -162,26 +163,22 @@ describe("Kind5050DVMService", () => {
         };
         return Effect.succeed(response);
       }),
-      generateCompletionStream: vi.fn(),
-      stopGeneration: vi.fn().mockImplementation(() => Effect.succeed(undefined as void)),
+      generateChatCompletionStream: vi.fn(),
+      checkOllamaStatus: vi.fn().mockImplementation(() => Effect.succeed(true)),
     };
 
     // Create mock Spark service
     mockSparkService = {
-      getNodeInfo: vi.fn().mockImplementation(() => Effect.succeed({
-        id: "mock-lightning-node-id",
-        alias: "Mock Lightning Node",
-      })),
       createLightningInvoice: vi.fn().mockImplementation(() => {
         return Effect.succeed({
           invoice: {
             encodedInvoice: "lnbc10m1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdpl2pkx2ctnv5sxxmmwwd5kgetjypeh2ursdae8g6twvus8g6rfwvs8qun0dfjkxaq8rkx3yf5tcsyz3d73gafnh3cax9rn449d9p5uxz9ezhhypd0elx87sjle52x86fux2ypatgddc6k63n7erqz25le42c4u4ecky03ylcqca784w",
             paymentHash: "0001020304050607080900010203040506070809000102030405060708090102",
             amountSats: 10,
-            timestamp: Math.floor(Date.now() / 1000),
-            expiryTimestamp: Math.floor(Date.now() / 1000) + 3600,
-          } as LightningInvoice
-        });
+            createdAt: Math.floor(Date.now() / 1000),
+            expiresAt: Math.floor(Date.now() / 1000) + 3600,
+          }
+        } as LightningInvoice);
       }),
       checkInvoiceStatus: vi.fn().mockImplementation(() => {
         return Effect.succeed({
@@ -193,9 +190,9 @@ describe("Kind5050DVMService", () => {
         totalBalanceSats: 1000000,
         spendableBalanceSats: 900000,
       })),
-      listChannels: vi.fn().mockImplementation(() => Effect.succeed([])),
       payLightningInvoice: vi.fn(),
-      sendKeysendPayment: vi.fn(),
+      getSingleUseDepositAddress: vi.fn().mockImplementation(() => Effect.succeed("bc1qzxcvbnmlkjhgfdsaqwertyuiop")),
+      checkWalletStatus: vi.fn().mockImplementation(() => Effect.succeed({ isOperational: true })),
     };
 
     // Create mock NIP04 service
@@ -266,15 +263,7 @@ describe("Kind5050DVMService", () => {
           .pipe(Layer.merge(badConfigLayer))
       );
 
-      // Mock store to return the bad config
-      vi.mocked(vi.hoisted(() => import("@/stores/dvmSettingsStore"))).mockImplementation(() => ({
-        useDVMSettingsStore: {
-          getState: () => ({
-            getEffectiveConfig: () => ({ ...defaultKind5050DVMServiceConfig, dvmPrivateKeyHex: "" }),
-            getDerivedPublicKeyHex: () => defaultKind5050DVMServiceConfig.dvmPublicKeyHex,
-          }),
-        },
-      }));
+      // The store mock is already set up at the top of the file by vi.mock
 
       const program = Effect.flatMap(Kind5050DVMService, (service) =>
         service.startListening()

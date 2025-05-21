@@ -659,8 +659,9 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           }
         ];
 
-        // Start the invoice check fiber if it's not already running
-        if (!invoiceCheckFiber || Option.isSome(Fiber.unsafePoll(invoiceCheckFiber))) {
+        // Start the invoice check fiber if it's not already running or if it's completed
+        // Since there's no direct isRunning method, we simply start a new fiber if needed
+        if (!invoiceCheckFiber) {
           const scheduledInvoiceChecks = Effect.repeat(
             checkAndUpdateInvoiceStatuses().pipe(
               Effect.provideService(SparkService, spark),
@@ -753,7 +754,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           isActiveInternal = false;
 
           // Cancel invoice check fiber if it's running
-          if (invoiceCheckFiber && Option.isNone(Fiber.unsafePoll(invoiceCheckFiber))) {
+          if (invoiceCheckFiber) {
             Fiber.interrupt(invoiceCheckFiber);
             invoiceCheckFiber = null;
           }

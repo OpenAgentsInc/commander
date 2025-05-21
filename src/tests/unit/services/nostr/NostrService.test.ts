@@ -2,9 +2,9 @@ import { expect, describe, it, vi, beforeEach, afterEach } from "vitest";
 import { Effect, Layer } from "effect";
 import {
   NostrService,
-  NostrServiceImpl,
   NostrServiceConfig,
   NostrServiceConfigTag,
+  NostrServiceLive,
   NostrEvent,
   NostrFilter,
   NostrPoolError,
@@ -80,8 +80,13 @@ describe("NostrService", () => {
     };
 
     // Create test layer
-    testLayer = Layer.succeed(NostrService, NostrServiceImpl.createNostrService(nostrServiceConfig))
-      .pipe(Layer.provide(Layer.succeed(TelemetryService, mockTelemetryService)));
+    testLayer = Layer.provide(
+      NostrServiceLive,
+      Layer.merge(
+        Layer.succeed(NostrServiceConfigTag, nostrServiceConfig),
+        Layer.succeed(TelemetryService, mockTelemetryService)
+      )
+    );
   });
 
   afterEach(() => {
@@ -103,32 +108,7 @@ describe("NostrService", () => {
     });
   });
   
-  describe("listPublicNip90Events", () => {
-    it("should fetch and return NIP-90 events from relays", async () => {
-      const program = Effect.flatMap(NostrService, (service) =>
-        service.listPublicNip90Events(10)
-      );
-      
-      const result = await Effect.runPromise(runEffectTest(program));
-      
-      expect(result).toHaveLength(3);
-      expect(result.some(e => e.kind === 5100)).toBe(true); // Job request
-      expect(result.some(e => e.kind === 6100)).toBe(true); // Job result
-      expect(result.some(e => e.kind === 7000)).toBe(true); // Feedback
-    });
-    
-    it("should use default limit of 50 when none provided", async () => {
-      const program = Effect.flatMap(NostrService, (service) =>
-        service.listPublicNip90Events()
-      );
-      
-      await Effect.runPromise(runEffectTest(program));
-      
-      // The mock returns 3 items regardless of limit, but we can verify the default was used
-      // by checking the SimplePool.querySync function calls
-      expect(program).toBeDefined();
-    });
-  });
+  // listPublicNip90Events tests have been removed - this method was moved to NIP90Service
   
   // Additional existing tests for service...
 });

@@ -8,6 +8,7 @@ import { NIP90Service } from '@/services/nip90/NIP90Service';
 import { Effect, Exit } from 'effect';
 import { TelemetryService } from '@/services/telemetry';
 import { useQuery } from '@tanstack/react-query';
+import type { Mock } from 'vitest';
 
 // Mock the @tanstack/react-query module
 vi.mock('@tanstack/react-query', () => ({
@@ -92,7 +93,7 @@ describe('Nip90GlobalFeedPane Component', () => {
     });
 
     // Mock useQuery to return the data
-    (useQuery as Vi.Mock).mockReturnValue({
+    (useQuery as Mock).mockReturnValue({
       data: mockEvents,
       isLoading: false,
       error: null,
@@ -123,7 +124,7 @@ describe('Nip90GlobalFeedPane Component', () => {
   
   it('handles empty data gracefully', async () => {
     // Set mockEvents to empty to simulate no events found
-    (useQuery as Vi.Mock).mockReturnValue({
+    (useQuery as Mock).mockReturnValue({
       data: [],
       isLoading: false,
       error: null,
@@ -139,7 +140,7 @@ describe('Nip90GlobalFeedPane Component', () => {
   
   it('shows loading state', async () => {
     // Override the useQuery mock for this test
-    (useQuery as Vi.Mock).mockReturnValue({
+    (useQuery as Mock).mockReturnValue({
       data: undefined,
       isLoading: true,
       error: null,
@@ -155,7 +156,7 @@ describe('Nip90GlobalFeedPane Component', () => {
   
   it('shows error state', async () => {
     // Override the useQuery mock for this test
-    (useQuery as Vi.Mock).mockReturnValue({
+    (useQuery as Mock).mockReturnValue({
       data: undefined,
       isLoading: false,
       error: new Error('Test error'),

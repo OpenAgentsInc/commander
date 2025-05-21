@@ -256,15 +256,17 @@ export const createNostrServiceEffect = Effect.gen(function* (_) {
           onevent: (event: any) => {
             onEvent(event as NostrEvent);
           },
-          oneose: onEOSE ? (relayUrl: string) => {
+          oneose: onEOSE ? () => {
             // Track EOSE via telemetry
             Effect.runFork(telemetry.trackEvent({
               category: "log:info",
               action: "nostr_eose_received",
-              label: `[Nostr] EOSE received from ${relayUrl}`
+              label: `[Nostr] EOSE received`
             }).pipe(Effect.ignoreLogged));
             
-            onEOSE(relayUrl);
+            // Call onEOSE with an empty string as the relay parameter
+            // to maintain backwards compatibility
+            onEOSE("");
           } : undefined
         };
         
