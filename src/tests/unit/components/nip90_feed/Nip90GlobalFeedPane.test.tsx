@@ -7,29 +7,10 @@ import type { Mock } from 'vitest';
 // Set test environment
 process.env.NODE_ENV = 'test';
 
-// Mock specific functions only
-vi.mock('effect', () => {
-  return {
-    Effect: {
-      // Only mock runFork
-      runFork: vi.fn(),
-      // Add other functions that might be used
-      flatMap: vi.fn(),
-      succeed: vi.fn(),
-      provide: vi.fn(),
-      gen: vi.fn()
-    },
-    Exit: { 
-      succeed: vi.fn(),
-      isSuccess: vi.fn()
-    },
-    Cause: {
-      squash: vi.fn()
-    },
-    Data: {
-      TaggedError: () => class MockError extends Error {}
-    }
-  };
+// We need to do a full mock of the effect module
+vi.mock('effect', async () => {
+  const actual = await vi.importActual('effect');
+  return actual;
 });
 
 // Mock the @tanstack/react-query module
