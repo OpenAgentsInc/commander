@@ -52,6 +52,23 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
   return {
     // Return the pool instance
     getPool: () => getPoolEffect,
+    
+    // List recent NIP-90 events (kinds 5000-5999, 6000-6999, 7000) from connected relays
+    listPublicNip90Events: (limit = 50) => 
+      Effect.gen(function*(_) {
+        // Generate arrays of kinds for NIP-90 requests (5000-5999) and results (6000-6999)
+        const nip90RequestKinds = Array.from({ length: 1000 }, (_, i) => 5000 + i);
+        const nip90ResultKinds = Array.from({ length: 1000 }, (_, i) => 6000 + i);
+        
+        // Create filter including all NIP-90 related kinds with the specified limit
+        const filters: NostrFilter[] = [{
+          kinds: [...nip90RequestKinds, ...nip90ResultKinds, 7000],
+          limit: limit,
+        }];
+        
+        // Use the existing listEvents method which handles telemetry and sorting
+        return yield* _(this.listEvents(filters));
+      }),
 
     // List events from relays
     listEvents: (filters: NostrFilter[]) =>

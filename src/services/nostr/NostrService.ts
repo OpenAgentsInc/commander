@@ -96,8 +96,15 @@ export interface NostrService {
     filters: NostrFilter[],
     onEvent: (event: NostrEvent) => void,
     relays?: readonly string[],
-    onEOSE?: () => void
+    onEOSE?: (relay: string) => void
   ): Effect.Effect<Subscription, NostrRequestError, never>;
+  
+  /**
+   * Lists recent NIP-90 events (kinds 5000-5999, 6000-6999, 7000) from connected relays
+   * @param limit Maximum number of events to return, defaults to 50
+   * @returns Array of NIP-90 related events sorted by creation time (newest first)
+   */
+  listPublicNip90Events(limit?: number): Effect.Effect<NostrEvent[], NostrRequestError, never>;
 }
 
 export const NostrService = Context.GenericTag<NostrService>("NostrService");
