@@ -16,8 +16,8 @@ interface MockAiResponse {
   text: string;
 }
 
-// Create a mock error for testing
-class MockAiError extends AIGenericError implements AiError {
+// Create a mock error for testing without trying to implement the full AiError interface
+class MockAiError extends AIGenericError {
   name: string;
   provider: string;
   
@@ -31,11 +31,14 @@ class MockAiError extends AIGenericError implements AiError {
   }
 }
 
+// Define this type to avoid having to implement the strict AiResponse interface
+// Explicitly make the mock service implementation compatible with AgentLanguageModel
 class MockAgentLanguageModel implements AgentLanguageModel {
   readonly _tag = "AgentLanguageModel";
 
+  // Using 'any' type for the error channel to allow our mock errors to work
   generateText = vi.fn((_params: GenerateTextOptions) => 
-    Effect.succeed({ text: "Mock generated text response" } as MockAiResponse as AiResponse)
+    Effect.succeed({ text: "Mock generated text response" } as MockAiResponse as AiResponse) as any
   );
 
   streamText = vi.fn((_params: StreamTextOptions) => 
@@ -47,7 +50,7 @@ class MockAgentLanguageModel implements AgentLanguageModel {
   );
 
   generateStructured = vi.fn((_params: GenerateStructuredOptions) => 
-    Effect.succeed({ text: "Mock structured response" } as MockAiResponse as AiResponse)
+    Effect.succeed({ text: "Mock structured response" } as MockAiResponse as AiResponse) as any
   );
 }
 
@@ -95,8 +98,9 @@ describe("AgentLanguageModel Service", () => {
     it("generateText should properly propagate errors", async () => {
       const mockService = new MockAgentLanguageModel();
       const mockError = new MockAiError();
-      // Cast the mockReturnValue to handle the AiError type
-      mockService.generateText.mockReturnValueOnce(Effect.fail(mockError) as Effect.Effect<AiResponse, AiError>);
+      // Since we've typed the mock implementation with 'any' for the error channel,
+      // we can simply use Effect.fail without additional type assertions
+      mockService.generateText.mockReturnValueOnce(Effect.fail(mockError));
       
       const testLayer = Layer.succeed(AgentLanguageModel, mockService);
       const params: GenerateTextOptions = { prompt: "Test prompt" };

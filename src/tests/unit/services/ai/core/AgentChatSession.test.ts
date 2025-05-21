@@ -165,7 +165,7 @@ describe("AgentChatSession Service", () => {
         );
         // Should not reach here
         expect(true).toBe(false);
-      } catch (error) {
+      } catch (error: any) {
         expect(error).toBeDefined();
         expect(error.message).toBe("Context window exceeded");
       }
@@ -298,7 +298,7 @@ describe("AgentChatSession Service", () => {
         );
         // Should not reach here
         expect(true).toBe(false);
-      } catch (error) {
+      } catch (error: any) {
         expect(error).toBeDefined();
         expect(error.message).toContain("Cannot prepare messages: token limit too small");
       }

@@ -226,7 +226,7 @@ describe("AgentToolkitManager Service", () => {
         );
         // Should not reach here
         expect(true).toBe(false);
-      } catch (error) {
+      } catch (error: any) {
         expect(error).toBeDefined();
         expect(error.message).toContain("Tool not found: NonExistentTool");
       }
