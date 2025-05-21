@@ -10,7 +10,7 @@ import { Bitcoin, RefreshCw, AlertTriangle, Loader2 } from 'lucide-react';
 
 const BitcoinBalanceDisplay: React.FC = () => {
   const runtime = getMainRuntime();
-  const openSellComputePane = usePaneStore((state) => state.openSellComputePane);
+  const openWalletPane = usePaneStore((state) => state.openWalletPane);
 
   const { data: balanceData, isLoading, error, refetch, isFetching } = useQuery<BalanceInfo, Error>({
     queryKey: ['bitcoinBalance'],
@@ -26,13 +26,8 @@ const BitcoinBalanceDisplay: React.FC = () => {
     refetchIntervalInBackground: true,
   });
 
-  // Placeholder for wallet pane - will be implemented by a separate agent
   const handleDisplayClick = () => {
-    // Placeholder - for now, just log that this would open a wallet pane
-    console.log('Opening wallet pane (placeholder - to be implemented)');
-    
-    // Temporarily still open sell compute pane until wallet pane is implemented
-    openSellComputePane();
+    openWalletPane();
   };
 
   let displayContent;
@@ -49,7 +44,7 @@ const BitcoinBalanceDisplay: React.FC = () => {
   return (
     <div
       onClick={handleDisplayClick}
-      title="Open Wallet / Sell Compute Pane"
+      title="Open Wallet"
       className="fixed top-4 right-4 z-[10000] p-2 h-8 flex items-center bg-background/70 border border-border/30 rounded-md shadow-lg backdrop-blur-sm text-xs font-mono text-foreground cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors"
     >
       <span className="text-yellow-500 mr-1.5 font-bold">₿</span>
