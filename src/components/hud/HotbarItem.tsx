@@ -8,6 +8,7 @@ interface HotbarItemProps {
   children?: React.ReactNode;
   title?: string;
   isActive?: boolean;
+  isGhost?: boolean;
   className?: string;
 }
 
@@ -17,6 +18,7 @@ export const HotbarItem: React.FC<HotbarItemProps> = ({
   children,
   title,
   isActive,
+  isGhost,
   className,
 }) => {
   return (
@@ -28,6 +30,7 @@ export const HotbarItem: React.FC<HotbarItemProps> = ({
           className={cn(
             "relative flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 border border-border/50 bg-background/70 backdrop-blur-sm rounded-sm shadow-md transition-all duration-150 hover:bg-accent hover:border-primary focus:outline-none focus:ring-1 focus:ring-primary",
             isActive && "bg-primary/20 border-primary ring-1 ring-primary",
+            isGhost && "opacity-30 hover:opacity-50",
             className
           )}
         >
