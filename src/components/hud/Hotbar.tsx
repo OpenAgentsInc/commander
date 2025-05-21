@@ -39,9 +39,11 @@ export const Hotbar: React.FC<HotbarProps> = ({
       <HotbarItem slotNumber={2} onClick={onOpenDvmJobHistoryPane} title="DVM Job History" isActive={activePaneId === DVM_JOB_HISTORY_PANE_ID}>
         <History className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
+      {/* Commented out hand tracking button
       <HotbarItem slotNumber={3} onClick={onToggleHandTracking} title={isHandTrackingActive ? "Disable Hand Tracking" : "Enable Hand Tracking"} isActive={isHandTrackingActive}>
         <Hand className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
+      */}
       <HotbarItem slotNumber={4} onClick={resetHUDState} title="Reset HUD Layout">
         <RefreshCw className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
