@@ -1,5 +1,6 @@
 import { Effect, Layer } from "effect";
 import { HttpClient } from "@effect/platform/HttpClient";
+import * as HttpClientModule from "@effect/platform/HttpClient";
 import * as HttpClientRequest from "@effect/platform/HttpClientRequest";
 import * as HttpClientResponse from "@effect/platform/HttpClientResponse";
 import * as HttpClientError from "@effect/platform/HttpClientError";
@@ -71,7 +72,7 @@ function createMockClient() {
 
   // Due to the complexity of the HttpClient interface structure,
   // we're using a type assertion here for simplicity.
-  return {
+  const client = {
     execute: executeMock,
     get: (url: string | URL, options?: HttpClientRequest.Options.NoBody) => {
       const request = HttpClientRequest.get(url, options);
@@ -106,8 +107,16 @@ function createMockClient() {
     },
     toJSON() {
       return { _tag: "TestHttpClient" };
-    }
+    },
+    // Mock implementation needed for withTracerPropagation to work
+    preprocess: null
   };
+  
+  // Note: We're no longer using withTracerPropagation for testing
+  // Since HttpClientModule is read-only, we can't modify it here
+  // Instead, we're using the base client directly in OllamaServiceImpl.ts
+  
+  return client;
 }
 
 // Create a Layer with the mock HttpClient
