@@ -46,7 +46,6 @@ export default function HomePage() {
     toggleSellComputePane,
     toggleWalletPane,
     toggleDvmJobHistoryPane,
-    resetHUDState,
   } = usePaneStore(
     useShallow((state) => ({
       panes: state.panes,
@@ -56,7 +55,6 @@ export default function HomePage() {
       toggleSellComputePane: state.toggleSellComputePane,
       toggleWalletPane: state.toggleWalletPane,
       toggleDvmJobHistoryPane: state.toggleDvmJobHistoryPane,
-      resetHUDState: state.resetHUDState,
     }))
   );
 
@@ -173,7 +171,7 @@ export default function HomePage() {
       if (!modifier) return;
       
       const digit = parseInt(event.key);
-      if (isNaN(digit) || digit < 1 || digit > 5) return;
+      if (isNaN(digit) || digit < 1 || digit > 3) return;
       
       event.preventDefault();
       
@@ -196,11 +194,8 @@ export default function HomePage() {
         case 6:
         case 7:
         case 8:
-          // No operation for slots 4-8
-          break;
         case 9:
-          console.log('Keyboard: Reset HUD');
-          resetHUDState();
+          // No operation for slots 4-9
           break;
       }
     };
@@ -212,7 +207,7 @@ export default function HomePage() {
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown);
     };
-  }, [toggleSellComputePane, toggleWalletPane, toggleHandTracking, toggleDvmJobHistoryPane, resetHUDState]);
+  }, [toggleSellComputePane, toggleWalletPane, toggleHandTracking, toggleDvmJobHistoryPane]);
 
   // Handler for keyboard shortcuts (kept as a backup, but we'll primarily use the global handler)
   const handleKeyboardChange = useCallback(

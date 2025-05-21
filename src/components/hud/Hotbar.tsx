@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '@/utils/tailwind';
 import { HotbarItem } from './HotbarItem';
-import { RefreshCw, Store, History, Hand, Wallet } from 'lucide-react';
+import { Store, History, Hand, Wallet } from 'lucide-react';
 import { usePaneStore } from '@/stores/pane';
 import { useShallow } from 'zustand/react/shallow';
 import {
@@ -27,9 +27,8 @@ export const Hotbar: React.FC<HotbarProps> = ({
   onToggleWalletPane,
   onToggleDvmJobHistoryPane 
 }) => {
-  const { resetHUDState, activePaneId } = usePaneStore(
+  const { activePaneId } = usePaneStore(
     useShallow(state => ({
-      resetHUDState: state.resetHUDState,
       activePaneId: state.activePaneId
     }))
   );
@@ -56,17 +55,12 @@ export const Hotbar: React.FC<HotbarProps> = ({
         <History className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
       
-      {/* Fill the middle slots with empty HotbarItems */}
-      {Array.from({ length: 5 }).map((_, i) => (
+      {/* Fill the remaining slots with empty HotbarItems */}
+      {Array.from({ length: 6 }).map((_, i) => (
         <HotbarItem key={`empty-slot-${i}`} slotNumber={i + 4} isGhost>
           <span className="w-5 h-5" />
         </HotbarItem>
       ))}
-      
-      {/* Reset HUD button in slot 9 */}
-      <HotbarItem slotNumber={9} onClick={resetHUDState} title="Reset HUD Layout">
-        <RefreshCw className="w-5 h-5 text-muted-foreground" />
-      </HotbarItem>
     </div>
   );
 };
