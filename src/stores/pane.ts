@@ -17,6 +17,7 @@ import {
   openNip90DvmTestPaneAction,
   openNip90ConsumerChatPaneAction,
   openNip90GlobalFeedPaneAction,
+  openWalletPaneAction,
 } from "./panes/actions";
 import { 
   DEFAULT_NIP28_PANE_ID,
@@ -85,6 +86,7 @@ export const usePaneStore = create<PaneStoreType>()(
       openNip90DvmTestPane: () => openNip90DvmTestPaneAction(set),
       openNip90ConsumerChatPane: () => openNip90ConsumerChatPaneAction(set),
       openNip90GlobalFeedPane: () => openNip90GlobalFeedPaneAction(set),
+      openWalletPane: () => openWalletPaneAction(set),
       resetHUDState: () => {
         const newInitialState: PaneState = {
             panes: getInitialPanes(),

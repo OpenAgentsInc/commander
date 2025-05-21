@@ -12,3 +12,4 @@ export * from './openDvmJobHistoryPane';
 export * from './openNip90DvmTestPane';
 export * from './openNip90ConsumerChatPane';
 export * from './openNip90GlobalFeedPane';
+export * from './openWalletPane';

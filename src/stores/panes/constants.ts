@@ -31,3 +31,7 @@ export const NIP90_CONSUMER_CHAT_PANE_TITLE = 'NIP-90 Consumer (Text Inference)'
 // Constants for NIP-90 Global Feed pane
 export const NIP90_GLOBAL_FEED_PANE_ID = 'nip90_global_feed';
 export const NIP90_GLOBAL_FEED_PANE_TITLE = 'NIP-90 Global Feed';
+
+// Constants for Wallet pane
+export const WALLET_PANE_ID = 'wallet_pane';
+export const WALLET_PANE_TITLE = 'Bitcoin Wallet';

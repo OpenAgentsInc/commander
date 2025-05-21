@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '@/utils/tailwind';
 import { HotbarItem } from './HotbarItem';
-import { RefreshCw, Store, History, Hand } from 'lucide-react';
+import { RefreshCw, Store, History, Hand, Wallet } from 'lucide-react';
 import { usePaneStore } from '@/stores/pane';
 
 interface HotbarProps {
@@ -20,9 +20,11 @@ export const Hotbar: React.FC<HotbarProps> = ({
   onOpenDvmJobHistoryPane 
 }) => {
   const resetHUDState = usePaneStore((state) => state.resetHUDState);
+  const openWalletPane = usePaneStore((state) => state.openWalletPane);
   const activePaneId = usePaneStore((state) => state.activePaneId);
   const SELL_COMPUTE_PANE_ID = 'sell_compute';
   const DVM_JOB_HISTORY_PANE_ID = 'dvm_job_history';
+  const WALLET_PANE_ID = 'wallet_pane';
 
   return (
     <div
@@ -43,10 +45,13 @@ export const Hotbar: React.FC<HotbarProps> = ({
       <HotbarItem slotNumber={4} onClick={resetHUDState} title="Reset HUD Layout">
         <RefreshCw className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
+      <HotbarItem slotNumber={5} onClick={openWalletPane} title="Wallet" isActive={activePaneId === WALLET_PANE_ID}>
+        <Wallet className="w-5 h-5 text-muted-foreground" />
+      </HotbarItem>
       
-      {/* Fill the remaining 5 slots with empty HotbarItems */}
-      {Array.from({ length: 5 }).map((_, i) => (
-        <HotbarItem key={`empty-slot-${i}`} slotNumber={i + 5} isGhost>
+      {/* Fill the remaining 4 slots with empty HotbarItems */}
+      {Array.from({ length: 4 }).map((_, i) => (
+        <HotbarItem key={`empty-slot-${i}`} slotNumber={i + 6} isGhost>
           <span className="w-5 h-5" />
         </HotbarItem>
       ))}
