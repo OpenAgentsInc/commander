@@ -114,7 +114,9 @@ Okay, Agent, here are the specific instructions for implementing **Phase 2 (Open
     ```typescript
     // src/services/ai/providers/openai/OpenAIAgentLanguageModelLive.ts
     import { Layer, Effect, Stream, Context } from "effect";
-    import { AgentLanguageModel, GenerateTextOptions, StreamTextOptions, GenerateStructuredOptions, AiResponse, AiTextChunk, AiError } from "@/services/ai/core";
+    import { AgentLanguageModel, GenerateTextOptions, StreamTextOptions, GenerateStructuredOptions, AiTextChunk } from "@/services/ai/core";
+    import type { AiError } from "@effect/ai/AiError";
+    import type { AiResponse } from "@effect/ai/AiResponse";
     import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
     import { ConfigurationService, ConfigError } from "@/services/configuration"; // Adjust path
     import { AIProviderError, AIConfigurationError } from "@/services/ai/core/AIError";
