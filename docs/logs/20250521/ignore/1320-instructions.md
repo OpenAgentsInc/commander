@@ -1,6 +1,6 @@
 Okay, the "Maximum update depth exceeded" error, especially with the stack trace pointing to `commitLayoutEffectOnFiber` and originating from your `<App>` component, strongly suggests that a `useLayoutEffect` hook is causing a state update which, in turn, triggers another re-render and re-execution of the layout effect in a loop.
 
-The "radical approach" you took for `App.tsx` aimed to solve this by moving store reads (`getState()`) outside of React's render cycle and using a flag (`hasCheckedWalletSetup`) to ensure the logic runs only once. However, the core issue often lies in *when* and *how* state-updating actions are dispatched in relation to React's lifecycle phases.
+The "radical approach" you took for `App.tsx` aimed to solve this by moving store reads (`getState()`) outside of React's render cycle and using a flag (`hasCheckedWalletSetup`) to ensure the logic runs only once. However, the core issue often lies in _when_ and _how_ state-updating actions are dispatched in relation to React's lifecycle phases.
 
 **The Problem:**
 
@@ -21,18 +21,19 @@ function checkWalletSetupNeeded() {
 
 export default function App() {
   // ...
-  useLayoutEffect(() => { // <--- Problematic for this kind of side-effect
+  useLayoutEffect(() => {
+    // <--- Problematic for this kind of side-effect
     checkWalletSetupNeeded();
   }, []);
   // ...
 }
 ```
 
-`useLayoutEffect` runs synchronously after all DOM mutations but *before* the browser has painted. If the `openWalletSetupPane()` action (even when scheduled with `setTimeout(..., 0)`) causes a state change in `paneStore` that leads to an immediate re-render of `App` or its children (like `PaneManager`), React might re-run layout effects too quickly, leading to the depth exceeded error. The `setTimeout` is an attempt to break this synchronous chain, but interactions with the rendering lifecycle can still be tricky.
+`useLayoutEffect` runs synchronously after all DOM mutations but _before_ the browser has painted. If the `openWalletSetupPane()` action (even when scheduled with `setTimeout(..., 0)`) causes a state change in `paneStore` that leads to an immediate re-render of `App` or its children (like `PaneManager`), React might re-run layout effects too quickly, leading to the depth exceeded error. The `setTimeout` is an attempt to break this synchronous chain, but interactions with the rendering lifecycle can still be tricky.
 
 **The Solution:**
 
-For side effects that involve asynchronous operations or state updates that don't need to block browser paint (like opening a pane), `useEffect` is generally safer and more appropriate than `useLayoutEffect`. `useEffect` runs *after* the browser has painted.
+For side effects that involve asynchronous operations or state updates that don't need to block browser paint (like opening a pane), `useEffect` is generally safer and more appropriate than `useLayoutEffect`. `useEffect` runs _after_ the browser has painted.
 
 The `hasCheckedWalletSetup` flag is crucial and correctly implemented to prevent the `openWalletSetupPane()` action from being dispatched multiple times. The issue is the timing and context of its first dispatch.
 
@@ -40,10 +41,11 @@ The `hasCheckedWalletSetup` flag is crucial and correctly implemented to prevent
 
 1.  **Modify `src/App.tsx` to use `useEffect` instead of `useLayoutEffect` for the `checkWalletSetupNeeded` call.**
 
-    *   Change the import from React if `useLayoutEffect` is no longer used elsewhere in the file.
-    *   Replace the `useLayoutEffect` hook with `useEffect`. The dependency array `[]` should remain, as this logic is intended to run once after the initial mount.
+    - Change the import from React if `useLayoutEffect` is no longer used elsewhere in the file.
+    - Replace the `useLayoutEffect` hook with `useEffect`. The dependency array `[]` should remain, as this logic is intended to run once after the initial mount.
 
     **File: `src/App.tsx`**
+
     ```typescript
     // Before (if useLayoutEffect was the only layout hook):
     // import React, { useEffect, useLayoutEffect } from "react";
@@ -120,8 +122,8 @@ The `hasCheckedWalletSetup` flag is crucial and correctly implemented to prevent
 
 **Explanation of Why This Should Work:**
 
-*   By switching to `useEffect`, the `checkWalletSetupNeeded` function (and consequently the `openWalletSetupPane` action via `setTimeout`) will be executed *after* React has committed changes to the DOM and the browser has painted. This asynchronous nature is less likely to conflict with React's internal update cycle in a way that causes an immediate re-render loop caught by the "maximum update depth" guard.
-*   The `hasCheckedWalletSetup` flag ensures that even if `App` re-renders for other reasons, the `openWalletSetupPane()` action will not be dispatched again by this effect.
-*   The `App` component itself no longer directly subscribes to `paneStore` via hooks, so the `openWalletSetupPane()` action doesn't cause `App` to re-render *due to its own subscription*. Re-renders will be triggered by children (like `PaneManager`) that *do* subscribe to `paneStore`. This is the correct flow.
+- By switching to `useEffect`, the `checkWalletSetupNeeded` function (and consequently the `openWalletSetupPane` action via `setTimeout`) will be executed _after_ React has committed changes to the DOM and the browser has painted. This asynchronous nature is less likely to conflict with React's internal update cycle in a way that causes an immediate re-render loop caught by the "maximum update depth" guard.
+- The `hasCheckedWalletSetup` flag ensures that even if `App` re-renders for other reasons, the `openWalletSetupPane()` action will not be dispatched again by this effect.
+- The `App` component itself no longer directly subscribes to `paneStore` via hooks, so the `openWalletSetupPane()` action doesn't cause `App` to re-render _due to its own subscription_. Re-renders will be triggered by children (like `PaneManager`) that _do_ subscribe to `paneStore`. This is the correct flow.
 
 This change directly addresses the "Maximum update depth exceeded" error when it's caused by synchronous state updates from `useLayoutEffect`.

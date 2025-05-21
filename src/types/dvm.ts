@@ -1,6 +1,12 @@
 // src/types/dvm.ts
 
-export type JobStatus = 'pending_payment' | 'processing' | 'paid' | 'completed' | 'error' | 'cancelled';
+export type JobStatus =
+  | "pending_payment"
+  | "processing"
+  | "paid"
+  | "completed"
+  | "error"
+  | "cancelled";
 
 export interface JobHistoryEntry {
   id: string; // Unique ID for the history entry (e.g., could be derived from jobRequestEventId or a UUID)

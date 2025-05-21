@@ -8,46 +8,53 @@ Okay, agent, we're now going to implement a **full, non-mocked integration test*
 4.  **Test Duration:** This test will take longer than unit tests due to network latency and Ollama processing. Default Vitest timeouts should be okay, but be mindful.
 
 **Standard Commands:**
-*   Run tests: `pnpm test`
-*   Run type checking: `pnpm t`
+
+- Run tests: `pnpm test`
+- Run type checking: `pnpm t`
 
 ---
 
 **Phase 1: Test File Setup and Identities**
 
 1.  **Use Existing Test File:** We will continue working in `src/tests/unit/services/nip90/nip90Handshake.test.ts`.
-    *   **Remove Mocking:** Delete or comment out all `vi.mock('nostr-tools/pool', ...)` and any other explicit mocking related to `NostrService` or `OllamaService`. We want to use the real implementations.
-    *   Ensure `SimplePool` is imported normally: `import { SimplePool } from 'nostr-tools/pool';` (though it won't be directly used in the test logic, `NostrService` uses it).
+
+    - **Remove Mocking:** Delete or comment out all `vi.mock('nostr-tools/pool', ...)` and any other explicit mocking related to `NostrService` or `OllamaService`. We want to use the real implementations.
+    - Ensure `SimplePool` is imported normally: `import { SimplePool } from 'nostr-tools/pool';` (though it won't be directly used in the test logic, `NostrService` uses it).
 
 2.  **Update Test File Content (`nip90Handshake.test.ts`):**
     Refine the initial setup. We will need `OllamaService` and its dependencies.
 
     ```typescript
     // src/tests/unit/services/nip90/nip90Handshake.test.ts
-    import { describe, it, expect, beforeEach, afterAll } from 'vitest'; // Added afterAll
-    import { Effect, Layer, Exit, Cause, Option } from 'effect'; // Keep Cause, Option for detailed error inspection
+    import { describe, it, expect, beforeEach, afterAll } from "vitest"; // Added afterAll
+    import { Effect, Layer, Exit, Cause, Option } from "effect"; // Keep Cause, Option for detailed error inspection
     import { NodeHttpClient } from "@effect/platform-node"; // For OllamaService dependency
 
     import {
-        NostrEvent,
-        type NostrFilter,
-        NostrService,
-        NostrServiceLive,
-        DefaultNostrServiceConfigLayer, // Use default public relays
-        NostrServiceConfigTag,
-        NostrPoolError // For cleanup
-    } from '@/services/nostr';
-    import { BIP39Service, BIP39ServiceLive } from '@/services/bip39';
-    import { BIP32Service, BIP32ServiceLive } from '@/services/bip32';
-    import { NIP19Service, NIP19ServiceLive } from '@/services/nip19';
+      NostrEvent,
+      type NostrFilter,
+      NostrService,
+      NostrServiceLive,
+      DefaultNostrServiceConfigLayer, // Use default public relays
+      NostrServiceConfigTag,
+      NostrPoolError, // For cleanup
+    } from "@/services/nostr";
+    import { BIP39Service, BIP39ServiceLive } from "@/services/bip39";
+    import { BIP32Service, BIP32ServiceLive } from "@/services/bip32";
+    import { NIP19Service, NIP19ServiceLive } from "@/services/nip19";
     import {
-        OllamaService,
-        OllamaServiceLive,
-        UiOllamaConfigLive, // Use UI default config for Ollama endpoint
-        OllamaServiceConfigTag,
-        type OllamaChatCompletionRequest
-    } from '@/services/ollama';
-    import { finalizeEvent, generateSecretKey, getPublicKey as getPk, type EventTemplate } from 'nostr-tools/pure';
+      OllamaService,
+      OllamaServiceLive,
+      UiOllamaConfigLive, // Use UI default config for Ollama endpoint
+      OllamaServiceConfigTag,
+      type OllamaChatCompletionRequest,
+    } from "@/services/ollama";
+    import {
+      finalizeEvent,
+      generateSecretKey,
+      getPublicKey as getPk,
+      type EventTemplate,
+    } from "nostr-tools/pure";
 
     // --- Helper to run Effects with all necessary services ---
     const FullAppLayer = Layer.mergeAll(
@@ -55,24 +62,41 @@ Okay, agent, we're now going to implement a **full, non-mocked integration test*
       BIP32ServiceLive,
       NIP19ServiceLive,
       NostrServiceLive.pipe(Layer.provide(DefaultNostrServiceConfigLayer)),
-      OllamaServiceLive.pipe(Layer.provide(
-        Layer.merge(UiOllamaConfigLive, NodeHttpClient.layer) // OllamaService needs HttpClient and its config
-      ))
+      OllamaServiceLive.pipe(
+        Layer.provide(
+          Layer.merge(UiOllamaConfigLive, NodeHttpClient.layer), // OllamaService needs HttpClient and its config
+        ),
+      ),
     );
 
     // For running effects within the test, ensuring all layers are provided
     const runFullTestEffect = <E, A>(
-      effect: Effect.Effect<A, E, BIP39Service | BIP32Service | NIP19Service | NostrService | OllamaService>
+      effect: Effect.Effect<
+        A,
+        E,
+        | BIP39Service
+        | BIP32Service
+        | NIP19Service
+        | NostrService
+        | OllamaService
+      >,
     ) => {
       return Effect.runPromise(Effect.provide(effect, FullAppLayer));
     };
 
     const runFullTestEffectExit = <E, A>(
-        effect: Effect.Effect<A, E, BIP39Service | BIP32Service | NIP19Service | NostrService | OllamaService>
-      ) => {
-        return Effect.runPromiseExit(Effect.provide(effect, FullAppLayer));
-      };
-
+      effect: Effect.Effect<
+        A,
+        E,
+        | BIP39Service
+        | BIP32Service
+        | NIP19Service
+        | NostrService
+        | OllamaService
+      >,
+    ) => {
+      return Effect.runPromiseExit(Effect.provide(effect, FullAppLayer));
+    };
 
     // --- Identities ---
     let requesterSk: Uint8Array;
@@ -86,31 +110,36 @@ Okay, agent, we're now going to implement a **full, non-mocked integration test*
     // For NostrService, cleanupPool is important.
     let nostrServiceInstance: NostrService | null = null;
 
-
     // --- Helper Functions (from previous phases, ensure they are present) ---
     function createNip90JobRequest(
       sk: Uint8Array,
       inputs: Array<[string, string, string?, string?, string?]>,
-      outputMimeType: string = 'text/plain',
+      outputMimeType: string = "text/plain",
       bidMillisats?: number,
-      jobKind: number = 5001
+      jobKind: number = 5001,
     ): NostrEvent {
-        // ... (implementation from previous phase)
-        const template: EventTemplate = {
-            kind: jobKind,
-            created_at: Math.floor(Date.now() / 1000),
-            tags: [
-              ...inputs.map(inputParams => ['i', ...inputParams.filter(p => p !== undefined)] as [string, ...string[]]),
-              ['output', outputMimeType],
-            ],
-            content: 'Job request content for NIP-90 handshake test',
-          };
+      // ... (implementation from previous phase)
+      const template: EventTemplate = {
+        kind: jobKind,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ...inputs.map(
+            (inputParams) =>
+              ["i", ...inputParams.filter((p) => p !== undefined)] as [
+                string,
+                ...string[],
+              ],
+          ),
+          ["output", outputMimeType],
+        ],
+        content: "Job request content for NIP-90 handshake test",
+      };
 
-          if (bidMillisats !== undefined) {
-            template.tags.push(['bid', bidMillisats.toString()]);
-          }
+      if (bidMillisats !== undefined) {
+        template.tags.push(["bid", bidMillisats.toString()]);
+      }
 
-          return finalizeEvent(template, sk) as NostrEvent;
+      return finalizeEvent(template, sk) as NostrEvent;
     }
 
     function createNip90JobResult(
@@ -118,29 +147,28 @@ Okay, agent, we're now going to implement a **full, non-mocked integration test*
       requestEvent: NostrEvent,
       outputContent: string,
       jobKindResult: number = 6001,
-      status?: 'success' | 'error' | 'payment-required' | 'processing'
+      status?: "success" | "error" | "payment-required" | "processing",
     ): NostrEvent {
-        // ... (implementation from previous phase)
-        const template: EventTemplate = {
-            kind: jobKindResult,
-            created_at: Math.floor(Date.now() / 1000),
-            tags: [
-              ['e', requestEvent.id, '', 'request'],
-              ['p', requestEvent.pubkey],
-              ['request', JSON.stringify(requestEvent)],
-              ...requestEvent.tags.filter(tag => tag[0] === 'i'),
-            ],
-            content: outputContent,
-          };
+      // ... (implementation from previous phase)
+      const template: EventTemplate = {
+        kind: jobKindResult,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ["e", requestEvent.id, "", "request"],
+          ["p", requestEvent.pubkey],
+          ["request", JSON.stringify(requestEvent)],
+          ...requestEvent.tags.filter((tag) => tag[0] === "i"),
+        ],
+        content: outputContent,
+      };
 
-          if (status) {
-            template.tags.push(['status', status]);
-          }
-          return finalizeEvent(template, providerSkInternal) as NostrEvent;
+      if (status) {
+        template.tags.push(["status", status]);
+      }
+      return finalizeEvent(template, providerSkInternal) as NostrEvent;
     }
 
-
-    describe('NIP-90 Full Integration Handshake', () => {
+    describe("NIP-90 Full Integration Handshake", () => {
       beforeEach(async () => {
         requesterSk = generateSecretKey();
         requesterPk = getPk(requesterSk);
@@ -150,8 +178,8 @@ Okay, agent, we're now going to implement a **full, non-mocked integration test*
         // Fetch the NostrService instance for potential cleanup later
         // This ensures the pool is created before tests that use it.
         const getServiceEffect = Effect.service(NostrService).pipe(
-          Effect.tap(service => nostrServiceInstance = service),
-          Effect.flatMap(service => service.getPool()) // Ensure pool is initialized
+          Effect.tap((service) => (nostrServiceInstance = service)),
+          Effect.flatMap((service) => service.getPool()), // Ensure pool is initialized
         );
         await runFullTestEffectExit(getServiceEffect); // Run and wait
       });
@@ -164,9 +192,20 @@ Okay, agent, we're now going to implement a **full, non-mocked integration test*
           const exit = await runFullTestEffectExit(cleanupEffect);
           if (Exit.isFailure(exit)) {
             // Check if it's the expected error for already closed pool.
-            const cause = Cause.failureOption(exit.cause).pipe(Option.getOrElse(() => ({} as any)));
-            if (!(cause instanceof NostrPoolError && cause.message.includes("Failed to cleanup Nostr pool"))) { // Adjust if message changes
-                 console.error("[TEST CLEANUP] Error cleaning up Nostr pool:", Cause.pretty(exit.cause));
+            const cause = Cause.failureOption(exit.cause).pipe(
+              Option.getOrElse(() => ({}) as any),
+            );
+            if (
+              !(
+                cause instanceof NostrPoolError &&
+                cause.message.includes("Failed to cleanup Nostr pool")
+              )
+            ) {
+              // Adjust if message changes
+              console.error(
+                "[TEST CLEANUP] Error cleaning up Nostr pool:",
+                Cause.pretty(exit.cause),
+              );
             }
           } else {
             console.log("[TEST CLEANUP] Nostr pool cleaned up.");
@@ -174,7 +213,7 @@ Okay, agent, we're now going to implement a **full, non-mocked integration test*
         }
       });
 
-      it('should generate valid requester and provider keys', () => {
+      it("should generate valid requester and provider keys", () => {
         expect(requesterSk.length).toBe(32);
         expect(requesterPk.length).toBe(64);
         expect(providerSk.length).toBe(32);
@@ -186,9 +225,9 @@ Okay, agent, we're now going to implement a **full, non-mocked integration test*
     ```
 
 3.  **Run Tests & Type Checks:**
-    *   `pnpm test "nip90Handshake"`
-    *   `pnpm t`
-    *   **Expected:** The `key generation` test passes. No mocks should be active. The `beforeEach` will initialize the Nostr pool.
+    - `pnpm test "nip90Handshake"`
+    - `pnpm t`
+    - **Expected:** The `key generation` test passes. No mocks should be active. The `beforeEach` will initialize the Nostr pool.
 
 ---
 
@@ -208,31 +247,46 @@ This test will be more complex and involve polling for events.
       filters: NostrFilter[],
       condition: (events: NostrEvent[]) => boolean,
       maxAttempts = 15, // Increased attempts for real network
-      delayMs = 2000    // Increased delay for real network
+      delayMs = 2000, // Increased delay for real network
     ): Promise<NostrEvent[]> {
-      console.log(`[POLL ${description}] Starting polling with filters:`, JSON.stringify(filters));
+      console.log(
+        `[POLL ${description}] Starting polling with filters:`,
+        JSON.stringify(filters),
+      );
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        console.log(`[POLL ${description}] Attempt ${attempt}/${maxAttempts}...`);
+        console.log(
+          `[POLL ${description}] Attempt ${attempt}/${maxAttempts}...`,
+        );
         const listEffect = Effect.service(NostrService).pipe(
-          Effect.flatMap(nostr => nostr.listEvents(filters))
+          Effect.flatMap((nostr) => nostr.listEvents(filters)),
         );
         const events = await runFullTestEffect(listEffect); // Use runFullTestEffect for real service call
 
         if (events.length > 0) {
-            console.log(`[POLL ${description}] Attempt ${attempt}: Found ${events.length} event(s). First event kind: ${events[0]?.kind}, ID: ${events[0]?.id.substring(0,6)}`);
+          console.log(
+            `[POLL ${description}] Attempt ${attempt}: Found ${events.length} event(s). First event kind: ${events[0]?.kind}, ID: ${events[0]?.id.substring(0, 6)}`,
+          );
         } else {
-            console.log(`[POLL ${description}] Attempt ${attempt}: No events found yet.`);
+          console.log(
+            `[POLL ${description}] Attempt ${attempt}: No events found yet.`,
+          );
         }
-
 
         if (condition(events)) {
-          console.log(`[POLL ${description}] Condition met with ${events.length} event(s).`);
+          console.log(
+            `[POLL ${description}] Condition met with ${events.length} event(s).`,
+          );
           return events;
         }
-        if (attempt < maxAttempts) await Effect.runPromise(Effect.sleep(`${delayMs} millis`));
+        if (attempt < maxAttempts)
+          await Effect.runPromise(Effect.sleep(`${delayMs} millis`));
       }
-      console.warn(`[POLL ${description}] Max attempts reached. Condition not met.`);
-      throw new Error(`Polling for "${description}" timed out after ${maxAttempts} attempts.`);
+      console.warn(
+        `[POLL ${description}] Max attempts reached. Condition not met.`,
+      );
+      throw new Error(
+        `Polling for "${description}" timed out after ${maxAttempts} attempts.`,
+      );
     }
     ```
 
@@ -356,19 +410,20 @@ This test will be more complex and involve polling for events.
     ```
 
 3.  **Review and Refine:**
-    *   **Timeout:** The `it` block for the full handshake has an increased timeout (e.g., `45000` ms) because real network and Ollama calls can be slow. Adjust as needed.
-    *   **Polling Logic:** The `pollForEvents` helper is basic. In a real application, persistent WebSocket subscriptions (`pool.subscribeMany`) would be used by the provider. For this test, polling is a simpler way to manage the async flow.
-    *   **Filters:** Ensure filters are specific enough to find the target events but not so narrow that they miss them due to minor variations if relays are inconsistent. Filtering by `authors` and specific event IDs or `#e` tags is crucial.
-    *   **Error Messages in Test:** Add more `console.log` statements with identifiers (like `[REQUESTER]`, `[PROVIDER]`) to trace the flow during test execution, especially if it fails.
-    *   **NostrService `cleanupPool`:** The `afterAll` hook now attempts to clean up the pool.
+
+    - **Timeout:** The `it` block for the full handshake has an increased timeout (e.g., `45000` ms) because real network and Ollama calls can be slow. Adjust as needed.
+    - **Polling Logic:** The `pollForEvents` helper is basic. In a real application, persistent WebSocket subscriptions (`pool.subscribeMany`) would be used by the provider. For this test, polling is a simpler way to manage the async flow.
+    - **Filters:** Ensure filters are specific enough to find the target events but not so narrow that they miss them due to minor variations if relays are inconsistent. Filtering by `authors` and specific event IDs or `#e` tags is crucial.
+    - **Error Messages in Test:** Add more `console.log` statements with identifiers (like `[REQUESTER]`, `[PROVIDER]`) to trace the flow during test execution, especially if it fails.
+    - **NostrService `cleanupPool`:** The `afterAll` hook now attempts to clean up the pool.
 
 4.  **Run Tests & Type Checks:**
-    *   `pnpm test "nip90Handshake"`
-    *   `pnpm t`
-    *   **Expected:**
-        *   The "full handshake" test will take some time to run.
-        *   It should pass if Ollama is running, the model is available, and Nostr relays are responsive.
-        *   Console logs will show the steps.
-        *   Type checks should pass.
+    - `pnpm test "nip90Handshake"`
+    - `pnpm t`
+    - **Expected:**
+      - The "full handshake" test will take some time to run.
+      - It should pass if Ollama is running, the model is available, and Nostr relays are responsive.
+      - Console logs will show the steps.
+      - Type checks should pass.
 
 This setup provides a robust integration test for the NIP-90 flow using your actual services. Remember that external dependencies (network, relays, Ollama) can make tests flaky; this is inherent in integration testing. If issues arise, the console logs added should help pinpoint where the communication breaks down.

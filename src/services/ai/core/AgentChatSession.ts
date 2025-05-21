@@ -16,7 +16,7 @@ export interface AgentChatSession {
    * @returns Effect representing success or failure of the operation
    */
   addMessage(
-    message: AgentChatMessage
+    message: AgentChatMessage,
   ): Effect.Effect<void, AIContextWindowError>;
 
   /**
@@ -24,9 +24,7 @@ export interface AgentChatSession {
    * @param options Optional parameters for limiting the number of messages
    * @returns Effect containing the array of conversation messages
    */
-  getHistory(
-    options?: { limit?: number }
-  ): Effect.Effect<AgentChatMessage[]>;
+  getHistory(options?: { limit?: number }): Effect.Effect<AgentChatMessage[]>;
 
   /**
    * Clear the entire conversation history
@@ -40,13 +38,11 @@ export interface AgentChatSession {
    * @param options Optional parameters for customizing the prepared messages
    * @returns Effect containing the prepared messages ready for the AI model
    */
-  prepareMessagesForModel(
-    options?: { 
-      maxTokens?: number,
-      includeSystemMessage?: boolean,
-      systemMessage?: string
-    }
-  ): Effect.Effect<AgentChatMessage[], AIContextWindowError>;
+  prepareMessagesForModel(options?: {
+    maxTokens?: number;
+    includeSystemMessage?: boolean;
+    systemMessage?: string;
+  }): Effect.Effect<AgentChatMessage[], AIContextWindowError>;
 
   /**
    * Get the total estimated token count for the current conversation
@@ -59,4 +55,5 @@ export interface AgentChatSession {
 /**
  * Context tag for accessing the AgentChatSession service
  */
-export const AgentChatSession = Context.GenericTag<AgentChatSession>("AgentChatSession");
+export const AgentChatSession =
+  Context.GenericTag<AgentChatSession>("AgentChatSession");

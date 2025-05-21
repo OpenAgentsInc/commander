@@ -1,17 +1,10 @@
 _from OAI deep research_
 
-
 # **Integrating PGlite into an Electron (Vite/Electron Forge) App**
-
-
 
 PGlite is an embeddable WASM‑based Postgres for JavaScript that supports Node and browser persistence . In an Electron app you can instantiate PGlite either in the **main process** (Node context, persisting to the filesystem) or in the **renderer** (browser context, persisting to IndexedDB). You then use the ElectricSQL sync plugin to replicate Postgres data (via “shapes”) into your PGlite tables . Below are best practices and examples for setting this up, along with an EffectTS-based data layer and notes on Vite/Electron bundling.
 
-
-
 ## **1. Instantiating and Persisting PGlite**
-
-
 
 **Main process (Node)**: Use PGlite.create() or new PGlite() with a filesystem path. In Electron’s main process (or preload with NodeIntegration), you can do:
 
@@ -29,7 +22,6 @@ const pg = await PGlite.create(`file://${dataDir}`);
 
 - After creating the instance, you can execute SQL to create tables. For example:
 
-
 ```
 await pg.exec(`
   CREATE TABLE IF NOT EXISTS threads (
@@ -40,9 +32,7 @@ await pg.exec(`
 `);
 ```
 
-This data will be stored on disk in dataDir. You can query with await pg.query("SELECT * FROM threads").
-
-
+This data will be stored on disk in dataDir. You can query with await pg.query("SELECT \* FROM threads").
 
 **Renderer process (Browser/IndexedDB)**: If NodeIntegration is disabled in renderer, PGlite falls back to browser storage. For persistence use an idb:// URI:
 
@@ -61,17 +51,11 @@ await pg.exec(`
 `);
 ```
 
-This creates a Postgres in IndexedDB under the key my-app-db . (You can also use PGlite.create() with no prefix for in-memory only.) In either process you can run queries normally, e.g. await pg.query("SELECT * FROM messages").
-
-
+This creates a Postgres in IndexedDB under the key my-app-db . (You can also use PGlite.create() with no prefix for in-memory only.) In either process you can run queries normally, e.g. await pg.query("SELECT \* FROM messages").
 
 > **Tip:** According to the PGlite API, dataDir can use file://, idb://, or memory:// to specify storage . The default new PGlite() with no args creates an in-memory DB .
 
-
-
 ## **2. ElectricSQL Sync Integration**
-
-
 
 ElectricSQL provides a sync plugin for PGlite (alpha) that streams Postgres “shapes” into your local PGlite tables. First install and add the plugin to your PGlite instance:
 
@@ -133,15 +117,9 @@ sync.unsubscribe();
 
 This will continuously stream updates for the threads and messages tables from the server Postgres into your local PGlite tables, maintaining transactional consistency . (For a single-table sync, you can use pg.electric.syncShapeToTable({...}) in a similar fashion .) The plugin currently supports one-way (server→client) streaming of shapes; local writes in these tables will not be sent back to the server automatically.
 
-
-
 > **Local‑only tables:** If you have tables that exist only on the client (e.g. draft messages, local settings, etc.), simply create and use them in PGlite as above. Do _not_ include them in the syncShapesToTables config. They will remain purely local and can be read/written via pg.query or live queries. For example, you could have a table local_chat_settings and manage it manually; it will not be affected by ElectricSQL sync.
 
-
-
 ## **3. EffectTS-Friendly Data Layer**
-
-
 
 To integrate PGlite with EffectTS, wrap database operations in an Effect.Service. For example, you might define a PGlite service that creates the DB and exposes a query function:
 
@@ -206,15 +184,9 @@ const result = yield* _(Effect.tryPromise({
 
 This will commit if the callback resolves, or rollback if it throws . (You can also omit the explicit BEGIN/COMMIT as transaction() handles them automatically.) Wrapping it in Effect.tryPromise makes it compatible with EffectTS.
 
-
-
 In summary, structure your data layer with an EffectTS service (or layer) that creates/owns the PGlite client, and use Effect.tryPromise for all asynchronous DB calls (queries, executes, transactions) to capture errors in Effect. A community example of this pattern is shown here , where a PGlite client is created via PGlite.create(...) inside an Effect, and queries are run with Effect.tryPromise.
 
-
-
 ## **4. Local-Only Tables (Messages and Threads)**
-
-
 
 For tables that are only stored locally (not part of any sync shape), treat them like any normal PGlite table. For example, to store chat messages locally you could:
 
@@ -259,11 +231,7 @@ const addMessage = (threadId: number, text: string) =>
 
 By keeping these tables out of the ElectricSQL sync configuration, they remain purely local. You can query them or join them with synced tables as needed in your app logic.
 
-
-
 ## **5. Vite + Electron Forge Bundling Issues**
-
-
 
 PGlite’s WASM and ESM nature requires special bundler settings. In Vite config (main and renderer), **exclude** PGlite from dependency optimization. For example, in vite.config.ts:
 
@@ -284,26 +252,14 @@ export default defineConfig({
 
 This ensures Vite does not pre-bundle PGlite’s modules (which can break the WASM loading) . In an Electron Forge project using @electron-forge/plugin-vite, apply these settings to both vite.main.config.ts and vite.renderer.config.ts. Also, if Electron’s NodeIntegration is disabled, the renderer is a pure browser context, so use idb:// as shown above.
 
-
-
 **Path schemes:** If you encounter errors like ERR_INVALID_URL_SCHEME: The URL must be of scheme file, make sure to prefix your data directory with file:// , or pass an absolute path string. Electron Forge and Vite may convert import.meta.url in unexpected ways, so explicitly constructing a file URI for the database directory (using Node’s path and app.getPath) often avoids this issue.
-
-
 
 **ESM vs CJS:** Electron 28+ supports ES modules natively, so you can use ESM syntax in your main and preload scripts. If targeting older Electron, ensure your Forge Vite plugin is set up for CJS in the main bundle, or use the nodeIntegration and externals workarounds recommended by Forge docs.
 
-
-
 **Native modules:** If you add Node native modules (e.g. sqlite3, though PGlite itself is WASM), follow Forge/Vite guidelines to externalize them (see Forge docs on “Native Node modules”). In general, treat @electric-sql/pglite as a special case: exclude it from optimization and let it load its WASM at runtime.
-
-
 
 ## **6. Summary**
 
-
-
 By instantiating PGlite with a suitable data directory (file or idb), adding the ElectricSQL sync extension, and wrapping queries in an EffectTS service, you can build a local-first Electron app where Postgres data is stored in-process and kept in sync with a remote database. PGlite’s API supports standard SQL operations (queries, exec, transactions) , and the Electric sync plugin provides syncShapeToTable/syncShapesToTables for partial replication . Local-only tables (e.g. messages, threads) are managed the same way via PGlite but simply aren’t included in the sync shape. Finally, watch out for bundler issues: exclude PGlite from Vite’s optimization and use proper URI schemes, and you’ll have a working PGlite/ElectricSQL stack inside Electron.
-
-
 
 **Sources:** Official PGlite docs and ElectricSQL guides , plus community examples with Vite/Electron and EffectTS , were used to compile these best practices.

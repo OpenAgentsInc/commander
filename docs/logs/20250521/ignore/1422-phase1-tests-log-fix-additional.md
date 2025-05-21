@@ -13,12 +13,13 @@ The main issue was with how Stream chunks were collected in the test. The previo
 ### What was changed:
 
 1. Created a mock stream explicitly and assigned it to the mock service method:
+
 ```typescript
 // Create a simple stream with chunks directly
 const mockStream = Stream.fromIterable([
   { text: "Mock " },
   { text: "stream " },
-  { text: "response" }
+  { text: "response" },
 ] as AiTextChunk[]);
 
 // Override the mock to return our predefined stream
@@ -26,17 +27,21 @@ mockService.streamText.mockReturnValue(mockStream);
 ```
 
 2. Changed the stream processing approach to use `Stream.runCollect` for reliable collection:
+
 ```typescript
 // Collect the stream chunks directly from the program
 const chunks: AiTextChunk[] = [];
 await Stream.runCollect(program.pipe(Effect.provide(testLayer)))
-  .pipe(Effect.map(collected => {
-    collected.forEach(chunk => chunks.push(chunk));
-  }))
+  .pipe(
+    Effect.map((collected) => {
+      collected.forEach((chunk) => chunks.push(chunk));
+    }),
+  )
   .pipe(Effect.runPromise);
 ```
 
 3. Changed the program creation to directly return the stream rather than wrapping it in another Effect:
+
 ```diff
 - const program = Effect.flatMap(
 -   AgentLanguageModel,
@@ -58,10 +63,12 @@ I've added comprehensive testing guidelines for Phase 2 (OpenAI-Compatible Provi
 The document includes:
 
 1. Two detailed test file implementations:
+
    - `OpenAIClientLive.test.ts` - Testing the creation and configuration of the OpenAI client
    - `OpenAIAgentLanguageModelLive.test.ts` - Testing the provider adapter that implements AgentLanguageModel
 
 2. Integration testing for the runtime:
+
    - Adding a test case to verify that the OpenAI provider is correctly integrated in the FullAppLayer
 
 3. Testing tips for:
@@ -71,6 +78,7 @@ The document includes:
    - Configuration validation
 
 Each test covers the critical functionality and error paths, including:
+
 - API key configuration
 - Model name configuration and defaults
 - Error mapping from provider errors to our custom error types

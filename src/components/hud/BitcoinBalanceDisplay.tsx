@@ -1,22 +1,30 @@
 // src/components/hud/BitcoinBalanceDisplay.tsx
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Effect, Exit, Cause } from 'effect';
-import { SparkService, type BalanceInfo } from '@/services/spark';
-import { getMainRuntime } from '@/services/runtime';
-import { usePaneStore } from '@/stores/pane';
-import { Button } from '@/components/ui/button';
-import { Bitcoin, RefreshCw, AlertTriangle, Loader2 } from 'lucide-react';
+import React from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Effect, Exit, Cause } from "effect";
+import { SparkService, type BalanceInfo } from "@/services/spark";
+import { getMainRuntime } from "@/services/runtime";
+import { usePaneStore } from "@/stores/pane";
+import { Button } from "@/components/ui/button";
+import { Bitcoin, RefreshCw, AlertTriangle, Loader2 } from "lucide-react";
 
 const BitcoinBalanceDisplay: React.FC = () => {
   const runtime = getMainRuntime();
   const openWalletPane = usePaneStore((state) => state.openWalletPane);
 
-  const { data: balanceData, isLoading, error, refetch, isFetching } = useQuery<BalanceInfo, Error>({
-    queryKey: ['bitcoinBalance'],
+  const {
+    data: balanceData,
+    isLoading,
+    error,
+    refetch,
+    isFetching,
+  } = useQuery<BalanceInfo, Error>({
+    queryKey: ["bitcoinBalance"],
     queryFn: async () => {
-      const program = Effect.flatMap(SparkService, s => s.getBalance());
-      const exitResult = await Effect.runPromiseExit(Effect.provide(program, runtime));
+      const program = Effect.flatMap(SparkService, (s) => s.getBalance());
+      const exitResult = await Effect.runPromiseExit(
+        Effect.provide(program, runtime),
+      );
       if (Exit.isSuccess(exitResult)) {
         return exitResult.value;
       }
@@ -32,31 +40,51 @@ const BitcoinBalanceDisplay: React.FC = () => {
 
   let displayContent;
   if (isLoading && !balanceData) {
-    displayContent = <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Loading...</>;
+    displayContent = (
+      <>
+        <Loader2 className="mr-1 h-3 w-3 animate-spin" /> Loading...
+      </>
+    );
   } else if (error) {
-    displayContent = <><AlertTriangle className="h-3 w-3 mr-1 text-destructive" /> Error</>;
+    displayContent = (
+      <>
+        <AlertTriangle className="text-destructive mr-1 h-3 w-3" /> Error
+      </>
+    );
   } else if (balanceData) {
     displayContent = `${balanceData.balance.toString()}`;
   } else {
-    displayContent = <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Initializing...</>;
+    displayContent = (
+      <>
+        <Loader2 className="mr-1 h-3 w-3 animate-spin" /> Initializing...
+      </>
+    );
   }
 
   return (
     <div
       onClick={handleDisplayClick}
       title="Open Wallet"
-      className="fixed top-4 right-4 z-[10000] p-2 h-8 flex items-center bg-background/70 border border-border/30 rounded-md shadow-lg backdrop-blur-sm text-xs font-mono text-foreground cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors"
+      className="bg-background/70 border-border/30 text-foreground hover:bg-accent hover:text-accent-foreground fixed top-4 right-4 z-[10000] flex h-8 cursor-pointer items-center rounded-md border p-2 font-mono text-xs shadow-lg backdrop-blur-sm transition-colors"
     >
-      <span className="text-yellow-500 mr-1 font-bold">₿</span>{displayContent}
+      <span className="mr-1 font-bold text-yellow-500">₿</span>
+      {displayContent}
       <Button
         variant="ghost"
         size="icon"
-        onClick={(e) => { e.stopPropagation(); refetch(); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          refetch();
+        }}
         disabled={isFetching || isLoading}
         className="ml-1.5 h-5 w-5 p-0"
         title="Refresh Balance"
       >
-        {isFetching ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+        {isFetching ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : (
+          <RefreshCw className="h-3 w-3" />
+        )}
       </Button>
     </div>
   );

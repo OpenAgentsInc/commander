@@ -30,9 +30,7 @@ export interface AgentToolkitManager {
    * @param tool The tool definition to add to the toolkit
    * @returns Effect representing success of the operation
    */
-  registerTool<I, S, E>(
-    tool: Tool<I, S, E>
-  ): Effect.Effect<void>;
+  registerTool<I, S, E>(tool: Tool<I, S, E>): Effect.Effect<void>;
 
   /**
    * Execute a specific tool with given arguments
@@ -40,22 +38,19 @@ export interface AgentToolkitManager {
    * @param args Arguments for the tool in the format expected by the tool
    * @returns Effect containing either the success result or failure error from the tool
    */
-  executeTool(
-    toolName: string, 
-    args: unknown
-  ): Effect.Effect<unknown, unknown>;
+  executeTool(toolName: string, args: unknown): Effect.Effect<unknown, unknown>;
 
   /**
    * Check if a specific tool is registered
    * @param toolName The name of the tool to check
    * @returns Effect containing boolean indicating if the tool exists
    */
-  hasTool(
-    toolName: string
-  ): Effect.Effect<boolean>;
+  hasTool(toolName: string): Effect.Effect<boolean>;
 }
 
 /**
  * Context tag for accessing the AgentToolkitManager service
  */
-export const AgentToolkitManager = Context.GenericTag<AgentToolkitManager>("AgentToolkitManager");
+export const AgentToolkitManager = Context.GenericTag<AgentToolkitManager>(
+  "AgentToolkitManager",
+);

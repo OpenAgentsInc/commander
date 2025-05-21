@@ -12,18 +12,25 @@ export function createNIP04Service(): NIP04Service {
     encrypt: (ourSk: Uint8Array, theirPkHex: string, plaintext: string) =>
       Effect.tryPromise({
         try: async () => await nip04.encrypt(ourSk, theirPkHex, plaintext),
-        catch: (cause) => new NIP04EncryptError({ message: "NIP-04 encryption failed", cause }),
+        catch: (cause) =>
+          new NIP04EncryptError({ message: "NIP-04 encryption failed", cause }),
       }),
 
-    decrypt: (ourSk: Uint8Array, theirPkHex: string, ciphertextWithIv: string) =>
+    decrypt: (
+      ourSk: Uint8Array,
+      theirPkHex: string,
+      ciphertextWithIv: string,
+    ) =>
       Effect.tryPromise({
-        try: async () => await nip04.decrypt(ourSk, theirPkHex, ciphertextWithIv),
-        catch: (cause) => new NIP04DecryptError({ message: "NIP-04 decryption failed", cause }),
+        try: async () =>
+          await nip04.decrypt(ourSk, theirPkHex, ciphertextWithIv),
+        catch: (cause) =>
+          new NIP04DecryptError({ message: "NIP-04 decryption failed", cause }),
       }),
   };
 }
 
 export const NIP04ServiceLive = Layer.succeed(
   NIP04Service,
-  createNIP04Service()
+  createNIP04Service(),
 );

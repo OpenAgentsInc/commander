@@ -34,6 +34,7 @@ Reverted the script from ESM to CommonJS syntax:
 ### 3. Verified Vite Configuration Files
 
 Confirmed that all Vite config files are using the `.mts` extension and ESM syntax:
+
 - `vite.main.config.mts`
 - `vite.preload.config.mts`
 - `vite.renderer.config.mts`

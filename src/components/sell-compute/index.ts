@@ -1,1 +1,1 @@
-export { default as SellComputePane } from './SellComputePane';
+export { default as SellComputePane } from "./SellComputePane";

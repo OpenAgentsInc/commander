@@ -2,7 +2,7 @@
 import { Context, Effect, Stream } from "effect";
 
 // Import from @effect/ai package, but not AiError since we're using our own error types
-import type { AiResponse } from "@effect/ai/AiResponse"; 
+import type { AiResponse } from "@effect/ai/AiResponse";
 
 // Import our custom error type
 import type { AIProviderError } from "./AIError";
@@ -47,7 +47,7 @@ export interface AgentLanguageModel {
    * @returns Effect wrapping the AI response
    */
   generateText(
-    params: GenerateTextOptions
+    params: GenerateTextOptions,
   ): Effect.Effect<AiResponse, AIProviderError>;
 
   /**
@@ -56,7 +56,7 @@ export interface AgentLanguageModel {
    * @returns Stream of text chunks from the AI model
    */
   streamText(
-    params: StreamTextOptions
+    params: StreamTextOptions,
   ): Stream.Stream<AiTextChunk, AIProviderError>;
 
   /**
@@ -65,11 +65,12 @@ export interface AgentLanguageModel {
    * @returns Effect wrapping the AI response
    */
   generateStructured(
-    params: GenerateStructuredOptions
+    params: GenerateStructuredOptions,
   ): Effect.Effect<AiResponse, AIProviderError>;
 }
 
 /**
  * Context tag for accessing the AgentLanguageModel service
  */
-export const AgentLanguageModel = Context.GenericTag<AgentLanguageModel>("AgentLanguageModel");
+export const AgentLanguageModel =
+  Context.GenericTag<AgentLanguageModel>("AgentLanguageModel");

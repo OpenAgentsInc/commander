@@ -20,6 +20,7 @@ The core change is to make the `useDrag` hook the primary initiator of drag-rela
 ### 2. Simplified `bringPaneToFrontAction` in Store
 
 The `bringPaneToFrontAction` has been refactored to:
+
 - Focus solely on making a pane active and ensuring the correct z-index
 - Remove unnecessary position/size updates (these should be handled by explicit move/resize actions)
 - Make more efficient use of state object identity for better React performance
@@ -53,12 +54,12 @@ const bindDrag = useDrag(
         paneX: position.x,
         paneY: position.y,
       };
-      
+
       // Only activate the pane when starting a drag on the title bar
       if (!isActive) {
         bringPaneToFront(id);
       }
-      
+
       setIsDragging(true);
       return initialMemo; // Return memo for use in subsequent callbacks
     }
@@ -82,43 +83,48 @@ const bindDrag = useDrag(
         setIsDragging(false);
       }
     }
-    
+
     // Keep returning memo to maintain continuity through the drag
     return memo;
   },
   {
     filterTaps: true,
-  }
+  },
 );
 ```
 
 ### 2. In `bringPaneToFrontAction.ts`
 
 ```ts
-export function bringPaneToFrontAction(set: SetPaneStore, idToBringToFront: string) {
+export function bringPaneToFrontAction(
+  set: SetPaneStore,
+  idToBringToFront: string,
+) {
   set((state: PaneStoreType) => {
-    const paneIndex = state.panes.findIndex(pane => pane.id === idToBringToFront);
+    const paneIndex = state.panes.findIndex(
+      (pane) => pane.id === idToBringToFront,
+    );
     if (paneIndex === -1) return state; // Pane not found
 
     // If already active and in the correct z-index position, no change needed
-    if (state.activePaneId === idToBringToFront && paneIndex === state.panes.length - 1) {
+    if (
+      state.activePaneId === idToBringToFront &&
+      paneIndex === state.panes.length - 1
+    ) {
       return state;
     }
 
     // Create a new array with the target pane moved to the end (highest z-index)
     const paneToActivate = state.panes[paneIndex];
-    const otherPanes = state.panes.filter(p => p.id !== idToBringToFront);
-    
+    const otherPanes = state.panes.filter((p) => p.id !== idToBringToFront);
+
     // Set all panes' isActive flags appropriately
-    const updatedPanes = otherPanes.map(p => 
-      p.isActive ? { ...p, isActive: false } : p
+    const updatedPanes = otherPanes.map((p) =>
+      p.isActive ? { ...p, isActive: false } : p,
     );
 
     // Add the active pane at the end with isActive=true
-    const newPanes = [
-      ...updatedPanes,
-      { ...paneToActivate, isActive: true }
-    ];
+    const newPanes = [...updatedPanes, { ...paneToActivate, isActive: true }];
 
     return {
       ...state,
@@ -135,9 +141,9 @@ export function bringPaneToFrontAction(set: SetPaneStore, idToBringToFront: stri
 export const PaneManager = () => {
   const { panes } = usePaneStore();
 
-  // No need to sort panes - the array order from the store already 
+  // No need to sort panes - the array order from the store already
   // has the active pane at the end due to bringPaneToFrontAction
-  
+
   // Base z-index for all panes
   const baseZIndex = 10;
 

@@ -2,11 +2,13 @@
 
 ## Issues Addressed
 
-1. **Duplicate Workflow Files**: 
+1. **Duplicate Workflow Files**:
+
    - `testing.yml` and `tests.yml` were duplicative
    - They used different package managers (`npm` vs `pnpm`)
 
 2. **PNPM Installation Issues**:
+
    - Error with `--frozen-lockfile` option due to `onlyBuiltDependencies` mismatch
    - CI failing to install dependencies correctly
 
@@ -21,7 +23,7 @@
 - Deleted redundant `.github/workflows/testing.yml`
 - Retained `.github/workflows/tests.yml` with proper configurations:
   - Uses `pnpm` which is the project's package manager
-  - Proper caching configuration 
+  - Proper caching configuration
   - Updated pnpm version from 8 to 10 to match package.json
 
 ### 2. Fixed PNPM Installation
@@ -76,7 +78,7 @@
       "--disable-dev-shm-usage",
       "--disable-accelerated-2d-canvas",
       "--use-gl=swiftshader",
-      "--enable-unsafe-swiftshader"
+      "--enable-unsafe-swiftshader",
     );
   }
   ```
@@ -96,10 +98,12 @@
 ## Future Improvements
 
 1. **Lockfile Management**:
+
    - Run `pnpm install --no-frozen-lockfile` locally and commit the updated lockfile
    - Switch back to `--frozen-lockfile` in CI for stricter validation
 
 2. **Test Performance**:
+
    - Consider using simpler tests in CI that don't rely on WebGL
    - Add conditional test logic based on environment
 

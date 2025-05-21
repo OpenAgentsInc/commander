@@ -48,12 +48,16 @@ Added a new `onHandDataUpdate` callback prop to the HandTracking component that 
 
 ```typescript
 // Updated src/components/hands/HandTracking.tsx
-import React, { useEffect } from 'react';
-import { useHandTracking } from './useHandTracking';
-import { HandPose, type PinchCoordinates, type HandLandmarks } from './handPoseTypes';
+import React, { useEffect } from "react";
+import { useHandTracking } from "./useHandTracking";
+import {
+  HandPose,
+  type PinchCoordinates,
+  type HandLandmarks,
+} from "./handPoseTypes";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import ThreeScene from './ThreeScene';
+import ThreeScene from "./ThreeScene";
 
 interface HandDataForCallback {
   activeHandPose: HandPose;
@@ -79,7 +83,7 @@ useEffect(() => {
       activeHandPose: primaryHand ? primaryHand.pose : HandPose.NONE,
       pinchMidpoint: primaryHand ? primaryHand.pinchMidpoint : null,
       primaryHandLandmarks: primaryHand ? primaryHand.landmarks : null,
-      trackedHandsCount: trackedHands.length
+      trackedHandsCount: trackedHands.length,
     });
   } else if (onHandDataUpdate && !showHandTracking) {
     // Send null/empty data when tracking is off
@@ -87,7 +91,7 @@ useEffect(() => {
       activeHandPose: HandPose.NONE,
       pinchMidpoint: null,
       primaryHandLandmarks: null,
-      trackedHandsCount: 0
+      trackedHandsCount: 0,
     });
   }
 }, [trackedHands, onHandDataUpdate, showHandTracking]);
@@ -139,7 +143,7 @@ export default function HomePage() {
   // Effect for pinch-to-drag logic
   useEffect(() => {
     if (!isHandTrackingActive || !handData) return;
-    
+
     const { activeHandPose, pinchMidpoint } = handData;
 
     if (activeHandPose === HandPose.PINCH_CLOSED && pinchMidpoint) {
@@ -178,15 +182,24 @@ Updated the `useResizeHandlers` hook in Pane.tsx to better respond to position u
 
 ```typescript
 useEffect(() => {
-  if (!isCurrentlyInteracting &&
-      (initialPosition.x !== prevPositionRef.current.x || initialPosition.y !== prevPositionRef.current.y) &&
-      (position.x !== initialPosition.x || position.y !== initialPosition.y)) {
+  if (
+    !isCurrentlyInteracting &&
+    (initialPosition.x !== prevPositionRef.current.x ||
+      initialPosition.y !== prevPositionRef.current.y) &&
+    (position.x !== initialPosition.x || position.y !== initialPosition.y)
+  ) {
     setPosition(initialPosition);
   }
   if (!isCurrentlyInteracting) {
     prevPositionRef.current = initialPosition;
   }
-}, [initialPosition.x, initialPosition.y, isCurrentlyInteracting, position.x, position.y]);
+}, [
+  initialPosition.x,
+  initialPosition.y,
+  isCurrentlyInteracting,
+  position.x,
+  position.y,
+]);
 ```
 
 The same approach was applied to the size effect to ensure proper synchronization between the store and the component's local state.
@@ -194,16 +207,19 @@ The same approach was applied to the size effect to ensure proper synchronizatio
 ## Summary of Changes
 
 1. **Added HandTrackingToggleButton Component**
+
    - Created a new component that provides a visually appealing toggle button
    - Positioned at bottom left of the screen for easy access
    - Shows active/inactive state with appropriate styling
 
 2. **Enhanced HandTracking Component**
+
    - Added support for external data callbacks with `onHandDataUpdate` prop
    - Improved pointer events handling based on activation state
    - Fixed canvas visibility to hide when hand tracking is disabled
 
 3. **Updated HomePage Component**
+
    - Added state management for hand tracking activation
    - Implemented pinch-to-drag detection logic in the title bar area
    - Created a system to track initial pinch position and pane position
@@ -219,6 +235,7 @@ The implementation now allows users to toggle hand tracking on and off with a bu
 ## Testing and Verification
 
 1. **Type Checking**
+
    - Fixed an issue with HandPose import in HomePage.tsx
    - Changed from `import { type HandPose, ... }` to `import { HandPose } from "@/components/hands"`
    - All TypeScript type checks now pass with `pnpm tsc --noEmit`
@@ -256,11 +273,11 @@ const prevHandDataRef = useRef<{
 }>({
   activeHandPose: HandPose.NONE,
   pinchCoords: null,
-  trackedHandsCount: 0
+  trackedHandsCount: 0,
 });
 
 // Only update if data has meaningfully changed
-const hasChanged = 
+const hasChanged =
   currentHandPose !== prevHandDataRef.current.activeHandPose ||
   currentPinchCoords !== prevHandDataRef.current.pinchCoords ||
   trackedHands.length !== prevHandDataRef.current.trackedHandsCount;
@@ -289,11 +306,13 @@ const prevHandDataRef = useRef<HandDataContext | null>(null);
 
 const handleHandDataUpdate = (data: HandDataContext) => {
   // Only update state if data has meaningfully changed
-  if (!prevHandDataRef.current || 
-      data.activeHandPose !== prevHandDataRef.current.activeHandPose ||
-      data.trackedHandsCount !== prevHandDataRef.current.trackedHandsCount ||
-      JSON.stringify(data.pinchMidpoint) !== JSON.stringify(prevHandDataRef.current.pinchMidpoint)) {
-    
+  if (
+    !prevHandDataRef.current ||
+    data.activeHandPose !== prevHandDataRef.current.activeHandPose ||
+    data.trackedHandsCount !== prevHandDataRef.current.trackedHandsCount ||
+    JSON.stringify(data.pinchMidpoint) !==
+      JSON.stringify(prevHandDataRef.current.pinchMidpoint)
+  ) {
     prevHandDataRef.current = data;
     setHandData(data);
   }
@@ -305,8 +324,9 @@ The implementation now properly handles pinch-to-drag without performance issues
 ## Final Bugfixes
 
 Fixed a missing import in HandTracking.tsx:
+
 ```typescript
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from "react";
 ```
 
 All the changes have been tested and the application now runs without any "Maximum update depth exceeded" errors. The hand tracking toggle button works properly and the pinch-to-drag functionality operates smoothly without causing infinite update loops.
@@ -316,6 +336,7 @@ All the changes have been tested and the application now runs without any "Maxim
 Based on user feedback, we made the following UI refinements:
 
 1. **Removed UI Controls from HandTracking Component**:
+
    - Eliminated all status, pose, and switch controls from the top corners
    - Removed pinch coordinate displays
    - Simplified to just rely on the toggle button in the bottom left
@@ -331,6 +352,7 @@ The interface is now much cleaner with just a single toggle button in the bottom
 Further improved the UI based on user feedback:
 
 1. **Removed 3D Scene**:
+
    - Completely removed the ThreeScene component to show only the hand tracking
    - Eliminated all the 3D boxes/visuals from the interface
 

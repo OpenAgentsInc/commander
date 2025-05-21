@@ -1,4 +1,5 @@
 # Tool Use | Effect Documentation
+
 Language models are great at generating text, but often we need them to take **real-world actions**, such as querying an API, accessing a database, or calling a service. Most LLM providers support this through **tool use** (also known as _function calling_), where you expose specific operations in your application that the model can invoke.
 
 Based on the input it receives, a model may choose to **invoke (or call)** one or more tools to augment its response. Your application then runs the corresponding logic for the tool using the parameters provided by the model. You then return the result to the model, allowing it to include the output in its final response.
@@ -13,10 +14,10 @@ We start by defining a tool that the language model will have access to using th
 
 This constructor accepts several parameters that allow us to fully describe the tool to the language model:
 
-*   `description`: Provides an optional description of the tool
-*   `success`: The type of value the tool will return if it succeeds
-*   `failure`: The type of value the tool will return if it fails
-*   `parameters`: The parameters that the tool should be called with
+- `description`: Provides an optional description of the tool
+- `success`: The type of value the tool will return if it succeeds
+- `failure`: The type of value the tool will return if it fails
+- `parameters`: The parameters that the tool should be called with
 
 **Example** (Defining a Tool)
 
@@ -36,12 +37,11 @@ const GetDadJoke = AiTool.make("GetDadJoke", {
 })
 ```
 
-
 Based on the above, a request to call the `GetDadJoke` tool:
 
-*   Takes a single `searchTerm` parameter
-*   Will return a string if it succeeds (i.e. the joke)
-*   Does not have any expected failure scenarios
+- Takes a single `searchTerm` parameter
+- Will return a string if it succeeds (i.e. the joke)
+- Does not have any expected failure scenarios
 
 ### 2\. Create a Toolkit
 
@@ -66,7 +66,6 @@ class DadJokeTools extends AiToolkit.make(
   })
 ) {}
 ```
-
 
 ### 3\. Implement the Logic
 
@@ -143,12 +142,11 @@ const DadJokeToolHandlers = DadJokeTools.toLayer(
 )
 ```
 
-
 In the code above:
 
-*   We access the `ICanHazDadJoke` service from our application
-*   Register a handler for the `GetDadJoke` tool using `.handle("GetDadJoke", ...)`
-*   Use the `.search` method on our `ICanHazDadJoke` service to search for a dad joke based on the tool call parameters
+- We access the `ICanHazDadJoke` service from our application
+- Register a handler for the `GetDadJoke` tool using `.handle("GetDadJoke", ...)`
+- Use the `.search` method on our `ICanHazDadJoke` service to search for a dad joke based on the tool call parameters
 
 The result of calling `.toLayer` on an `AiToolkit` is a `Layer` that contains the handlers for all the tools in our toolkit.
 
@@ -181,7 +179,6 @@ const generateDadJoke = AiLanguageModel.generateText({
   tools: DadJokeTools
 })
 ```
-
 
 ### 5\. Bring It All Together
 
@@ -274,9 +271,7 @@ program.pipe(
 )
 ```
 
-
-Benefits
---------
+## Benefits
 
 **Type Safe**
 

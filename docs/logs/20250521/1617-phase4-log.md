@@ -120,6 +120,7 @@ This completes the integration of Ollama as an OpenAI-compatible provider. The s
 Created unit tests for the Ollama provider components:
 
 1. **OllamaAsOpenAIClientLive.test.ts**:
+
    - Test successful layer building
    - Test failure handling when IPC bridge is unavailable
    - Test non-streaming chat completion requests

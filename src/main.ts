@@ -16,9 +16,14 @@ const inDevelopment = process.env.NODE_ENV === "development";
 console.log("[Main Process] Registering Ollama event listeners early");
 try {
   addOllamaEventListeners();
-  console.log("[Main Process] Successfully registered Ollama event listeners early");
+  console.log(
+    "[Main Process] Successfully registered Ollama event listeners early",
+  );
 } catch (error) {
-  console.error("[Main Process] Failed to register Ollama event listeners early:", error);
+  console.error(
+    "[Main Process] Failed to register Ollama event listeners early:",
+    error,
+  );
 }
 
 function createWindow() {
@@ -26,7 +31,7 @@ function createWindow() {
   nativeTheme.themeSource = "dark";
 
   // Get screen dimensions and calculate 90% of width and height
-  const { screen } = require('electron');
+  const { screen } = require("electron");
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.workAreaSize;
   const windowWidth = Math.floor(width * 0.9);
@@ -47,7 +52,7 @@ function createWindow() {
     },
     // titleBarStyle: "hidden",
   });
-  
+
   // Register other listeners after window creation
   console.log("[Main Process] Registering all IPC listeners");
   registerListeners(mainWindow);

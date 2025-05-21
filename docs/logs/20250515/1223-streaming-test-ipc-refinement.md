@@ -25,6 +25,7 @@ I'll address these issues in the following order:
 The first issue was the test `should fail the stream with OllamaHttpError for API errors on initial request (e.g., 404)`. This test was failing because the error from the stream (an `OllamaHttpError`) was being treated as a defect that "killed" the Fiber rather than a typed failure in the Effect's error channel.
 
 I modified the test to:
+
 - Use `Effect.runPromiseExit` to get the full Exit value with all cause information
 - Check if the cause is a Die containing the OllamaHttpError (using `Cause.dieOption`)
 - Fall back to checking for a Fail with OllamaHttpError if it's not a Die
@@ -37,11 +38,13 @@ This approach makes the test more robust against different ways the error could 
 For the IPC listener in `ollama-listeners.ts`, I made several improvements:
 
 1. **Better Error Extraction**: Enhanced the `extractErrorForIPC` function to:
+
    - Handle Effect Cause objects more intelligently
    - Recursively extract errors from nested causes
    - Provide better serialization of complex causes for IPC
 
 2. **Fixed Stream Handling**: Improved the streaming handler:
+
    - Ensured correct usage of Effect.gen for obtaining the Stream
    - Clearly separated the phases of getting the stream and processing it
    - Fixed Stream.runForEach usage to properly process each chunk
@@ -100,14 +103,14 @@ Here's the key part of the improved implementation:
 // When a new token arrives:
 const onChunk = (chunk: any) => {
   // Extract the content token from the chunk...
-  
+
   if (choice.delta && choice.delta.content) {
     const newToken = choice.delta.content;
-    
+
     // Update accumulated content
     streamedContentRef.current += newToken;
     const currentContent = streamedContentRef.current;
-    
+
     // IMPORTANT: Create a completely new message object each time
     const updatedMessage: ChatMessageProps = {
       role: "assistant",
@@ -116,10 +119,10 @@ const onChunk = (chunk: any) => {
       isStreaming: true,
       _updateId: Date.now(), // Force reference change
     };
-    
+
     // Replace the old message with the new one and update our reference
-    setMessages(prevMessages => {
-      return prevMessages.map(msg => {
+    setMessages((prevMessages) => {
+      return prevMessages.map((msg) => {
         if (msg === streamedMessageRef.current) {
           // Update our reference to the new object
           streamedMessageRef.current = updatedMessage;
@@ -160,12 +163,14 @@ I also noticed the console was getting very noisy with detailed chunk logging. I
 4. Show cleaner summary logs during normal operation
 
 For example, instead of:
+
 ```
 [Service Stream Pipe] Processing line: data: {"id":"chatcmpl-333"...
 [IPC Listener] Stream.runForEach received chunk for stream-1747330...
 ```
 
 We would show more concise logs like:
+
 ```
 [Service] Streaming request started, requestId: stream-123
 [Service] Stream received 25 chunks, completed successfully

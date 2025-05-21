@@ -1,7 +1,9 @@
 # Hand Tracking UI Fix Log - 2025-05-16 14:33
 
 ## Overview
+
 This log tracks the implementation of fixes for the following issues:
+
 1. Incorrect pinch indicator styling in HandTracking.tsx
 2. Reversed/mirrored coordinates on the hand tracking canvas
 3. Insufficient visual feedback for pinch interactions
@@ -11,6 +13,7 @@ This log tracks the implementation of fixes for the following issues:
 ## Phase 1: Visual Bug Fixes
 
 ### Fixed Mirrored Coordinates on Hand Tracking Canvas
+
 - Problem: The coordinate text drawn on the hand tracking canvas was mirrored due to the CSS transform `scale-x-[-1]` applied to the canvas
 - Solution: Implemented a proper handling of text rendering on a mirrored canvas by:
   - Saving the canvas context state
@@ -24,6 +27,7 @@ This log tracks the implementation of fixes for the following issues:
   - Added more descriptive formatting to the coordinates text with "px" unit for clarity
 
 ### Enhanced Visual Feedback for Pinch Interaction
+
 - Problem: The visual feedback for when a pinch is targeting the chat window and when it's actively dragging wasn't clear enough
 - Solution: Implemented more prominent and distinct visual states:
   1. For the "Targeted" state (pinch over window but not yet dragging):
@@ -45,6 +49,7 @@ This log tracks the implementation of fixes for the following issues:
   - Improved error checking throughout the component
 
 ### Improved Pinch Detection Logic
+
 - Problem: The pinch detection was too strict, making it difficult to trigger the pinch-to-move functionality
 - Solution: Simplified the pinch detection algorithm to focus only on the distance between thumb and index finger:
   - Removed additional checks for other fingers being curled and thumb/index extension
@@ -54,6 +59,7 @@ This log tracks the implementation of fixes for the following issues:
 - Original logic is preserved in comments for future refinement if needed
 
 ### Fixed WebGL Context Loss
+
 - Problem: Complex ThreeScene was causing WebGL context loss during hand tracking
 - Solution: Simplified the ThreeScene component:
   - Removed Physics, RigidBody, Environment, DynamicPointer, and MousePointer components
@@ -76,6 +82,7 @@ All four issues have been addressed:
 4. **WebGL Context Loss**: Minimized the complexity of the ThreeScene component to reduce GPU stress.
 
 These changes should improve:
+
 - User experience with clearer visual feedback
 - Reliability of pinch detection
 - Stability of the application by preventing WebGL context loss

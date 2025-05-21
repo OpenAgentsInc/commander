@@ -25,7 +25,7 @@ export const AgentChatMessageSchema = Schema.Struct({
     Schema.Literal("user"),
     Schema.Literal("assistant"),
     Schema.Literal("system"),
-    Schema.Literal("tool") // Added for tool responses
+    Schema.Literal("tool"), // Added for tool responses
   ),
   content: Schema.NullishOr(Schema.String), // Content can be null for assistant messages with tool_calls
   name: Schema.optional(Schema.String), // For tool role, name of the tool
@@ -36,7 +36,9 @@ export const AgentChatMessageSchema = Schema.Struct({
   timestamp: Schema.optional(Schema.Number), // When the message was created
 });
 
-export type AgentChatMessage = Schema.Schema.Type<typeof AgentChatMessageSchema>;
+export type AgentChatMessage = Schema.Schema.Type<
+  typeof AgentChatMessageSchema
+>;
 
 /**
  * Represents a chunk of text received during streaming
@@ -47,7 +49,9 @@ export const AgentChatMessageChunkSchema = Schema.Struct({
   index: Schema.Number, // Position of the chunk in the sequence
 });
 
-export type AgentChatMessageChunk = Schema.Schema.Type<typeof AgentChatMessageChunkSchema>;
+export type AgentChatMessageChunk = Schema.Schema.Type<
+  typeof AgentChatMessageChunkSchema
+>;
 
 /**
  * Creates a basic user message
@@ -67,8 +71,8 @@ export const createUserMessage = (content: string): AgentChatMessage => ({
  * @returns A properly formatted assistant chat message
  */
 export const createAssistantMessage = (
-  content: string | null = "", 
-  isStreaming = false
+  content: string | null = "",
+  isStreaming = false,
 ): AgentChatMessage => ({
   role: "assistant",
   content,
@@ -97,7 +101,7 @@ export const createSystemMessage = (content: string): AgentChatMessage => ({
 export const createToolResponseMessage = (
   toolCallId: string,
   toolName: string,
-  content: string
+  content: string,
 ): AgentChatMessage => ({
   role: "tool",
   tool_call_id: toolCallId,

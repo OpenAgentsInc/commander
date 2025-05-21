@@ -10,14 +10,15 @@ After implementing the relay message fix, there are still UI issues with the NIP
 
 ## Root Causes
 
-1. **Disabled Input Issue**: 
+1. **Disabled Input Issue**:
+
    - In `useNostrChannelChat.ts`, the `isLoading` state is set to `true` when sending a message
    - The state isn't reset until the response comes back from all relays
    - The ChatWindow component disables the input when `isLoading` is true
    - With our relay fix, partial successes are now treated as successes, but the UI isn't updated accordingly
 
 2. **Message Duplication Issue**:
-   - Two sources of messages: 
+   - Two sources of messages:
      1. The temp message added immediately in the UI when sending (`setMessages(prev => [...prev, tempMessage])`)
      2. The subscription also returns the same message once it's published to relays
      3. Additionally, multiple relays might send the same message, causing multiple duplications
@@ -28,6 +29,7 @@ After implementing the relay message fix, there are still UI issues with the NIP
 ### 1. Fix Message Sending Process in `useNostrChannelChat.ts`
 
 #### Previous Implementation Issues:
+
 - `isLoading` state was only reset after completion of the entire send operation
 - Temporary messages were removed and re-added with new IDs, causing duplication
 - Insufficient deduplication logic in subscription handler
@@ -35,12 +37,13 @@ After implementing the relay message fix, there are still UI issues with the NIP
 #### Changes Made:
 
 1. **Added Content Hash Tracking**:
+
    ```typescript
    const contentHash = `${contentToSend}-${Date.now()}`;
-   
+
    const tempMessage: ChatMessageProps = {
      id: tempMessageId,
-     role: 'user',
+     role: "user",
      content: contentToSend,
      author: formatPubkeyForDisplay(DEMO_USER_PK),
      timestamp: Date.now(),
@@ -49,30 +52,34 @@ After implementing the relay message fix, there are still UI issues with the NIP
    ```
 
 2. **Improved Loading State Management**:
+
    ```typescript
    // Release the text input immediately when we get any result
    setIsLoading(false);
    ```
 
 3. **Better Message Handling on Success**:
+
    ```typescript
    // Replace the temporary message with the real one
-   setMessages(prev => {
+   setMessages((prev) => {
      const realEvent = exitResult.value;
      // Find the temp message by contentHash and replace it
-     return prev.map(m => 
-       m.id === tempMessageId ? 
-       {
-         id: realEvent.id,
-         role: 'user',
-         content: contentToSend,
-         author: formatPubkeyForDisplay(DEMO_USER_PK),
-         timestamp: realEvent.created_at * 1000,
-         contentHash, // Maintain the contentHash for deduplication
-         publishedSuccessfully: true // Mark as successfully published
-       } : 
-       m
-     ).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+     return prev
+       .map((m) =>
+         m.id === tempMessageId
+           ? {
+               id: realEvent.id,
+               role: "user",
+               content: contentToSend,
+               author: formatPubkeyForDisplay(DEMO_USER_PK),
+               timestamp: realEvent.created_at * 1000,
+               contentHash, // Maintain the contentHash for deduplication
+               publishedSuccessfully: true, // Mark as successfully published
+             }
+           : m,
+       )
+       .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
    });
    ```
 
@@ -85,41 +92,47 @@ After implementing the relay message fix, there are still UI issues with the NIP
 Implemented a three-layer deduplication strategy:
 
 1. **Exact ID Matching**:
+
    ```typescript
    // Case 1: We already have this exact message ID
-   if (prev.some(m => m.id === newEvent.id)) {
+   if (prev.some((m) => m.id === newEvent.id)) {
      console.log("[Hook] Skipping duplicate message with ID:", newEvent.id);
      return prev;
    }
    ```
 
 2. **Temporary Message Matching** (for recently sent messages):
+
    ```typescript
    // Case 2: Check for temporary message with matching content (recently sent by this user)
    const msgTimestamp = newEvent.created_at * 1000;
    const recentTimeFrame = Date.now() - 10000; // Last 10 seconds
-   const matchingTempMessage = prev.find(m => 
-     // If it's a recent message with matching content from the same user
-     m.id.startsWith('temp-') && 
-     m.content === newEvent.decryptedContent &&
-     m.timestamp && m.timestamp > recentTimeFrame && 
-     newEvent.pubkey === DEMO_USER_PK
+   const matchingTempMessage = prev.find(
+     (m) =>
+       // If it's a recent message with matching content from the same user
+       m.id.startsWith("temp-") &&
+       m.content === newEvent.decryptedContent &&
+       m.timestamp &&
+       m.timestamp > recentTimeFrame &&
+       newEvent.pubkey === DEMO_USER_PK,
    );
-   
+
    if (matchingTempMessage) {
      // Replace the temp message with the real one...
    }
    ```
 
 3. **Content Hash Matching** (for known sent messages):
+
    ```typescript
    // Case 3: Check for any message with matching content hash
-   const matchingHashMessage = prev.find(m => 
-     m.contentHash && 
-     newEvent.pubkey === DEMO_USER_PK && 
-     m.content === newEvent.decryptedContent
+   const matchingHashMessage = prev.find(
+     (m) =>
+       m.contentHash &&
+       newEvent.pubkey === DEMO_USER_PK &&
+       m.content === newEvent.decryptedContent,
    );
-   
+
    if (matchingHashMessage) {
      // Keep what we have without adding duplicates...
      return prev;
@@ -129,6 +142,7 @@ Implemented a three-layer deduplication strategy:
 ### 3. Added Tests
 
 Created new unit tests that verify:
+
 1. Text input is not disabled after sending a message
 2. Message duplication is properly prevented
 3. Loading states are managed correctly
@@ -138,12 +152,14 @@ Created new unit tests that verify:
 With these changes, the user experience is now improved:
 
 1. When a user sends a message:
+
    - The input field clears immediately and remains enabled
    - A temporary message appears immediately
    - The temporary message is replaced with the real one when published
    - No duplicates appear in the UI
 
 2. Error handling:
+
    - If the message fails to publish to all relays, the error is shown in-place
    - The input remains enabled, allowing the user to try again
 

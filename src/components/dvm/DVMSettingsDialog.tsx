@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,73 +12,124 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Cog, AlertTriangle } from 'lucide-react';
-import { useDVMSettingsStore, type DVMUserSettings } from '@/stores/dvmSettingsStore';
-import { defaultKind5050DVMServiceConfig } from '@/services/dvm/Kind5050DVMService';
-import { getPublicKey } from 'nostr-tools/pure';
-import { hexToBytes } from '@noble/hashes/utils';
+import { Cog, AlertTriangle } from "lucide-react";
+import {
+  useDVMSettingsStore,
+  type DVMUserSettings,
+} from "@/stores/dvmSettingsStore";
+import { defaultKind5050DVMServiceConfig } from "@/services/dvm/Kind5050DVMService";
+import { getPublicKey } from "nostr-tools/pure";
+import { hexToBytes } from "@noble/hashes/utils";
 
 // Get default config for placeholders and comparisons
 const defaultConfig = defaultKind5050DVMServiceConfig;
 
 export function DVMSettingsDialog() {
-  const { settings: userSettings, updateSettings, resetSettings } = useDVMSettingsStore();
+  const {
+    settings: userSettings,
+    updateSettings,
+    resetSettings,
+  } = useDVMSettingsStore();
   const [isOpen, setIsOpen] = useState(false);
 
   // Form state
-  const [dvmPrivateKeyHex, setDvmPrivateKeyHex] = useState(userSettings.dvmPrivateKeyHex || '');
-  const [derivedPublicKeyHex, setDerivedPublicKeyHex] = useState('');
-  const [relaysCsv, setRelaysCsv] = useState(userSettings.relaysCsv || defaultConfig.relays.join('\n'));
+  const [dvmPrivateKeyHex, setDvmPrivateKeyHex] = useState(
+    userSettings.dvmPrivateKeyHex || "",
+  );
+  const [derivedPublicKeyHex, setDerivedPublicKeyHex] = useState("");
+  const [relaysCsv, setRelaysCsv] = useState(
+    userSettings.relaysCsv || defaultConfig.relays.join("\n"),
+  );
   const [supportedJobKindsCsv, setSupportedJobKindsCsv] = useState(
-    userSettings.supportedJobKindsCsv || defaultConfig.supportedJobKinds.join(', ')
+    userSettings.supportedJobKindsCsv ||
+      defaultConfig.supportedJobKinds.join(", "),
   );
 
   // Text generation config fields
   const [model, setModel] = useState(
-    userSettings.textGenerationConfig?.model || defaultConfig.defaultTextGenerationJobConfig.model
+    userSettings.textGenerationConfig?.model ||
+      defaultConfig.defaultTextGenerationJobConfig.model,
   );
   const [maxTokens, setMaxTokens] = useState(
-    String(userSettings.textGenerationConfig?.max_tokens || defaultConfig.defaultTextGenerationJobConfig.max_tokens)
+    String(
+      userSettings.textGenerationConfig?.max_tokens ||
+        defaultConfig.defaultTextGenerationJobConfig.max_tokens,
+    ),
   );
   const [temperature, setTemperature] = useState(
-    String(userSettings.textGenerationConfig?.temperature || defaultConfig.defaultTextGenerationJobConfig.temperature)
+    String(
+      userSettings.textGenerationConfig?.temperature ||
+        defaultConfig.defaultTextGenerationJobConfig.temperature,
+    ),
   );
   const [topK, setTopK] = useState(
-    String(userSettings.textGenerationConfig?.top_k || defaultConfig.defaultTextGenerationJobConfig.top_k)
+    String(
+      userSettings.textGenerationConfig?.top_k ||
+        defaultConfig.defaultTextGenerationJobConfig.top_k,
+    ),
   );
   const [topP, setTopP] = useState(
-    String(userSettings.textGenerationConfig?.top_p || defaultConfig.defaultTextGenerationJobConfig.top_p)
+    String(
+      userSettings.textGenerationConfig?.top_p ||
+        defaultConfig.defaultTextGenerationJobConfig.top_p,
+    ),
   );
   const [frequencyPenalty, setFrequencyPenalty] = useState(
-    String(userSettings.textGenerationConfig?.frequency_penalty || defaultConfig.defaultTextGenerationJobConfig.frequency_penalty)
+    String(
+      userSettings.textGenerationConfig?.frequency_penalty ||
+        defaultConfig.defaultTextGenerationJobConfig.frequency_penalty,
+    ),
   );
-  
+
   // Pricing fields
   const [minPriceSats, setMinPriceSats] = useState(
-    String(userSettings.textGenerationConfig?.minPriceSats || defaultConfig.defaultTextGenerationJobConfig.minPriceSats)
+    String(
+      userSettings.textGenerationConfig?.minPriceSats ||
+        defaultConfig.defaultTextGenerationJobConfig.minPriceSats,
+    ),
   );
   const [pricePer1kTokens, setPricePer1kTokens] = useState(
-    String(userSettings.textGenerationConfig?.pricePer1kTokens || defaultConfig.defaultTextGenerationJobConfig.pricePer1kTokens)
+    String(
+      userSettings.textGenerationConfig?.pricePer1kTokens ||
+        defaultConfig.defaultTextGenerationJobConfig.pricePer1kTokens,
+    ),
   );
 
   // Re-populate form when userSettings change or dialog opens
   useEffect(() => {
     if (isOpen) {
-      setDvmPrivateKeyHex(userSettings.dvmPrivateKeyHex || '');
-      setRelaysCsv(userSettings.relaysCsv || defaultConfig.relays.join('\n'));
-      setSupportedJobKindsCsv(userSettings.supportedJobKindsCsv || defaultConfig.supportedJobKinds.join(', '));
+      setDvmPrivateKeyHex(userSettings.dvmPrivateKeyHex || "");
+      setRelaysCsv(userSettings.relaysCsv || defaultConfig.relays.join("\n"));
+      setSupportedJobKindsCsv(
+        userSettings.supportedJobKindsCsv ||
+          defaultConfig.supportedJobKinds.join(", "),
+      );
 
       const textConfig = userSettings.textGenerationConfig || {};
       const defaultTextConfig = defaultConfig.defaultTextGenerationJobConfig;
-      
+
       setModel(textConfig.model || defaultTextConfig.model);
-      setMaxTokens(String(textConfig.max_tokens ?? defaultTextConfig.max_tokens));
-      setTemperature(String(textConfig.temperature ?? defaultTextConfig.temperature));
+      setMaxTokens(
+        String(textConfig.max_tokens ?? defaultTextConfig.max_tokens),
+      );
+      setTemperature(
+        String(textConfig.temperature ?? defaultTextConfig.temperature),
+      );
       setTopK(String(textConfig.top_k ?? defaultTextConfig.top_k));
       setTopP(String(textConfig.top_p ?? defaultTextConfig.top_p));
-      setFrequencyPenalty(String(textConfig.frequency_penalty ?? defaultTextConfig.frequency_penalty));
-      setMinPriceSats(String(textConfig.minPriceSats ?? defaultTextConfig.minPriceSats));
-      setPricePer1kTokens(String(textConfig.pricePer1kTokens ?? defaultTextConfig.pricePer1kTokens));
+      setFrequencyPenalty(
+        String(
+          textConfig.frequency_penalty ?? defaultTextConfig.frequency_penalty,
+        ),
+      );
+      setMinPriceSats(
+        String(textConfig.minPriceSats ?? defaultTextConfig.minPriceSats),
+      );
+      setPricePer1kTokens(
+        String(
+          textConfig.pricePer1kTokens ?? defaultTextConfig.pricePer1kTokens,
+        ),
+      );
     }
   }, [userSettings, isOpen]);
 
@@ -108,23 +159,33 @@ export function DVMSettingsDialog() {
         temperature: temperature ? parseFloat(temperature) : undefined,
         top_k: topK ? parseInt(topK, 10) : undefined,
         top_p: topP ? parseFloat(topP) : undefined,
-        frequency_penalty: frequencyPenalty ? parseFloat(frequencyPenalty) : undefined,
+        frequency_penalty: frequencyPenalty
+          ? parseFloat(frequencyPenalty)
+          : undefined,
         minPriceSats: minPriceSats ? parseInt(minPriceSats, 10) : undefined,
-        pricePer1kTokens: pricePer1kTokens ? parseInt(pricePer1kTokens, 10) : undefined,
+        pricePer1kTokens: pricePer1kTokens
+          ? parseInt(pricePer1kTokens, 10)
+          : undefined,
       },
     };
 
     // Filter out undefined values from textGenerationConfig
     if (newSettings.textGenerationConfig) {
-      Object.keys(newSettings.textGenerationConfig).forEach(key => {
-        const typedKey = key as keyof DVMUserSettings['textGenerationConfig'];
-        if (newSettings.textGenerationConfig && newSettings.textGenerationConfig[typedKey] === undefined) {
+      Object.keys(newSettings.textGenerationConfig).forEach((key) => {
+        const typedKey = key as keyof DVMUserSettings["textGenerationConfig"];
+        if (
+          newSettings.textGenerationConfig &&
+          newSettings.textGenerationConfig[typedKey] === undefined
+        ) {
           delete newSettings.textGenerationConfig[typedKey];
         }
       });
 
       // Remove empty textGenerationConfig
-      if (newSettings.textGenerationConfig && Object.keys(newSettings.textGenerationConfig).length === 0) {
+      if (
+        newSettings.textGenerationConfig &&
+        Object.keys(newSettings.textGenerationConfig).length === 0
+      ) {
         delete newSettings.textGenerationConfig;
       }
     }
@@ -151,16 +212,19 @@ export function DVMSettingsDialog() {
           <Cog className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[625px] bg-background/90 backdrop-blur-md max-h-[80vh] overflow-y-auto">
+      <DialogContent className="bg-background/90 max-h-[80vh] overflow-y-auto backdrop-blur-md sm:max-w-[625px]">
         <DialogHeader>
           <DialogTitle>DVM Settings</DialogTitle>
           <DialogDescription>
-            Configure your Data Vending Machine. Leave fields blank to use application defaults.
+            Configure your Data Vending Machine. Leave fields blank to use
+            application defaults.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4 text-sm">
           <div className="space-y-1.5">
-            <Label htmlFor="dvmPrivateKeyHex">DVM Private Key (Nostr SK Hex)</Label>
+            <Label htmlFor="dvmPrivateKeyHex">
+              DVM Private Key (Nostr SK Hex)
+            </Label>
             <Textarea
               id="dvmPrivateKeyHex"
               value={dvmPrivateKeyHex}
@@ -168,15 +232,18 @@ export function DVMSettingsDialog() {
               placeholder={`Default: ${defaultConfig.dvmPrivateKeyHex.substring(0, 10)}...`}
               rows={2}
             />
-            <div className="flex items-center text-xs text-amber-500 p-1 bg-amber-500/10 rounded-sm">
-              <AlertTriangle className="w-3 h-3 mr-1 shrink-0" /> Keep this secret and secure! Anyone with this key can control your DVM.
+            <div className="flex items-center rounded-sm bg-amber-500/10 p-1 text-xs text-amber-500">
+              <AlertTriangle className="mr-1 h-3 w-3 shrink-0" /> Keep this
+              secret and secure! Anyone with this key can control your DVM.
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="dvmPublicKeyHex">DVM Public Key (Nostr PK Hex)</Label>
+            <Label htmlFor="dvmPublicKeyHex">
+              DVM Public Key (Nostr PK Hex)
+            </Label>
             <Input
               id="dvmPublicKeyHex"
-              value={derivedPublicKeyHex || 'Enter Private Key'}
+              value={derivedPublicKeyHex || "Enter Private Key"}
               readOnly
               className="text-muted-foreground"
             />
@@ -187,21 +254,25 @@ export function DVMSettingsDialog() {
               id="relaysCsv"
               value={relaysCsv}
               onChange={(e) => setRelaysCsv(e.target.value)}
-              placeholder={defaultConfig.relays.join('\n')}
+              placeholder={defaultConfig.relays.join("\n")}
               rows={3}
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="supportedJobKindsCsv">Supported Job Kinds (comma-separated)</Label>
+            <Label htmlFor="supportedJobKindsCsv">
+              Supported Job Kinds (comma-separated)
+            </Label>
             <Input
               id="supportedJobKindsCsv"
               value={supportedJobKindsCsv}
               onChange={(e) => setSupportedJobKindsCsv(e.target.value)}
-              placeholder={defaultConfig.supportedJobKinds.join(', ')}
+              placeholder={defaultConfig.supportedJobKinds.join(", ")}
             />
           </div>
 
-          <h4 className="font-semibold mt-2 pt-2 border-t border-border/50">Text Generation Configuration</h4>
+          <h4 className="border-border/50 mt-2 border-t pt-2 font-semibold">
+            Text Generation Configuration
+          </h4>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="model">Model</Label>
@@ -219,7 +290,9 @@ export function DVMSettingsDialog() {
                 type="number"
                 value={maxTokens}
                 onChange={(e) => setMaxTokens(e.target.value)}
-                placeholder={String(defaultConfig.defaultTextGenerationJobConfig.max_tokens)}
+                placeholder={String(
+                  defaultConfig.defaultTextGenerationJobConfig.max_tokens,
+                )}
               />
             </div>
             <div className="space-y-1.5">
@@ -230,7 +303,9 @@ export function DVMSettingsDialog() {
                 step="0.1"
                 value={temperature}
                 onChange={(e) => setTemperature(e.target.value)}
-                placeholder={String(defaultConfig.defaultTextGenerationJobConfig.temperature)}
+                placeholder={String(
+                  defaultConfig.defaultTextGenerationJobConfig.temperature,
+                )}
               />
             </div>
             <div className="space-y-1.5">
@@ -240,7 +315,9 @@ export function DVMSettingsDialog() {
                 type="number"
                 value={topK}
                 onChange={(e) => setTopK(e.target.value)}
-                placeholder={String(defaultConfig.defaultTextGenerationJobConfig.top_k)}
+                placeholder={String(
+                  defaultConfig.defaultTextGenerationJobConfig.top_k,
+                )}
               />
             </div>
             <div className="space-y-1.5">
@@ -251,7 +328,9 @@ export function DVMSettingsDialog() {
                 step="0.1"
                 value={topP}
                 onChange={(e) => setTopP(e.target.value)}
-                placeholder={String(defaultConfig.defaultTextGenerationJobConfig.top_p)}
+                placeholder={String(
+                  defaultConfig.defaultTextGenerationJobConfig.top_p,
+                )}
               />
             </div>
             <div className="space-y-1.5">
@@ -262,11 +341,16 @@ export function DVMSettingsDialog() {
                 step="0.1"
                 value={frequencyPenalty}
                 onChange={(e) => setFrequencyPenalty(e.target.value)}
-                placeholder={String(defaultConfig.defaultTextGenerationJobConfig.frequency_penalty)}
+                placeholder={String(
+                  defaultConfig.defaultTextGenerationJobConfig
+                    .frequency_penalty,
+                )}
               />
             </div>
           </div>
-          <h4 className="font-semibold mt-2 pt-2 border-t border-border/50">Pricing Configuration</h4>
+          <h4 className="border-border/50 mt-2 border-t pt-2 font-semibold">
+            Pricing Configuration
+          </h4>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="minPriceSats">Min Price (Sats)</Label>
@@ -275,23 +359,31 @@ export function DVMSettingsDialog() {
                 type="number"
                 value={minPriceSats}
                 onChange={(e) => setMinPriceSats(e.target.value)}
-                placeholder={String(defaultConfig.defaultTextGenerationJobConfig.minPriceSats)}
+                placeholder={String(
+                  defaultConfig.defaultTextGenerationJobConfig.minPriceSats,
+                )}
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="pricePer1kTokens">Price per 1k Tokens (Sats)</Label>
+              <Label htmlFor="pricePer1kTokens">
+                Price per 1k Tokens (Sats)
+              </Label>
               <Input
                 id="pricePer1kTokens"
                 type="number"
                 value={pricePer1kTokens}
                 onChange={(e) => setPricePer1kTokens(e.target.value)}
-                placeholder={String(defaultConfig.defaultTextGenerationJobConfig.pricePer1kTokens)}
+                placeholder={String(
+                  defaultConfig.defaultTextGenerationJobConfig.pricePer1kTokens,
+                )}
               />
             </div>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={handleReset}>Reset to Defaults</Button>
+          <Button variant="outline" onClick={handleReset}>
+            Reset to Defaults
+          </Button>
           <Button onClick={handleSave}>Save Settings</Button>
         </DialogFooter>
       </DialogContent>

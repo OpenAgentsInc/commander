@@ -7,6 +7,7 @@ This log tracks the fixes for type errors in AI Phase 4 implementation. The goal
 ## Initial Analysis
 
 The TypeScript errors are primarily related to:
+
 1. **Effect-TS `R` Channel Mismatches**: Many errors like `Type 'TelemetryService' is not assignable to type 'never'` indicate that an Effect requires a service but no Layer.provide is present.
 2. **Incorrect Mock Structures**: Test mocks don't match the actual service interfaces.
 3. **API/Type Changes**: Import paths or method names from `@effect/ai` or `effect` libraries may have changed.
@@ -21,13 +22,19 @@ I'll tackle these issues systematically, starting with the most critical ones.
 The error `TS2554: Expected 1-2 arguments, but got 3` is reported for the use of `Layer.merge` with three arguments. The `Layer.merge` function expects exactly two layers, while `Layer.mergeAll` should be used for merging more than two layers.
 
 Changing:
+
 ```typescript
-Layer.merge(UiOllamaConfigLive, NodeHttpClient.layer, TelemetryServiceLive)
+Layer.merge(UiOllamaConfigLive, NodeHttpClient.layer, TelemetryServiceLive);
 ```
 
 To:
+
 ```typescript
-Layer.mergeAll(UiOllamaConfigLive, NodeHttpClient.layer, TelemetryServiceLive.pipe(Layer.provide(DefaultTelemetryConfigLayer)))
+Layer.mergeAll(
+  UiOllamaConfigLive,
+  NodeHttpClient.layer,
+  TelemetryServiceLive.pipe(Layer.provide(DefaultTelemetryConfigLayer)),
+);
 ```
 
 ## Fix 2: Adding `context` field to `TelemetryEventSchema`
@@ -35,14 +42,22 @@ Layer.mergeAll(UiOllamaConfigLive, NodeHttpClient.layer, TelemetryServiceLive.pi
 The errors `TS2353: Object literal may only specify known properties, and 'context' does not exist in type` are occurring because telemetry events in `ollama-listeners.ts` include a `context` field, but the `TelemetryEventSchema` in `TelemetryService.ts` doesn't define this field.
 
 Updated `TelemetryEventSchema` to include an optional `context` field:
+
 ```typescript
 export const TelemetryEventSchema = Schema.Struct({
   category: Schema.String,
   action: Schema.String,
-  value: Schema.optional(Schema.Union(Schema.String, Schema.Number, Schema.Boolean, Schema.Undefined)),
+  value: Schema.optional(
+    Schema.Union(
+      Schema.String,
+      Schema.Number,
+      Schema.Boolean,
+      Schema.Undefined,
+    ),
+  ),
   label: Schema.optional(Schema.String),
   timestamp: Schema.optional(Schema.Number),
-  context: Schema.optional(Schema.Record(Schema.String, Schema.Unknown))
+  context: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
 });
 ```
 
@@ -60,15 +75,23 @@ I've updated the imports and error handling:
 ```typescript
 // Old imports
 import { OpenAiClient, OpenAiError } from "@effect/ai-openai";
-import type { ChatCompletion, ChatCompletionChunk, CreateChatCompletionRequest } from "@effect/ai-openai/OpenAiClient";
+import type {
+  ChatCompletion,
+  ChatCompletionChunk,
+  CreateChatCompletionRequest,
+} from "@effect/ai-openai/OpenAiClient";
 
 // New imports
 import { OpenAiClient } from "@effect/ai-openai";
 import * as HttpClientError from "@effect/platform/HttpClientError";
-import type { StreamCompletionRequest, StreamChunk } from "@effect/ai-openai/OpenAiClient";
+import type {
+  StreamCompletionRequest,
+  StreamChunk,
+} from "@effect/ai-openai/OpenAiClient";
 ```
 
 Also updated the stream implementation:
+
 - Replaced `Stream.asyncInterrupt` with `Stream.async`
 - Used `HttpClientError.ResponseError` instead of `OpenAiError`
 - Properly converted chunks to `StreamChunk` instances
@@ -81,6 +104,7 @@ The error `TS2339: Property 'Tag' does not exist on type 'Tag<AgentLanguageModel
 In Effect-TS, when `AgentLanguageModel` is defined with `Context.Tag<AgentLanguageModel>`, the tag itself is `AgentLanguageModel`, not `AgentLanguageModel.Tag`. Updated in these files:
 
 1. `src/services/ai/providers/ollama/OllamaAgentLanguageModelLive.ts`:
+
    ```typescript
    // Changed from
    export const OllamaAgentLanguageModelLive = Layer.effect(
@@ -88,7 +112,7 @@ In Effect-TS, when `AgentLanguageModel` is defined with `Context.Tag<AgentLangua
      // ...
    return AgentLanguageModel.Tag.of({
 
-   // To 
+   // To
    export const OllamaAgentLanguageModelLive = Layer.effect(
      AgentLanguageModel,
      // ...
@@ -123,7 +147,7 @@ const actual = await importOriginal();
 return {
   ...actual,
 
-// To 
+// To
 const actual = await importOriginal<typeof import('@effect/ai-openai')>();
 return {
   ...(actual || {}),
@@ -138,9 +162,9 @@ After examining the OpenAiClient interface from the library, I updated the mock 
 ```typescript
 // Old mock
 const MockOllamaOpenAIClient = Layer.succeed(OllamaOpenAIClientTag, {
-  'chat.completions.create': mockChatCompletionsCreate,
-  'embeddings.create': vi.fn(),
-  'models.list': vi.fn()
+  "chat.completions.create": mockChatCompletionsCreate,
+  "embeddings.create": vi.fn(),
+  "models.list": vi.fn(),
 });
 
 // New mock
@@ -148,18 +172,18 @@ const MockOllamaOpenAIClient = Layer.succeed(OllamaOpenAIClientTag, {
   client: {
     chat: {
       completions: {
-        create: mockChatCompletionsCreate
-      }
+        create: mockChatCompletionsCreate,
+      },
     },
     embeddings: {
-      create: vi.fn()
+      create: vi.fn(),
     },
     models: {
-      list: vi.fn()
-    }
+      list: vi.fn(),
+    },
   },
   streamRequest: vi.fn(),
-  stream: mockStream
+  stream: mockStream,
 });
 ```
 
@@ -170,25 +194,29 @@ Many errors of the form `Effect<void, never, TelemetryService>` not assignable t
 Fixed by:
 
 1. Creating a comprehensive layer that provides all services needed:
+
    ```typescript
    const configuredTelemetryLayer = TelemetryServiceLive.pipe(
-     Layer.provide(DefaultTelemetryConfigLayer)
+     Layer.provide(DefaultTelemetryConfigLayer),
    );
-   
+
    // Create a comprehensive layer for IPC handlers that need services
    const ipcHandlerLayer = Layer.mergeAll(
      ollamaServiceLayer,
-     configuredTelemetryLayer
+     configuredTelemetryLayer,
    );
    ```
 
 2. Using this layer with all `Effect.runPromise` calls:
+
    ```typescript
    // Before
    const result = await Effect.runPromise(program);
-   
+
    // After
-   const result = await Effect.runPromise(program.pipe(Effect.provide(ipcHandlerLayer)));
+   const result = await Effect.runPromise(
+     program.pipe(Effect.provide(ipcHandlerLayer)),
+   );
    ```
 
 ## Fix 9: Fix extractErrorForIPC Type in ollama-listeners.ts

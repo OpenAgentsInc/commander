@@ -3,6 +3,7 @@ Okay, agent, here are the detailed coding instructions to implement Effect servi
 **Goal:** Display a list of NIP-90 job request events (kinds 5000-5999) on the UI.
 
 **Relay List to Use:**
+
 ```
 wss://purplepag.es/
 wss://nos.lol/
@@ -17,14 +18,19 @@ wss://nostr-pub.wellorder.net/
 **Phase 1: Define NostrService Interface, Types, Errors, and Configuration**
 
 1.  **Create Directory Structure:**
-    *   `src/services/nostr/`
+
+    - `src/services/nostr/`
 
 2.  **Create `src/services/nostr/NostrService.ts`:**
     This file will contain the service interface, related data types, custom error types, and the service tag.
 
     ```typescript
     import { Effect, Context, Data, Layer } from "effect";
-    import type { Event as NostrToolsEvent, Filter as NostrToolsFilter, EventTemplate as NostrToolsEventTemplate } from "nostr-tools/pure";
+    import type {
+      Event as NostrToolsEvent,
+      Filter as NostrToolsFilter,
+      EventTemplate as NostrToolsEventTemplate,
+    } from "nostr-tools/pure";
     import type { SimplePool } from "nostr-tools/pool";
 
     // --- Nostr Event Types (using nostr-tools types) ---
@@ -38,12 +44,16 @@ wss://nostr-pub.wellorder.net/
       cause?: unknown;
     }> {}
 
-    export class NostrRequestError extends Data.TaggedError("NostrRequestError")<{
+    export class NostrRequestError extends Data.TaggedError(
+      "NostrRequestError",
+    )<{
       message: string;
       cause?: unknown;
     }> {}
 
-    export class NostrPublishError extends Data.TaggedError("NostrPublishError")<{
+    export class NostrPublishError extends Data.TaggedError(
+      "NostrPublishError",
+    )<{
       message: string;
       cause?: unknown;
     }> {}
@@ -53,7 +63,8 @@ wss://nostr-pub.wellorder.net/
       readonly relays: readonly string[];
       readonly requestTimeoutMs: number; // Timeout for requests like pool.list()
     }
-    export const NostrServiceConfigTag = Context.GenericTag<NostrServiceConfig>("NostrServiceConfig");
+    export const NostrServiceConfigTag =
+      Context.GenericTag<NostrServiceConfig>("NostrServiceConfig");
 
     // --- Default Configuration Layer ---
     export const DefaultNostrServiceConfigLayer = Layer.succeed(
@@ -65,10 +76,10 @@ wss://nostr-pub.wellorder.net/
           "wss://relay.damus.io/",
           "wss://relay.snort.social/",
           "wss://offchain.pub/",
-          "wss://nostr-pub.wellorder.net/"
+          "wss://nostr-pub.wellorder.net/",
         ],
-        requestTimeoutMs: 10000 // 10 seconds
-      }
+        requestTimeoutMs: 10000, // 10 seconds
+      },
     );
 
     // --- Service Interface ---
@@ -84,23 +95,32 @@ wss://nostr-pub.wellorder.net/
        * Sorts events by created_at descending.
        */
       listEvents(
-        filters: NostrFilter[]
-      ): Effect.Effect<NostrEvent[], NostrRequestError, SimplePool | NostrServiceConfig>; // Requires pool and config
+        filters: NostrFilter[],
+      ): Effect.Effect<
+        NostrEvent[],
+        NostrRequestError,
+        SimplePool | NostrServiceConfig
+      >; // Requires pool and config
 
       /**
        * Publishes an event to the configured relays.
        * Note: Event signing should happen before calling this.
        */
       publishEvent(
-        event: NostrEvent // nostr-tools Event is already signed and has an id
-      ): Effect.Effect<void, NostrPublishError, SimplePool | NostrServiceConfig>; // Requires pool and config
+        event: NostrEvent, // nostr-tools Event is already signed and has an id
+      ): Effect.Effect<
+        void,
+        NostrPublishError,
+        SimplePool | NostrServiceConfig
+      >; // Requires pool and config
 
       /**
        * Cleans up the pool, closing connections.
        */
       cleanupPool(): Effect.Effect<void, NostrPoolError>;
     }
-    export const NostrService = Context.GenericTag<NostrService>("NostrService");
+    export const NostrService =
+      Context.GenericTag<NostrService>("NostrService");
     ```
 
 ---
@@ -113,7 +133,10 @@ wss://nostr-pub.wellorder.net/
     ```typescript
     import { Effect, Layer, Context } from "effect";
     import { SimplePool } from "nostr-tools/pool";
-    import type { Event as NostrToolsEvent, Filter as NostrToolsFilter } from "nostr-tools/pure";
+    import type {
+      Event as NostrToolsEvent,
+      Filter as NostrToolsFilter,
+    } from "nostr-tools/pure";
     import {
       NostrService,
       NostrServiceConfigTag,
@@ -126,27 +149,37 @@ wss://nostr-pub.wellorder.net/
     } from "./NostrService";
 
     // Helper to ensure correct event type compatibility if needed
-    const asNostrEventArray = (events: NostrToolsEvent[]): NostrEvent[] => events as NostrEvent[];
+    const asNostrEventArray = (events: NostrToolsEvent[]): NostrEvent[] =>
+      events as NostrEvent[];
 
-    export function createNostrService(config: NostrServiceConfig): NostrService {
+    export function createNostrService(
+      config: NostrServiceConfig,
+    ): NostrService {
       let poolInstance: SimplePool | null = null;
 
       const getPoolEffect = Effect.try({
         try: () => {
           if (!poolInstance) {
             // nostr-tools SimplePool defaults, eoseSubTimeout might be relevant for subscriptions
-            poolInstance = new SimplePool({ eoseSubTimeout: 5000, getTimeout: config.requestTimeoutMs / 2 });
+            poolInstance = new SimplePool({
+              eoseSubTimeout: 5000,
+              getTimeout: config.requestTimeoutMs / 2,
+            });
           }
           return poolInstance;
         },
-        catch: (error) => new NostrPoolError({ message: "Failed to initialize Nostr pool", cause: error }),
+        catch: (error) =>
+          new NostrPoolError({
+            message: "Failed to initialize Nostr pool",
+            cause: error,
+          }),
       });
 
       return {
         getPool: () => getPoolEffect,
 
         listEvents: (filters: NostrFilter[]) =>
-          Effect.gen(function*(_) {
+          Effect.gen(function* (_) {
             const pool = yield* _(getPoolEffect);
             // pool.list can take a long time if relays are unresponsive.
             // We should implement a timeout mechanism. SimplePool's `getTimeout` option might help.
@@ -154,40 +187,64 @@ wss://nostr-pub.wellorder.net/
             const events = yield* _(
               Effect.tryPromise({
                 try: () => pool.list(config.relays as string[], filters), // Cast because nostr-tools expects string[]
-                catch: (error) => new NostrRequestError({ message: "Failed to list events from relays", cause: error }),
+                catch: (error) =>
+                  new NostrRequestError({
+                    message: "Failed to list events from relays",
+                    cause: error,
+                  }),
               }),
               Effect.timeout(config.requestTimeoutMs), // Apply timeout
-              Effect.mapError((e) => { // Handle timeout error specifically
+              Effect.mapError((e) => {
+                // Handle timeout error specifically
                 if (e._tag === "TimeoutException") {
-                  return new NostrRequestError({ message: `Relay request timed out after ${config.requestTimeoutMs}ms` });
+                  return new NostrRequestError({
+                    message: `Relay request timed out after ${config.requestTimeoutMs}ms`,
+                  });
                 }
                 return e as NostrRequestError; // Should already be NostrRequestError if not timeout
-              })
+              }),
             );
 
             // Sort events by created_at descending before returning
-            return asNostrEventArray(events).sort((a, b) => b.created_at - a.created_at);
+            return asNostrEventArray(events).sort(
+              (a, b) => b.created_at - a.created_at,
+            );
           }),
 
         publishEvent: (event: NostrEvent) =>
-          Effect.gen(function*(_) {
+          Effect.gen(function* (_) {
             const pool = yield* _(getPoolEffect);
             // pool.publish returns Promise<void>[] in some versions, Promise<string>[] in others.
             // We'll assume Promise<string>[] where string is relay URL if successful, or throws.
             // nostr-tools: await Promise.any(pool.publish(relays, event)) -> resolves on first success, rejects if all fail.
             // Let's try to publish to all and report specific errors if any, or a general one.
-            const results = yield* _(Effect.tryPromise({
-              try: () => Promise.allSettled(pool.publish(config.relays as string[], event)),
-              catch: (error) => new NostrPublishError({ message: "Failed to publish event", cause: error }),
-            }));
+            const results = yield* _(
+              Effect.tryPromise({
+                try: () =>
+                  Promise.allSettled(
+                    pool.publish(config.relays as string[], event),
+                  ),
+                catch: (error) =>
+                  new NostrPublishError({
+                    message: "Failed to publish event",
+                    cause: error,
+                  }),
+              }),
+            );
 
-            const failedRelays = results.filter(r => r.status === 'rejected');
+            const failedRelays = results.filter((r) => r.status === "rejected");
             if (failedRelays.length > 0) {
               // Simplified error, could be more granular
-              return yield* _(Effect.fail(new NostrPublishError({
-                message: `Failed to publish to ${failedRelays.length} relays.`,
-                cause: failedRelays.map(fr => (fr as PromiseRejectedResult).reason).join(", ")
-              })));
+              return yield* _(
+                Effect.fail(
+                  new NostrPublishError({
+                    message: `Failed to publish to ${failedRelays.length} relays.`,
+                    cause: failedRelays
+                      .map((fr) => (fr as PromiseRejectedResult).reason)
+                      .join(", "),
+                  }),
+                ),
+              );
             }
           }),
 
@@ -199,7 +256,11 @@ wss://nostr-pub.wellorder.net/
                 poolInstance = null;
               }
             },
-            catch: (error) => new NostrPoolError({ message: "Failed to cleanup Nostr pool", cause: error }),
+            catch: (error) =>
+              new NostrPoolError({
+                message: "Failed to cleanup Nostr pool",
+                cause: error,
+              }),
           }),
       };
     }
@@ -207,15 +268,17 @@ wss://nostr-pub.wellorder.net/
     // Live Layer for NostrService
     export const NostrServiceLive = Layer.effect(
       NostrService,
-      Effect.flatMap(NostrServiceConfigTag, (config) => Effect.succeed(createNostrService(config)))
+      Effect.flatMap(NostrServiceConfigTag, (config) =>
+        Effect.succeed(createNostrService(config)),
+      ),
     );
     ```
 
 2.  **Create `src/services/nostr/index.ts`:**
 
     ```typescript
-    export * from './NostrService';
-    export * from './NostrServiceImpl';
+    export * from "./NostrService";
+    export * from "./NostrServiceImpl";
     ```
 
 ---
@@ -225,10 +288,13 @@ wss://nostr-pub.wellorder.net/
 1.  **Create `src/tests/unit/services/nostr/NostrService.test.ts`:**
 
     ```typescript
-    import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-    import { Effect, Layer, Exit, Cause, Option } from 'effect';
-    import { SimplePool } from 'nostr-tools/pool';
-    import type { Event as NostrToolsEvent, Filter as NostrToolsFilter } from 'nostr-tools/pure';
+    import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+    import { Effect, Layer, Exit, Cause, Option } from "effect";
+    import { SimplePool } from "nostr-tools/pool";
+    import type {
+      Event as NostrToolsEvent,
+      Filter as NostrToolsFilter,
+    } from "nostr-tools/pure";
     import {
       NostrService,
       NostrServiceLive,
@@ -238,11 +304,11 @@ wss://nostr-pub.wellorder.net/
       NostrRequestError,
       NostrPublishError,
       type NostrEvent,
-      type NostrFilter
-    } from '@/services/nostr';
+      type NostrFilter,
+    } from "@/services/nostr";
 
     // Mock nostr-tools/pool
-    vi.mock('nostr-tools/pool', () => {
+    vi.mock("nostr-tools/pool", () => {
       const mockPoolInstance = {
         list: vi.fn(),
         publish: vi.fn(),
@@ -263,11 +329,11 @@ wss://nostr-pub.wellorder.net/
     // Test Config Layer
     const TestNostrConfigLayer = Layer.succeed(
       NostrServiceConfigTag,
-      { relays: ["wss://test.relay"], requestTimeoutMs: 500 } // Short timeout for tests
+      { relays: ["wss://test.relay"], requestTimeoutMs: 500 }, // Short timeout for tests
     );
 
     const TestNostrServiceLayer = NostrServiceLive.pipe(
-      Layer.provide(TestNostrConfigLayer)
+      Layer.provide(TestNostrConfigLayer),
     );
 
     beforeEach(() => {
@@ -279,108 +345,170 @@ wss://nostr-pub.wellorder.net/
       mockPoolCloseFn = poolInstance.close as vi.MockedFunction<any>;
     });
 
-    describe('NostrService', () => {
-      describe('getPool', () => {
-        it('should initialize and return a SimplePool instance', async () => {
+    describe("NostrService", () => {
+      describe("getPool", () => {
+        it("should initialize and return a SimplePool instance", async () => {
           const program = Effect.service(NostrService).pipe(
-            Effect.flatMap(s => s.getPool())
+            Effect.flatMap((s) => s.getPool()),
           );
-          const pool = await Effect.runPromise(Effect.provide(program, TestNostrServiceLayer));
+          const pool = await Effect.runPromise(
+            Effect.provide(program, TestNostrServiceLayer),
+          );
           expect(pool).toBeInstanceOf(SimplePool);
           expect(mockSimplePool).toHaveBeenCalledTimes(1);
         });
 
-        it('should return the same pool instance on subsequent calls', async () => {
-          const program = Effect.gen(function*(_) {
+        it("should return the same pool instance on subsequent calls", async () => {
+          const program = Effect.gen(function* (_) {
             const service = yield* _(NostrService);
             const pool1 = yield* _(service.getPool());
             const pool2 = yield* _(service.getPool());
             return { pool1, pool2 };
           });
-          const { pool1, pool2 } = await Effect.runPromise(Effect.provide(program, TestNostrServiceLayer));
+          const { pool1, pool2 } = await Effect.runPromise(
+            Effect.provide(program, TestNostrServiceLayer),
+          );
           expect(pool1).toBe(pool2);
           expect(mockSimplePool).toHaveBeenCalledTimes(1); // Constructor called only once
         });
       });
 
-      describe('listEvents', () => {
-        it('should fetch and sort events from relays', async () => {
+      describe("listEvents", () => {
+        it("should fetch and sort events from relays", async () => {
           const mockEvents: NostrEvent[] = [
-            { id: 'ev2', kind: 1, content: 'Event 2', created_at: 200, pubkey: 'pk2', sig: 's2', tags: [] },
-            { id: 'ev1', kind: 1, content: 'Event 1', created_at: 100, pubkey: 'pk1', sig: 's1', tags: [] },
-            { id: 'ev3', kind: 1, content: 'Event 3', created_at: 300, pubkey: 'pk3', sig: 's3', tags: [] },
+            {
+              id: "ev2",
+              kind: 1,
+              content: "Event 2",
+              created_at: 200,
+              pubkey: "pk2",
+              sig: "s2",
+              tags: [],
+            },
+            {
+              id: "ev1",
+              kind: 1,
+              content: "Event 1",
+              created_at: 100,
+              pubkey: "pk1",
+              sig: "s1",
+              tags: [],
+            },
+            {
+              id: "ev3",
+              kind: 1,
+              content: "Event 3",
+              created_at: 300,
+              pubkey: "pk3",
+              sig: "s3",
+              tags: [],
+            },
           ];
           mockPoolListFn.mockResolvedValue(mockEvents);
 
           const filters: NostrFilter[] = [{ kinds: [1] }];
           const program = Effect.service(NostrService).pipe(
-            Effect.flatMap(s => s.listEvents(filters))
+            Effect.flatMap((s) => s.listEvents(filters)),
           );
-          const events = await Effect.runPromise(Effect.provide(program, TestNostrServiceLayer));
+          const events = await Effect.runPromise(
+            Effect.provide(program, TestNostrServiceLayer),
+          );
 
-          expect(mockPoolListFn).toHaveBeenCalledWith(["wss://test.relay"], filters);
+          expect(mockPoolListFn).toHaveBeenCalledWith(
+            ["wss://test.relay"],
+            filters,
+          );
           expect(events).toHaveLength(3);
-          expect(events[0].id).toBe('ev3'); // Sorted by created_at descending
-          expect(events[1].id).toBe('ev2');
-          expect(events[2].id).toBe('ev1');
+          expect(events[0].id).toBe("ev3"); // Sorted by created_at descending
+          expect(events[1].id).toBe("ev2");
+          expect(events[2].id).toBe("ev1");
         });
 
-        it('should return NostrRequestError on pool.list failure', async () => {
-          mockPoolListFn.mockRejectedValue(new Error("Relay connection failed"));
+        it("should return NostrRequestError on pool.list failure", async () => {
+          mockPoolListFn.mockRejectedValue(
+            new Error("Relay connection failed"),
+          );
           const filters: NostrFilter[] = [{ kinds: [1] }];
           const program = Effect.service(NostrService).pipe(
-            Effect.flatMap(s => s.listEvents(filters))
+            Effect.flatMap((s) => s.listEvents(filters)),
           );
 
-          const exit = await Effect.runPromiseExit(Effect.provide(program, TestNostrServiceLayer));
+          const exit = await Effect.runPromiseExit(
+            Effect.provide(program, TestNostrServiceLayer),
+          );
           expect(Exit.isFailure(exit)).toBe(true);
           if (Exit.isFailure(exit)) {
-            expect(Cause.failureOption(exit.cause).pipe(Option.getOrThrow)).toBeInstanceOf(NostrRequestError);
-            expect(Cause.failureOption(exit.cause).pipe(Option.getOrThrow).message).toBe("Failed to list events from relays");
+            expect(
+              Cause.failureOption(exit.cause).pipe(Option.getOrThrow),
+            ).toBeInstanceOf(NostrRequestError);
+            expect(
+              Cause.failureOption(exit.cause).pipe(Option.getOrThrow).message,
+            ).toBe("Failed to list events from relays");
           }
         });
 
-        it('should timeout if pool.list takes too long', async () => {
-          mockPoolListFn.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve([]), 1000))); // Longer than test timeout
+        it("should timeout if pool.list takes too long", async () => {
+          mockPoolListFn.mockImplementation(
+            () => new Promise((resolve) => setTimeout(() => resolve([]), 1000)),
+          ); // Longer than test timeout
 
           const filters: NostrFilter[] = [{ kinds: [1] }];
           const program = Effect.service(NostrService).pipe(
-            Effect.flatMap(s => s.listEvents(filters))
+            Effect.flatMap((s) => s.listEvents(filters)),
           );
 
-          const exit = await Effect.runPromiseExit(Effect.provide(program, TestNostrServiceLayer));
+          const exit = await Effect.runPromiseExit(
+            Effect.provide(program, TestNostrServiceLayer),
+          );
           expect(Exit.isFailure(exit)).toBe(true);
           if (Exit.isFailure(exit)) {
-            const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
+            const error = Cause.failureOption(exit.cause).pipe(
+              Option.getOrThrow,
+            );
             expect(error).toBeInstanceOf(NostrRequestError);
             expect(error.message).toContain("Relay request timed out");
           }
         });
       });
 
-      describe('publishEvent', () => {
-        it('should publish an event to relays', async () => {
-          const eventToPublish: NostrEvent = { id: 'pub-ev1', kind: 1, content: 'Publish test', created_at: 400, pubkey: 'pk-pub', sig: 's-pub', tags: [] };
+      describe("publishEvent", () => {
+        it("should publish an event to relays", async () => {
+          const eventToPublish: NostrEvent = {
+            id: "pub-ev1",
+            kind: 1,
+            content: "Publish test",
+            created_at: 400,
+            pubkey: "pk-pub",
+            sig: "s-pub",
+            tags: [],
+          };
           // mockPoolPublishFn.mockResolvedValue(undefined); // SimplePool.publish returns Promise<string>[] or Promise<void>[]
           mockPoolPublishFn.mockImplementation(() => Promise.resolve()); // Simulate successful publish to one relay
 
           const program = Effect.service(NostrService).pipe(
-            Effect.flatMap(s => s.publishEvent(eventToPublish))
+            Effect.flatMap((s) => s.publishEvent(eventToPublish)),
           );
-          await Effect.runPromise(Effect.provide(program, TestNostrServiceLayer));
+          await Effect.runPromise(
+            Effect.provide(program, TestNostrServiceLayer),
+          );
 
-          expect(mockPoolPublishFn).toHaveBeenCalledWith(["wss://test.relay"], eventToPublish);
+          expect(mockPoolPublishFn).toHaveBeenCalledWith(
+            ["wss://test.relay"],
+            eventToPublish,
+          );
         });
       });
 
-      describe('cleanupPool', () => {
-        it('should close the pool connection', async () => {
-          const program = Effect.gen(function*(_) {
+      describe("cleanupPool", () => {
+        it("should close the pool connection", async () => {
+          const program = Effect.gen(function* (_) {
             const service = yield* _(NostrService);
             yield* _(service.getPool()); // Initialize pool first
             yield* _(service.cleanupPool());
           });
-          await Effect.runPromise(Effect.provide(program, TestNostrServiceLayer));
+          await Effect.runPromise(
+            Effect.provide(program, TestNostrServiceLayer),
+          );
           expect(mockPoolCloseFn).toHaveBeenCalledWith(["wss://test.relay"]);
         });
       });
@@ -532,14 +660,15 @@ wss://nostr-pub.wellorder.net/
     }
 
     ```
+
 2.  **Create `src/utils/hex.ts` (if it doesn't exist):**
 
     ```typescript
     // src/utils/hex.ts
     export const toHexString = (bytes: Uint8Array): string => {
       return Array.from(bytes)
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('');
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
     };
 
     // You might already have hexToBytes from @noble/hashes/utils if used elsewhere
@@ -598,7 +727,8 @@ wss://nostr-pub.wellorder.net/
       );
     }
     ```
-    *   **Important**: Ensure `QueryClientProvider` wraps your application, typically in `App.tsx` or `renderer.ts`. If it's not already there, you can add it in `HomePage.tsx` as shown for this specific feature, or move it higher up.
+
+    - **Important**: Ensure `QueryClientProvider` wraps your application, typically in `App.tsx` or `renderer.ts`. If it's not already there, you can add it in `HomePage.tsx` as shown for this specific feature, or move it higher up.
 
 ---
 
@@ -614,21 +744,22 @@ wss://nostr-pub.wellorder.net/
 
 3.  **Run Application:**
     `pnpm start`
-    *   Navigate to the `HomePage`.
-    *   Open the developer console to check for logs or errors.
-    *   Verify that the list of NIP-90 events is displayed.
-    *   Check formatting of pubkeys (npub), event IDs (note), and timestamps.
-    *   Test the "Refresh" button.
+    - Navigate to the `HomePage`.
+    - Open the developer console to check for logs or errors.
+    - Verify that the list of NIP-90 events is displayed.
+    - Check formatting of pubkeys (npub), event IDs (note), and timestamps.
+    - Test the "Refresh" button.
 
 ---
 
 This set of instructions covers creating the Nostr service with EffectJS, unit testing it, and integrating it into the React UI using React Query to display NIP-90 events. The UI component provides a basic display; you can enhance it further as needed (e.g., parsing NIP-90 specific tags more deeply). Remember to install `nostr-tools` if it's not already a dependency (`pnpm i nostr-tools`). The `@noble/hashes` package should be a sub-dependency of `nostr-tools`.
 
-The focus is on displaying *job requests* (kinds 5000-5999). You can expand the filters to include job results (6000-6999) and feedback (7000) if required later.Okay, I will provide detailed coding instructions for implementing the Effect services required to interact with Nostr relays, retrieve NIP-90 events, and prepare for displaying them. This will focus on creating the `NostrService`.
+The focus is on displaying _job requests_ (kinds 5000-5999). You can expand the filters to include job results (6000-6999) and feedback (7000) if required later.Okay, I will provide detailed coding instructions for implementing the Effect services required to interact with Nostr relays, retrieve NIP-90 events, and prepare for displaying them. This will focus on creating the `NostrService`.
 
 **Goal:** Create the `NostrService` (and its tests) to fetch NIP-90 job request events (kinds 5000-5999). The UI integration part will be handled by another agent, but this service will provide the data.
 
 **Relay List to Use:**
+
 ```
 wss://purplepag.es/
 wss://nos.lol/
@@ -643,7 +774,8 @@ wss://nostr-pub.wellorder.net/
 **Phase 1: Define NostrService Interface, Types, Errors, and Configuration**
 
 1.  **Create Directory Structure:**
-    *   If it doesn't exist, create: `src/services/nostr/`
+
+    - If it doesn't exist, create: `src/services/nostr/`
 
 2.  **Create `src/services/nostr/NostrService.ts`:**
     This file will contain the service interface, related data types, custom error types, and the service tag.
@@ -651,7 +783,11 @@ wss://nostr-pub.wellorder.net/
     ```typescript
     // src/services/nostr/NostrService.ts
     import { Effect, Context, Data, Layer } from "effect";
-    import type { Event as NostrToolsEvent, Filter as NostrToolsFilter, EventTemplate as NostrToolsEventTemplate } from "nostr-tools/pure";
+    import type {
+      Event as NostrToolsEvent,
+      Filter as NostrToolsFilter,
+      EventTemplate as NostrToolsEventTemplate,
+    } from "nostr-tools/pure";
     import type { SimplePool } from "nostr-tools/pool";
 
     // --- Nostr Event Types (using nostr-tools types) ---
@@ -665,12 +801,16 @@ wss://nostr-pub.wellorder.net/
       cause?: unknown;
     }> {}
 
-    export class NostrRequestError extends Data.TaggedError("NostrRequestError")<{
+    export class NostrRequestError extends Data.TaggedError(
+      "NostrRequestError",
+    )<{
       message: string;
       cause?: unknown;
     }> {}
 
-    export class NostrPublishError extends Data.TaggedError("NostrPublishError")<{
+    export class NostrPublishError extends Data.TaggedError(
+      "NostrPublishError",
+    )<{
       message: string;
       cause?: unknown;
     }> {}
@@ -680,7 +820,8 @@ wss://nostr-pub.wellorder.net/
       readonly relays: readonly string[];
       readonly requestTimeoutMs: number; // Timeout for requests like pool.list()
     }
-    export const NostrServiceConfigTag = Context.GenericTag<NostrServiceConfig>("NostrServiceConfig");
+    export const NostrServiceConfigTag =
+      Context.GenericTag<NostrServiceConfig>("NostrServiceConfig");
 
     // --- Default Configuration Layer ---
     export const DefaultNostrServiceConfigLayer = Layer.succeed(
@@ -692,10 +833,10 @@ wss://nostr-pub.wellorder.net/
           "wss://relay.damus.io/",
           "wss://relay.snort.social/",
           "wss://offchain.pub/",
-          "wss://nostr-pub.wellorder.net/"
+          "wss://nostr-pub.wellorder.net/",
         ],
-        requestTimeoutMs: 10000 // 10 seconds
-      }
+        requestTimeoutMs: 10000, // 10 seconds
+      },
     );
 
     // --- Service Interface ---
@@ -711,26 +852,36 @@ wss://nostr-pub.wellorder.net/
        * Sorts events by created_at descending.
        */
       listEvents(
-        filters: NostrFilter[]
-      ): Effect.Effect<NostrEvent[], NostrRequestError, NostrServiceConfig | SimplePool >; // Explicitly list dependencies
+        filters: NostrFilter[],
+      ): Effect.Effect<
+        NostrEvent[],
+        NostrRequestError,
+        NostrServiceConfig | SimplePool
+      >; // Explicitly list dependencies
 
       /**
        * Publishes an event to the configured relays.
        * Note: Event signing should happen before calling this.
        */
       publishEvent(
-        event: NostrEvent // nostr-tools Event is already signed and has an id
-      ): Effect.Effect<void, NostrPublishError, NostrServiceConfig | SimplePool >; // Explicitly list dependencies
+        event: NostrEvent, // nostr-tools Event is already signed and has an id
+      ): Effect.Effect<
+        void,
+        NostrPublishError,
+        NostrServiceConfig | SimplePool
+      >; // Explicitly list dependencies
 
       /**
        * Cleans up the pool, closing connections.
        */
       cleanupPool(): Effect.Effect<void, NostrPoolError>;
     }
-    export const NostrService = Context.GenericTag<NostrService>("NostrService");
+    export const NostrService =
+      Context.GenericTag<NostrService>("NostrService");
     ```
-    *   **Action**: Create this file with the above content.
-    *   **Note**: The `listEvents` and `publishEvent` methods require `NostrServiceConfig` and `SimplePool` (implicitly via `getPool`). The `R` (Requirement) type in Effect indicates these dependencies. When we provide the `NostrServiceLive` layer, we'll ensure these are satisfied.
+
+    - **Action**: Create this file with the above content.
+    - **Note**: The `listEvents` and `publishEvent` methods require `NostrServiceConfig` and `SimplePool` (implicitly via `getPool`). The `R` (Requirement) type in Effect indicates these dependencies. When we provide the `NostrServiceLive` layer, we'll ensure these are satisfied.
 
 ---
 
@@ -743,7 +894,10 @@ wss://nostr-pub.wellorder.net/
     // src/services/nostr/NostrServiceImpl.ts
     import { Effect, Layer } from "effect";
     import { SimplePool } from "nostr-tools/pool";
-    import type { Event as NostrToolsEvent, Filter as NostrToolsFilter } from "nostr-tools/pure";
+    import type {
+      Event as NostrToolsEvent,
+      Filter as NostrToolsFilter,
+    } from "nostr-tools/pure";
     import {
       NostrService,
       NostrServiceConfigTag, // Import the tag
@@ -756,61 +910,101 @@ wss://nostr-pub.wellorder.net/
     } from "./NostrService";
 
     // Helper to ensure correct event type compatibility if needed
-    const asNostrEventArray = (events: NostrToolsEvent[]): NostrEvent[] => events as NostrEvent[];
+    const asNostrEventArray = (events: NostrToolsEvent[]): NostrEvent[] =>
+      events as NostrEvent[];
 
     // This function creates the service implementation. It will be wrapped in an Effect for the Layer.
-    function createNostrServiceInternal(config: NostrServiceConfig): NostrService {
+    function createNostrServiceInternal(
+      config: NostrServiceConfig,
+    ): NostrService {
       let poolInstance: SimplePool | null = null;
 
       const getPoolEffect = Effect.try({
         try: () => {
           if (!poolInstance) {
-            poolInstance = new SimplePool({ eoseSubTimeout: 5000, getTimeout: config.requestTimeoutMs / 2 });
+            poolInstance = new SimplePool({
+              eoseSubTimeout: 5000,
+              getTimeout: config.requestTimeoutMs / 2,
+            });
           }
           return poolInstance;
         },
-        catch: (error) => new NostrPoolError({ message: "Failed to initialize Nostr pool", cause: error }),
+        catch: (error) =>
+          new NostrPoolError({
+            message: "Failed to initialize Nostr pool",
+            cause: error,
+          }),
       });
 
       return {
         getPool: () => getPoolEffect,
 
         listEvents: (filters: NostrFilter[]) =>
-          Effect.gen(function*(_) {
+          Effect.gen(function* (_) {
             const pool = yield* _(getPoolEffect);
             const events = yield* _(
               Effect.tryPromise({
                 try: () => pool.list(config.relays as string[], filters),
-                catch: (error) => new NostrRequestError({ message: "Failed to list events from relays", cause: error }),
+                catch: (error) =>
+                  new NostrRequestError({
+                    message: "Failed to list events from relays",
+                    cause: error,
+                  }),
               }),
               Effect.timeout(config.requestTimeoutMs),
               Effect.mapError((e) => {
                 if (e._tag === "TimeoutException") {
-                  return new NostrRequestError({ message: `Relay request timed out after ${config.requestTimeoutMs}ms`, cause: e });
+                  return new NostrRequestError({
+                    message: `Relay request timed out after ${config.requestTimeoutMs}ms`,
+                    cause: e,
+                  });
                 }
                 return e as NostrRequestError;
-              })
+              }),
             );
-            return asNostrEventArray(events).sort((a, b) => b.created_at - a.created_at);
+            return asNostrEventArray(events).sort(
+              (a, b) => b.created_at - a.created_at,
+            );
           }),
 
         publishEvent: (event: NostrEvent) =>
-          Effect.gen(function*(_) {
+          Effect.gen(function* (_) {
             const pool = yield* _(getPoolEffect);
-            const publishPromises = pool.publish(config.relays as string[], event);
+            const publishPromises = pool.publish(
+              config.relays as string[],
+              event,
+            );
             // Promise.allSettled is better to know which relays succeeded/failed
-            const results = yield* _(Effect.tryPromise({
-              try: () => Promise.allSettled(publishPromises),
-              catch: (error) => new NostrPublishError({ message: "Failed to publish event due to underlying error", cause: error }),
-            }));
+            const results = yield* _(
+              Effect.tryPromise({
+                try: () => Promise.allSettled(publishPromises),
+                catch: (error) =>
+                  new NostrPublishError({
+                    message: "Failed to publish event due to underlying error",
+                    cause: error,
+                  }),
+              }),
+            );
 
-            const failedRelays = results.filter(r => r.status === 'rejected');
+            const failedRelays = results.filter((r) => r.status === "rejected");
             if (failedRelays.length > 0) {
-              const reasons = failedRelays.map(fr => (fr as PromiseRejectedResult).reason?.toString() || "unknown error").join(", ");
-              return yield* _(Effect.fail(new NostrPublishError({
-                message: `Failed to publish to ${failedRelays.length} out of ${config.relays.length} relays. Reasons: ${reasons}`,
-                cause: failedRelays.map(fr => (fr as PromiseRejectedResult).reason)
-              })));
+              const reasons = failedRelays
+                .map(
+                  (fr) =>
+                    (fr as PromiseRejectedResult).reason?.toString() ||
+                    "unknown error",
+                )
+                .join(", ");
+              return yield* _(
+                Effect.fail(
+                  new NostrPublishError({
+                    message: `Failed to publish to ${failedRelays.length} out of ${config.relays.length} relays. Reasons: ${reasons}`,
+                    cause: failedRelays.map(
+                      (fr) => (fr as PromiseRejectedResult).reason,
+                    ),
+                  }),
+                ),
+              );
             }
             // If all settled promises are fulfilled, it means success or individual relays handled their errors internally.
             // nostr-tools' publish returns Promise<string> for failure reason, or Promise<void> for success for each relay.
@@ -826,7 +1020,11 @@ wss://nostr-pub.wellorder.net/
                 poolInstance = null;
               }
             },
-            catch: (error) => new NostrPoolError({ message: "Failed to cleanup Nostr pool", cause: error }),
+            catch: (error) =>
+              new NostrPoolError({
+                message: "Failed to cleanup Nostr pool",
+                cause: error,
+              }),
           }),
       };
     }
@@ -834,36 +1032,44 @@ wss://nostr-pub.wellorder.net/
     // Live Layer for NostrService
     export const NostrServiceLive = Layer.effect(
       NostrService,
-      Effect.flatMap(NostrServiceConfigTag, (config) => Effect.succeed(createNostrServiceInternal(config)))
+      Effect.flatMap(NostrServiceConfigTag, (config) =>
+        Effect.succeed(createNostrServiceInternal(config)),
+      ),
     );
     ```
-    *   **Action**: Create this file with the above content.
-    *   **Note**: The `publishEvent` implementation with `Promise.allSettled` is a robust way to handle multiple relay publish attempts.
+
+    - **Action**: Create this file with the above content.
+    - **Note**: The `publishEvent` implementation with `Promise.allSettled` is a robust way to handle multiple relay publish attempts.
 
 2.  **Create `src/services/nostr/index.ts`:**
 
     ```typescript
     // src/services/nostr/index.ts
-    export * from './NostrService';
-    export * from './NostrServiceImpl';
+    export * from "./NostrService";
+    export * from "./NostrServiceImpl";
     ```
-    *   **Action**: Create this file.
+
+    - **Action**: Create this file.
 
 ---
 
 **Phase 3: Implement Unit Tests for NostrService**
 
 1.  **Create Directory Structure:**
-    *   If it doesn't exist, create: `src/tests/unit/services/nostr/`
+
+    - If it doesn't exist, create: `src/tests/unit/services/nostr/`
 
 2.  **Create `src/tests/unit/services/nostr/NostrService.test.ts`:**
 
     ```typescript
     // src/tests/unit/services/nostr/NostrService.test.ts
-    import { describe, it, expect, vi, beforeEach } from 'vitest';
-    import { Effect, Layer, Exit, Cause, Option } from 'effect';
-    import { SimplePool } from 'nostr-tools/pool';
-    import type { Event as NostrToolsEvent, Filter as NostrToolsFilter } from 'nostr-tools/pure';
+    import { describe, it, expect, vi, beforeEach } from "vitest";
+    import { Effect, Layer, Exit, Cause, Option } from "effect";
+    import { SimplePool } from "nostr-tools/pool";
+    import type {
+      Event as NostrToolsEvent,
+      Filter as NostrToolsFilter,
+    } from "nostr-tools/pure";
     import {
       NostrService,
       NostrServiceLive,
@@ -873,11 +1079,11 @@ wss://nostr-pub.wellorder.net/
       NostrRequestError,
       NostrPublishError,
       type NostrEvent,
-      type NostrFilter
-    } from '@/services/nostr';
+      type NostrFilter,
+    } from "@/services/nostr";
 
     // Mock nostr-tools/pool
-    vi.mock('nostr-tools/pool', () => {
+    vi.mock("nostr-tools/pool", () => {
       // This is the mock constructor for SimplePool
       const MockSimplePool = vi.fn();
       MockSimplePool.prototype.list = vi.fn();
@@ -889,20 +1095,21 @@ wss://nostr-pub.wellorder.net/
 
     // Get typed instances of the mocks
     const MockedSimplePool = SimplePool as vi.MockedClass<typeof SimplePool>;
-    let mockPoolListFn: vi.Mocked<InstanceType<typeof SimplePool>['list']>;
-    let mockPoolPublishFn: vi.Mocked<InstanceType<typeof SimplePool>['publish']>;
-    let mockPoolCloseFn: vi.Mocked<InstanceType<typeof SimplePool>['close']>;
-
+    let mockPoolListFn: vi.Mocked<InstanceType<typeof SimplePool>["list"]>;
+    let mockPoolPublishFn: vi.Mocked<
+      InstanceType<typeof SimplePool>["publish"]
+    >;
+    let mockPoolCloseFn: vi.Mocked<InstanceType<typeof SimplePool>["close"]>;
 
     // Test Config Layer
     const TestNostrConfigLayer = Layer.succeed(
       NostrServiceConfigTag,
-      { relays: ["wss://test.relay"], requestTimeoutMs: 500 } // Short timeout for tests
+      { relays: ["wss://test.relay"], requestTimeoutMs: 500 }, // Short timeout for tests
     );
 
     // Test Service Layer (provides NostrService with test config)
     const TestNostrServiceLayer = NostrServiceLive.pipe(
-      Layer.provide(TestNostrConfigLayer)
+      Layer.provide(TestNostrConfigLayer),
     );
 
     beforeEach(() => {
@@ -913,133 +1120,228 @@ wss://nostr-pub.wellorder.net/
       // The constructor is mocked, so `new SimplePool()` returns the mocked instance.
       const poolInstance = new MockedSimplePool();
       mockPoolListFn = poolInstance.list as vi.Mocked<typeof poolInstance.list>;
-      mockPoolPublishFn = poolInstance.publish as vi.Mocked<typeof poolInstance.publish>;
-      mockPoolCloseFn = poolInstance.close as vi.Mocked<typeof poolInstance.close>;
+      mockPoolPublishFn = poolInstance.publish as vi.Mocked<
+        typeof poolInstance.publish
+      >;
+      mockPoolCloseFn = poolInstance.close as vi.Mocked<
+        typeof poolInstance.close
+      >;
     });
 
-    describe('NostrService', () => {
-      describe('getPool', () => {
-        it('should initialize and return a SimplePool instance', async () => {
-          const program = Effect.flatMap(NostrService, s => s.getPool());
-          const pool = await Effect.runPromise(Effect.provide(program, TestNostrServiceLayer));
+    describe("NostrService", () => {
+      describe("getPool", () => {
+        it("should initialize and return a SimplePool instance", async () => {
+          const program = Effect.flatMap(NostrService, (s) => s.getPool());
+          const pool = await Effect.runPromise(
+            Effect.provide(program, TestNostrServiceLayer),
+          );
 
           expect(MockedSimplePool).toHaveBeenCalledTimes(1); // Constructor called
           expect(pool).toBeInstanceOf(MockedSimplePool); // Returns an instance of our mock
         });
 
-        it('should return the same pool instance on subsequent calls', async () => {
-          const program = Effect.gen(function*(_) {
+        it("should return the same pool instance on subsequent calls", async () => {
+          const program = Effect.gen(function* (_) {
             const service = yield* _(NostrService);
             const pool1 = yield* _(service.getPool());
             const pool2 = yield* _(service.getPool());
             return { pool1, pool2 };
           });
-          const { pool1, pool2 } = await Effect.runPromise(Effect.provide(program, TestNostrServiceLayer));
+          const { pool1, pool2 } = await Effect.runPromise(
+            Effect.provide(program, TestNostrServiceLayer),
+          );
           expect(pool1).toBe(pool2);
           expect(MockedSimplePool).toHaveBeenCalledTimes(1); // Constructor called only once
         });
       });
 
-      describe('listEvents', () => {
-        it('should fetch and sort events from relays', async () => {
-          const mockEventsInput: NostrToolsEvent[] = [ // Use NostrToolsEvent for mocking
-            { id: 'ev2', kind: 1, content: 'Event 2', created_at: 200, pubkey: 'pk2', sig: 's2', tags: [] },
-            { id: 'ev1', kind: 1, content: 'Event 1', created_at: 100, pubkey: 'pk1', sig: 's1', tags: [] },
-            { id: 'ev3', kind: 1, content: 'Event 3', created_at: 300, pubkey: 'pk3', sig: 's3', tags: [] },
+      describe("listEvents", () => {
+        it("should fetch and sort events from relays", async () => {
+          const mockEventsInput: NostrToolsEvent[] = [
+            // Use NostrToolsEvent for mocking
+            {
+              id: "ev2",
+              kind: 1,
+              content: "Event 2",
+              created_at: 200,
+              pubkey: "pk2",
+              sig: "s2",
+              tags: [],
+            },
+            {
+              id: "ev1",
+              kind: 1,
+              content: "Event 1",
+              created_at: 100,
+              pubkey: "pk1",
+              sig: "s1",
+              tags: [],
+            },
+            {
+              id: "ev3",
+              kind: 1,
+              content: "Event 3",
+              created_at: 300,
+              pubkey: "pk3",
+              sig: "s3",
+              tags: [],
+            },
           ];
           mockPoolListFn.mockResolvedValue(mockEventsInput);
 
           const filters: NostrFilter[] = [{ kinds: [1] }];
-          const program = Effect.flatMap(NostrService, s => s.listEvents(filters));
-          const events = await Effect.runPromise(Effect.provide(program, TestNostrServiceLayer));
+          const program = Effect.flatMap(NostrService, (s) =>
+            s.listEvents(filters),
+          );
+          const events = await Effect.runPromise(
+            Effect.provide(program, TestNostrServiceLayer),
+          );
 
-          expect(mockPoolListFn).toHaveBeenCalledWith(["wss://test.relay"], filters);
+          expect(mockPoolListFn).toHaveBeenCalledWith(
+            ["wss://test.relay"],
+            filters,
+          );
           expect(events).toHaveLength(3);
-          expect(events[0].id).toBe('ev3'); // Sorted by created_at descending
-          expect(events[1].id).toBe('ev2');
-          expect(events[2].id).toBe('ev1');
+          expect(events[0].id).toBe("ev3"); // Sorted by created_at descending
+          expect(events[1].id).toBe("ev2");
+          expect(events[2].id).toBe("ev1");
         });
 
-        it('should return NostrRequestError on pool.list failure', async () => {
-          mockPoolListFn.mockRejectedValue(new Error("Relay connection failed"));
+        it("should return NostrRequestError on pool.list failure", async () => {
+          mockPoolListFn.mockRejectedValue(
+            new Error("Relay connection failed"),
+          );
           const filters: NostrFilter[] = [{ kinds: [1] }];
-          const program = Effect.flatMap(NostrService, s => s.listEvents(filters));
+          const program = Effect.flatMap(NostrService, (s) =>
+            s.listEvents(filters),
+          );
 
-          const exit = await Effect.runPromiseExit(Effect.provide(program, TestNostrServiceLayer));
+          const exit = await Effect.runPromiseExit(
+            Effect.provide(program, TestNostrServiceLayer),
+          );
           expect(Exit.isFailure(exit)).toBe(true);
           if (Exit.isFailure(exit)) {
-            const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
+            const error = Cause.failureOption(exit.cause).pipe(
+              Option.getOrThrow,
+            );
             expect(error).toBeInstanceOf(NostrRequestError);
             expect(error.message).toBe("Failed to list events from relays");
           }
         });
 
-        it('should timeout if pool.list takes too long', async () => {
-          mockPoolListFn.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve([]), 1000)));
+        it("should timeout if pool.list takes too long", async () => {
+          mockPoolListFn.mockImplementation(
+            () => new Promise((resolve) => setTimeout(() => resolve([]), 1000)),
+          );
 
           const filters: NostrFilter[] = [{ kinds: [1] }];
-          const program = Effect.flatMap(NostrService, s => s.listEvents(filters));
+          const program = Effect.flatMap(NostrService, (s) =>
+            s.listEvents(filters),
+          );
 
-          const exit = await Effect.runPromiseExit(Effect.provide(program, TestNostrServiceLayer));
+          const exit = await Effect.runPromiseExit(
+            Effect.provide(program, TestNostrServiceLayer),
+          );
           expect(Exit.isFailure(exit)).toBe(true);
           if (Exit.isFailure(exit)) {
-            const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
+            const error = Cause.failureOption(exit.cause).pipe(
+              Option.getOrThrow,
+            );
             expect(error).toBeInstanceOf(NostrRequestError);
-            expect(error.message).toContain("Relay request timed out after 500ms");
+            expect(error.message).toContain(
+              "Relay request timed out after 500ms",
+            );
           }
         });
       });
 
-      describe('publishEvent', () => {
-        const eventToPublish: NostrEvent = { id: 'pub-ev1', kind: 1, content: 'Publish test', created_at: 400, pubkey: 'pk-pub', sig: 's-pub', tags: [] };
+      describe("publishEvent", () => {
+        const eventToPublish: NostrEvent = {
+          id: "pub-ev1",
+          kind: 1,
+          content: "Publish test",
+          created_at: 400,
+          pubkey: "pk-pub",
+          sig: "s-pub",
+          tags: [],
+        };
 
-        it('should publish an event to relays successfully', async () => {
-          mockPoolPublishFn.mockReturnValue([Promise.resolve("wss://test.relay/success" as any)]); // Simulate success from one relay
+        it("should publish an event to relays successfully", async () => {
+          mockPoolPublishFn.mockReturnValue([
+            Promise.resolve("wss://test.relay/success" as any),
+          ]); // Simulate success from one relay
 
-          const program = Effect.flatMap(NostrService, s => s.publishEvent(eventToPublish));
-          const exit = await Effect.runPromiseExit(Effect.provide(program, TestNostrServiceLayer));
+          const program = Effect.flatMap(NostrService, (s) =>
+            s.publishEvent(eventToPublish),
+          );
+          const exit = await Effect.runPromiseExit(
+            Effect.provide(program, TestNostrServiceLayer),
+          );
 
           expect(Exit.isSuccess(exit)).toBe(true);
-          expect(mockPoolPublishFn).toHaveBeenCalledWith(["wss://test.relay"], eventToPublish);
+          expect(mockPoolPublishFn).toHaveBeenCalledWith(
+            ["wss://test.relay"],
+            eventToPublish,
+          );
         });
 
-        it('should return NostrPublishError if all relays fail to publish', async () => {
-          mockPoolPublishFn.mockReturnValue([Promise.reject("Failed at wss://test.relay") as any]);
+        it("should return NostrPublishError if all relays fail to publish", async () => {
+          mockPoolPublishFn.mockReturnValue([
+            Promise.reject("Failed at wss://test.relay") as any,
+          ]);
 
-          const program = Effect.flatMap(NostrService, s => s.publishEvent(eventToPublish));
-          const exit = await Effect.runPromiseExit(Effect.provide(program, TestNostrServiceLayer));
+          const program = Effect.flatMap(NostrService, (s) =>
+            s.publishEvent(eventToPublish),
+          );
+          const exit = await Effect.runPromiseExit(
+            Effect.provide(program, TestNostrServiceLayer),
+          );
 
           expect(Exit.isFailure(exit)).toBe(true);
           if (Exit.isFailure(exit)) {
-            const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
+            const error = Cause.failureOption(exit.cause).pipe(
+              Option.getOrThrow,
+            );
             expect(error).toBeInstanceOf(NostrPublishError);
-            expect(error.message).toContain("Failed to publish to 1 out of 1 relays");
+            expect(error.message).toContain(
+              "Failed to publish to 1 out of 1 relays",
+            );
           }
         });
       });
 
-      describe('cleanupPool', () => {
-        it('should close the pool connection if initialized', async () => {
+      describe("cleanupPool", () => {
+        it("should close the pool connection if initialized", async () => {
           // First, ensure the pool is "initialized" by calling getPool
-          await Effect.runPromise(Effect.provide(Effect.flatMap(NostrService, s => s.getPool()), TestNostrServiceLayer));
+          await Effect.runPromise(
+            Effect.provide(
+              Effect.flatMap(NostrService, (s) => s.getPool()),
+              TestNostrServiceLayer,
+            ),
+          );
 
-          const program = Effect.flatMap(NostrService, s => s.cleanupPool());
-          await Effect.runPromise(Effect.provide(program, TestNostrServiceLayer));
+          const program = Effect.flatMap(NostrService, (s) => s.cleanupPool());
+          await Effect.runPromise(
+            Effect.provide(program, TestNostrServiceLayer),
+          );
 
           expect(mockPoolCloseFn).toHaveBeenCalledWith(["wss://test.relay"]);
         });
 
-        it('should not throw if pool was not initialized', async () => {
-          const program = Effect.flatMap(NostrService, s => s.cleanupPool());
-          const exit = await Effect.runPromiseExit(Effect.provide(program, TestNostrServiceLayer));
+        it("should not throw if pool was not initialized", async () => {
+          const program = Effect.flatMap(NostrService, (s) => s.cleanupPool());
+          const exit = await Effect.runPromiseExit(
+            Effect.provide(program, TestNostrServiceLayer),
+          );
           expect(Exit.isSuccess(exit)).toBe(true);
           expect(mockPoolCloseFn).not.toHaveBeenCalled();
         });
       });
     });
     ```
-    *   **Action**: Create this file with the above content.
-    *   **Note**: The mock for `nostr-tools/pool` is crucial. We mock the `SimplePool` class and its methods. `beforeEach` ensures mocks are reset.
+
+    - **Action**: Create this file with the above content.
+    - **Note**: The mock for `nostr-tools/pool` is crucial. We mock the `SimplePool` class and its methods. `beforeEach` ensures mocks are reset.
 
 ---
 
@@ -1069,16 +1371,16 @@ The UI agent will perform the actual integration. However, here's how the servic
     async function fetchNip90JobRequests(): Promise<NostrEvent[]> {
       const nip90RequestKinds = Array.from(
         { length: NIP90_REQUEST_KINDS_MAX - NIP90_REQUEST_KINDS_MIN + 1 },
-        (_, i) => NIP90_REQUEST_KINDS_MIN + i
+        (_, i) => NIP90_REQUEST_KINDS_MIN + i,
       );
       const filters: NostrFilter[] = [{ kinds: nip90RequestKinds, limit: 20 }];
 
       // Create the full layer for NostrService including its config dependency
       const fullNostrServiceLayer = NostrServiceLive.pipe(
-        Layer.provide(DefaultNostrServiceConfigLayer)
+        Layer.provide(DefaultNostrServiceConfigLayer),
       );
 
-      const program = Effect.gen(function*(_) {
+      const program = Effect.gen(function* (_) {
         const nostr = yield* _(NostrService);
         // getPool() is called implicitly by listEvents if needed, or can be called explicitly
         // yield* _(nostr.getPool()); // Ensure pool is ready
@@ -1089,25 +1391,42 @@ The UI agent will perform the actual integration. However, here's how the servic
     }
 
     // A simple component to display one event (conceptual)
-    const EventItem: React.FC<{event: NostrEvent}> = ({ event }) => {
+    const EventItem: React.FC<{ event: NostrEvent }> = ({ event }) => {
       // Example: use NIP19Service to encode pubkey
       const { data: npub } = useQuery({
-        queryKey: ['npub', event.pubkey],
-        queryFn: () => Effect.runPromise(
-          Effect.provide(
-            Effect.flatMap(NIP19Service, nip19 => nip19.encodeNpub(event.pubkey)),
-            NIP19ServiceLive
-          )
-        )
+        queryKey: ["npub", event.pubkey],
+        queryFn: () =>
+          Effect.runPromise(
+            Effect.provide(
+              Effect.flatMap(NIP19Service, (nip19) =>
+                nip19.encodeNpub(event.pubkey),
+              ),
+              NIP19ServiceLive,
+            ),
+          ),
       });
 
       return (
-        <div style={{ border: '1px solid #ccc', margin: '8px', padding: '8px' }}>
-          <p><strong>ID:</strong> {event.id.substring(0,10)}...</p>
-          <p><strong>Pubkey:</strong> {npub || event.pubkey.substring(0,10) + '...'}</p>
-          <p><strong>Kind:</strong> {event.kind}</p>
-          <p><strong>Created:</strong> {new Date(event.created_at * 1000).toLocaleString()}</p>
-          <p><strong>Content:</strong> <pre>{event.content}</pre></p>
+        <div
+          style={{ border: "1px solid #ccc", margin: "8px", padding: "8px" }}
+        >
+          <p>
+            <strong>ID:</strong> {event.id.substring(0, 10)}...
+          </p>
+          <p>
+            <strong>Pubkey:</strong>{" "}
+            {npub || event.pubkey.substring(0, 10) + "..."}
+          </p>
+          <p>
+            <strong>Kind:</strong> {event.kind}
+          </p>
+          <p>
+            <strong>Created:</strong>{" "}
+            {new Date(event.created_at * 1000).toLocaleString()}
+          </p>
+          <p>
+            <strong>Content:</strong> <pre>{event.content}</pre>
+          </p>
           <details>
             <summary>Tags ({event.tags.length})</summary>
             <pre>{JSON.stringify(event.tags, null, 2)}</pre>
@@ -1117,8 +1436,13 @@ The UI agent will perform the actual integration. However, here's how the servic
     };
 
     export function Nip90EventListDisplay() {
-      const { data: events, isLoading, error, refetch } = useQuery<NostrEvent[], Error>({
-        queryKey: ['nip90JobRequests'],
+      const {
+        data: events,
+        isLoading,
+        error,
+        refetch,
+      } = useQuery<NostrEvent[], Error>({
+        queryKey: ["nip90JobRequests"],
         queryFn: fetchNip90JobRequests,
         staleTime: 1000 * 60 * 1, // 1 minute
       });
@@ -1130,7 +1454,7 @@ The UI agent will perform the actual integration. However, here's how the servic
         <div>
           <button onClick={() => refetch()}>Refresh NIP-90 Events</button>
           {events && events.length > 0 ? (
-            events.map(event => <EventItem key={event.id} event={event} />)
+            events.map((event) => <EventItem key={event.id} event={event} />)
           ) : (
             <p>No NIP-90 job requests found.</p>
           )}
@@ -1138,7 +1462,8 @@ The UI agent will perform the actual integration. However, here's how the servic
       );
     }
     ```
-    *   **UI Agent Task**: The UI agent will integrate `Nip90EventListDisplay` (or similar logic) into `HomePage.tsx` or another appropriate place, ensuring `QueryClientProvider` is set up.
+
+    - **UI Agent Task**: The UI agent will integrate `Nip90EventListDisplay` (or similar logic) into `HomePage.tsx` or another appropriate place, ensuring `QueryClientProvider` is set up.
 
 ---
 

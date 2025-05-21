@@ -1,9 +1,10 @@
-import { Pane } from '@/types/pane';
-import { PANE_MARGIN } from '../constants';
+import { Pane } from "@/types/pane";
+import { PANE_MARGIN } from "../constants";
 
 export function ensurePaneIsVisible(pane: Pane): Pane {
-  const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
-  const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+  const screenWidth = typeof window !== "undefined" ? window.innerWidth : 1920;
+  const screenHeight =
+    typeof window !== "undefined" ? window.innerHeight : 1080;
 
   let { x, y, width, height } = pane;
 

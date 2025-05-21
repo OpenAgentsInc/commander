@@ -15,9 +15,10 @@ export async function getCurrentTheme(): Promise<ThemePreferences> {
   };
 }
 
-export async function setTheme(_newTheme: ThemeMode) { // newTheme parameter is ignored
+export async function setTheme(_newTheme: ThemeMode) {
+  // newTheme parameter is ignored
   await window.themeMode.dark(); // Instruct main process to set nativeTheme to dark
-  updateDocumentTheme(true);     // Apply 'dark' class to HTML element
+  updateDocumentTheme(true); // Apply 'dark' class to HTML element
   localStorage.setItem(THEME_KEY, "dark"); // Persist 'dark' as the chosen theme
 }
 

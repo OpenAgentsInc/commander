@@ -25,6 +25,7 @@ We implemented a multi-layered approach to ensure the IPC handlers are properly 
 ### 1. Early Registration in Main Process
 
 1. Modified `main.ts` to:
+
    - Import `addOllamaEventListeners` directly
    - Call `addOllamaEventListeners()` at the module level (before `createWindow()`)
    - Add detailed logging for debugging
@@ -37,6 +38,7 @@ We implemented a multi-layered approach to ensure the IPC handlers are properly 
 ### 2. Prevent Double Registration
 
 Modified `ollama-listeners.ts` to:
+
 - Add a global flag `__ollamaEventListenersRegistered` to track if listeners have already been registered
 - Check this flag before attempting to register listeners again
 - Add enhanced error handling with more detailed logging
@@ -44,6 +46,7 @@ Modified `ollama-listeners.ts` to:
 ### 3. Improved Error Handling
 
 Enhanced error handling in `ollama-listeners.ts`:
+
 - Added a fallback service layer if the primary layer initialization fails
 - Added a last-resort emergency fallback handler for the status check
 - Added detailed error logging with stack traces
@@ -52,6 +55,7 @@ Enhanced error handling in `ollama-listeners.ts`:
 ### 4. Client-Side Mitigations
 
 Modified the SellComputePane component to:
+
 - Add a 1-second delay before checking Ollama status to ensure IPC handlers are registered
 - Add a fallback mechanism to try direct API access if IPC fails
 - Improve error handling and logging
@@ -68,6 +72,7 @@ Modified the SellComputePane component to:
 ## Expected Results
 
 This comprehensive approach should resolve the "No handler registered" error by ensuring:
+
 1. The handlers are registered before the renderer needs them
 2. There are fallbacks in place if registration fails
 3. The renderer process has mechanisms to handle IPC failures gracefully
@@ -79,6 +84,7 @@ This comprehensive approach should resolve the "No handler registered" error by 
 After resolving the IPC registration timing issue, we encountered and fixed two TypeScript errors:
 
 1. **Incorrect Error Type in Fallback Service:**
+
    - The fallback implementation of `generateChatCompletion` was returning a generic `Error` object
    - Changed to return properly typed `OllamaHttpError` objects to match the interface requirements
 

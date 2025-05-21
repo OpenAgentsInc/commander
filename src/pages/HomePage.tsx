@@ -7,16 +7,16 @@ import {
   type HandLandmarks,
 } from "@/components/hands/handPoseTypes";
 import { usePaneStore } from "@/stores/pane";
-import { useShallow } from 'zustand/react/shallow';
+import { useShallow } from "zustand/react/shallow";
 import { Hotbar } from "@/components/hud/Hotbar";
 import BitcoinBalanceDisplay from "@/components/hud/BitcoinBalanceDisplay";
-import { KeyboardControls } from '@react-three/drei';
+import { KeyboardControls } from "@react-three/drei";
 // Create our own type that matches the one from the library
 interface KeyboardControlsState {
   [key: string]: boolean;
 }
-import { AppControls, appControlsMap } from '@/controls';
-import { isMacOs } from '@/utils/os';
+import { AppControls, appControlsMap } from "@/controls";
+import { isMacOs } from "@/utils/os";
 
 interface HandDataContext {
   activeHandPose: HandPose;
@@ -57,7 +57,7 @@ export default function HomePage() {
       toggleWalletPane: state.toggleWalletPane,
       toggleDvmJobHistoryPane: state.toggleDvmJobHistoryPane,
       toggleAgentChatPane: state.toggleAgentChatPane,
-    }))
+    })),
   );
 
   // Wrap toggleHandTracking in useCallback to prevent unnecessary re-renders
@@ -163,7 +163,15 @@ export default function HomePage() {
         paneStartPosRef.current = null;
       }
     }
-  }, [isHandTrackingActive, handData, draggingPaneId, panes, currentActivePaneId, bringPaneToFront, updatePanePosition]);
+  }, [
+    isHandTrackingActive,
+    handData,
+    draggingPaneId,
+    panes,
+    currentActivePaneId,
+    bringPaneToFront,
+    updatePanePosition,
+  ]);
 
   // Set up a global keydown handler since KeyboardControls doesn't always provide the event
   useEffect(() => {
@@ -171,28 +179,28 @@ export default function HomePage() {
       // Only handle modifier + digit combinations
       const modifier = isMacOs() ? event.metaKey : event.ctrlKey;
       if (!modifier) return;
-      
+
       const digit = parseInt(event.key);
       if (isNaN(digit) || digit < 1 || digit > 9) return;
-      
+
       event.preventDefault();
-      
+
       // Call the appropriate toggle function based on the digit
       switch (digit) {
         case 1:
-          console.log('Keyboard: Toggle Sell Compute');
+          console.log("Keyboard: Toggle Sell Compute");
           toggleSellComputePane();
           break;
         case 2:
-          console.log('Keyboard: Toggle Wallet Pane');
+          console.log("Keyboard: Toggle Wallet Pane");
           toggleWalletPane();
           break;
         case 3:
-          console.log('Keyboard: Toggle DVM Job History Pane');
+          console.log("Keyboard: Toggle DVM Job History Pane");
           toggleDvmJobHistoryPane();
           break;
         case 4:
-          console.log('Keyboard: Toggle Agent Chat Pane');
+          console.log("Keyboard: Toggle Agent Chat Pane");
           toggleAgentChatPane();
           break;
         case 5:
@@ -202,30 +210,36 @@ export default function HomePage() {
           // No operation for slots 5-8
           break;
         case 9:
-          console.log('Keyboard: Toggle Hand Tracking');
+          console.log("Keyboard: Toggle Hand Tracking");
           toggleHandTracking();
           break;
       }
     };
-    
+
     // Add global event listener
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    
+    window.addEventListener("keydown", handleGlobalKeyDown);
+
     // Cleanup
     return () => {
-      window.removeEventListener('keydown', handleGlobalKeyDown);
+      window.removeEventListener("keydown", handleGlobalKeyDown);
     };
-  }, [toggleSellComputePane, toggleWalletPane, toggleHandTracking, toggleDvmJobHistoryPane, toggleAgentChatPane]);
+  }, [
+    toggleSellComputePane,
+    toggleWalletPane,
+    toggleHandTracking,
+    toggleDvmJobHistoryPane,
+    toggleAgentChatPane,
+  ]);
 
   // Handler for keyboard shortcuts (kept as a backup, but we'll primarily use the global handler)
   const handleKeyboardChange = useCallback(
     (actionName: string, pressed: boolean, kbdState: KeyboardControlsState) => {
       // This function is now a fallback and mainly kept for interface compatibility
       if (!pressed) return;
-      
+
       // Handle different action types through the above global handler instead
     },
-    []
+    [],
   );
 
   return (

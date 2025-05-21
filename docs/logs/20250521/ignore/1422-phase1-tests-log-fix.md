@@ -7,11 +7,13 @@ After implementing the tests for Phase 1, I encountered several issues that need
 The main issue was with the Context.Tag usage in the service test files. When accessing service tags, I was incorrectly using `.Tag` property which doesn't exist. The Context.GenericTag is already the tag itself, so direct usage is correct.
 
 ### Fixed in:
+
 - AgentLanguageModel.test.ts
 - AgentChatSession.test.ts
 - AgentToolkitManager.test.ts
 
 ### What changed:
+
 ```diff
 - AgentLanguageModel.Tag
 + AgentLanguageModel
@@ -33,10 +35,12 @@ The main issue was with the Context.Tag usage in the service test files. When ac
 The test assertions using Effect.isFailure(result) on Effect.runPromiseExit responses were failing. The returned exit object had a different structure than expected.
 
 ### Fixed in:
+
 - Changed error testing approach to use try/catch with Effect.runPromise instead of Effect.runPromiseExit
 - Updated all tests to use this simpler pattern that works correctly
 
 ### What changed:
+
 ```diff
 - const result = await Effect.runPromiseExit(program.pipe(Effect.provide(testLayer)));
 - expect(Effect.isFailure(result)).toBe(true);
@@ -58,9 +62,11 @@ The test assertions using Effect.isFailure(result) on Effect.runPromiseExit resp
 When testing methods that needed setup (like adding messages to history before getting them), nesting Effect operations was causing issues.
 
 ### Fixed in:
+
 - AgentChatSession.test.ts
 
 ### What changed:
+
 - Instead of using nested Effect operations, directly called the mock service methods for setup
 - Simplified the test approach by directly manipulating the mock service state
 
@@ -83,14 +89,16 @@ When testing methods that needed setup (like adding messages to history before g
 For error testing, needed to create mock errors that extend the appropriate error classes.
 
 ### Fixed in:
+
 - AgentLanguageModel.test.ts
 
 ### What changed:
+
 ```typescript
 // Create a mock error for testing
 class MockAiError extends AIGenericError {
   provider: string;
-  
+
   constructor() {
     super({
       message: "Mock AI Error",
@@ -106,9 +114,11 @@ class MockAiError extends AIGenericError {
 Instead of importing external types from '@effect/ai' packages (which could cause issues in testing), defined local mock types.
 
 ### Fixed in:
+
 - AgentLanguageModel.test.ts
 
 ### What changed:
+
 ```typescript
 // Mock AiResponse since we're not importing from @effect/ai
 type AiResponse = {

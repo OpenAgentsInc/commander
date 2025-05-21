@@ -14,12 +14,12 @@ export default function NavigationMenu() {
   const openSecondPagePane = usePaneStore((state) => state.openSecondPagePane);
 
   return (
-    <NavigationMenuBase className="px-2 font-mono text-muted-foreground">
+    <NavigationMenuBase className="text-muted-foreground px-2 font-mono">
       <NavigationMenuList>
         <NavigationMenuItem>
           {/* Home button can just reset HUD or do nothing for now */}
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             className={navigationMenuTriggerStyle()}
             onClick={() => console.log("Home clicked")}
           >
@@ -27,8 +27,8 @@ export default function NavigationMenu() {
           </Button>
         </NavigationMenuItem>
         <NavigationMenuItem>
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             className={navigationMenuTriggerStyle()}
             onClick={() => openSecondPagePane()}
           >

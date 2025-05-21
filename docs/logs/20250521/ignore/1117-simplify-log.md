@@ -1,6 +1,7 @@
 # UI Simplification for "Compute Market" Launch - Implementation Log
 
 ## Overview
+
 This log documents the implementation of UI simplifications for the "Compute Market" launch, focusing on the core "GO ONLINE, EARN BITCOIN" workflow by hiding extraneous UI elements and adding a Bitcoin balance display.
 
 ## Implementation Steps
@@ -61,6 +62,7 @@ These changes effectively focus the user experience on the core "GO ONLINE, EARN
 ## Summary of Files Modified
 
 1. Created new files:
+
    - `/src/components/hud/BitcoinBalanceDisplay.tsx` - New Bitcoin balance display component
 
 2. Modified existing files:
@@ -76,6 +78,7 @@ All code has been implemented according to the requirements, focusing on the "GO
 After the initial implementation, we made the following changes:
 
 1. Updated the wallet display in `BitcoinBalanceDisplay.tsx`:
+
    - Added placeholder for wallet pane functionality with comments and debug logging
    - Temporarily still opens Sell Compute pane until wallet pane is implemented
    - Removed the lightning bolt symbol and "sats" text from the display
@@ -83,6 +86,7 @@ After the initial implementation, we made the following changes:
    - Fixed redundant Bitcoin symbols by only showing one ₿ followed by the balance
 
 2. Re-added the hand tracking button to the Hotbar:
+
    - Added it as slot number 3
    - Moved the Reset HUD button to slot 4
    - Adjusted the number of empty placeholder slots from 6 to 5

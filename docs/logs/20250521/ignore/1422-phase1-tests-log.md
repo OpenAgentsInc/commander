@@ -37,7 +37,7 @@ Based on my review, the implementation is already quite comprehensive. I'll need
 I reviewed the existing `runtime.test.ts` file and found that it already contains the appropriate test for building the `FullAppLayer`:
 
 ```typescript
-it('should successfully build the FullAppLayer context without missing services', async () => {
+it("should successfully build the FullAppLayer context without missing services", async () => {
   // This program attempts to build the full application context.
   // If any service is missing from the layer composition, Layer.toRuntime will fail.
   const program = Layer.toRuntime(FullAppLayer).pipe(Effect.scoped);
@@ -55,6 +55,7 @@ The test has proper mocking of problematic dependencies like SparkSDK. This is e
 ### 2. ProviderConfig.test.ts Implementation
 
 Created a comprehensive test suite for all provider configuration schemas:
+
 - BaseProviderConfigSchema
 - ApiKeyProviderConfigSchema
 - UrlProviderConfigSchema
@@ -65,6 +66,7 @@ Created a comprehensive test suite for all provider configuration schemas:
 - TypedProviderConfigSchema (discriminated union)
 
 For each schema, I included tests for:
+
 - Valid configurations with required fields
 - Valid configurations with optional fields
 - Invalid configurations with missing required fields
@@ -75,6 +77,7 @@ For each schema, I included tests for:
 I examined the existing `AgentChatMessage.test.ts` file and found it already has thorough test coverage:
 
 1. Schema validation tests:
+
    - Valid user messages
    - Valid assistant messages
    - Valid system messages
@@ -94,6 +97,7 @@ The existing tests adequately cover all the schema requirements and helper funct
 ### 4. AIError.test.ts Implementation
 
 Created a comprehensive test suite for all AI error classes:
+
 - AIGenericError (base class)
 - AIProviderError
 - AIConfigurationError
@@ -103,15 +107,17 @@ Created a comprehensive test suite for all AI error classes:
 - fromProviderError utility function
 
 For each error type, I included tests for:
+
 - Constructing with minimal required parameters
 - Constructing with all optional parameters
 - Inheritance relationship checking
-- _tag property verification
+- \_tag property verification
 - Specialized properties for each error type
 
 ### 3. AgentLanguageModel.test.ts Implementation
 
 Created tests for the AgentLanguageModel service interface:
+
 - Verified Context.Tag is valid and resolves correctly
 - Created a mock implementation with vitest mock functions
 - Tested the generateText method with success and error cases
@@ -121,6 +127,7 @@ Created tests for the AgentLanguageModel service interface:
 ### 4. AgentChatSession.test.ts Implementation
 
 Created tests for the AgentChatSession service interface:
+
 - Verified Context.Tag is valid and resolves correctly
 - Created a mock implementation with vitest mock functions
 - Tested addMessage success and failure (token limit) cases
@@ -132,6 +139,7 @@ Created tests for the AgentChatSession service interface:
 ### 5. AgentToolkitManager.test.ts Implementation
 
 Created tests for the AgentToolkitManager service interface:
+
 - Verified Context.Tag is valid and resolves correctly
 - Created a mock implementation with vitest mock functions
 - Created mock tool implementations (CalculatorTool, WeatherTool)

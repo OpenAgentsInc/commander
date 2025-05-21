@@ -1,2 +1,2 @@
-export * from './NIP19Service';
-export * from './NIP19ServiceImpl';
+export * from "./NIP19Service";
+export * from "./NIP19ServiceImpl";

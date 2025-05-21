@@ -4,24 +4,24 @@ import type * as NostrToolsNIP19 from "nostr-tools/nip19"; // For type reuse
 // --- NIP-19 Data Structures (re-export or mirror from nostr-tools for clarity) ---
 export type ProfilePointer = NostrToolsNIP19.ProfilePointer;
 export const ProfilePointerSchema = Schema.Struct({
-    pubkey: Schema.String,
-    relays: Schema.optional(Schema.Array(Schema.String))
+  pubkey: Schema.String,
+  relays: Schema.optional(Schema.Array(Schema.String)),
 });
 
 export type EventPointer = NostrToolsNIP19.EventPointer;
 export const EventPointerSchema = Schema.Struct({
-    id: Schema.String,
-    relays: Schema.optional(Schema.Array(Schema.String)),
-    author: Schema.optional(Schema.String),
-    kind: Schema.optional(Schema.Number)
+  id: Schema.String,
+  relays: Schema.optional(Schema.Array(Schema.String)),
+  author: Schema.optional(Schema.String),
+  kind: Schema.optional(Schema.Number),
 });
 
 export type AddressPointer = NostrToolsNIP19.AddressPointer;
 export const AddressPointerSchema = Schema.Struct({
-    identifier: Schema.String,
-    pubkey: Schema.String,
-    kind: Schema.Number,
-    relays: Schema.optional(Schema.Array(Schema.String))
+  identifier: Schema.String,
+  pubkey: Schema.String,
+  kind: Schema.Number,
+  relays: Schema.optional(Schema.Array(Schema.String)),
 });
 
 export type DecodedNIP19Result =
@@ -71,7 +71,9 @@ export interface NIP19Service {
    * @param profile - Profile pointer object.
    * @returns Effect with nprofile string.
    */
-  encodeNprofile(profile: ProfilePointer): Effect.Effect<string, NIP19EncodeError>;
+  encodeNprofile(
+    profile: ProfilePointer,
+  ): Effect.Effect<string, NIP19EncodeError>;
 
   /**
    * Encodes an event pointer as nevent string.
@@ -92,7 +94,9 @@ export interface NIP19Service {
    * @param nip19String - NIP-19 encoded string.
    * @returns Effect with decoded result.
    */
-  decode(nip19String: string): Effect.Effect<DecodedNIP19Result, NIP19DecodeError>;
+  decode(
+    nip19String: string,
+  ): Effect.Effect<DecodedNIP19Result, NIP19DecodeError>;
 }
 
 // --- Service Tag ---

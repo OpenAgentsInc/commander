@@ -6,11 +6,13 @@ import { addWindowEventListeners } from "./window/window-listeners";
 export default function registerListeners(mainWindow: BrowserWindow) {
   console.log("[IPC Register] Registering window event listeners");
   addWindowEventListeners(mainWindow);
-  
+
   console.log("[IPC Register] Registering theme event listeners");
   addThemeEventListeners();
-  
+
   // Note: Ollama event listeners are registered earlier in main.ts
   // to ensure they're available before the renderer process needs them
-  console.log("[IPC Register] Not registering Ollama listeners here (already registered in main.ts)");
+  console.log(
+    "[IPC Register] Not registering Ollama listeners here (already registered in main.ts)",
+  );
 }

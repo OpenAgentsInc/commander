@@ -7,16 +7,21 @@ Here are the specific instructions:
 **Phase 1: Setup and UI Updates**
 
 1.  **Create `src/utils/os.ts`**:
-    *   This file will contain a helper function to detect if the current operating system is macOS.
+
+    - This file will contain a helper function to detect if the current operating system is macOS.
+
     ```typescript
     // src/utils/os.ts
     export const isMacOs = (): boolean => {
-      if (typeof navigator !== 'undefined') {
-        return navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      if (typeof navigator !== "undefined") {
+        return navigator.platform.toUpperCase().indexOf("MAC") >= 0;
       }
       // Fallback for non-browser environments if window.electronAPI.platform is available from preload
-      if (typeof window !== 'undefined' && (window as any).electronAPI?.platform) {
-        return (window as any).electronAPI.platform === 'darwin';
+      if (
+        typeof window !== "undefined" &&
+        (window as any).electronAPI?.platform
+      ) {
+        return (window as any).electronAPI.platform === "darwin";
       }
       // Default if platform cannot be determined, assuming non-Mac for Ctrl key display
       return false;
@@ -24,8 +29,10 @@ Here are the specific instructions:
     ```
 
 2.  **Update `src/components/hud/HotbarItem.tsx`**:
-    *   Modify the component to display the keyboard shortcut next to the slot number.
-    *   The shortcut should be "⌘N" on macOS and "Ctrl+N" on other systems, where N is the slot number.
+
+    - Modify the component to display the keyboard shortcut next to the slot number.
+    - The shortcut should be "⌘N" on macOS and "Ctrl+N" on other systems, where N is the slot number.
+
     ```typescript
     // src/components/hud/HotbarItem.tsx
     import React from 'react';
@@ -86,49 +93,52 @@ Here are the specific instructions:
       );
     };
     ```
-    *   Modify the `HotbarItem` in `Hotbar.tsx` that displays the slot number to:
-        ```diff
-        - <span className="absolute bottom-0.5 right-0.5 text-[0.5rem] text-muted-foreground px-0.5 bg-background/50 rounded-sm">
-        -  {slotNumber}
-        -</span>
-        + {!isGhost && (
-        +   <div className="absolute bottom-0.5 right-0.5 flex items-center text-[0.5rem] text-muted-foreground px-0.5 bg-background/50 rounded-sm leading-none">
-        +     <span>{isMacOs() ? '⌘' : 'Ctrl'}</span>
-        +     <span>{slotNumber}</span>
-        +   </div>
-        + )}
-        ```
-    *   In the `TooltipContent`, also display the shortcut:
-        ```diff
-        <TooltipContent side="top" sideOffset={5}>
-        -  <p>{title || `Slot ${slotNumber}`}</p>
-        +  <p>{title || `Slot ${slotNumber}`} ({shortcutText})</p>
-        </TooltipContent>
-        ```
+
+    - Modify the `HotbarItem` in `Hotbar.tsx` that displays the slot number to:
+      ```diff
+      - <span className="absolute bottom-0.5 right-0.5 text-[0.5rem] text-muted-foreground px-0.5 bg-background/50 rounded-sm">
+      -  {slotNumber}
+      -</span>
+      + {!isGhost && (
+      +   <div className="absolute bottom-0.5 right-0.5 flex items-center text-[0.5rem] text-muted-foreground px-0.5 bg-background/50 rounded-sm leading-none">
+      +     <span>{isMacOs() ? '⌘' : 'Ctrl'}</span>
+      +     <span>{slotNumber}</span>
+      +   </div>
+      + )}
+      ```
+    - In the `TooltipContent`, also display the shortcut:
+      ```diff
+      <TooltipContent side="top" sideOffset={5}>
+      -  <p>{title || `Slot ${slotNumber}`}</p>
+      +  <p>{title || `Slot ${slotNumber}`} ({shortcutText})</p>
+      </TooltipContent>
+      ```
 
 **Phase 2: Implement Keyboard Controls Logic**
 
 1.  **Create `src/controls.ts`**:
-    *   Define an enum `AppControls` for hotbar actions and a map for `KeyboardControls`.
+
+    - Define an enum `AppControls` for hotbar actions and a map for `KeyboardControls`.
+
     ```typescript
     // src/controls.ts
-    import { type KeyboardControlsEntry } from '@react-three/drei';
+    import { type KeyboardControlsEntry } from "@react-three/drei";
 
     export enum AppControls {
-      HOTBAR_1 = 'HOTBAR_1',
-      HOTBAR_2 = 'HOTBAR_2',
-      HOTBAR_3 = 'HOTBAR_3',
-      HOTBAR_4 = 'HOTBAR_4',
-      HOTBAR_5 = 'HOTBAR_5',
+      HOTBAR_1 = "HOTBAR_1",
+      HOTBAR_2 = "HOTBAR_2",
+      HOTBAR_3 = "HOTBAR_3",
+      HOTBAR_4 = "HOTBAR_4",
+      HOTBAR_5 = "HOTBAR_5",
       // Add HOTBAR_6 through HOTBAR_9 if you expect more than 5 active slots
     }
 
     export const appControlsMap: KeyboardControlsEntry<AppControls>[] = [
-      { name: AppControls.HOTBAR_1, keys: ['Digit1', 'Numpad1'] },
-      { name: AppControls.HOTBAR_2, keys: ['Digit2', 'Numpad2'] },
-      { name: AppControls.HOTBAR_3, keys: ['Digit3', 'Numpad3'] },
-      { name: AppControls.HOTBAR_4, keys: ['Digit4', 'Numpad4'] },
-      { name: AppControls.HOTBAR_5, keys: ['Digit5', 'Numpad5'] },
+      { name: AppControls.HOTBAR_1, keys: ["Digit1", "Numpad1"] },
+      { name: AppControls.HOTBAR_2, keys: ["Digit2", "Numpad2"] },
+      { name: AppControls.HOTBAR_3, keys: ["Digit3", "Numpad3"] },
+      { name: AppControls.HOTBAR_4, keys: ["Digit4", "Numpad4"] },
+      { name: AppControls.HOTBAR_5, keys: ["Digit5", "Numpad5"] },
       // Define for 6-9 as well if needed, e.g.:
       // { name: AppControls.HOTBAR_6, keys: ['Digit6', 'Numpad6'] },
       // ...
@@ -136,14 +146,16 @@ Here are the specific instructions:
     ```
 
 2.  **Create Toggle Actions in `usePaneStore` (`src/stores/pane.ts`)**:
-    *   For each Hotbar item that opens a pane, create a corresponding `toggle[PaneName]` action.
-    *   This action should check if the pane is currently active. If so, it removes the pane. Otherwise, it opens/activates the pane.
-    *   Reference the Hotbar order after `1143-wallet-log.md`:
-        1.  Sell Compute
-        2.  Wallet
-        3.  Hand Tracking (This is a boolean toggle, not a pane toggle from `usePaneStore`)
-        4.  DVM Job History
-        5.  Reset HUD (This is a one-shot action, not a toggle)
+
+    - For each Hotbar item that opens a pane, create a corresponding `toggle[PaneName]` action.
+    - This action should check if the pane is currently active. If so, it removes the pane. Otherwise, it opens/activates the pane.
+    - Reference the Hotbar order after `1143-wallet-log.md`:
+      1.  Sell Compute
+      2.  Wallet
+      3.  Hand Tracking (This is a boolean toggle, not a pane toggle from `usePaneStore`)
+      4.  DVM Job History
+      5.  Reset HUD (This is a one-shot action, not a toggle)
+
     ```typescript
     // src/stores/pane.ts
     // ... other imports ...
@@ -266,11 +278,14 @@ Here are the specific instructions:
       }),
     // })
     ```
-    *   Add these toggle action signatures to `src/stores/panes/types.ts` for `PaneStoreType`.
+
+    - Add these toggle action signatures to `src/stores/panes/types.ts` for `PaneStoreType`.
 
 3.  **Update `src/components/hud/Hotbar.tsx`**:
-    *   Import the new toggle actions from `usePaneStore`.
-    *   Wire them to the `onClick` handlers of the corresponding `HotbarItem`s.
+
+    - Import the new toggle actions from `usePaneStore`.
+    - Wire them to the `onClick` handlers of the corresponding `HotbarItem`s.
+
     ```typescript
     // src/components/hud/Hotbar.tsx
     // ...
@@ -279,15 +294,16 @@ Here are the specific instructions:
       toggleSellComputePane,
       toggleWalletPane,
       toggleDvmJobHistoryPane,
-      activePaneId
+      activePaneId,
     } = usePaneStore(
-      useShallow((state) => ({ // Use useShallow if selecting multiple state pieces
+      useShallow((state) => ({
+        // Use useShallow if selecting multiple state pieces
         resetHUDState: state.resetHUDState,
         toggleSellComputePane: state.toggleSellComputePane,
         toggleWalletPane: state.toggleWalletPane,
         toggleDvmJobHistoryPane: state.toggleDvmJobHistoryPane,
         activePaneId: state.activePaneId,
-      }))
+      })),
     );
     // ...
     // onClick handlers should now call these, e.g.:
@@ -302,11 +318,14 @@ Here are the specific instructions:
     // Slot 4: DVM Job History (was onOpenDvmJobHistoryPane, now toggleDvmJobHistoryPane)
     // Slot 5: Reset HUD (resetHUDState - this is fine, not a toggle)
     ```
-    *Adjust `Hotbar.tsx` to use the new toggle functions and the correct slot numbers as per the final layout.*
+
+    _Adjust `Hotbar.tsx` to use the new toggle functions and the correct slot numbers as per the final layout._
 
 4.  **Integrate `KeyboardControls` in `src/pages/HomePage.tsx`**:
-    *   Wrap the main `div` with `<KeyboardControls map={appControlsMap} onChange={handleKeyboardChange}>`.
-    *   Implement `handleKeyboardChange` to call the correct store toggle actions or direct functions based on the `actionName` and modifier keys.
+
+    - Wrap the main `div` with `<KeyboardControls map={appControlsMap} onChange={handleKeyboardChange}>`.
+    - Implement `handleKeyboardChange` to call the correct store toggle actions or direct functions based on the `actionName` and modifier keys.
+
     ```typescript
     // src/pages/HomePage.tsx
     import React, { useState, useEffect, useRef, useCallback } from "react"; // Added useCallback
@@ -451,59 +470,60 @@ Here are the specific instructions:
 
 **Phase 3: Update `Hotbar.tsx` to use toggle actions**
 
-*   Modify `Hotbar.tsx` props and `onClick` handlers to use the new toggle functions.
-    ```typescript
-    // src/components/hud/Hotbar.tsx
-    // ... imports ...
-    interface HotbarProps {
-      className?: string;
-      isHandTrackingActive: boolean;
-      onToggleHandTracking: () => void;
-      // Change prop names to reflect toggle nature for panes
-      onToggleSellComputePane: () => void;
-      onToggleWalletPane: () => void;
-      onToggleDvmJobHistoryPane: () => void;
-    }
+- Modify `Hotbar.tsx` props and `onClick` handlers to use the new toggle functions.
 
-    export const Hotbar: React.FC<HotbarProps> = ({
-      className,
-      isHandTrackingActive,
-      onToggleHandTracking,
-      onToggleSellComputePane, // New prop
-      onToggleWalletPane,      // New prop
-      onToggleDvmJobHistoryPane, // New prop
-    }) => {
-      const resetHUDState = usePaneStore((state) => state.resetHUDState);
-      const activePaneId = usePaneStore((state) => state.activePaneId);
-      // ... (other constants like SELL_COMPUTE_PANE_ID, etc.)
+  ```typescript
+  // src/components/hud/Hotbar.tsx
+  // ... imports ...
+  interface HotbarProps {
+    className?: string;
+    isHandTrackingActive: boolean;
+    onToggleHandTracking: () => void;
+    // Change prop names to reflect toggle nature for panes
+    onToggleSellComputePane: () => void;
+    onToggleWalletPane: () => void;
+    onToggleDvmJobHistoryPane: () => void;
+  }
 
-      return (
-        <div /* ... */ >
-          <HotbarItem slotNumber={1} onClick={onToggleSellComputePane} title="Sell Compute" isActive={activePaneId === SELL_COMPUTE_PANE_ID_CONST}>
-            <Store className="w-5 h-5 text-muted-foreground" />
+  export const Hotbar: React.FC<HotbarProps> = ({
+    className,
+    isHandTrackingActive,
+    onToggleHandTracking,
+    onToggleSellComputePane, // New prop
+    onToggleWalletPane,      // New prop
+    onToggleDvmJobHistoryPane, // New prop
+  }) => {
+    const resetHUDState = usePaneStore((state) => state.resetHUDState);
+    const activePaneId = usePaneStore((state) => state.activePaneId);
+    // ... (other constants like SELL_COMPUTE_PANE_ID, etc.)
+
+    return (
+      <div /* ... */ >
+        <HotbarItem slotNumber={1} onClick={onToggleSellComputePane} title="Sell Compute" isActive={activePaneId === SELL_COMPUTE_PANE_ID_CONST}>
+          <Store className="w-5 h-5 text-muted-foreground" />
+        </HotbarItem>
+        <HotbarItem slotNumber={2} onClick={onToggleWalletPane} title="Wallet" isActive={activePaneId === WALLET_PANE_ID}>
+          <Wallet className="w-5 h-5 text-muted-foreground" />
+        </HotbarItem>
+        <HotbarItem slotNumber={3} onClick={onToggleHandTracking} title={isHandTrackingActive ? "Disable Hand Tracking" : "Enable Hand Tracking"} isActive={isHandTrackingActive}>
+          <Hand className="w-5 h-5 text-muted-foreground" />
+        </HotbarItem>
+        <HotbarItem slotNumber={4} onClick={onToggleDvmJobHistoryPane} title="DVM Job History" isActive={activePaneId === DVM_JOB_HISTORY_PANE_ID}>
+          <History className="w-5 h-5 text-muted-foreground" />
+        </HotbarItem>
+        <HotbarItem slotNumber={5} onClick={resetHUDState} title="Reset HUD Layout"> {/* Reset is not a toggle */}
+          <RefreshCw className="w-5 h-5 text-muted-foreground" />
+        </HotbarItem>
+        {/* Empty slots */}
+        {Array.from({ length: 4 }).map((_, i) => ( // 9 total - 5 used = 4 empty
+          <HotbarItem key={`empty-slot-${i}`} slotNumber={i + 6} isGhost>
+            <span className="w-5 h-5" />
           </HotbarItem>
-          <HotbarItem slotNumber={2} onClick={onToggleWalletPane} title="Wallet" isActive={activePaneId === WALLET_PANE_ID}>
-            <Wallet className="w-5 h-5 text-muted-foreground" />
-          </HotbarItem>
-          <HotbarItem slotNumber={3} onClick={onToggleHandTracking} title={isHandTrackingActive ? "Disable Hand Tracking" : "Enable Hand Tracking"} isActive={isHandTrackingActive}>
-            <Hand className="w-5 h-5 text-muted-foreground" />
-          </HotbarItem>
-          <HotbarItem slotNumber={4} onClick={onToggleDvmJobHistoryPane} title="DVM Job History" isActive={activePaneId === DVM_JOB_HISTORY_PANE_ID}>
-            <History className="w-5 h-5 text-muted-foreground" />
-          </HotbarItem>
-          <HotbarItem slotNumber={5} onClick={resetHUDState} title="Reset HUD Layout"> {/* Reset is not a toggle */}
-            <RefreshCw className="w-5 h-5 text-muted-foreground" />
-          </HotbarItem>
-          {/* Empty slots */}
-          {Array.from({ length: 4 }).map((_, i) => ( // 9 total - 5 used = 4 empty
-            <HotbarItem key={`empty-slot-${i}`} slotNumber={i + 6} isGhost>
-              <span className="w-5 h-5" />
-            </HotbarItem>
-          ))}
-        </div>
-      );
-    };
-    ```
+        ))}
+      </div>
+    );
+  };
+  ```
 
 This structure ensures that `@react-three/drei`'s `KeyboardControls` is used as requested, and the logic for handling the shortcuts resides in `HomePage.tsx`, which has access to all necessary store actions and local state toggles.
 The Hotbar button UI is also updated to display the shortcuts.
@@ -512,42 +532,44 @@ The pane store toggle actions handle the open/close/focus logic.Okay, I will imp
 Here's the implementation plan:
 
 **Phase 1: Setup and UI Updates**
+
 1.  **Create `src/utils/os.ts`**:
-    *   Implement `isMacOs()` helper function.
+    - Implement `isMacOs()` helper function.
 2.  **Update `src/components/hud/HotbarItem.tsx`**:
-    *   Display `Cmd+N` or `Ctrl+N` shortcut next to the slot number.
-    *   Update tooltip to include the shortcut.
-    *   Ensure ghost slots don't show shortcut text and are disabled.
+    - Display `Cmd+N` or `Ctrl+N` shortcut next to the slot number.
+    - Update tooltip to include the shortcut.
+    - Ensure ghost slots don't show shortcut text and are disabled.
 
 **Phase 2: Implement Keyboard Controls Logic**
+
 1.  **Create `src/controls.ts`**:
-    *   Define `AppControls` enum (`HOTBAR_1` to `HOTBAR_5`).
-    *   Define `appControlsMap` for `KeyboardControls` mapping `Digit1` to `HOTBAR_1`, etc.
+    - Define `AppControls` enum (`HOTBAR_1` to `HOTBAR_5`).
+    - Define `appControlsMap` for `KeyboardControls` mapping `Digit1` to `HOTBAR_1`, etc.
 2.  **Create Toggle Actions in `usePaneStore` (`src/stores/pane.ts`)**:
-    *   Implement `toggleSellComputePane`, `toggleWalletPane`, `toggleDvmJobHistoryPane` actions.
-    *   These actions will check if the respective pane is active. If active, remove it. Otherwise, open/focus it using the existing `open...Action` logic patterns.
-    *   Update `PaneStoreType` in `src/stores/panes/types.ts` with these new toggle actions.
+    - Implement `toggleSellComputePane`, `toggleWalletPane`, `toggleDvmJobHistoryPane` actions.
+    - These actions will check if the respective pane is active. If active, remove it. Otherwise, open/focus it using the existing `open...Action` logic patterns.
+    - Update `PaneStoreType` in `src/stores/panes/types.ts` with these new toggle actions.
 3.  **Update `src/components/hud/Hotbar.tsx`**:
-    *   Modify props to accept `onToggleSellComputePane`, `onToggleWalletPane`, `onToggleDvmJobHistoryPane`.
-    *   Update `onClick` handlers for the `HotbarItem`s to call these new toggle functions.
+    - Modify props to accept `onToggleSellComputePane`, `onToggleWalletPane`, `onToggleDvmJobHistoryPane`.
+    - Update `onClick` handlers for the `HotbarItem`s to call these new toggle functions.
 4.  **Integrate `KeyboardControls` in `src/pages/HomePage.tsx`**:
-    *   Wrap the main content with `<KeyboardControls map={appControlsMap} onChange={handleKeyboardChange}>`.
-    *   Implement `handleKeyboardChange` to:
-        *   Check for Cmd (Mac) or Ctrl (Others) modifier keys.
-        *   Prevent default browser behavior for these shortcuts.
-        *   Call the appropriate `toggle...` action from `usePaneStore` or direct functions (`toggleHandTracking`, `resetHUDState`) based on the `actionName` from `AppControls`.
+    - Wrap the main content with `<KeyboardControls map={appControlsMap} onChange={handleKeyboardChange}>`.
+    - Implement `handleKeyboardChange` to:
+      - Check for Cmd (Mac) or Ctrl (Others) modifier keys.
+      - Prevent default browser behavior for these shortcuts.
+      - Call the appropriate `toggle...` action from `usePaneStore` or direct functions (`toggleHandTracking`, `resetHUDState`) based on the `actionName` from `AppControls`.
 
 I will proceed with these changes.
 
 ```typescript
 // src/utils/os.ts
 export const isMacOs = (): boolean => {
-  if (typeof navigator !== 'undefined') {
-    return navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  if (typeof navigator !== "undefined") {
+    return navigator.platform.toUpperCase().indexOf("MAC") >= 0;
   }
   // Fallback for non-browser environments if window.electronAPI.platform is available from preload
-  if (typeof window !== 'undefined' && (window as any).electronAPI?.platform) {
-    return (window as any).electronAPI.platform === 'darwin';
+  if (typeof window !== "undefined" && (window as any).electronAPI?.platform) {
+    return (window as any).electronAPI.platform === "darwin";
   }
   // Default if platform cannot be determined, assuming non-Mac for Ctrl key display
   return false;
@@ -620,14 +642,14 @@ export const HotbarItem: React.FC<HotbarItemProps> = ({
 
 ```typescript
 // src/controls.ts
-import { type KeyboardControlsEntry } from '@react-three/drei';
+import { type KeyboardControlsEntry } from "@react-three/drei";
 
 export enum AppControls {
-  HOTBAR_1 = 'HOTBAR_1',
-  HOTBAR_2 = 'HOTBAR_2',
-  HOTBAR_3 = 'HOTBAR_3',
-  HOTBAR_4 = 'HOTBAR_4',
-  HOTBAR_5 = 'HOTBAR_5',
+  HOTBAR_1 = "HOTBAR_1",
+  HOTBAR_2 = "HOTBAR_2",
+  HOTBAR_3 = "HOTBAR_3",
+  HOTBAR_4 = "HOTBAR_4",
+  HOTBAR_5 = "HOTBAR_5",
   // HOTBAR_6 = 'HOTBAR_6', // In case more are needed
   // HOTBAR_7 = 'HOTBAR_7',
   // HOTBAR_8 = 'HOTBAR_8',
@@ -635,11 +657,11 @@ export enum AppControls {
 }
 
 export const appControlsMap: KeyboardControlsEntry<AppControls>[] = [
-  { name: AppControls.HOTBAR_1, keys: ['Digit1', 'Numpad1'] },
-  { name: AppControls.HOTBAR_2, keys: ['Digit2', 'Numpad2'] },
-  { name: AppControls.HOTBAR_3, keys: ['Digit3', 'Numpad3'] },
-  { name: AppControls.HOTBAR_4, keys: ['Digit4', 'Numpad4'] },
-  { name: AppControls.HOTBAR_5, keys: ['Digit5', 'Numpad5'] },
+  { name: AppControls.HOTBAR_1, keys: ["Digit1", "Numpad1"] },
+  { name: AppControls.HOTBAR_2, keys: ["Digit2", "Numpad2"] },
+  { name: AppControls.HOTBAR_3, keys: ["Digit3", "Numpad3"] },
+  { name: AppControls.HOTBAR_4, keys: ["Digit4", "Numpad4"] },
+  { name: AppControls.HOTBAR_5, keys: ["Digit5", "Numpad5"] },
   // { name: AppControls.HOTBAR_6, keys: ['Digit6', 'Numpad6'] },
   // { name: AppControls.HOTBAR_7, keys: ['Digit7', 'Numpad7'] },
   // { name: AppControls.HOTBAR_8, keys: ['Digit8', 'Numpad8'] },
@@ -649,14 +671,19 @@ export const appControlsMap: KeyboardControlsEntry<AppControls>[] = [
 
 ```typescript
 // src/stores/panes/types.ts
-import { Pane, PaneInput } from '@/types/pane';
-import type { StoreApi } from 'zustand';
-import type { OpenSeedPhraseBackupPaneParams } from './actions/openSeedPhraseBackupPane';
+import { Pane, PaneInput } from "@/types/pane";
+import type { StoreApi } from "zustand";
+import type { OpenSeedPhraseBackupPaneParams } from "./actions/openSeedPhraseBackupPane";
 
 export interface PaneState {
   panes: Pane[];
   activePaneId: string | null;
-  lastPanePosition: { x: number; y: number; width: number; height: number } | null;
+  lastPanePosition: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null;
 }
 
 export interface PaneStoreType extends PaneState {
@@ -688,7 +715,7 @@ export interface PaneStoreType extends PaneState {
   toggleDvmJobHistoryPane: () => void;
 }
 
-export type SetPaneStore = StoreApi<PaneStoreType>['setState'];
+export type SetPaneStore = StoreApi<PaneStoreType>["setState"];
 export type GetPaneStore = () => PaneStoreType;
 ```
 
@@ -697,7 +724,12 @@ export type GetPaneStore = () => PaneStoreType;
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { Pane, PaneInput } from "@/types/pane";
-import { PaneStoreType, PaneState, GetPaneStore, SetPaneStore } from "./panes/types"; // Added GetPaneStore, SetPaneStore
+import {
+  PaneStoreType,
+  PaneState,
+  GetPaneStore,
+  SetPaneStore,
+} from "./panes/types"; // Added GetPaneStore, SetPaneStore
 import {
   addPaneActionLogic, // Changed from addPaneAction
   removePaneAction,
@@ -731,23 +763,28 @@ import {
 } from "./panes/constants";
 import type { OpenSeedPhraseBackupPaneParams } from "./panes/actions/openSeedPhraseBackupPane";
 
-
 const getInitialPanes = (): Pane[] => {
-  const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
-  const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+  const screenWidth = typeof window !== "undefined" ? window.innerWidth : 1920;
+  const screenHeight =
+    typeof window !== "undefined" ? window.innerHeight : 1080;
 
-  return [{
-    id: SELL_COMPUTE_PANE_ID_CONST,
-    type: 'sell_compute',
-    title: 'Sell Compute Power',
-    x: Math.max(PANE_MARGIN, (screenWidth - SELL_COMPUTE_INITIAL_WIDTH) / 2),
-    y: Math.max(PANE_MARGIN, (screenHeight - SELL_COMPUTE_INITIAL_HEIGHT) / 3),
-    width: SELL_COMPUTE_INITIAL_WIDTH,
-    height: SELL_COMPUTE_INITIAL_HEIGHT,
-    isActive: true,
-    dismissable: true,
-    content: {},
-  }];
+  return [
+    {
+      id: SELL_COMPUTE_PANE_ID_CONST,
+      type: "sell_compute",
+      title: "Sell Compute Power",
+      x: Math.max(PANE_MARGIN, (screenWidth - SELL_COMPUTE_INITIAL_WIDTH) / 2),
+      y: Math.max(
+        PANE_MARGIN,
+        (screenHeight - SELL_COMPUTE_INITIAL_HEIGHT) / 3,
+      ),
+      width: SELL_COMPUTE_INITIAL_WIDTH,
+      height: SELL_COMPUTE_INITIAL_HEIGHT,
+      isActive: true,
+      dismissable: true,
+      content: {},
+    },
+  ];
 };
 
 const initialState: PaneState = {
@@ -756,114 +793,182 @@ const initialState: PaneState = {
   lastPanePosition: null,
 };
 
-const sellComputePaneInitial = initialState.panes.find(p => p.id === SELL_COMPUTE_PANE_ID_CONST);
+const sellComputePaneInitial = initialState.panes.find(
+  (p) => p.id === SELL_COMPUTE_PANE_ID_CONST,
+);
 if (sellComputePaneInitial) {
-    initialState.lastPanePosition = {
-        x: sellComputePaneInitial.x,
-        y: sellComputePaneInitial.y,
-        width: sellComputePaneInitial.width,
-        height: sellComputePaneInitial.height
-    };
+  initialState.lastPanePosition = {
+    x: sellComputePaneInitial.x,
+    y: sellComputePaneInitial.y,
+    width: sellComputePaneInitial.width,
+    height: sellComputePaneInitial.height,
+  };
 }
 
 export const usePaneStore = create<PaneStoreType>()(
   persist(
     (set, get) => ({
       ...initialState,
-      addPane: (newPaneInput: PaneInput, shouldTile?: boolean) => set(addPaneActionLogic(get(), newPaneInput, shouldTile)),
+      addPane: (newPaneInput: PaneInput, shouldTile?: boolean) =>
+        set(addPaneActionLogic(get(), newPaneInput, shouldTile)),
       removePane: (id: string) => removePaneAction(set as SetPaneStore, id), // Cast for now
-      updatePanePosition: (id: string, x: number, y: number) => updatePanePositionAction(set as SetPaneStore, id, x, y),
-      updatePaneSize: (id: string, width: number, height: number) => updatePaneSizeAction(set as SetPaneStore, id, width, height),
-      openChatPane: (newPaneInput: PaneInput, isCommandKeyHeld?: boolean) => openChatPaneAction(set as SetPaneStore, newPaneInput, isCommandKeyHeld),
-      bringPaneToFront: (id: string) => bringPaneToFrontAction(set as SetPaneStore, id),
-      setActivePane: (id: string | null) => setActivePaneAction(set as SetPaneStore, id),
-      createNip28ChannelPane: (channelName?: string) => createNip28ChannelPaneAction(set as SetPaneStore, get, channelName),
-      openNip90DashboardPane: () => openNip90DashboardPaneAction(set as SetPaneStore),
+      updatePanePosition: (id: string, x: number, y: number) =>
+        updatePanePositionAction(set as SetPaneStore, id, x, y),
+      updatePaneSize: (id: string, width: number, height: number) =>
+        updatePaneSizeAction(set as SetPaneStore, id, width, height),
+      openChatPane: (newPaneInput: PaneInput, isCommandKeyHeld?: boolean) =>
+        openChatPaneAction(set as SetPaneStore, newPaneInput, isCommandKeyHeld),
+      bringPaneToFront: (id: string) =>
+        bringPaneToFrontAction(set as SetPaneStore, id),
+      setActivePane: (id: string | null) =>
+        setActivePaneAction(set as SetPaneStore, id),
+      createNip28ChannelPane: (channelName?: string) =>
+        createNip28ChannelPaneAction(set as SetPaneStore, get, channelName),
+      openNip90DashboardPane: () =>
+        openNip90DashboardPaneAction(set as SetPaneStore),
       openSellComputePane: () => openSellComputePaneAction(set as SetPaneStore),
-      openDvmJobHistoryPane: () => openDvmJobHistoryPaneAction(set as SetPaneStore),
-      openNip90DvmTestPane: () => openNip90DvmTestPaneAction(set as SetPaneStore),
-      openNip90ConsumerChatPane: () => openNip90ConsumerChatPaneAction(set as SetPaneStore),
-      openNip90GlobalFeedPane: () => openNip90GlobalFeedPaneAction(set as SetPaneStore),
+      openDvmJobHistoryPane: () =>
+        openDvmJobHistoryPaneAction(set as SetPaneStore),
+      openNip90DvmTestPane: () =>
+        openNip90DvmTestPaneAction(set as SetPaneStore),
+      openNip90ConsumerChatPane: () =>
+        openNip90ConsumerChatPaneAction(set as SetPaneStore),
+      openNip90GlobalFeedPane: () =>
+        openNip90GlobalFeedPaneAction(set as SetPaneStore),
       openWalletPane: () => openWalletPaneAction(set as SetPaneStore),
 
       openSecondPagePane: () => openSecondPagePaneAction(set as SetPaneStore),
       openWalletSetupPane: () => openWalletSetupPaneAction(set as SetPaneStore),
-      openSeedPhraseBackupPane: (params: OpenSeedPhraseBackupPaneParams) => openSeedPhraseBackupPaneAction(set as SetPaneStore, params),
-      openRestoreWalletPane: () => openRestoreWalletPaneAction(set as SetPaneStore),
+      openSeedPhraseBackupPane: (params: OpenSeedPhraseBackupPaneParams) =>
+        openSeedPhraseBackupPaneAction(set as SetPaneStore, params),
+      openRestoreWalletPane: () =>
+        openRestoreWalletPaneAction(set as SetPaneStore),
 
-      resetHUDState: () => { /* ... existing reset logic ... */ },
+      resetHUDState: () => {
+        /* ... existing reset logic ... */
+      },
 
       // New Toggle Actions
-      toggleSellComputePane: () => set((state) => {
-        const paneId = SELL_COMPUTE_PANE_ID_CONST;
-        const existingPane = state.panes.find(p => p.id === paneId);
-        if (existingPane && state.activePaneId === paneId) {
-          // Logic from removePaneAction, adapted
-          const remainingPanes = state.panes.filter(p => p.id !== paneId);
-          let newActivePaneId: string | null = null;
-          if (remainingPanes.length > 0) newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
-          const updatedPanes = remainingPanes.map(p => ({ ...p, isActive: p.id === newActivePaneId }));
-          return { ...state, panes: updatedPanes, activePaneId: newActivePaneId };
-        } else {
-          // Use addPaneActionLogic for opening/focusing
-          const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
-          const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
-          const newPaneInput: PaneInput = {
-              id: SELL_COMPUTE_PANE_ID_CONST, type: 'sell_compute', title: 'Sell Compute Power',
+      toggleSellComputePane: () =>
+        set((state) => {
+          const paneId = SELL_COMPUTE_PANE_ID_CONST;
+          const existingPane = state.panes.find((p) => p.id === paneId);
+          if (existingPane && state.activePaneId === paneId) {
+            // Logic from removePaneAction, adapted
+            const remainingPanes = state.panes.filter((p) => p.id !== paneId);
+            let newActivePaneId: string | null = null;
+            if (remainingPanes.length > 0)
+              newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
+            const updatedPanes = remainingPanes.map((p) => ({
+              ...p,
+              isActive: p.id === newActivePaneId,
+            }));
+            return {
+              ...state,
+              panes: updatedPanes,
+              activePaneId: newActivePaneId,
+            };
+          } else {
+            // Use addPaneActionLogic for opening/focusing
+            const screenWidth =
+              typeof window !== "undefined" ? window.innerWidth : 1920;
+            const screenHeight =
+              typeof window !== "undefined" ? window.innerHeight : 1080;
+            const newPaneInput: PaneInput = {
+              id: SELL_COMPUTE_PANE_ID_CONST,
+              type: "sell_compute",
+              title: "Sell Compute Power",
               x: Math.max(20, (screenWidth - 550) / 2),
               y: Math.max(20, (screenHeight - 420) / 3),
-              width: 550, height: 420, dismissable: true, content: {}
-          };
-          return addPaneActionLogic(state, newPaneInput, false); // false to use provided x,y
-        }
-      }),
+              width: 550,
+              height: 420,
+              dismissable: true,
+              content: {},
+            };
+            return addPaneActionLogic(state, newPaneInput, false); // false to use provided x,y
+          }
+        }),
 
-      toggleWalletPane: () => set((state) => {
-        const paneId = WALLET_PANE_ID;
-        const existingPane = state.panes.find(p => p.id === paneId);
-        if (existingPane && state.activePaneId === paneId) {
-          const remainingPanes = state.panes.filter(p => p.id !== paneId);
-          let newActivePaneId: string | null = null;
-          if (remainingPanes.length > 0) newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
-          const updatedPanes = remainingPanes.map(p => ({ ...p, isActive: p.id === newActivePaneId }));
-          return { ...state, panes: updatedPanes, activePaneId: newActivePaneId };
-        } else {
-          const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
-          const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
-          const newPaneInput: PaneInput = {
-              id: WALLET_PANE_ID, type: 'wallet', title: WALLET_PANE_TITLE,
+      toggleWalletPane: () =>
+        set((state) => {
+          const paneId = WALLET_PANE_ID;
+          const existingPane = state.panes.find((p) => p.id === paneId);
+          if (existingPane && state.activePaneId === paneId) {
+            const remainingPanes = state.panes.filter((p) => p.id !== paneId);
+            let newActivePaneId: string | null = null;
+            if (remainingPanes.length > 0)
+              newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
+            const updatedPanes = remainingPanes.map((p) => ({
+              ...p,
+              isActive: p.id === newActivePaneId,
+            }));
+            return {
+              ...state,
+              panes: updatedPanes,
+              activePaneId: newActivePaneId,
+            };
+          } else {
+            const screenWidth =
+              typeof window !== "undefined" ? window.innerWidth : 1920;
+            const screenHeight =
+              typeof window !== "undefined" ? window.innerHeight : 1080;
+            const newPaneInput: PaneInput = {
+              id: WALLET_PANE_ID,
+              type: "wallet",
+              title: WALLET_PANE_TITLE,
               x: Math.max(20, (screenWidth - 450) / 2 + 50),
               y: Math.max(20, (screenHeight - 550) / 3 + 50),
-              width: 450, height: 550, dismissable: true, content: {}
-          };
-          return addPaneActionLogic(state, newPaneInput, false);
-        }
-      }),
+              width: 450,
+              height: 550,
+              dismissable: true,
+              content: {},
+            };
+            return addPaneActionLogic(state, newPaneInput, false);
+          }
+        }),
 
-      toggleDvmJobHistoryPane: () => set((state) => {
-        const paneId = DVM_JOB_HISTORY_PANE_ID;
-        const existingPane = state.panes.find(p => p.id === paneId);
-        if (existingPane && state.activePaneId === paneId) {
-          const remainingPanes = state.panes.filter(p => p.id !== paneId);
-          let newActivePaneId: string | null = null;
-          if (remainingPanes.length > 0) newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
-          const updatedPanes = remainingPanes.map(p => ({ ...p, isActive: p.id === newActivePaneId }));
-          return { ...state, panes: updatedPanes, activePaneId: newActivePaneId };
-        } else {
-          const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
-          const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
-          const newPaneInput: PaneInput = {
-              id: DVM_JOB_HISTORY_PANE_ID, type: 'dvm_job_history', title: 'DVM Job History & Stats',
+      toggleDvmJobHistoryPane: () =>
+        set((state) => {
+          const paneId = DVM_JOB_HISTORY_PANE_ID;
+          const existingPane = state.panes.find((p) => p.id === paneId);
+          if (existingPane && state.activePaneId === paneId) {
+            const remainingPanes = state.panes.filter((p) => p.id !== paneId);
+            let newActivePaneId: string | null = null;
+            if (remainingPanes.length > 0)
+              newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
+            const updatedPanes = remainingPanes.map((p) => ({
+              ...p,
+              isActive: p.id === newActivePaneId,
+            }));
+            return {
+              ...state,
+              panes: updatedPanes,
+              activePaneId: newActivePaneId,
+            };
+          } else {
+            const screenWidth =
+              typeof window !== "undefined" ? window.innerWidth : 1920;
+            const screenHeight =
+              typeof window !== "undefined" ? window.innerHeight : 1080;
+            const newPaneInput: PaneInput = {
+              id: DVM_JOB_HISTORY_PANE_ID,
+              type: "dvm_job_history",
+              title: "DVM Job History & Stats",
               x: Math.max(20, (screenWidth - 800) / 2 - 50),
               y: Math.max(20, (screenHeight - 600) / 3 - 50),
-              width: 800, height: 600, dismissable: true, content: {}
-          };
-          return addPaneActionLogic(state, newPaneInput, false);
-        }
-      }),
+              width: 800,
+              height: 600,
+              dismissable: true,
+              content: {},
+            };
+            return addPaneActionLogic(state, newPaneInput, false);
+          }
+        }),
     }),
-    { /* ... persist options ... */ }
-  )
+    {
+      /* ... persist options ... */
+    },
+  ),
 );
 ```
 

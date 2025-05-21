@@ -3,14 +3,19 @@ import { Effect, Context, Schema } from "effect";
 // --- Schema Definitions ---
 export const BIP32NodeOptionsSchema = Schema.Struct({
   path: Schema.optional(Schema.String),
-  index: Schema.optional(Schema.Number)
+  index: Schema.optional(Schema.Number),
 });
 
-export type BIP32NodeOptions = Schema.Schema.Type<typeof BIP32NodeOptionsSchema>;
+export type BIP32NodeOptions = Schema.Schema.Type<
+  typeof BIP32NodeOptionsSchema
+>;
 
 // --- Custom Error Types ---
 export class BIP32Error extends Error {
-  constructor(message: string, readonly cause?: unknown) {
+  constructor(
+    message: string,
+    readonly cause?: unknown,
+  ) {
     super(message);
     this.name = "BIP32Error";
   }
@@ -18,7 +23,10 @@ export class BIP32Error extends Error {
 
 export class DerivePrivateNodeError extends BIP32Error {
   readonly _tag = "DerivePrivateNodeError";
-  constructor(message: string, readonly cause?: unknown) {
+  constructor(
+    message: string,
+    readonly cause?: unknown,
+  ) {
     super(message, cause);
     this.name = "DerivePrivateNodeError";
   }
@@ -26,7 +34,10 @@ export class DerivePrivateNodeError extends BIP32Error {
 
 export class GetPublicKeyError extends BIP32Error {
   readonly _tag = "GetPublicKeyError";
-  constructor(message: string, readonly cause?: unknown) {
+  constructor(
+    message: string,
+    readonly cause?: unknown,
+  ) {
     super(message, cause);
     this.name = "GetPublicKeyError";
   }
@@ -34,7 +45,10 @@ export class GetPublicKeyError extends BIP32Error {
 
 export class DeriveBIP44AddressError extends BIP32Error {
   readonly _tag = "DeriveBIP44AddressError";
-  constructor(message: string, readonly cause?: unknown) {
+  constructor(
+    message: string,
+    readonly cause?: unknown,
+  ) {
     super(message, cause);
     this.name = "DeriveBIP44AddressError";
   }
@@ -50,7 +64,7 @@ export interface BIP32Service {
    */
   derivePrivateNode(
     seed: Uint8Array,
-    options?: BIP32NodeOptions
+    options?: BIP32NodeOptions,
   ): Effect.Effect<BIP32Node, DerivePrivateNodeError>;
 
   /**
@@ -58,9 +72,7 @@ export interface BIP32Service {
    * @param node The BIP32 node
    * @returns Effect with the public key as a hex string
    */
-  getPublicKey(
-    node: BIP32Node
-  ): Effect.Effect<string, GetPublicKeyError>;
+  getPublicKey(node: BIP32Node): Effect.Effect<string, GetPublicKeyError>;
 
   /**
    * Derive a standard BIP44 address for Bitcoin
@@ -71,10 +83,10 @@ export interface BIP32Service {
    * @returns Effect with the address details including path, public key, and private key
    */
   deriveBIP44Address(
-    seed: Uint8Array, 
+    seed: Uint8Array,
     accountIndex?: number,
     addressIndex?: number,
-    isChange?: boolean
+    isChange?: boolean,
   ): Effect.Effect<BIP44AddressDetails, DeriveBIP44AddressError>;
 }
 

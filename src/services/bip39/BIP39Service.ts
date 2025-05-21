@@ -8,13 +8,15 @@ export const BIP39MnemonicOptionsSchema = Schema.Struct({
       Schema.Literal(160),
       Schema.Literal(192),
       Schema.Literal(224),
-      Schema.Literal(256)
-    )
+      Schema.Literal(256),
+    ),
   ),
-  wordlist: Schema.optional(Schema.Array(Schema.String))
+  wordlist: Schema.optional(Schema.Array(Schema.String)),
 });
 
-export type BIP39MnemonicOptions = Schema.Schema.Type<typeof BIP39MnemonicOptionsSchema>;
+export type BIP39MnemonicOptions = Schema.Schema.Type<
+  typeof BIP39MnemonicOptionsSchema
+>;
 
 // Schemas for mnemonicToSeed parameters
 export const MnemonicSchema = Schema.String;
@@ -25,7 +27,10 @@ export type PassphraseType = Schema.Schema.Type<typeof PassphraseSchema>;
 
 // --- Custom Error Types ---
 export class BIP39Error extends Error {
-  constructor(message: string, readonly cause?: unknown) {
+  constructor(
+    message: string,
+    readonly cause?: unknown,
+  ) {
     super(message);
     this.name = "BIP39Error";
   }
@@ -33,7 +38,10 @@ export class BIP39Error extends Error {
 
 export class GenerateMnemonicError extends BIP39Error {
   readonly _tag = "GenerateMnemonicError";
-  constructor(message: string, readonly cause?: unknown) {
+  constructor(
+    message: string,
+    readonly cause?: unknown,
+  ) {
     super(message, cause);
     this.name = "GenerateMnemonicError";
   }
@@ -41,7 +49,10 @@ export class GenerateMnemonicError extends BIP39Error {
 
 export class ValidateMnemonicError extends BIP39Error {
   readonly _tag = "ValidateMnemonicError";
-  constructor(message: string, readonly cause?: unknown) {
+  constructor(
+    message: string,
+    readonly cause?: unknown,
+  ) {
     super(message, cause);
     this.name = "ValidateMnemonicError";
   }
@@ -49,7 +60,10 @@ export class ValidateMnemonicError extends BIP39Error {
 
 export class MnemonicToSeedError extends BIP39Error {
   readonly _tag = "MnemonicToSeedError";
-  constructor(message: string, readonly cause?: unknown) {
+  constructor(
+    message: string,
+    readonly cause?: unknown,
+  ) {
     super(message, cause);
     this.name = "MnemonicToSeedError";
   }
@@ -63,7 +77,7 @@ export interface BIP39Service {
    * @returns Effect with the generated mnemonic string or an error
    */
   generateMnemonic(
-    options?: BIP39MnemonicOptions
+    options?: BIP39MnemonicOptions,
   ): Effect.Effect<string, GenerateMnemonicError>;
 
   /**
@@ -74,7 +88,7 @@ export interface BIP39Service {
    */
   validateMnemonic(
     mnemonic: string,
-    wordlist?: readonly string[]
+    wordlist?: readonly string[],
   ): Effect.Effect<boolean, ValidateMnemonicError>;
 
   /**
@@ -85,7 +99,7 @@ export interface BIP39Service {
    */
   mnemonicToSeed(
     mnemonic: string,
-    passphrase?: string
+    passphrase?: string,
   ): Effect.Effect<Uint8Array, MnemonicToSeedError>;
 }
 

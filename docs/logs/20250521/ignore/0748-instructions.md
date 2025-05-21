@@ -8,11 +8,11 @@ To fix this, I'll ensure the mock for `'effect'` correctly preserves all origina
 
 **2. Fix Test Failures**
 
-*   **`Nip90GlobalFeedPane.test.tsx` TypeError for `runPromiseExit`:** This was due to an improper attempt to mock `Effect.runPromiseExit`. The fix involves relying on the `useQuery` mock to control the data flow, rather than directly mocking `Effect.runPromiseExit`. The component also has a `process.env.NODE_ENV !== 'test'` guard for its `Effect.runFork` call, which helps in tests.
+- **`Nip90GlobalFeedPane.test.tsx` TypeError for `runPromiseExit`:** This was due to an improper attempt to mock `Effect.runPromiseExit`. The fix involves relying on the `useQuery` mock to control the data flow, rather than directly mocking `Effect.runPromiseExit`. The component also has a `process.env.NODE_ENV !== 'test'` guard for its `Effect.runFork` call, which helps in tests.
 
-*   **`NostrService.test.ts` FiberFailure:** This was likely due to the mock for `SimplePool.querySync` not correctly handling asynchronous behavior or returning unexpected data, leading to an Effect program failing. The mock for `querySync` will be simplified for robustness.
+- **`NostrService.test.ts` FiberFailure:** This was likely due to the mock for `SimplePool.querySync` not correctly handling asynchronous behavior or returning unexpected data, leading to an Effect program failing. The mock for `querySync` will be simplified for robustness.
 
-*   **`Kind5050DVMService.test.ts` ECC library invalid:** This is a persistent issue with `bitcoinjs-lib` used by `@buildonspark/lrc20-sdk`. The most effective way to prevent this error from stopping the test suite (when the goal is to skip these specific tests) is to mock the problematic SDK at the top of the test file. This prevents the SDK from initializing `bitcoinjs-lib`'s ECC components.
+- **`Kind5050DVMService.test.ts` ECC library invalid:** This is a persistent issue with `bitcoinjs-lib` used by `@buildonspark/lrc20-sdk`. The most effective way to prevent this error from stopping the test suite (when the goal is to skip these specific tests) is to mock the problematic SDK at the top of the test file. This prevents the SDK from initializing `bitcoinjs-lib`'s ECC components.
 
 Let's apply these fixes.
 
@@ -201,18 +201,21 @@ describe('Nip90GlobalFeedPane Component', () => {
   });
 });
 ```
+
 The tests for `Nip90GlobalFeedPane.test.tsx` should now pass, and the TypeScript error should be resolved. The component test for loading state placeholder might need adjustment based on the exact DOM structure of the placeholders if the current selector isn't specific enough.
 
 ⏺ Fixing `NostrService.test.ts` FiberFailure.
 
 The failure `Serialized Error: { _id: 'FiberFailure' }` usually means an Effect program failed. In the test, `mockQuerySync.mockResolvedValue(mockEventsData)` was used. `pool.querySync` in `nostr-tools` is synchronous and returns an array of events directly, not a Promise. If `listEvents` in `NostrServiceImpl` uses `Effect.tryPromise` around `pool.querySync`, it would indeed fail. `listEvents` in `NostrServiceImpl` was changed to:
+
 ```typescript
 Effect.tryPromise({
   try: () => pool.querySync(config.relays as string[], filters[0], { maxWait: config.requestTimeoutMs / 2 }),
   catch: (error) => new NostrRequestError({ message: "Failed to fetch events from relays", cause: error }),
 }),
 ```
-So, the mock for `querySync` should *not* be `mockResolvedValue`. It should be `mockReturnValue`.
+
+So, the mock for `querySync` should _not_ be `mockResolvedValue`. It should be `mockReturnValue`.
 
 ```typescript
 // src/tests/unit/services/nostr/NostrService.test.ts
@@ -230,13 +233,20 @@ import {
   // NostrPublishError, // Not directly tested here
   DefaultNostrServiceConfigLayer, // Import the default config layer
 } from "@/services/nostr";
-import { TelemetryService, TelemetryServiceLive, DefaultTelemetryConfigLayer as DefaultTelemetryConfig } from "@/services/telemetry"; // Renamed import
+import {
+  TelemetryService,
+  TelemetryServiceLive,
+  DefaultTelemetryConfigLayer as DefaultTelemetryConfig,
+} from "@/services/telemetry"; // Renamed import
 
 // Sample test events
-const createSampleEvent = (kind: number, idSuffix: string = ''): NostrEvent => ({
+const createSampleEvent = (
+  kind: number,
+  idSuffix: string = "",
+): NostrEvent => ({
   id: `test-event-${kind}${idSuffix}`,
   pubkey: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
-  created_at: Math.floor(Date.now() / 1000) - Math.floor(Math.random()*100),
+  created_at: Math.floor(Date.now() / 1000) - Math.floor(Math.random() * 100),
   kind,
   tags: [],
   content: "Test content",
@@ -258,9 +268,13 @@ vi.mock("nostr-tools", () => {
       publish: mockPublish,
     })),
     // Also mock other exports from nostr-tools if directly used by SUT
-    finalizeEvent: vi.fn((template) => ({ ...template, id: 'mockId', sig: 'mockSig' })),
+    finalizeEvent: vi.fn((template) => ({
+      ...template,
+      id: "mockId",
+      sig: "mockSig",
+    })),
     generateSecretKey: vi.fn(() => new Uint8Array(32)),
-    getPublicKey: vi.fn(() => 'mockPubKeyHex'),
+    getPublicKey: vi.fn(() => "mockPubKeyHex"),
   };
 });
 
@@ -273,9 +287,13 @@ describe("NostrService", () => {
     vi.clearAllMocks();
 
     mockTelemetryService = {
-      trackEvent: vi.fn().mockImplementation(() => Effect.succeed(undefined as void)),
+      trackEvent: vi
+        .fn()
+        .mockImplementation(() => Effect.succeed(undefined as void)),
       isEnabled: vi.fn().mockImplementation(() => Effect.succeed(true)),
-      setEnabled: vi.fn().mockImplementation(() => Effect.succeed(undefined as void)),
+      setEnabled: vi
+        .fn()
+        .mockImplementation(() => Effect.succeed(undefined as void)),
     };
 
     nostrServiceConfig = {
@@ -288,15 +306,17 @@ describe("NostrService", () => {
       NostrServiceLive,
       Layer.merge(
         Layer.succeed(NostrServiceConfigTag, nostrServiceConfig),
-        Layer.succeed(TelemetryService, mockTelemetryService)
-      )
+        Layer.succeed(TelemetryService, mockTelemetryService),
+      ),
     );
   });
 
   describe("listEvents", () => {
     it("should fetch and return events from relays, sorted by created_at desc", async () => {
-      const event1 = createSampleEvent(1, 'a'); event1.created_at = 100;
-      const event2 = createSampleEvent(1, 'b'); event2.created_at = 200;
+      const event1 = createSampleEvent(1, "a");
+      event1.created_at = 100;
+      const event2 = createSampleEvent(1, "b");
+      event2.created_at = 200;
       const mockEventsData: NostrEvent[] = [event1, event2]; // Unsorted
 
       // querySync is synchronous and returns an array
@@ -305,38 +325,53 @@ describe("NostrService", () => {
       const filters: NostrFilter[] = [{ kinds: [1], limit: 10 }];
 
       const program = Effect.flatMap(NostrService, (service) =>
-        service.listEvents(filters)
+        service.listEvents(filters),
       );
 
-      const result = await Effect.runPromise(Effect.provide(program, testLayer));
+      const result = await Effect.runPromise(
+        Effect.provide(program, testLayer),
+      );
 
       expect(mockQuerySync).toHaveBeenCalledWith(
         nostrServiceConfig.relays,
         filters[0], // NostrServiceImpl currently only uses the first filter for querySync
-        { maxWait: nostrServiceConfig.requestTimeoutMs / 2 }
+        { maxWait: nostrServiceConfig.requestTimeoutMs / 2 },
       );
       expect(result).toHaveLength(2);
-      expect(result[0].id).toBe('test-event-1b'); // event2 is more recent
-      expect(result[1].id).toBe('test-event-1a');
-      expect(mockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'nostr_fetch_begin' }));
-      expect(mockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'nostr_fetch_success' }));
+      expect(result[0].id).toBe("test-event-1b"); // event2 is more recent
+      expect(result[1].id).toBe("test-event-1a");
+      expect(mockTelemetryService.trackEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ action: "nostr_fetch_begin" }),
+      );
+      expect(mockTelemetryService.trackEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ action: "nostr_fetch_success" }),
+      );
     });
 
     it("should return NostrRequestError if querySync fails", async () => {
       const queryError = new Error("Relay connection failed");
-      mockQuerySync.mockImplementation(() => { throw queryError; });
+      mockQuerySync.mockImplementation(() => {
+        throw queryError;
+      });
 
       const filters: NostrFilter[] = [{ kinds: [1], limit: 10 }];
-      const program = Effect.flatMap(NostrService, (service) => service.listEvents(filters));
+      const program = Effect.flatMap(NostrService, (service) =>
+        service.listEvents(filters),
+      );
 
-      await expect(Effect.runPromise(Effect.provide(program, testLayer)))
-        .rejects.toEqual(expect.objectContaining({
+      await expect(
+        Effect.runPromise(Effect.provide(program, testLayer)),
+      ).rejects.toEqual(
+        expect.objectContaining({
           _tag: "NostrRequestError",
           message: "Failed to fetch events from relays",
-          cause: queryError
-        }));
+          cause: queryError,
+        }),
+      );
 
-      expect(mockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'nostr_fetch_error' }));
+      expect(mockTelemetryService.trackEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ action: "nostr_fetch_error" }),
+      );
     });
   });
 });
@@ -347,36 +382,84 @@ The most reliable way to prevent the "ecc library invalid" error is to mock `@bu
 
 ```typescript
 // src/tests/unit/services/dvm/Kind5050DVMService.test.ts
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 
 // Mock the @buildonspark/spark-sdk module at the very top
 // This prevents its problematic internal dependencies (like bitcoinjs-lib's ECC) from being loaded
-vi.mock('@buildonspark/spark-sdk', () => {
+vi.mock("@buildonspark/spark-sdk", () => {
   // console.log('[Mock] @buildonspark/spark-sdk is being mocked.');
   const mockWalletInstance = {
-    createLightningInvoice: vi.fn().mockResolvedValue({ invoice: { encodedInvoice: 'mockInvoiceFromSdk', paymentHash: 'mockHashFromSdk', amountSats:100, createdAt: '2023-01-01T00:00:00Z', expiresAt: '2023-01-01T01:00:00Z' } }),
-    payLightningInvoice: vi.fn().mockResolvedValue({ id: 'mockPaymentIdFromSdk' }),
-    getBalance: vi.fn().mockResolvedValue({ balance: BigInt(12345), tokenBalances: new Map() }),
-    getSingleUseDepositAddress: vi.fn().mockResolvedValue('mockAddressFromSdk'),
+    createLightningInvoice: vi
+      .fn()
+      .mockResolvedValue({
+        invoice: {
+          encodedInvoice: "mockInvoiceFromSdk",
+          paymentHash: "mockHashFromSdk",
+          amountSats: 100,
+          createdAt: "2023-01-01T00:00:00Z",
+          expiresAt: "2023-01-01T01:00:00Z",
+        },
+      }),
+    payLightningInvoice: vi
+      .fn()
+      .mockResolvedValue({ id: "mockPaymentIdFromSdk" }),
+    getBalance: vi
+      .fn()
+      .mockResolvedValue({ balance: BigInt(12345), tokenBalances: new Map() }),
+    getSingleUseDepositAddress: vi.fn().mockResolvedValue("mockAddressFromSdk"),
     cleanupConnections: vi.fn().mockResolvedValue(undefined),
-    checkInvoiceStatus: vi.fn().mockResolvedValue({ status: 'PENDING' }) // Add if used by SparkServiceImpl
+    checkInvoiceStatus: vi.fn().mockResolvedValue({ status: "PENDING" }), // Add if used by SparkServiceImpl
     // Add other methods of SparkWallet instance if they are called by SparkServiceImpl
   };
   return {
     SparkWallet: {
-      initialize: vi.fn().mockResolvedValue({ wallet: mockWalletInstance })
+      initialize: vi.fn().mockResolvedValue({ wallet: mockWalletInstance }),
     },
     // Mock error classes if they are used in `instanceof` checks in SparkServiceImpl
-    NetworkError: class MockNetworkError extends Error { constructor(msg: string) { super(msg); this.name = 'NetworkError'; } },
-    ValidationError: class MockValidationError extends Error { constructor(msg: string) { super(msg); this.name = 'ValidationError'; } },
-    ConfigurationError: class MockConfigurationError extends Error { constructor(msg: string) { super(msg); this.name = 'ConfigurationError'; } },
-    AuthenticationError: class MockAuthenticationError extends Error { constructor(msg: string) { super(msg); this.name = 'AuthenticationError'; } },
-    RPCError: class MockRPCError extends Error { constructor(msg: string) { super(msg); this.name = 'RPCError'; } },
-    NotImplementedError: class MockNotImplementedError extends Error { constructor(msg: string) { super(msg); this.name = 'NotImplementedError'; } },
-    SparkSDKError: class MockSparkSDKError extends Error { constructor(msg: string) { super(msg); this.name = 'SparkSDKError'; } },
+    NetworkError: class MockNetworkError extends Error {
+      constructor(msg: string) {
+        super(msg);
+        this.name = "NetworkError";
+      }
+    },
+    ValidationError: class MockValidationError extends Error {
+      constructor(msg: string) {
+        super(msg);
+        this.name = "ValidationError";
+      }
+    },
+    ConfigurationError: class MockConfigurationError extends Error {
+      constructor(msg: string) {
+        super(msg);
+        this.name = "ConfigurationError";
+      }
+    },
+    AuthenticationError: class MockAuthenticationError extends Error {
+      constructor(msg: string) {
+        super(msg);
+        this.name = "AuthenticationError";
+      }
+    },
+    RPCError: class MockRPCError extends Error {
+      constructor(msg: string) {
+        super(msg);
+        this.name = "RPCError";
+      }
+    },
+    NotImplementedError: class MockNotImplementedError extends Error {
+      constructor(msg: string) {
+        super(msg);
+        this.name = "NotImplementedError";
+      }
+    },
+    SparkSDKError: class MockSparkSDKError extends Error {
+      constructor(msg: string) {
+        super(msg);
+        this.name = "SparkSDKError";
+      }
+    },
   };
 });
-
 
 // Now import other modules
 import { Effect, Layer, Context } from "effect";
@@ -387,35 +470,43 @@ import {
   defaultKind5050DVMServiceConfig,
 } from "@/services/dvm/Kind5050DVMService"; // The SUT's interface
 import { Kind5050DVMServiceLive } from "@/services/dvm"; // The SUT's Live Layer
-import { NostrService, type NostrEvent, type NostrFilter, type Subscription } from "@/services/nostr";
-import { OllamaService, type OllamaChatCompletionResponse } // Corrected import
-  from "@/services/ollama";
+import {
+  NostrService,
+  type NostrEvent,
+  type NostrFilter,
+  type Subscription,
+} from "@/services/nostr";
+import {
+  OllamaService,
+  type OllamaChatCompletionResponse, // Corrected import
+} from "@/services/ollama";
 import { SparkService, type LightningInvoice } from "@/services/spark"; // Corrected import
 import { NIP04Service } from "@/services/nip04";
 import { TelemetryService } from "@/services/telemetry";
 import type { JobHistoryEntry, JobStatistics } from "@/types/dvm";
-import { useDVMSettingsStore } from '@/stores/dvmSettingsStore';
-
+import { useDVMSettingsStore } from "@/stores/dvmSettingsStore";
 
 // Mock the dvmSettingsStore
 vi.mock("@/stores/dvmSettingsStore", () => ({
   useDVMSettingsStore: {
     getState: () => ({
       getEffectiveConfig: () => defaultKind5050DVMServiceConfig, // Use imported default
-      getDerivedPublicKeyHex: () => defaultKind5050DVMServiceConfig.dvmPublicKeyHex, // Use imported default
+      getDerivedPublicKeyHex: () =>
+        defaultKind5050DVMServiceConfig.dvmPublicKeyHex, // Use imported default
       // Add other methods if used by the DVM service
       getEffectiveRelays: () => defaultKind5050DVMServiceConfig.relays,
-      getEffectiveSupportedJobKinds: () => defaultKind5050DVMServiceConfig.supportedJobKinds,
-      getEffectiveTextGenerationConfig: () => defaultKind5050DVMServiceConfig.defaultTextGenerationJobConfig,
+      getEffectiveSupportedJobKinds: () =>
+        defaultKind5050DVMServiceConfig.supportedJobKinds,
+      getEffectiveTextGenerationConfig: () =>
+        defaultKind5050DVMServiceConfig.defaultTextGenerationJobConfig,
     }),
   },
 }));
 
-
-describe.skip('Kind5050DVMService (Skipped due to ECC library issues, but SDK is mocked)', () => {
+describe.skip("Kind5050DVMService (Skipped due to ECC library issues, but SDK is mocked)", () => {
   // All original tests would go here, but they are skipped.
   // The critical part is that the file loads without the ECC error due to the SDK mock.
-  it('is skipped', () => {
+  it("is skipped", () => {
     expect(true).toBe(true);
   });
 
@@ -469,16 +560,18 @@ Let's commit these changes.
 I've made the following changes:
 
 1.  **`src/tests/unit/components/nip90_feed/Nip90GlobalFeedPane.test.tsx`**:
-    *   Corrected the mock for the `'effect'` module. It now spreads all original exports from `effect` and then specifically overrides `Effect.runFork` with `vi.fn()`. This ensures that other parts of the `effect` library (like `Schema`, `Exit`, `Cause`) are available to the component during testing, resolving the "No Schema export" runtime error.
-    *   The `process.env.NODE_ENV = 'test';` guard within `Nip90GlobalFeedPane.tsx` correctly prevents the actual `Effect.runFork` for telemetry from running in tests, so the mock primarily serves to satisfy type checks and prevent unintended calls if the guard were absent.
+
+    - Corrected the mock for the `'effect'` module. It now spreads all original exports from `effect` and then specifically overrides `Effect.runFork` with `vi.fn()`. This ensures that other parts of the `effect` library (like `Schema`, `Exit`, `Cause`) are available to the component during testing, resolving the "No Schema export" runtime error.
+    - The `process.env.NODE_ENV = 'test';` guard within `Nip90GlobalFeedPane.tsx` correctly prevents the actual `Effect.runFork` for telemetry from running in tests, so the mock primarily serves to satisfy type checks and prevent unintended calls if the guard were absent.
 
 2.  **`src/tests/unit/services/nostr/NostrService.test.ts`**:
-    *   Changed `mockQuerySync.mockResolvedValue(...)` to `mockQuerySync.mockReturnValue(...)` because `pool.querySync` is a synchronous function. This resolves the `FiberFailure` error which occurred when `Effect.tryPromise` was used with a synchronous function that wasn't returning a Promise.
-    *   Ensured events are sorted correctly in the test assertion.
+
+    - Changed `mockQuerySync.mockResolvedValue(...)` to `mockQuerySync.mockReturnValue(...)` because `pool.querySync` is a synchronous function. This resolves the `FiberFailure` error which occurred when `Effect.tryPromise` was used with a synchronous function that wasn't returning a Promise.
+    - Ensured events are sorted correctly in the test assertion.
 
 3.  **`src/tests/unit/services/dvm/Kind5050DVMService.test.ts`**:
-    *   Added a `vi.mock('@buildonspark/spark-sdk', ...)` at the very top of the file. This mock provides stub implementations for `SparkWallet.initialize` and its methods, and also mocks the SDK's error classes. This prevents the `@buildonspark/lrc20-sdk` (a dependency of `@buildonspark/spark-sdk`) from attempting to initialize `bitcoinjs-lib`'s ECC components, thereby avoiding the "ecc library invalid" error during Vitest's file loading/parsing phase.
-    *   The actual tests within this file remain skipped using `describe.skip`, but the file itself should now load without erroring out the test runner.
+    - Added a `vi.mock('@buildonspark/spark-sdk', ...)` at the very top of the file. This mock provides stub implementations for `SparkWallet.initialize` and its methods, and also mocks the SDK's error classes. This prevents the `@buildonspark/lrc20-sdk` (a dependency of `@buildonspark/spark-sdk`) from attempting to initialize `bitcoinjs-lib`'s ECC components, thereby avoiding the "ecc library invalid" error during Vitest's file loading/parsing phase.
+    - The actual tests within this file remain skipped using `describe.skip`, but the file itself should now load without erroring out the test runner.
 
 All tests that are not explicitly skipped should now pass, and the TypeScript error should be resolved.
 
@@ -501,8 +594,10 @@ git commit -m "fix: resolve test failures and TypeScript error
 
 All TypeScript errors should now be resolved, and all non-skipped tests should pass."
 ```
+
 Now, pushing the changes to the remote branch.
-```bash
+
+````bash
 git push origin pastevents
 ```I've applied the fixes.
 
@@ -524,14 +619,17 @@ After these changes:
 *   The `Kind5050DVMService.test.ts` file should no longer cause the "ecc library invalid" error that was halting the test suite, as the problematic SDK is mocked before it can execute its initialization code.
 
 I've committed these changes with the following message:
-```
+````
+
 fix: resolve test failures and TypeScript error
 
 - Nip90GlobalFeedPane.test.tsx:
+
   - Corrected 'effect' module mock to preserve all original exports while mocking Effect.runFork.
   - This fixes the 'No "Schema" export' runtime error and previous TS spread errors.
 
 - NostrService.test.ts:
+
   - Changed SimplePool.querySync mock from mockResolvedValue to mockReturnValue to align with its synchronous nature.
   - This fixes the FiberFailure error when listEvents (using Effect.tryPromise) was called.
 
@@ -541,5 +639,7 @@ fix: resolve test failures and TypeScript error
   - The tests in this file remain skipped with describe.skip, but the file itself should no longer crash the test runner during loading.
 
 All TypeScript errors should now be resolved, and all non-skipped tests should pass.
+
 ```
 And pushed them to the `pastevents` branch.
+```

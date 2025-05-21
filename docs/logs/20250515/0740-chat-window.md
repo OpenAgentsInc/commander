@@ -1,11 +1,13 @@
 # Chat Window Implementation
 
 ## Overview
+
 Implemented a new chat window interface for the Commander application, positioned at the bottom-left of the screen according to the HUD design requirements. This chat window displays the conversation history between the user and the agent, and includes an input area for sending new messages.
 
 ## Components Created
 
 ### 1. ChatMessage Component
+
 - Created a reusable component for displaying individual chat messages
 - Supports different message roles (user, assistant, system)
 - Includes timestamp display
@@ -13,6 +15,7 @@ Implemented a new chat window interface for the Commander application, positione
 - File: `src/components/chat/ChatMessage.tsx`
 
 ### 2. ChatWindow Component
+
 - Contains the full chat interface including:
   - Message history with scrolling capability
   - Auto-scroll to latest messages
@@ -23,6 +26,7 @@ Implemented a new chat window interface for the Commander application, positione
 - File: `src/components/chat/ChatWindow.tsx`
 
 ## HomePage Changes
+
 - Refactored `HomePage.tsx` to implement chat state management
 - Added messages array state to track conversation history
 - Updated API call logic to add messages to the chat history
@@ -32,6 +36,7 @@ Implemented a new chat window interface for the Commander application, positione
 - Maintained the main content area with the OpenAgents Commander title
 
 ## Next Steps
+
 - Implement the hotbar component at the bottom center
 - Implement the inspector window at the bottom right
 - Add Bitcoin balance display at the top right

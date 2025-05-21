@@ -20,12 +20,12 @@ const createStorageMock = () => {
   };
 };
 
-Object.defineProperty(window, 'localStorage', {
+Object.defineProperty(window, "localStorage", {
   value: createStorageMock(),
   writable: true, // Allow re-assignment if needed by other test setups
 });
 
-Object.defineProperty(window, 'sessionStorage', {
+Object.defineProperty(window, "sessionStorage", {
   value: createStorageMock(),
   writable: true,
 });

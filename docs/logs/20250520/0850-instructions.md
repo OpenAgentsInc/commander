@@ -5,222 +5,267 @@ Let's proceed methodically.
 **I. Fix Critical TypeScript Errors (Imports, Schema Usage, Readonly Properties)**
 
 **1. `Nip90Dashboard.tsx` Import Errors (TS2614):**
-   *   **File:** `src/components/nip90/Nip90Dashboard.tsx`
-   *   **Change:** Modify the imports to use default import syntax.
-        ```typescript
-        // From:
-        // import { Nip90RequestForm } from './Nip90RequestForm';
-        // import { Nip90EventList } from './Nip90EventList';
-        // To:
-        import Nip90RequestForm from './Nip90RequestForm';
-        import Nip90EventList from './Nip90EventList';
-        ```
+
+- **File:** `src/components/nip90/Nip90Dashboard.tsx`
+- **Change:** Modify the imports to use default import syntax.
+  ```typescript
+  // From:
+  // import { Nip90RequestForm } from './Nip90RequestForm';
+  // import { Nip90EventList } from './Nip90EventList';
+  // To:
+  import Nip90RequestForm from "./Nip90RequestForm";
+  import Nip90EventList from "./Nip90EventList";
+  ```
 
 **2. `runPromise` Not Found in `effect` Module (TS2305):**
-   *   **Files:** `src/components/nip90/Nip90EventList.tsx`, `src/components/nip90/Nip90RequestForm.tsx`
-   *   **Change:** Import `runPromise` specifically from `effect/Effect`.
-        *   In both files, modify the import:
-            ```typescript
-            // From: import { Effect, pipe, runPromise } from "effect";
-            // To:
-            import { Effect, pipe } from "effect"; // Or Layer, Exit, Cause as needed
-            import { runPromise } from "effect/Effect"; // Import runPromise specifically
-            // If runPromiseExit is also used, import it too: import { runPromise, runPromiseExit } from "effect/Effect";
-            ```
-        *   Then use `runPromise(...)` directly.
+
+- **Files:** `src/components/nip90/Nip90EventList.tsx`, `src/components/nip90/Nip90RequestForm.tsx`
+- **Change:** Import `runPromise` specifically from `effect/Effect`.
+  - In both files, modify the import:
+    ```typescript
+    // From: import { Effect, pipe, runPromise } from "effect";
+    // To:
+    import { Effect, pipe } from "effect"; // Or Layer, Exit, Cause as needed
+    import { runPromise } from "effect/Effect"; // Import runPromise specifically
+    // If runPromiseExit is also used, import it too: import { runPromise, runPromiseExit } from "effect/Effect";
+    ```
+  - Then use `runPromise(...)` directly.
 
 **3. `Schema.array` vs `Schema.Array` (Fix for Test Failure `TypeError: Schema.Array is not a function`):**
-   *   **Files:** `src/services/nip19/NIP19Service.ts`, `src/services/nip90/NIP90Service.ts`
-   *   **Context:** Effect v3 uses `Schema.array(...)`. The agent might have switched between `Schema.Array` and `Schema.array`.
-   *   **Change:** Standardize to `Schema.array(...)`.
-        *   In `src/services/nip19/NIP19Service.ts`:
-            ```typescript
-            // relays: Schema.optional(Schema.Array(Schema.String)) becomes:
-            relays: Schema.optional(Schema.array(Schema.String))
-            ```
-        *   In `src/services/nip90/NIP90Service.ts`:
-            ```typescript
-            // inputs: Schema.Array(NIP90InputSchema) becomes:
-            inputs: Schema.array(NIP90InputSchema),
-            // additionalParams: Schema.optional(Schema.Array(NIP90JobParamSchema)) becomes:
-            additionalParams: Schema.optional(Schema.array(NIP90JobParamSchema)),
-            // tags: Schema.Array(Schema.Array(Schema.String)) becomes:
-            tags: Schema.array(Schema.array(Schema.String)), // For NIP90JobResultSchema and NIP90JobFeedbackSchema
-            ```
+
+- **Files:** `src/services/nip19/NIP19Service.ts`, `src/services/nip90/NIP90Service.ts`
+- **Context:** Effect v3 uses `Schema.array(...)`. The agent might have switched between `Schema.Array` and `Schema.array`.
+- **Change:** Standardize to `Schema.array(...)`.
+  - In `src/services/nip19/NIP19Service.ts`:
+    ```typescript
+    // relays: Schema.optional(Schema.Array(Schema.String)) becomes:
+    relays: Schema.optional(Schema.array(Schema.String));
+    ```
+  - In `src/services/nip90/NIP90Service.ts`:
+    ```typescript
+    // inputs: Schema.Array(NIP90InputSchema) becomes:
+    inputs: Schema.array(NIP90InputSchema),
+    // additionalParams: Schema.optional(Schema.Array(NIP90JobParamSchema)) becomes:
+    additionalParams: Schema.optional(Schema.array(NIP90JobParamSchema)),
+    // tags: Schema.Array(Schema.Array(Schema.String)) becomes:
+    tags: Schema.array(Schema.array(Schema.String)), // For NIP90JobResultSchema and NIP90JobFeedbackSchema
+    ```
 
 **4. `Schema.Tuple` Usage (TS2769 in `NIP90Service.ts`):**
-   *   **File:** `src/services/nip90/NIP90Service.ts`
-   *   **Change:** `Schema.Tuple` expects an array of schemas as its argument.
-        ```typescript
-        // For NIP90InputSchema:
-        // From: Schema.Tuple(Schema.String, NIP90InputTypeSchema, Schema.optional(Schema.String), Schema.optional(Schema.String))
-        // To:
-        export const NIP90InputSchema = Schema.Tuple([Schema.String, NIP90InputTypeSchema, Schema.optional(Schema.String), Schema.optional(Schema.String)]);
 
-        // For NIP90JobParamSchema:
-        // From: Schema.Tuple(Schema.Literal("param"), Schema.String, Schema.String)
-        // To:
-        export const NIP90JobParamSchema = Schema.Tuple([Schema.Literal("param"), Schema.String, Schema.String]);
-        ```
+- **File:** `src/services/nip90/NIP90Service.ts`
+- **Change:** `Schema.Tuple` expects an array of schemas as its argument.
+
+  ```typescript
+  // For NIP90InputSchema:
+  // From: Schema.Tuple(Schema.String, NIP90InputTypeSchema, Schema.optional(Schema.String), Schema.optional(Schema.String))
+  // To:
+  export const NIP90InputSchema = Schema.Tuple([
+    Schema.String,
+    NIP90InputTypeSchema,
+    Schema.optional(Schema.String),
+    Schema.optional(Schema.String),
+  ]);
+
+  // For NIP90JobParamSchema:
+  // From: Schema.Tuple(Schema.Literal("param"), Schema.String, Schema.String)
+  // To:
+  export const NIP90JobParamSchema = Schema.Tuple([
+    Schema.Literal("param"),
+    Schema.String,
+    Schema.String,
+  ]);
+  ```
 
 **5. Missing Exports from `NIP19Service.ts` (TS2305 in `NIP19ServiceImpl.ts`):**
-   *   **Files:** `src/services/nip19/NIP19Service.ts`, `src/services/nip19/index.ts`.
-   *   **Context:** `AddressPointer`, `DecodedNIP19Result`, `AddressPointerSchema` are used in `NIP19ServiceImpl.ts` but might not be exported correctly or their definitions were changed.
-   *   **Action:**
-        1.  In `src/services/nip19/NIP19Service.ts`, ensure these types and schemas are defined and **exported**.
-            ```typescript
-            // src/services/nip19/NIP19Service.ts
-            // ...
-            export type ProfilePointer = NostrToolsNIP19.ProfilePointer; // Keep existing
-            export const ProfilePointerSchema = Schema.Struct({ /* ... */ }); // Keep existing
 
-            export type EventPointer = NostrToolsNIP19.EventPointer; // Keep existing
-            export const EventPointerSchema = Schema.Struct({ /* ... */ }); // Keep existing
+- **Files:** `src/services/nip19/NIP19Service.ts`, `src/services/nip19/index.ts`.
+- **Context:** `AddressPointer`, `DecodedNIP19Result`, `AddressPointerSchema` are used in `NIP19ServiceImpl.ts` but might not be exported correctly or their definitions were changed.
+- **Action:**
 
-            export type AddressPointer = NostrToolsNIP19.AddressPointer; // Ensure this is exported
-            export const AddressPointerSchema = Schema.Struct({ /* ... */ }); // Ensure this is exported
+  1.  In `src/services/nip19/NIP19Service.ts`, ensure these types and schemas are defined and **exported**.
 
-            export type DecodedNIP19Result = /* ... union type ... */; // Ensure this is exported
-            // ...
-            ```
-        2.  Ensure `src/services/nip19/index.ts` re-exports everything: `export * from './NIP19Service'; export * from './NIP19ServiceImpl';`
+      ```typescript
+      // src/services/nip19/NIP19Service.ts
+      // ...
+      export type ProfilePointer = NostrToolsNIP19.ProfilePointer; // Keep existing
+      export const ProfilePointerSchema = Schema.Struct({ /* ... */ }); // Keep existing
+
+      export type EventPointer = NostrToolsNIP19.EventPointer; // Keep existing
+      export const EventPointerSchema = Schema.Struct({ /* ... */ }); // Keep existing
+
+      export type AddressPointer = NostrToolsNIP19.AddressPointer; // Ensure this is exported
+      export const AddressPointerSchema = Schema.Struct({ /* ... */ }); // Ensure this is exported
+
+      export type DecodedNIP19Result = /* ... union type ... */; // Ensure this is exported
+      // ...
+      ```
+
+  2.  Ensure `src/services/nip19/index.ts` re-exports everything: `export * from './NIP19Service'; export * from './NIP19ServiceImpl';`
 
 **6. Mismatch between `NIP19Service` Interface and `NIP19ServiceImpl.ts` / Tests (TS2561, TS2339):**
-   *   **Context:** The agent refactored `NIP19Service.ts` interface to have specific methods (e.g., `encodeNpub`, `decodeNpub`) but the implementation and tests still refer to older, more generic methods like `encodeNsec` or a single `decode`.
-   *   **Action:**
-        1.  **Standardize `NIP19Service.ts` Interface:** Revert `NIP19Service.ts` to the interface definition from `1103-instructions.md` (Step VII.1) which includes generic `encodeNsec`, `decode`, etc., as these are what `nostr-tools/nip19` provides more directly.
-            ```typescript
-            // src/services/nip19/NIP19Service.ts (revert interface to this structure)
-            export interface NIP19Service {
-              encodeNsec(secretKey: Uint8Array): Effect.Effect<string, NIP19EncodeError>;
-              encodeNpub(publicKeyHex: string): Effect.Effect<string, NIP19EncodeError>;
-              encodeNote(eventIdHex: string): Effect.Effect<string, NIP19EncodeError>;
-              encodeNprofile(profile: ProfilePointer): Effect.Effect<string, NIP19EncodeError>;
-              encodeNevent(event: EventPointer): Effect.Effect<string, NIP19EncodeError>;
-              encodeNaddr(address: AddressPointer): Effect.Effect<string, NIP19EncodeError>;
-              decode(nip19String: string): Effect.Effect<DecodedNIP19Result, NIP19DecodeError>;
-            }
-            ```
-        2.  **Update `NIP19ServiceImpl.ts`:** Ensure it implements this interface. The agent's `1103-log.md` (Step VI.2) shows it was doing this.
-        3.  **Update `NIP19Service.test.ts`:** Ensure tests call these methods (e.g., `service.encodeNsec(...)`, `service.decode(...)`).
+
+- **Context:** The agent refactored `NIP19Service.ts` interface to have specific methods (e.g., `encodeNpub`, `decodeNpub`) but the implementation and tests still refer to older, more generic methods like `encodeNsec` or a single `decode`.
+- **Action:**
+  1.  **Standardize `NIP19Service.ts` Interface:** Revert `NIP19Service.ts` to the interface definition from `1103-instructions.md` (Step VII.1) which includes generic `encodeNsec`, `decode`, etc., as these are what `nostr-tools/nip19` provides more directly.
+      ```typescript
+      // src/services/nip19/NIP19Service.ts (revert interface to this structure)
+      export interface NIP19Service {
+        encodeNsec(
+          secretKey: Uint8Array,
+        ): Effect.Effect<string, NIP19EncodeError>;
+        encodeNpub(
+          publicKeyHex: string,
+        ): Effect.Effect<string, NIP19EncodeError>;
+        encodeNote(eventIdHex: string): Effect.Effect<string, NIP19EncodeError>;
+        encodeNprofile(
+          profile: ProfilePointer,
+        ): Effect.Effect<string, NIP19EncodeError>;
+        encodeNevent(
+          event: EventPointer,
+        ): Effect.Effect<string, NIP19EncodeError>;
+        encodeNaddr(
+          address: AddressPointer,
+        ): Effect.Effect<string, NIP19EncodeError>;
+        decode(
+          nip19String: string,
+        ): Effect.Effect<DecodedNIP19Result, NIP19DecodeError>;
+      }
+      ```
+  2.  **Update `NIP19ServiceImpl.ts`:** Ensure it implements this interface. The agent's `1103-log.md` (Step VI.2) shows it was doing this.
+  3.  **Update `NIP19Service.test.ts`:** Ensure tests call these methods (e.g., `service.encodeNsec(...)`, `service.decode(...)`).
 
 **7. Fix `NIP90ServiceImpl.ts` Errors:**
-   *   **`createJobRequest` Return Type (TS2322, TS2339 for `publishedEvent.id/kind`):**
-        *   The `createJobRequest` method inside `NIP90ServiceImpl.ts` must return `Effect.Effect<NostrEvent, ...>`.
-        *   **Change:**
-            ```typescript
-            // Inside NIP90ServiceImpl.ts, createJobRequest method
-            // ...
-            // const publishedEvent = yield* _(nostr.publishEvent(jobEvent)); // This was already changed from Effect.void
-            // Ensure publishedEvent is the jobEvent itself (as publishEvent might return void or ok status)
-            yield* _(nostr.publishEvent(jobEvent)); // publish jobEvent
-            // ... telemetry ...
-            return jobEvent; // Return the jobEvent
-            ```
-   *   **`inputs` Type Mismatch (TS2345):**
-        *   `params.inputs` is `readonly (readonly [])[]` but `createNip90JobRequest` helper expects `[string, string, ...][]`.
-        *   **Change:** In `NIP90ServiceImpl.ts` call to `createNip90JobRequest` helper:
-            ```typescript
-            const jobEventEffect = createNip90JobRequest(
-              params.requesterSk,
-              params.targetDvmPubkeyHex || OUR_DVM_PUBKEY_HEX_FALLBACK, // Provide a fallback if undefined
-              params.inputs as [string, string, string?, string?, string?][], // Cast here
-              params.outputMimeType,
-              params.bidMillisats,
-              params.kind,
-              params.additionalParams as [['param', string, string]] | undefined // Cast here too
-            );
-            ```
-            *(Note: `OUR_DVM_PUBKEY_HEX_FALLBACK` needs to be defined if `targetDvmPubkeyHex` is truly optional in `CreateNIP90JobParams`)*
-   *   **`nostr.publishEvent` Arguments (TS2554):**
-        *   `NostrService.publishEvent` (as per its interface) takes only one argument (`event: NostrEvent`).
-        *   **Change:** In `NIP90ServiceImpl.ts`, remove the second argument:
-            ```typescript
-            // From: yield* _(nostr.publishEvent(jobEvent, params.relays));
-            // To:
-            yield* _(nostr.publishEvent(jobEvent));
-            ```
-   *   **Readonly Property Assignments (TS2540):**
-        *   When constructing `NIP90JobResult` and `NIP90JobFeedback` objects after fetching and decrypting, build *new* objects.
-        *   **Change (Example for `getJobResult`):**
-            ```typescript
-            // In NIP90ServiceImpl.ts, getJobResult method
-            // ...
-            const event = events[0]; // This is a NostrEvent
-            // ... (parsing tags, decryption logic) ...
-            const finalResult: NIP90JobResult = {
-                id: event.id,
-                pubkey: event.pubkey,
-                created_at: event.created_at,
-                kind: event.kind as NIP90JobResult['kind'], // Cast kind if necessary
-                tags: event.tags,
-                sig: event.sig,
-                content: isEncrypted && decryptedContentOpt ? decryptedContentOpt.value : event.content,
-                parsedRequest: parsedRequestJson, // From parsed 'request' tag
-                paymentAmount: paymentAmountNum,  // From parsed 'amount' tag
-                paymentInvoice: paymentInvoiceStr, // From parsed 'amount' tag
-                isEncrypted: isEncrypted,
-            };
-            return finalResult;
-            ```
-        *   Apply this pattern to `listJobFeedback` and `subscribeToJobUpdates` as well for constructing the result/feedback objects.
+
+- **`createJobRequest` Return Type (TS2322, TS2339 for `publishedEvent.id/kind`):**
+  - The `createJobRequest` method inside `NIP90ServiceImpl.ts` must return `Effect.Effect<NostrEvent, ...>`.
+  - **Change:**
+    ```typescript
+    // Inside NIP90ServiceImpl.ts, createJobRequest method
+    // ...
+    // const publishedEvent = yield* _(nostr.publishEvent(jobEvent)); // This was already changed from Effect.void
+    // Ensure publishedEvent is the jobEvent itself (as publishEvent might return void or ok status)
+    yield * _(nostr.publishEvent(jobEvent)); // publish jobEvent
+    // ... telemetry ...
+    return jobEvent; // Return the jobEvent
+    ```
+- **`inputs` Type Mismatch (TS2345):**
+  - `params.inputs` is `readonly (readonly [])[]` but `createNip90JobRequest` helper expects `[string, string, ...][]`.
+  - **Change:** In `NIP90ServiceImpl.ts` call to `createNip90JobRequest` helper:
+    ```typescript
+    const jobEventEffect = createNip90JobRequest(
+      params.requesterSk,
+      params.targetDvmPubkeyHex || OUR_DVM_PUBKEY_HEX_FALLBACK, // Provide a fallback if undefined
+      params.inputs as [string, string, string?, string?, string?][], // Cast here
+      params.outputMimeType,
+      params.bidMillisats,
+      params.kind,
+      params.additionalParams as [["param", string, string]] | undefined, // Cast here too
+    );
+    ```
+    _(Note: `OUR_DVM_PUBKEY_HEX_FALLBACK` needs to be defined if `targetDvmPubkeyHex` is truly optional in `CreateNIP90JobParams`)_
+- **`nostr.publishEvent` Arguments (TS2554):**
+  - `NostrService.publishEvent` (as per its interface) takes only one argument (`event: NostrEvent`).
+  - **Change:** In `NIP90ServiceImpl.ts`, remove the second argument:
+    ```typescript
+    // From: yield* _(nostr.publishEvent(jobEvent, params.relays));
+    // To:
+    yield * _(nostr.publishEvent(jobEvent));
+    ```
+- **Readonly Property Assignments (TS2540):**
+  - When constructing `NIP90JobResult` and `NIP90JobFeedback` objects after fetching and decrypting, build _new_ objects.
+  - **Change (Example for `getJobResult`):**
+    ```typescript
+    // In NIP90ServiceImpl.ts, getJobResult method
+    // ...
+    const event = events[0]; // This is a NostrEvent
+    // ... (parsing tags, decryption logic) ...
+    const finalResult: NIP90JobResult = {
+      id: event.id,
+      pubkey: event.pubkey,
+      created_at: event.created_at,
+      kind: event.kind as NIP90JobResult["kind"], // Cast kind if necessary
+      tags: event.tags,
+      sig: event.sig,
+      content:
+        isEncrypted && decryptedContentOpt
+          ? decryptedContentOpt.value
+          : event.content,
+      parsedRequest: parsedRequestJson, // From parsed 'request' tag
+      paymentAmount: paymentAmountNum, // From parsed 'amount' tag
+      paymentInvoice: paymentInvoiceStr, // From parsed 'amount' tag
+      isEncrypted: isEncrypted,
+    };
+    return finalResult;
+    ```
+  - Apply this pattern to `listJobFeedback` and `subscribeToJobUpdates` as well for constructing the result/feedback objects.
 
 **8. Fix `addPaneActionLogic` Export/Import (TS2724):**
-   *   **File:** `src/stores/panes/actions/addPane.ts` and `openNip90DashboardPane.ts`.
-   *   **Action:**
-        1.  In `src/stores/panes/actions/addPane.ts`, ensure `addPaneActionLogic` is exported:
-            ```typescript
-            export function addPaneActionLogic(state: PaneStoreType, /*...args*/): Partial<PaneStoreType> { /* ... */ }
-            export function addPaneAction(set: SetPaneStore, /*...args*/) { /* ... calls set(state => addPaneActionLogic(state, ...)) ... */ }
-            ```
-        2.  In `src/stores/panes/actions/openNip90DashboardPane.ts`, ensure the import is correct:
-            `import { addPaneActionLogic } from './addPane';`
-            And the usage is: `set((state: PaneStoreType) => { const changes = addPaneActionLogic(state, ...); return { ...state, ...changes }; });`
+
+- **File:** `src/stores/panes/actions/addPane.ts` and `openNip90DashboardPane.ts`.
+- **Action:**
+  1.  In `src/stores/panes/actions/addPane.ts`, ensure `addPaneActionLogic` is exported:
+      ```typescript
+      export function addPaneActionLogic(
+        state: PaneStoreType /*...args*/,
+      ): Partial<PaneStoreType> {
+        /* ... */
+      }
+      export function addPaneAction(set: SetPaneStore /*...args*/) {
+        /* ... calls set(state => addPaneActionLogic(state, ...)) ... */
+      }
+      ```
+  2.  In `src/stores/panes/actions/openNip90DashboardPane.ts`, ensure the import is correct:
+      `import { addPaneActionLogic } from './addPane';`
+      And the usage is: `set((state: PaneStoreType) => { const changes = addPaneActionLogic(state, ...); return { ...state, ...changes }; });`
 
 **9. Fix `Effect.void()` Call in `NIP90Service.test.ts` (TS2349):**
-    *   **File:** `src/tests/unit/services/nip90/NIP90Service.test.ts` (line 51 of error list)
-    *   **Change:** `Effect.void()` is not a function call. It should be `Effect.void` (the pre-constructed Effect value) or `Effect.succeed(undefined as void)`.
-        ```typescript
+_ **File:** `src/tests/unit/services/nip90/NIP90Service.test.ts` (line 51 of error list)
+_ **Change:** `Effect.void()` is not a function call. It should be `Effect.void` (the pre-constructed Effect value) or `Effect.succeed(undefined as void)`.
+`typescript
         // In MockTelemetryServiceLayer definition:
         trackEvent: vi.fn().mockImplementation(() => Effect.succeed(undefined as void)),
         // ...
-        ```
+        `
 
 **II. Fix Test Failures**
 
 **1. `TypeError: Schema.Array is not a function` (NIP-19 Tests):**
-   *   **Cause:** The `vi.mock('effect', ...)` in `Nip90RequestForm.test.tsx` likely creates a global mock for `Schema` that doesn't include `Schema.array`. This mock affects `NIP19Service.test.ts`.
-   *   **Fix:**
-        1.  Ensure the `vi.mock('effect', ...)` in `src/tests/unit/components/nip90/Nip90RequestForm.test.tsx` correctly mocks `Schema.array` (lowercase 'a').
-            ```typescript
-            // Inside vi.mock('effect', ...) in Nip90RequestForm.test.tsx
-            Schema: {
-              // ... other mocked Schema functions ...
-              array: vi.fn((itemSchema) => ({ _tag: "SchemaArray", item: itemSchema, ast: { /* mock ast */ } })),
-              // Struct, String, Number, optional, Union etc. should also be mocked if used by schemas in test scope
-            }
-            ```
-        2.  Ensure `NIP19Service.ts` uses `Schema.array` consistently.
+
+- **Cause:** The `vi.mock('effect', ...)` in `Nip90RequestForm.test.tsx` likely creates a global mock for `Schema` that doesn't include `Schema.array`. This mock affects `NIP19Service.test.ts`.
+- **Fix:**
+  1.  Ensure the `vi.mock('effect', ...)` in `src/tests/unit/components/nip90/Nip90RequestForm.test.tsx` correctly mocks `Schema.array` (lowercase 'a').
+      ```typescript
+      // Inside vi.mock('effect', ...) in Nip90RequestForm.test.tsx
+      Schema: {
+        // ... other mocked Schema functions ...
+        array: vi.fn((itemSchema) => ({ _tag: "SchemaArray", item: itemSchema, ast: { /* mock ast */ } })),
+        // Struct, String, Number, optional, Union etc. should also be mocked if used by schemas in test scope
+      }
+      ```
+  2.  Ensure `NIP19Service.ts` uses `Schema.array` consistently.
 
 **2. `TypeError: __vi_import_0__.Effect.void is not a function` (NIP-90 Tests):**
-   *   **Cause:** The `vi.mock('effect', ...)` in `NIP90Service.test.ts` (if it exists there, or if affected by another global mock) is incomplete.
-   *   **Fix:** Ensure the mock for `Effect` (in the relevant test file, likely `NIP90Service.test.ts`) includes:
-        ```typescript
-        // In the mock factory for 'effect'
-        Effect: {
-          // ... other mocked Effect functions
-          void: { _id: "Effect", _op: "Success", i0: undefined }, // Provide the Effect.void value
-          // ...
-        }
-        ```
+
+- **Cause:** The `vi.mock('effect', ...)` in `NIP90Service.test.ts` (if it exists there, or if affected by another global mock) is incomplete.
+- **Fix:** Ensure the mock for `Effect` (in the relevant test file, likely `NIP90Service.test.ts`) includes:
+  ```typescript
+  // In the mock factory for 'effect'
+  Effect: {
+    // ... other mocked Effect functions
+    void: { _id: "Effect", _op: "Success", i0: undefined }, // Provide the Effect.void value
+    // ...
+  }
+  ```
 
 **3. `AssertionError` for Telemetry in NIP-90 Validation Tests:**
-   *   **Cause:** `SparkServiceImpl.ts` (and now `NIP90ServiceImpl.ts`) was fixed in `2307-instructions.md` so that schema validation failure logs the `*_failure` telemetry and skips `*_start`. The tests need to expect this.
-   *   **Action:** Review the assertions in the NIP-90 schema validation tests. They should now pass if `NIP90ServiceImpl.ts` was updated with the same telemetry logic as `SparkServiceImpl.ts` (i.e., `Effect.tapError` at the end of the main `Effect.gen` block for the method). Ensure the `mockTrackEvent` checks for the correct failure action.
+
+- **Cause:** `SparkServiceImpl.ts` (and now `NIP90ServiceImpl.ts`) was fixed in `2307-instructions.md` so that schema validation failure logs the `*_failure` telemetry and skips `*_start`. The tests need to expect this.
+- **Action:** Review the assertions in the NIP-90 schema validation tests. They should now pass if `NIP90ServiceImpl.ts` was updated with the same telemetry logic as `SparkServiceImpl.ts` (i.e., `Effect.tapError` at the end of the main `Effect.gen` block for the method). Ensure the `mockTrackEvent` checks for the correct failure action.
 
 After these changes, run `pnpm t` and `pnpm test` again. This comprehensive approach should resolve the majority of the listed issues.
 
-```typescript
+````typescript
 // File: src/components/nip90/Nip90Dashboard.tsx
 import React from 'react';
 import Nip90RequestForm from './Nip90RequestForm'; // Changed to default import
@@ -2391,4 +2436,4 @@ export * from './NIP19ServiceImpl';
 //   return { mainRuntime: testRuntime };
 // });
 // This ensures the component gets a runtime where NIP90Service and TelemetryService are mocked.
-```
+````

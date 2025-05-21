@@ -5,141 +5,146 @@ Here are the coding instructions:
 **I. Setup and Dependencies**
 
 1.  **Add QR Code Library:**
-    *   If not already present, add `qrcode.react` for displaying QR codes for invoices and addresses.
-        ```bash
-        pnpm add qrcode.react
-        pnpm add -D @types/qrcode.react
-        ```
+    - If not already present, add `qrcode.react` for displaying QR codes for invoices and addresses.
+      ```bash
+      pnpm add qrcode.react
+      pnpm add -D @types/qrcode.react
+      ```
 
 **II. Hotbar Integration**
 
 1.  **Objective:** Add a "Wallet" icon to the Hotbar that opens the new Wallet Pane.
 2.  **File:** `src/components/hud/Hotbar.tsx`
-    *   **Import necessary items:**
+    - **Import necessary items:**
+      ```typescript
+      import { Wallet } from "lucide-react"; // Or another suitable icon
+      import { usePaneStore } from "@/stores/pane";
+      import { WALLET_PANE_ID } from "@/stores/panes/constants"; // This will be created later
+      ```
+    - **Get store action and state:**
+      ```typescript
+      const openWalletPane = usePaneStore((state) => state.openWalletPane); // This action will be created later
+      const activePaneId = usePaneStore((state) => state.activePaneId);
+      ```
+    - **Add new `HotbarItem`:**
+      - Choose an appropriate slot number. For example, if "Reset HUD Layout" is Slot 4, make this Slot 5.
+      - The `onClick` handler should call `openWalletPane`.
+      - The `isActive` prop should check if `activePaneId === WALLET_PANE_ID`.
+      - Example (adjust slot number as needed):
         ```typescript
-        import { Wallet } from 'lucide-react'; // Or another suitable icon
-        import { usePaneStore } from '@/stores/pane';
-        import { WALLET_PANE_ID } from '@/stores/panes/constants'; // This will be created later
+        <HotbarItem slotNumber={5} onClick={openWalletPane} title="Wallet" isActive={activePaneId === WALLET_PANE_ID}>
+          <Wallet className="w-5 h-5 text-muted-foreground" />
+        </HotbarItem>
         ```
-    *   **Get store action and state:**
-        ```typescript
-        const openWalletPane = usePaneStore((state) => state.openWalletPane); // This action will be created later
-        const activePaneId = usePaneStore((state) => state.activePaneId);
-        ```
-    *   **Add new `HotbarItem`:**
-        *   Choose an appropriate slot number. For example, if "Reset HUD Layout" is Slot 4, make this Slot 5.
-        *   The `onClick` handler should call `openWalletPane`.
-        *   The `isActive` prop should check if `activePaneId === WALLET_PANE_ID`.
-        *   Example (adjust slot number as needed):
-            ```typescript
-            <HotbarItem slotNumber={5} onClick={openWalletPane} title="Wallet" isActive={activePaneId === WALLET_PANE_ID}>
-              <Wallet className="w-5 h-5 text-muted-foreground" />
-            </HotbarItem>
-            ```
-    *   Adjust the `Array.from({ length: ... })` for empty slots accordingly.
+    - Adjust the `Array.from({ length: ... })` for empty slots accordingly.
 
 **III. Wallet Pane Store Logic**
 
 1.  **Define Pane Type and Constants:**
-    *   **File:** `src/types/pane.ts`
-        *   Add `'wallet'` to the `Pane['type']` union:
-            ```typescript
-            export type Pane = {
-              // ... existing types ...
-              type: 'default' | /* ... */ | 'nip90_global_feed' | 'wallet' | string; // Added 'wallet'
-              // ...
-            }
-            ```
-    *   **File:** `src/stores/panes/constants.ts`
-        *   Add constants for the wallet pane:
-            ```typescript
-            export const WALLET_PANE_ID = 'wallet_pane';
-            export const WALLET_PANE_TITLE = 'Bitcoin Wallet';
-            ```
 
-2.  **Implement Store Action:**
-    *   **File:** Create `src/stores/panes/actions/openWalletPane.ts`
+    - **File:** `src/types/pane.ts`
+      - Add `'wallet'` to the `Pane['type']` union:
         ```typescript
-        import { type PaneInput } from '@/types/pane';
-        import { type PaneStoreType, type SetPaneStore } from '../types';
-        import { addPaneActionLogic } from './addPane';
-        import { WALLET_PANE_ID, WALLET_PANE_TITLE } from '../constants';
-
-        export function openWalletPaneAction(set: SetPaneStore) {
-          set((state: PaneStoreType) => {
-            const existingPane = state.panes.find(p => p.id === WALLET_PANE_ID);
-            if (existingPane) {
-              const newPanes = state.panes
-                .map(p => ({ ...p, isActive: p.id === WALLET_PANE_ID }))
-                .sort((a, b) => (a.isActive ? 1 : -1) - (b.isActive ? 1 : -1)); // Active last for z-index
-              return {
-                ...state,
-                panes: newPanes,
-                activePaneId: WALLET_PANE_ID,
-                lastPanePosition: {
-                  x: existingPane.x,
-                  y: existingPane.y,
-                  width: existingPane.width,
-                  height: existingPane.height
-                }
-              };
-            }
-
-            const newPaneInput: PaneInput = {
-              id: WALLET_PANE_ID,
-              type: 'wallet',
-              title: WALLET_PANE_TITLE,
-              dismissable: true,
-              width: 450, // Adjust default size as needed
-              height: 550,
-            };
-            const changes = addPaneActionLogic(state, newPaneInput, true); // true for tiling
-            return { ...state, ...changes };
-          });
+        export type Pane = {
+          // ... existing types ...
+          type: 'default' | /* ... */ | 'nip90_global_feed' | 'wallet' | string; // Added 'wallet'
+          // ...
         }
         ```
-    *   **File:** `src/stores/panes/actions/index.ts`
-        *   Export the new action: `export * from './openWalletPane';`
-    *   **File:** `src/stores/panes/types.ts`
-        *   Add the action to `PaneStoreType` interface: `openWalletPane: () => void;`
-    *   **File:** `src/stores/pane.ts`
-        *   Import `openWalletPaneAction`.
-        *   Add it to the store implementation: `openWalletPane: () => openWalletPaneAction(set),`
+    - **File:** `src/stores/panes/constants.ts`
+      - Add constants for the wallet pane:
+        ```typescript
+        export const WALLET_PANE_ID = "wallet_pane";
+        export const WALLET_PANE_TITLE = "Bitcoin Wallet";
+        ```
+
+2.  **Implement Store Action:**
+
+    - **File:** Create `src/stores/panes/actions/openWalletPane.ts`
+
+      ```typescript
+      import { type PaneInput } from "@/types/pane";
+      import { type PaneStoreType, type SetPaneStore } from "../types";
+      import { addPaneActionLogic } from "./addPane";
+      import { WALLET_PANE_ID, WALLET_PANE_TITLE } from "../constants";
+
+      export function openWalletPaneAction(set: SetPaneStore) {
+        set((state: PaneStoreType) => {
+          const existingPane = state.panes.find((p) => p.id === WALLET_PANE_ID);
+          if (existingPane) {
+            const newPanes = state.panes
+              .map((p) => ({ ...p, isActive: p.id === WALLET_PANE_ID }))
+              .sort((a, b) => (a.isActive ? 1 : -1) - (b.isActive ? 1 : -1)); // Active last for z-index
+            return {
+              ...state,
+              panes: newPanes,
+              activePaneId: WALLET_PANE_ID,
+              lastPanePosition: {
+                x: existingPane.x,
+                y: existingPane.y,
+                width: existingPane.width,
+                height: existingPane.height,
+              },
+            };
+          }
+
+          const newPaneInput: PaneInput = {
+            id: WALLET_PANE_ID,
+            type: "wallet",
+            title: WALLET_PANE_TITLE,
+            dismissable: true,
+            width: 450, // Adjust default size as needed
+            height: 550,
+          };
+          const changes = addPaneActionLogic(state, newPaneInput, true); // true for tiling
+          return { ...state, ...changes };
+        });
+      }
+      ```
+
+    - **File:** `src/stores/panes/actions/index.ts`
+      - Export the new action: `export * from './openWalletPane';`
+    - **File:** `src/stores/panes/types.ts`
+      - Add the action to `PaneStoreType` interface: `openWalletPane: () => void;`
+    - **File:** `src/stores/pane.ts`
+      - Import `openWalletPaneAction`.
+      - Add it to the store implementation: `openWalletPane: () => openWalletPaneAction(set),`
 
 3.  **Test Store Action (Conceptual - or create `openWalletPane.test.ts`):**
-    *   Verify that `openWalletPaneAction` adds a new pane of type `'wallet'` or activates an existing one.
+    - Verify that `openWalletPaneAction` adds a new pane of type `'wallet'` or activates an existing one.
 
 **IV. Bitcoin Balance Display Component Modification**
 
 1.  **Objective:** Change the top-right Bitcoin balance display to open the new Wallet Pane.
 2.  **File:** `src/components/hud/BitcoinBalanceDisplay.tsx`
-    *   **Import necessary items:**
-        ```typescript
-        // import { usePaneStore } from '@/stores/pane'; // Already there
-        // const openSellComputePane = usePaneStore((state) => state.openSellComputePane); // Remove this line
-        const openWalletPane = usePaneStore((state) => state.openWalletPane); // Add this line
-        ```
-    *   **Modify `handleDisplayClick` function:**
-        ```typescript
-        const handleDisplayClick = () => {
-          // console.log('Opening wallet pane (placeholder - to be implemented)'); // Remove this log
-          // openSellComputePane(); // Remove this line
-          openWalletPane(); // Add this line
-        };
-        ```
-    *   **Update `title` prop:**
-        ```typescript
-        <div
-          onClick={handleDisplayClick}
-          title="Open Wallet" // Changed title
-          // ... rest of the props
-        >
-        ```
+    - **Import necessary items:**
+      ```typescript
+      // import { usePaneStore } from '@/stores/pane'; // Already there
+      // const openSellComputePane = usePaneStore((state) => state.openSellComputePane); // Remove this line
+      const openWalletPane = usePaneStore((state) => state.openWalletPane); // Add this line
+      ```
+    - **Modify `handleDisplayClick` function:**
+      ```typescript
+      const handleDisplayClick = () => {
+        // console.log('Opening wallet pane (placeholder - to be implemented)'); // Remove this log
+        // openSellComputePane(); // Remove this line
+        openWalletPane(); // Add this line
+      };
+      ```
+    - **Update `title` prop:**
+      ```typescript
+      <div
+        onClick={handleDisplayClick}
+        title="Open Wallet" // Changed title
+        // ... rest of the props
+      >
+      ```
 
 **V. Wallet Pane UI Component Creation**
 
 1.  **Create Directory:** `src/components/wallet/`
 2.  **Create File:** `src/components/wallet/WalletPane.tsx`
+
     ```typescript
     // src/components/wallet/WalletPane.tsx
     import React, { useState, useEffect } from 'react';
@@ -463,58 +468,60 @@ Here are the coding instructions:
     //   <WalletPane />
     // </QueryClientProvider>
     ```
+
 3.  **Add to `src/components/wallet/index.ts`:**
     ```typescript
     // src/components/wallet/index.ts
-    export { default as WalletPane } from './WalletPane';
+    export { default as WalletPane } from "./WalletPane";
     ```
 
 **VI. Pane Manager Integration**
 
 1.  **File:** `src/panes/PaneManager.tsx`
-    *   **Import the new `WalletPane`:**
-        ```typescript
-        import { WalletPane } from '@/components/wallet'; // Or from '@/components/wallet/WalletPane'
-        ```
-    *   **Add a case to render `<WalletPane />`:**
-        ```typescript
-        // Inside the panes.map(...)
-        {pane.type === 'wallet' && (
-          <WalletPane />
-        )}
-        // ...
-        // Update the final fallback condition to include 'wallet'
-        {!(
-          // ... other types ...
-          pane.type === 'wallet' || // Added
-          pane.type === 'default'
-        ) && <PlaceholderDefaultComponent type={pane.type} />}
-        ```
+    - **Import the new `WalletPane`:**
+      ```typescript
+      import { WalletPane } from "@/components/wallet"; // Or from '@/components/wallet/WalletPane'
+      ```
+    - **Add a case to render `<WalletPane />`:**
+      ```typescript
+      // Inside the panes.map(...)
+      {pane.type === 'wallet' && (
+        <WalletPane />
+      )}
+      // ...
+      // Update the final fallback condition to include 'wallet'
+      {!(
+        // ... other types ...
+        pane.type === 'wallet' || // Added
+        pane.type === 'default'
+      ) && <PlaceholderDefaultComponent type={pane.type} />}
+      ```
 
 **VII. Spark Service Review**
 
-*   The current `SparkService` interface methods (`createLightningInvoice`, `payLightningInvoice`, `getBalance`, `getSingleUseDepositAddress`) are sufficient for the requested features except for *sending* on-chain Bitcoin.
-*   **For Sending On-Chain Bitcoin:**
-    *   This functionality is **not** currently in `SparkService.ts`.
-    *   If the Spark SDK supports on-chain sending, `SparkService.ts` and `SparkServiceImpl.ts` would need to be extended with a new method (e.g., `sendOnChainBitcoin(params: { address: string; amountSats: number; feeRate?: number })`).
-    *   This extension is a larger task and depends on SDK capabilities. For now, the placeholder UI in `WalletPane.tsx` is appropriate.
+- The current `SparkService` interface methods (`createLightningInvoice`, `payLightningInvoice`, `getBalance`, `getSingleUseDepositAddress`) are sufficient for the requested features except for _sending_ on-chain Bitcoin.
+- **For Sending On-Chain Bitcoin:**
+  - This functionality is **not** currently in `SparkService.ts`.
+  - If the Spark SDK supports on-chain sending, `SparkService.ts` and `SparkServiceImpl.ts` would need to be extended with a new method (e.g., `sendOnChainBitcoin(params: { address: string; amountSats: number; feeRate?: number })`).
+  - This extension is a larger task and depends on SDK capabilities. For now, the placeholder UI in `WalletPane.tsx` is appropriate.
 
 **VIII. Final Checks and Testing**
 
 1.  Ensure all imports are correct.
 2.  Run `pnpm tsc --noEmit` to check for TypeScript errors.
 3.  Run `pnpm start` to test the UI:
-    *   Verify the Wallet Hotbar icon and the top-right Balance display open the Wallet Pane.
-    *   Test balance display.
-    *   Test generating a Lightning invoice (amount, memo, QR code, copy).
-    *   Test paying a Lightning invoice (use a test invoice if possible).
-    *   Test generating a Bitcoin deposit address (QR code, copy).
-    *   Check for loading states, error messages, and general usability.
+    - Verify the Wallet Hotbar icon and the top-right Balance display open the Wallet Pane.
+    - Test balance display.
+    - Test generating a Lightning invoice (amount, memo, QR code, copy).
+    - Test paying a Lightning invoice (use a test invoice if possible).
+    - Test generating a Bitcoin deposit address (QR code, copy).
+    - Check for loading states, error messages, and general usability.
 4.  Consider adding basic unit tests for `WalletPane.tsx` to mock `SparkService` calls and verify UI updates.
 
 This set of instructions should provide a comprehensive Wallet Pane. Remember to handle potential errors from Spark service calls gracefully in the UI.Okay, I will implement the Spark Wallet Pane as per your detailed instructions.
 
 This will involve:
+
 1.  Adding `qrcode.react` dependency.
 2.  Updating the Hotbar with a "Wallet" icon and action.
 3.  Modifying the `BitcoinBalanceDisplay` to open the new Wallet Pane.
@@ -524,6 +531,7 @@ This will involve:
 7.  Noting that on-chain sending requires further `SparkService` extension.
 
 Let's proceed with the implementation.
+
 ```typescript
 // src/components/hud/Hotbar.tsx
 import React from 'react';
@@ -592,7 +600,22 @@ export const Hotbar: React.FC<HotbarProps> = ({
 // src/types/pane.ts
 export type Pane = {
   id: string;
-  type: 'default' | 'chat' | 'chats' | 'user' | 'diff' | 'changelog' | 'nip28_channel' | 'nip90_dashboard' | 'sell_compute' | 'dvm_job_history' | 'nip90_dvm_test' | 'nip90_consumer_chat' | 'nip90_global_feed' | 'wallet' | string; // Added 'wallet'
+  type:
+    | "default"
+    | "chat"
+    | "chats"
+    | "user"
+    | "diff"
+    | "changelog"
+    | "nip28_channel"
+    | "nip90_dashboard"
+    | "sell_compute"
+    | "dvm_job_history"
+    | "nip90_dvm_test"
+    | "nip90_consumer_chat"
+    | "nip90_global_feed"
+    | "wallet"
+    | string; // Added 'wallet'
   title: string;
   x: number;
   y: number;
@@ -607,15 +630,18 @@ export type Pane = {
     channelName?: string;
     [key: string]: unknown;
   };
-}
+};
 
-export type PaneInput = Omit<Pane, 'x' | 'y' | 'width' | 'height' | 'id' | 'isActive'> & {
+export type PaneInput = Omit<
+  Pane,
+  "x" | "y" | "width" | "height" | "id" | "isActive"
+> & {
   id?: string;
   x?: number;
   y?: number;
   width?: number;
   height?: number;
-}
+};
 ```
 
 ```typescript
@@ -625,47 +651,49 @@ export const DEFAULT_PANE_HEIGHT = 300;
 export const PANE_MARGIN = 20;
 export const PANE_OFFSET = 45;
 
-export const CHATS_PANE_ID = 'chats';
-export const CHANGELOG_PANE_ID = 'changelog';
+export const CHATS_PANE_ID = "chats";
+export const CHANGELOG_PANE_ID = "changelog";
 
-export const DEFAULT_NIP28_CHANNEL_ID = 'ee7352c54c85004d3d994a48d87c488905795f956f88842394eb3c6edc615978';
+export const DEFAULT_NIP28_CHANNEL_ID =
+  "ee7352c54c85004d3d994a48d87c488905795f956f88842394eb3c6edc615978";
 export const DEFAULT_NIP28_PANE_ID = `nip28-${DEFAULT_NIP28_CHANNEL_ID}`;
-export const DEFAULT_NIP28_CHANNEL_TITLE = 'Welcome Chat';
+export const DEFAULT_NIP28_CHANNEL_TITLE = "Welcome Chat";
 export const WELCOME_CHAT_INITIAL_WIDTH = 350;
 export const WELCOME_CHAT_INITIAL_HEIGHT = 250;
 
-export const SELL_COMPUTE_PANE_ID_CONST = 'sell_compute';
+export const SELL_COMPUTE_PANE_ID_CONST = "sell_compute";
 export const SELL_COMPUTE_INITIAL_WIDTH = 550;
 export const SELL_COMPUTE_INITIAL_HEIGHT = 420;
 
 export const HOTBAR_APPROX_HEIGHT = 60;
 
-export const NIP90_DVM_TEST_PANE_ID = 'nip90_dvm_test';
-export const NIP90_DVM_TEST_PANE_TITLE = 'NIP-90 DVM Test';
-export const NIP90_CONSUMER_CHAT_PANE_ID = 'nip90_consumer_chat';
-export const NIP90_CONSUMER_CHAT_PANE_TITLE = 'NIP-90 Consumer (Text Inference)';
+export const NIP90_DVM_TEST_PANE_ID = "nip90_dvm_test";
+export const NIP90_DVM_TEST_PANE_TITLE = "NIP-90 DVM Test";
+export const NIP90_CONSUMER_CHAT_PANE_ID = "nip90_consumer_chat";
+export const NIP90_CONSUMER_CHAT_PANE_TITLE =
+  "NIP-90 Consumer (Text Inference)";
 
-export const NIP90_GLOBAL_FEED_PANE_ID = 'nip90_global_feed';
-export const NIP90_GLOBAL_FEED_PANE_TITLE = 'NIP-90 Global Feed';
+export const NIP90_GLOBAL_FEED_PANE_ID = "nip90_global_feed";
+export const NIP90_GLOBAL_FEED_PANE_TITLE = "NIP-90 Global Feed";
 
 // Wallet Pane Constants
-export const WALLET_PANE_ID = 'wallet_pane';
-export const WALLET_PANE_TITLE = 'Bitcoin Wallet';
+export const WALLET_PANE_ID = "wallet_pane";
+export const WALLET_PANE_TITLE = "Bitcoin Wallet";
 ```
 
 ```typescript
 // src/stores/panes/actions/openWalletPane.ts
-import { type PaneInput } from '@/types/pane';
-import { type PaneStoreType, type SetPaneStore } from '../types';
-import { addPaneActionLogic } from './addPane';
-import { WALLET_PANE_ID, WALLET_PANE_TITLE } from '../constants';
+import { type PaneInput } from "@/types/pane";
+import { type PaneStoreType, type SetPaneStore } from "../types";
+import { addPaneActionLogic } from "./addPane";
+import { WALLET_PANE_ID, WALLET_PANE_TITLE } from "../constants";
 
 export function openWalletPaneAction(set: SetPaneStore) {
   set((state: PaneStoreType) => {
-    const existingPane = state.panes.find(p => p.id === WALLET_PANE_ID);
+    const existingPane = state.panes.find((p) => p.id === WALLET_PANE_ID);
     if (existingPane) {
       const newPanes = state.panes
-        .map(p => ({ ...p, isActive: p.id === WALLET_PANE_ID }))
+        .map((p) => ({ ...p, isActive: p.id === WALLET_PANE_ID }))
         .sort((a, b) => (a.isActive ? 1 : -1) - (b.isActive ? 1 : -1)); // Active last for z-index
       return {
         ...state,
@@ -675,14 +703,14 @@ export function openWalletPaneAction(set: SetPaneStore) {
           x: existingPane.x,
           y: existingPane.y,
           width: existingPane.width,
-          height: existingPane.height
-        }
+          height: existingPane.height,
+        },
       };
     }
 
     const newPaneInput: PaneInput = {
       id: WALLET_PANE_ID,
-      type: 'wallet',
+      type: "wallet",
       title: WALLET_PANE_TITLE,
       dismissable: true,
       width: 450, // Default width for wallet pane
@@ -696,32 +724,37 @@ export function openWalletPaneAction(set: SetPaneStore) {
 
 ```typescript
 // src/stores/panes/actions/index.ts
-export * from './addPane';
-export * from './removePane';
-export * from './updatePanePosition';
-export * from './updatePaneSize';
-export * from './bringPaneToFront';
-export * from './setActivePane';
-export * from './openChatPane';
-export * from './createNip28ChannelPane';
-export * from './openNip90DashboardPane';
-export * from './openSellComputePane';
-export * from './openDvmJobHistoryPane';
-export * from './openNip90DvmTestPane';
-export * from './openNip90ConsumerChatPane';
-export * from './openNip90GlobalFeedPane';
-export * from './openWalletPane'; // Added new action
+export * from "./addPane";
+export * from "./removePane";
+export * from "./updatePanePosition";
+export * from "./updatePaneSize";
+export * from "./bringPaneToFront";
+export * from "./setActivePane";
+export * from "./openChatPane";
+export * from "./createNip28ChannelPane";
+export * from "./openNip90DashboardPane";
+export * from "./openSellComputePane";
+export * from "./openDvmJobHistoryPane";
+export * from "./openNip90DvmTestPane";
+export * from "./openNip90ConsumerChatPane";
+export * from "./openNip90GlobalFeedPane";
+export * from "./openWalletPane"; // Added new action
 ```
 
 ```typescript
 // src/stores/panes/types.ts
-import { Pane, PaneInput } from '@/types/pane';
-import type { StoreApi } from 'zustand';
+import { Pane, PaneInput } from "@/types/pane";
+import type { StoreApi } from "zustand";
 
 export interface PaneState {
   panes: Pane[];
   activePaneId: string | null;
-  lastPanePosition: { x: number; y: number; width: number; height: number } | null;
+  lastPanePosition: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null;
 }
 
 export interface PaneStoreType extends PaneState {
@@ -743,7 +776,7 @@ export interface PaneStoreType extends PaneState {
   resetHUDState: () => void;
 }
 
-export type SetPaneStore = StoreApi<PaneStoreType>['setState'];
+export type SetPaneStore = StoreApi<PaneStoreType>["setState"];
 export type GetPaneStore = () => PaneStoreType;
 ```
 
@@ -778,21 +811,27 @@ import {
 } from "./panes/constants";
 
 const getInitialPanes = (): Pane[] => {
-  const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
-  const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+  const screenWidth = typeof window !== "undefined" ? window.innerWidth : 1920;
+  const screenHeight =
+    typeof window !== "undefined" ? window.innerHeight : 1080;
 
-  return [{
-    id: SELL_COMPUTE_PANE_ID_CONST,
-    type: 'sell_compute',
-    title: 'Sell Compute Power',
-    x: Math.max(PANE_MARGIN, (screenWidth - SELL_COMPUTE_INITIAL_WIDTH) / 2),
-    y: Math.max(PANE_MARGIN, (screenHeight - SELL_COMPUTE_INITIAL_HEIGHT) / 3),
-    width: SELL_COMPUTE_INITIAL_WIDTH,
-    height: SELL_COMPUTE_INITIAL_HEIGHT,
-    isActive: true,
-    dismissable: true,
-    content: {},
-  }];
+  return [
+    {
+      id: SELL_COMPUTE_PANE_ID_CONST,
+      type: "sell_compute",
+      title: "Sell Compute Power",
+      x: Math.max(PANE_MARGIN, (screenWidth - SELL_COMPUTE_INITIAL_WIDTH) / 2),
+      y: Math.max(
+        PANE_MARGIN,
+        (screenHeight - SELL_COMPUTE_INITIAL_HEIGHT) / 3,
+      ),
+      width: SELL_COMPUTE_INITIAL_WIDTH,
+      height: SELL_COMPUTE_INITIAL_HEIGHT,
+      isActive: true,
+      dismissable: true,
+      content: {},
+    },
+  ];
 };
 
 const initialState: PaneState = {
@@ -801,28 +840,35 @@ const initialState: PaneState = {
   lastPanePosition: null,
 };
 
-const sellComputePaneInitial = initialState.panes.find(p => p.id === SELL_COMPUTE_PANE_ID_CONST);
+const sellComputePaneInitial = initialState.panes.find(
+  (p) => p.id === SELL_COMPUTE_PANE_ID_CONST,
+);
 if (sellComputePaneInitial) {
-    initialState.lastPanePosition = {
-        x: sellComputePaneInitial.x,
-        y: sellComputePaneInitial.y,
-        width: sellComputePaneInitial.width,
-        height: sellComputePaneInitial.height
-    };
+  initialState.lastPanePosition = {
+    x: sellComputePaneInitial.x,
+    y: sellComputePaneInitial.y,
+    width: sellComputePaneInitial.width,
+    height: sellComputePaneInitial.height,
+  };
 }
 
 export const usePaneStore = create<PaneStoreType>()(
   persist(
     (set, get) => ({
       ...initialState,
-      addPane: (newPaneInput: PaneInput, shouldTile?: boolean) => addPaneAction(set, newPaneInput, shouldTile),
+      addPane: (newPaneInput: PaneInput, shouldTile?: boolean) =>
+        addPaneAction(set, newPaneInput, shouldTile),
       removePane: (id: string) => removePaneAction(set, id),
-      updatePanePosition: (id: string, x: number, y: number) => updatePanePositionAction(set, id, x, y),
-      updatePaneSize: (id: string, width: number, height: number) => updatePaneSizeAction(set, id, width, height),
-      openChatPane: (newPaneInput: PaneInput, isCommandKeyHeld?: boolean) => openChatPaneAction(set, newPaneInput, isCommandKeyHeld),
+      updatePanePosition: (id: string, x: number, y: number) =>
+        updatePanePositionAction(set, id, x, y),
+      updatePaneSize: (id: string, width: number, height: number) =>
+        updatePaneSizeAction(set, id, width, height),
+      openChatPane: (newPaneInput: PaneInput, isCommandKeyHeld?: boolean) =>
+        openChatPaneAction(set, newPaneInput, isCommandKeyHeld),
       bringPaneToFront: (id: string) => bringPaneToFrontAction(set, id),
       setActivePane: (id: string | null) => setActivePaneAction(set, id),
-      createNip28ChannelPane: (channelName?: string) => createNip28ChannelPaneAction(set, get, channelName),
+      createNip28ChannelPane: (channelName?: string) =>
+        createNip28ChannelPaneAction(set, get, channelName),
       openNip90DashboardPane: () => openNip90DashboardPaneAction(set),
       openSellComputePane: () => openSellComputePaneAction(set),
       openDvmJobHistoryPane: () => openDvmJobHistoryPaneAction(set),
@@ -832,28 +878,30 @@ export const usePaneStore = create<PaneStoreType>()(
       openWalletPane: () => openWalletPaneAction(set), // Added new action
       resetHUDState: () => {
         const newInitialState: PaneState = {
-            panes: getInitialPanes(),
-            activePaneId: SELL_COMPUTE_PANE_ID_CONST,
-            lastPanePosition: null,
+          panes: getInitialPanes(),
+          activePaneId: SELL_COMPUTE_PANE_ID_CONST,
+          lastPanePosition: null,
         };
-        const newSellComputePane = newInitialState.panes.find(p => p.id === SELL_COMPUTE_PANE_ID_CONST);
+        const newSellComputePane = newInitialState.panes.find(
+          (p) => p.id === SELL_COMPUTE_PANE_ID_CONST,
+        );
         if (newSellComputePane) {
-            set({
-                ...newInitialState,
-                lastPanePosition: {
-                    x: newSellComputePane.x,
-                    y: newSellComputePane.y,
-                    width: newSellComputePane.width,
-                    height: newSellComputePane.height
-                }
-            });
+          set({
+            ...newInitialState,
+            lastPanePosition: {
+              x: newSellComputePane.x,
+              y: newSellComputePane.y,
+              width: newSellComputePane.width,
+              height: newSellComputePane.height,
+            },
+          });
         } else {
-            set(newInitialState);
+          set(newInitialState);
         }
       },
     }),
     {
-      name: 'commander-pane-storage-v2',
+      name: "commander-pane-storage-v2",
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         panes: state.panes,
@@ -863,21 +911,25 @@ export const usePaneStore = create<PaneStoreType>()(
       merge: (persistedState, currentState) => {
         const defaultInitialPanes = getInitialPanes();
         const defaultActiveId = SELL_COMPUTE_PANE_ID_CONST;
-        const defaultSellComputePane = defaultInitialPanes.find(p => p.id === SELL_COMPUTE_PANE_ID_CONST);
+        const defaultSellComputePane = defaultInitialPanes.find(
+          (p) => p.id === SELL_COMPUTE_PANE_ID_CONST,
+        );
         return {
           ...currentState,
           panes: defaultInitialPanes,
           activePaneId: defaultActiveId,
-          lastPanePosition: defaultSellComputePane ? {
-            x: defaultSellComputePane.x,
-            y: defaultSellComputePane.y,
-            width: defaultSellComputePane.width,
-            height: defaultSellComputePane.height
-          } : null
+          lastPanePosition: defaultSellComputePane
+            ? {
+                x: defaultSellComputePane.x,
+                y: defaultSellComputePane.y,
+                width: defaultSellComputePane.width,
+                height: defaultSellComputePane.height,
+              }
+            : null,
         };
       },
-    }
-  )
+    },
+  ),
 );
 ```
 
@@ -1221,7 +1273,7 @@ export default WalletPane;
 
 ```typescript
 // src/components/wallet/index.ts
-export { default as WalletPane } from './WalletPane';
+export { default as WalletPane } from "./WalletPane";
 ```
 
 ```typescript
@@ -1314,61 +1366,62 @@ The Hotbar now includes a Wallet icon.
 The `BitcoinBalanceDisplay` component now triggers the `openWalletPane` action.
 Store logic for `wallet` pane type and `openWalletPaneAction` is implemented.
 The `WalletPane.tsx` component is created with UI for:
+
 - Balance display (using `React Query` and `SparkService.getBalance`).
 - Lightning invoice generation (form, QR code, copy button, using `SparkService.createLightningInvoice`).
 - Lightning invoice payment (form, using `SparkService.payLightningInvoice`).
 - On-chain Bitcoin receiving (button to generate address, QR code, copy button, using `SparkService.getSingleUseDepositAddress`).
 - Placeholder UI for on-chain Bitcoin sending.
-The `WalletPane` is integrated into `PaneManager.tsx`.
-All new UI elements are styled with Shadcn components and Tailwind CSS, adhering to the dark theme.
-Telemetry calls have been added for key wallet actions.The implementation of the Spark Wallet Pane is complete and follows the instructions.
+  The `WalletPane` is integrated into `PaneManager.tsx`.
+  All new UI elements are styled with Shadcn components and Tailwind CSS, adhering to the dark theme.
+  Telemetry calls have been added for key wallet actions.The implementation of the Spark Wallet Pane is complete and follows the instructions.
 
 **Summary of Changes:**
 
 1.  **Dependency Added:** `qrcode.react` and `@types/qrcode.react` have been added to `package.json`.
 2.  **Hotbar Updated (`src/components/hud/Hotbar.tsx`):**
-    *   A new "Wallet" icon (using `lucide-react`'s `Wallet` icon) has been added to Slot 5.
-    *   This item calls the `openWalletPane` action from `usePaneStore` and updates its active state based on `WALLET_PANE_ID`.
+    - A new "Wallet" icon (using `lucide-react`'s `Wallet` icon) has been added to Slot 5.
+    - This item calls the `openWalletPane` action from `usePaneStore` and updates its active state based on `WALLET_PANE_ID`.
 3.  **Store Logic for Wallet Pane:**
-    *   **`src/types/pane.ts`:** Added `'wallet'` to `Pane['type']`.
-    *   **`src/stores/panes/constants.ts`:** Added `WALLET_PANE_ID` and `WALLET_PANE_TITLE`.
-    *   **`src/stores/panes/actions/openWalletPane.ts`:** New action created to add/activate the wallet pane, using `addPaneActionLogic`.
-    *   **`src/stores/panes/actions/index.ts`:** Exported `openWalletPaneAction`.
-    *   **`src/stores/panes/types.ts`:** Added `openWalletPane` to `PaneStoreType`.
-    *   **`src/stores/pane.ts`:** Integrated `openWalletPaneAction`.
+    - **`src/types/pane.ts`:** Added `'wallet'` to `Pane['type']`.
+    - **`src/stores/panes/constants.ts`:** Added `WALLET_PANE_ID` and `WALLET_PANE_TITLE`.
+    - **`src/stores/panes/actions/openWalletPane.ts`:** New action created to add/activate the wallet pane, using `addPaneActionLogic`.
+    - **`src/stores/panes/actions/index.ts`:** Exported `openWalletPaneAction`.
+    - **`src/stores/panes/types.ts`:** Added `openWalletPane` to `PaneStoreType`.
+    - **`src/stores/pane.ts`:** Integrated `openWalletPaneAction`.
 4.  **Bitcoin Balance Display Update (`src/components/hud/BitcoinBalanceDisplay.tsx`):**
-    *   The `onClick` handler now calls `openWalletPane` instead of `openSellComputePane`.
-    *   The `title` prop has been updated to "Open Wallet".
+    - The `onClick` handler now calls `openWalletPane` instead of `openSellComputePane`.
+    - The `title` prop has been updated to "Open Wallet".
 5.  **Wallet Pane UI (`src/components/wallet/WalletPane.tsx`):**
-    *   A new component `WalletPane.tsx` has been created.
-    *   It uses Shadcn `Tabs` to organize sections: "Balance", "Lightning", and "On-Chain".
-    *   **Balance Tab:**
-        *   Fetches and displays the Bitcoin balance using `React Query` and `SparkService.getBalance()`.
-        *   Includes loading, error states, and a refresh button.
-    *   **Lightning Tab:**
-        *   **Receive (Generate Invoice):**
-            *   Form for amount and memo.
-            *   Calls `SparkService.createLightningInvoice()` via `useMutation`.
-            *   Displays the generated BOLT11 invoice as text (in a `Textarea`) and as a QR code using `qrcode.react`.
-            *   Includes a "Copy Invoice" button.
-        *   **Send (Pay Invoice):**
-            *   Form for BOLT11 invoice input.
-            *   Calls `SparkService.payLightningInvoice()` via `useMutation`.
-            *   Displays payment status and error messages.
-    *   **On-Chain Tab:**
-        *   **Receive:**
-            *   Button to call `SparkService.getSingleUseDepositAddress()` via `useMutation`.
-            *   Displays the generated Bitcoin address as text and a QR code.
-            *   Includes a "Copy Address" button.
-        *   **Send:**
-            *   Placeholder UI indicating that on-chain sending is not yet implemented in `SparkService`.
-    *   Includes loading indicators (`Loader2`), error indicators (`AlertTriangle`), and success indicators (`CheckCircle2`).
-    *   Uses helper function `handleCopyToClipboard` for copying text.
-    *   Telemetry events are tracked for various wallet actions.
+    - A new component `WalletPane.tsx` has been created.
+    - It uses Shadcn `Tabs` to organize sections: "Balance", "Lightning", and "On-Chain".
+    - **Balance Tab:**
+      - Fetches and displays the Bitcoin balance using `React Query` and `SparkService.getBalance()`.
+      - Includes loading, error states, and a refresh button.
+    - **Lightning Tab:**
+      - **Receive (Generate Invoice):**
+        - Form for amount and memo.
+        - Calls `SparkService.createLightningInvoice()` via `useMutation`.
+        - Displays the generated BOLT11 invoice as text (in a `Textarea`) and as a QR code using `qrcode.react`.
+        - Includes a "Copy Invoice" button.
+      - **Send (Pay Invoice):**
+        - Form for BOLT11 invoice input.
+        - Calls `SparkService.payLightningInvoice()` via `useMutation`.
+        - Displays payment status and error messages.
+    - **On-Chain Tab:**
+      - **Receive:**
+        - Button to call `SparkService.getSingleUseDepositAddress()` via `useMutation`.
+        - Displays the generated Bitcoin address as text and a QR code.
+        - Includes a "Copy Address" button.
+      - **Send:**
+        - Placeholder UI indicating that on-chain sending is not yet implemented in `SparkService`.
+    - Includes loading indicators (`Loader2`), error indicators (`AlertTriangle`), and success indicators (`CheckCircle2`).
+    - Uses helper function `handleCopyToClipboard` for copying text.
+    - Telemetry events are tracked for various wallet actions.
 6.  **Wallet Pane Component Index (`src/components/wallet/index.ts`):**
-    *   Created to export `WalletPane`.
+    - Created to export `WalletPane`.
 7.  **Pane Manager Integration (`src/panes/PaneManager.tsx`):**
-    *   Imported `WalletPane`.
-    *   Added a condition to render `<WalletPane />` when `pane.type === 'wallet'`.
+    - Imported `WalletPane`.
+    - Added a condition to render `<WalletPane />` when `pane.type === 'wallet'`.
 
 All files have been updated as requested. The new Wallet Pane should provide the core functionalities discussed. On-chain sending remains a placeholder pending `SparkService` extension.

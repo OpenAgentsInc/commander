@@ -5,6 +5,7 @@ After implementing the relay message fix and improving the Nostr event publishin
 ## Issues Fixed
 
 1. **TypeScript Errors in useNostrChannelChat.ts**:
+
    - Fixed type errors in message transformation by using const assertions (`as const`) for role enum values
    - Added null checks for message IDs before accessing properties
    - Changed property access checks from direct property access to using `in` operator for safer type checking
@@ -24,19 +25,19 @@ After implementing the relay message fix and improving the Nostr event publishin
 
 ```typescript
 // Changed this:
-m.id.startsWith('temp-')
+m.id.startsWith("temp-");
 
 // To this (safer with null check):
-m.id && m.id.startsWith('temp-')
+m.id && m.id.startsWith("temp-");
 
 // Changed this:
-m.contentHash
+m.contentHash;
 
 // To this (safer type checking):
-'contentHash' in m
+"contentHash" in m;
 
 // Fixed role enum by using const assertion:
-role: 'user' as const
+role: "user" as const;
 ```
 
 ### 2. Test Approach Changes
@@ -45,29 +46,29 @@ Instead of trying to mock the complex Effect module and all its dependencies, we
 
 ```typescript
 // Mock the entire hook implementation
-vi.mock('@/hooks/useNostrChannelChat', () => {
+vi.mock("@/hooks/useNostrChannelChat", () => {
   return {
     useNostrChannelChat: ({ channelId }: { channelId: string }) => {
-      const { useState } = require('react');
+      const { useState } = require("react");
       const [messages, setMessages] = useState<any[]>([]);
       const [isLoading, setIsLoading] = useState(false);
-      const [userInput, setUserInput] = useState('');
-      
+      const [userInput, setUserInput] = useState("");
+
       // Simplified mock implementation
       const sendMessage = vi.fn(() => {
         // Clear input and return loading state to false
-        setUserInput('');
+        setUserInput("");
         setIsLoading(false);
       });
-      
+
       return {
         messages,
         isLoading,
         userInput,
         setUserInput,
-        sendMessage
+        sendMessage,
       };
-    }
+    },
   };
 });
 ```

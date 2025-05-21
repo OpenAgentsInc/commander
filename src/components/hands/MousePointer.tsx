@@ -1,7 +1,7 @@
-import React, { useRef } from 'react';
-import * as THREE from 'three';
-import { useFrame, useThree } from '@react-three/fiber';
-import { CuboidCollider, RigidBody } from '@react-three/rapier';
+import React, { useRef } from "react";
+import * as THREE from "three";
+import { useFrame, useThree } from "@react-three/fiber";
+import { CuboidCollider, RigidBody } from "@react-three/rapier";
 
 interface MousePointerProps {
   vec?: THREE.Vector3;
@@ -24,7 +24,12 @@ export function MousePointer({ vec = new THREE.Vector3() }: MousePointerProps) {
   });
 
   return (
-    <RigidBody position={[0, 0, 0]} type="kinematicPosition" colliders={false} ref={ref}>
+    <RigidBody
+      position={[0, 0, 0]}
+      type="kinematicPosition"
+      colliders={false}
+      ref={ref}
+    >
       <CuboidCollider args={[1, 1, 1]} />
     </RigidBody>
   );

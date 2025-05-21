@@ -1,14 +1,17 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Effect, Layer, pipe } from 'effect';
-import { TelemetryService } from '@/services/telemetry';
-import { OllamaAsOpenAIClientLive, OllamaOpenAIClientTag } from '@/services/ai/providers/ollama/OllamaAsOpenAIClientLive';
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { Effect, Layer, pipe } from "effect";
+import { TelemetryService } from "@/services/telemetry";
+import {
+  OllamaAsOpenAIClientLive,
+  OllamaOpenAIClientTag,
+} from "@/services/ai/providers/ollama/OllamaAsOpenAIClientLive";
 import * as HttpClientError from "@effect/platform/HttpClientError";
 
 // Mock imports
-vi.mock('@effect/ai-openai', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@effect/ai-openai')>();
+vi.mock("@effect/ai-openai", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@effect/ai-openai")>();
   return {
-    ...(actual || {})
+    ...(actual || {}),
   };
 });
 
@@ -17,14 +20,16 @@ const mockGenerateChatCompletion = vi.fn();
 const mockGenerateChatCompletionStream = vi.fn();
 
 // Mock TelemetryService
-const mockTelemetryTrackEvent = vi.fn().mockImplementation(() => Effect.succeed(undefined));
+const mockTelemetryTrackEvent = vi
+  .fn()
+  .mockImplementation(() => Effect.succeed(undefined));
 const MockTelemetryService = Layer.succeed(TelemetryService, {
   trackEvent: mockTelemetryTrackEvent,
   isEnabled: vi.fn().mockImplementation(() => Effect.succeed(true)),
-  setEnabled: vi.fn().mockImplementation(() => Effect.succeed(undefined))
+  setEnabled: vi.fn().mockImplementation(() => Effect.succeed(undefined)),
 });
 
-describe('OllamaAsOpenAIClientLive', () => {
+describe("OllamaAsOpenAIClientLive", () => {
   beforeEach(() => {
     // Setup window.electronAPI mock
     (globalThis as any).window = {
@@ -34,9 +39,9 @@ describe('OllamaAsOpenAIClientLive', () => {
         ollama: {
           checkStatus: vi.fn(),
           generateChatCompletion: mockGenerateChatCompletion,
-          generateChatCompletionStream: mockGenerateChatCompletionStream
-        }
-      }
+          generateChatCompletionStream: mockGenerateChatCompletionStream,
+        },
+      },
     };
 
     // Reset mocks
@@ -47,103 +52,119 @@ describe('OllamaAsOpenAIClientLive', () => {
     vi.restoreAllMocks();
   });
 
-  it.skip('should successfully build the layer when IPC functions are available', async () => {
-    const program = Effect.gen(function*(_) {
+  it.skip("should successfully build the layer when IPC functions are available", async () => {
+    const program = Effect.gen(function* (_) {
       const client = yield* _(OllamaOpenAIClientTag);
       expect(client).toBeDefined();
-      
+
       // Use runtime type checking instead of static typing
       // Check client structure according to OpenAiClient.Service interface
-      expect(client).toHaveProperty('client');
-      expect(client.client).toHaveProperty('chat');
-      expect(client.client.chat).toHaveProperty('completions');
-      expect(client.client.chat.completions).toHaveProperty('create');
-      expect(typeof client.client.chat.completions.create).toBe('function');
-      
+      expect(client).toHaveProperty("client");
+      expect(client.client).toHaveProperty("chat");
+      expect(client.client.chat).toHaveProperty("completions");
+      expect(client.client.chat.completions).toHaveProperty("create");
+      expect(typeof client.client.chat.completions.create).toBe("function");
+
       // Check the top-level stream method
-      expect(client).toHaveProperty('stream');
-      expect(typeof client.stream).toBe('function');
-      
+      expect(client).toHaveProperty("stream");
+      expect(typeof client.stream).toBe("function");
+
       // Check the streamRequest method
-      expect(client).toHaveProperty('streamRequest');
-      expect(typeof client.streamRequest).toBe('function');
-      
+      expect(client).toHaveProperty("streamRequest");
+      expect(typeof client.streamRequest).toBe("function");
+
       return true;
     });
 
     const result = await Effect.runPromise(
-      program.pipe(Effect.provide(OllamaAsOpenAIClientLive.pipe(Layer.provide(MockTelemetryService))))
+      program.pipe(
+        Effect.provide(
+          OllamaAsOpenAIClientLive.pipe(Layer.provide(MockTelemetryService)),
+        ),
+      ),
     );
 
     expect(result).toBe(true);
   });
 
-  it('should fail if IPC bridge is not available', async () => {
+  it("should fail if IPC bridge is not available", async () => {
     // Temporarily remove the ollama property
     const originalElectronAPI = (globalThis as any).window.electronAPI;
-    (globalThis as any).window.electronAPI = { ...((globalThis as any).window.electronAPI || {}) };
+    (globalThis as any).window.electronAPI = {
+      ...((globalThis as any).window.electronAPI || {}),
+    };
     delete ((globalThis as any).window.electronAPI as any).ollama;
 
-    const program = Effect.gen(function*(_) {
+    const program = Effect.gen(function* (_) {
       const client = yield* _(OllamaOpenAIClientTag);
       return client;
     });
 
     await expect(
       Effect.runPromise(
-        program.pipe(Effect.provide(OllamaAsOpenAIClientLive.pipe(Layer.provide(MockTelemetryService))))
-      )
+        program.pipe(
+          Effect.provide(
+            OllamaAsOpenAIClientLive.pipe(Layer.provide(MockTelemetryService)),
+          ),
+        ),
+      ),
     ).rejects.toThrow();
 
     // Restore electronAPI
     (globalThis as any).window.electronAPI = originalElectronAPI;
   });
 
-  it.skip('should call IPC generateChatCompletion for non-streaming requests', async () => {
+  it.skip("should call IPC generateChatCompletion for non-streaming requests", async () => {
     // Setup mock response
     const mockResponse = {
-      id: 'test-id',
-      object: 'chat.completion',
+      id: "test-id",
+      object: "chat.completion",
       created: Date.now(),
-      model: 'test-model',
+      model: "test-model",
       choices: [
         {
           index: 0,
           message: {
-            role: 'assistant',
-            content: 'Test response'
+            role: "assistant",
+            content: "Test response",
           },
-          finish_reason: 'stop'
-        }
+          finish_reason: "stop",
+        },
       ],
       usage: {
         prompt_tokens: 10,
         completion_tokens: 5,
-        total_tokens: 15
-      }
+        total_tokens: 15,
+      },
     };
 
     mockGenerateChatCompletion.mockResolvedValue(mockResponse);
 
-    const program = Effect.gen(function*(_) {
+    const program = Effect.gen(function* (_) {
       const client = yield* _(OllamaOpenAIClientTag);
       // Access the create method via the client.client.chat.completions path
-      const result = yield* _(client.client.chat.completions.create({
-        model: 'test-model',
-        messages: [{ role: 'user', content: 'Test prompt' }],
-        stream: false
-      }));
+      const result = yield* _(
+        client.client.chat.completions.create({
+          model: "test-model",
+          messages: [{ role: "user", content: "Test prompt" }],
+          stream: false,
+        }),
+      );
       return result;
     });
 
     const result = await Effect.runPromise(
-      program.pipe(Effect.provide(OllamaAsOpenAIClientLive.pipe(Layer.provide(MockTelemetryService))))
+      program.pipe(
+        Effect.provide(
+          OllamaAsOpenAIClientLive.pipe(Layer.provide(MockTelemetryService)),
+        ),
+      ),
     );
 
     expect(mockGenerateChatCompletion).toHaveBeenCalledWith({
-      model: 'test-model', 
-      messages: [{ role: 'user', content: 'Test prompt' }],
-      stream: false
+      model: "test-model",
+      messages: [{ role: "user", content: "Test prompt" }],
+      stream: false,
     });
     expect(result).toEqual(mockResponse);
     expect(mockTelemetryTrackEvent).toHaveBeenCalled();

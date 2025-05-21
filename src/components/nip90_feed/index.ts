@@ -1,1 +1,1 @@
-export { default as Nip90GlobalFeedPane } from './Nip90GlobalFeedPane';
+export { default as Nip90GlobalFeedPane } from "./Nip90GlobalFeedPane";

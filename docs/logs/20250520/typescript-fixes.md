@@ -1,6 +1,7 @@
 # TypeScript Fixes for Effect Library Issues
 
 ## Problem
+
 After implementing the CORS fix for Ollama connections, multiple TypeScript errors were encountered in the codebase:
 
 1. Duplicate imports of `Layer` and `Effect` from different paths
@@ -10,6 +11,7 @@ After implementing the CORS fix for Ollama connections, multiple TypeScript erro
 ## Solution
 
 ### 1. Fixed OllamaServiceImpl.ts
+
 - Removed references to internal module imports
 - Simplified HTTP client handling by using the base client directly
 - Added documentation notes for a future improvement to disable tracing headers
@@ -33,6 +35,7 @@ After implementing the CORS fix for Ollama connections, multiple TypeScript erro
 ```
 
 ### 2. Fixed runtime.ts
+
 - Consolidated Effect library imports to use namespaced imports (`import * as Effect from "effect/Effect"`)
 - Removed duplicate import of `Layer` and `Effect` from 'effect'
 - Replaced `Layer.mergeAll([...])` with nested `Layer.merge()` calls
@@ -40,9 +43,10 @@ After implementing the CORS fix for Ollama connections, multiple TypeScript erro
 - Simplified the HTTP client layer creation
 
 ### 3. Key API Changes
+
 ```typescript
 // Before
-import { Layer, Effect } from 'effect';
+import { Layer, Effect } from "effect";
 const layers = layerMergeAll(layerA, layerB, layerC);
 
 // After
@@ -52,17 +56,21 @@ const layers = Layer.merge(layerA, Layer.merge(layerB, layerC));
 ```
 
 ## Technical Details
+
 - The Effect library appears to have issues with array-based merges in TypeScript
 - Consolidated imports help prevent duplicate identifiers in the TypeScript compiler
 - Direct access to HTTP client instead of trying to modify it solves immediate issues
 - The layering system now uses binary merges instead of array-based merges
 
 ## Verification
+
 - TypeScript typechecking now passes with `pnpm tsc --noEmit`
 - The application should still function correctly with these changes
 
 ## Additional Notes
+
 For future improvements:
+
 1. Consider implementing proper tracing control for HTTP clients
 2. Review Effect library upgrade path to ensure consistent API usage
 3. Document these patterns for other developers to follow

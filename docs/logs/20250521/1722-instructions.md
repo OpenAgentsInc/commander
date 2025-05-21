@@ -3,9 +3,11 @@ Okay, agent, let's get these type errors sorted out. We'll go step-by-step, focu
 **Instruction Set 1: Easy Fixes - Schemas, Error Handling, and Basic Mocks**
 
 **1. Fix `TelemetryService.ts` Schema Error**
-   *   **File:** `src/services/telemetry/TelemetryService.ts`
-   *   **Error:** `TS2554: Expected 1 arguments, but got 2.` (Line 10)
-   *   **Instruction:** The `Schema.Record` constructor expects a single argument defining the structure. For a record with string keys and unknown values, you should use `Schema.record(Schema.String, Schema.Unknown)`.
+
+- **File:** `src/services/telemetry/TelemetryService.ts`
+- **Error:** `TS2554: Expected 1 arguments, but got 2.` (Line 10)
+- **Instruction:** The `Schema.Record` constructor expects a single argument defining the structure. For a record with string keys and unknown values, you should use `Schema.record(Schema.String, Schema.Unknown)`.
+
 
     ```typescript
     // src/services/telemetry/TelemetryService.ts
@@ -22,10 +24,12 @@ Okay, agent, let's get these type errors sorted out. We'll go step-by-step, focu
     ```
 
 **2. Fix `instanceof Error` and `.message` Access in `OllamaAgentLanguageModelLive.ts`**
-   *   **File:** `src/services/ai/providers/ollama/OllamaAgentLanguageModelLive.ts`
-   *   **Error:** `TS2358` (instanceof on `never`), `TS2339` (property `message` on `never`) (Line 64)
-   *   **Cause:** The error variable `e` in `Effect.tapError(e => ...)` or `Effect.mapError(e => ...)` after an `Effect.orElseSucceed(...)` has its error channel typed as `never`.
-   *   **Instruction:** Move the `tapError` and `mapError` calls *before* `Effect.orElseSucceed(...)` so that `e` is still typed as the original error (e.g., `ConfigError`).
+
+- **File:** `src/services/ai/providers/ollama/OllamaAgentLanguageModelLive.ts`
+- **Error:** `TS2358` (instanceof on `never`), `TS2339` (property `message` on `never`) (Line 64)
+- **Cause:** The error variable `e` in `Effect.tapError(e => ...)` or `Effect.mapError(e => ...)` after an `Effect.orElseSucceed(...)` has its error channel typed as `never`.
+- **Instruction:** Move the `tapError` and `mapError` calls _before_ `Effect.orElseSucceed(...)` so that `e` is still typed as the original error (e.g., `ConfigError`).
+
 
     ```typescript
     // src/services/ai/providers/ollama/OllamaAgentLanguageModelLive.ts
@@ -45,9 +49,11 @@ Okay, agent, let's get these type errors sorted out. We'll go step-by-step, focu
     ```
 
 **3. Fix `reason: "NotImplemented"` in `OllamaAsOpenAIClientLive.ts`**
-   *   **File:** `src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts`
-   *   **Error:** `TS2322` ("NotImplemented" is not assignable to "StatusCode" | "Decode" | "EmptyBody") (Lines 163, 175, 325)
-   *   **Instruction:** Change `reason: "NotImplemented"` to `reason: "StatusCode"` for these `HttpClientError.ResponseError` instances, as this is a valid reason and appropriate for a 501 status.
+
+- **File:** `src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts`
+- **Error:** `TS2322` ("NotImplemented" is not assignable to "StatusCode" | "Decode" | "EmptyBody") (Lines 163, 175, 325)
+- **Instruction:** Change `reason: "NotImplemented"` to `reason: "StatusCode"` for these `HttpClientError.ResponseError` instances, as this is a valid reason and appropriate for a 501 status.
+
 
     ```typescript
     // src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts
@@ -60,10 +66,12 @@ Okay, agent, let's get these type errors sorted out. We'll go step-by-step, focu
     ```
 
 **4. Fix `error: providerError` in `OllamaAsOpenAIClientLive.ts`**
-   *   **File:** `src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts`
-   *   **Error:** `TS2353` ('error' does not exist in type '{...}') (Lines 151, 242, 277, 301)
-   *   **Cause:** The `HttpClientError.ResponseError` (or similar error constructors) expect the underlying error to be passed via the `cause` property.
-   *   **Instruction:** Change `error: providerError` (or similar) to `cause: providerError`.
+
+- **File:** `src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts`
+- **Error:** `TS2353` ('error' does not exist in type '{...}') (Lines 151, 242, 277, 301)
+- **Cause:** The `HttpClientError.ResponseError` (or similar error constructors) expect the underlying error to be passed via the `cause` property.
+- **Instruction:** Change `error: providerError` (or similar) to `cause: providerError`.
+
 
     ```typescript
     // src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts
@@ -75,10 +83,12 @@ Okay, agent, let's get these type errors sorted out. We'll go step-by-step, focu
     ```
 
 **5. Fix `HttpClient.Tag` in `OllamaAgentLanguageModelLive.test.ts`**
-   *   **File:** `src/tests/unit/services/ai/providers/ollama/OllamaAgentLanguageModelLive.test.ts`
-   *   **Error:** `TS2339: Property 'Tag' does not exist on type 'Tag<HttpClient, HttpClient>'` (Line 48)
-   *   **Cause:** If `HttpClient` is imported from `@effect/platform/HttpClient`, the service tag is usually `HttpClient.HttpClient` or simply `HttpClient` if it's the default export or a re-exported tag.
-   *   **Instruction:** Change `HttpClient.Tag` to `HttpClient.HttpClient`.
+
+- **File:** `src/tests/unit/services/ai/providers/ollama/OllamaAgentLanguageModelLive.test.ts`
+- **Error:** `TS2339: Property 'Tag' does not exist on type 'Tag<HttpClient, HttpClient>'` (Line 48)
+- **Cause:** If `HttpClient` is imported from `@effect/platform/HttpClient`, the service tag is usually `HttpClient.HttpClient` or simply `HttpClient` if it's the default export or a re-exported tag.
+- **Instruction:** Change `HttpClient.Tag` to `HttpClient.HttpClient`.
+
 
     ```typescript
     // src/tests/unit/services/ai/providers/ollama/OllamaAgentLanguageModelLive.test.ts
@@ -91,10 +101,12 @@ Okay, agent, let's get these type errors sorted out. We'll go step-by-step, focu
     ```
 
 **6. Fix Spread Operator in `runtime.test.ts`**
-   *   **File:** `src/tests/unit/services/runtime.test.ts`
-   *   **Error:** `TS2698: Spread types may only be created from object types.` (Line 10)
-   *   **Cause:** The `actual` variable (likely from `await importOriginal()`) might be `undefined` if the module doesn't exist or the mock is faulty.
-   *   **Instruction:** Guard the spread operator by providing an empty object fallback.
+
+- **File:** `src/tests/unit/services/runtime.test.ts`
+- **Error:** `TS2698: Spread types may only be created from object types.` (Line 10)
+- **Cause:** The `actual` variable (likely from `await importOriginal()`) might be `undefined` if the module doesn't exist or the mock is faulty.
+- **Instruction:** Guard the spread operator by providing an empty object fallback.
+
 
     ```typescript
     // src/tests/unit/services/runtime.test.ts
@@ -113,9 +125,11 @@ Okay, agent, let's get these type errors sorted out. We'll go step-by-step, focu
     *(Apply this pattern to Line 10 in `runtime.test.ts` and similarly to Line 15 in `OllamaAgentLanguageModelLive.test.ts` and Line 11 in `OllamaAsOpenAIClientLive.test.ts` if they follow the same `vi.mock` pattern.)*
 
 **7. Update `OllamaAgentLanguageModelLive.ts` Mock `AiResponse` and `AiTextChunk`**
-   *   **File:** `src/services/ai/providers/ollama/OllamaAgentLanguageModelLive.ts`
-   *   **Error:** `TS2352` (Conversion to `AiResponse` missing properties) (Lines 23, 31, 36, 45)
-   *   **Instruction:** The mock objects cast to `AiResponse` and `AiTextChunk` must include the minimum required properties. Refer to `@effect/ai/AiResponse` for the `AiResponse` interface structure (it includes `role: string` and `parts: ReadonlyArray<AiMessagePart>`). `AiTextChunk` typically has `{ text: string; isComplete?: boolean }`.
+
+- **File:** `src/services/ai/providers/ollama/OllamaAgentLanguageModelLive.ts`
+- **Error:** `TS2352` (Conversion to `AiResponse` missing properties) (Lines 23, 31, 36, 45)
+- **Instruction:** The mock objects cast to `AiResponse` and `AiTextChunk` must include the minimum required properties. Refer to `@effect/ai/AiResponse` for the `AiResponse` interface structure (it includes `role: string` and `parts: ReadonlyArray<AiMessagePart>`). `AiTextChunk` typically has `{ text: string; isComplete?: boolean }`.
+
 
     ```typescript
     // src/services/ai/providers/ollama/OllamaAgentLanguageModelLive.ts

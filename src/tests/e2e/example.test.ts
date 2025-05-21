@@ -8,10 +8,8 @@ import {
 import { findLatestBuild, parseElectronApp } from "electron-playwright-helpers";
 
 // Helper to detect CI environment
-const isCI = () => 
-  !!process.env.CI || 
-  !!process.env.GITHUB_ACTIONS || 
-  !!process.env.CIRCLECI;
+const isCI = () =>
+  !!process.env.CI || !!process.env.GITHUB_ACTIONS || !!process.env.CIRCLECI;
 
 /*
  * Using Playwright with Electron:
@@ -27,7 +25,7 @@ test.beforeAll(async () => {
 
   // Define args based on environment
   const electronArgs = [appInfo.main];
-  
+
   // Add special flags in CI to address WebGL issues
   if (isCI()) {
     electronArgs.push(
@@ -36,9 +34,9 @@ test.beforeAll(async () => {
       "--disable-dev-shm-usage",
       "--disable-accelerated-2d-canvas",
       "--use-gl=swiftshader",
-      "--enable-unsafe-swiftshader"
+      "--enable-unsafe-swiftshader",
     );
-    
+
     // Additional environment variables for CI
     process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = "true";
   }
@@ -49,7 +47,7 @@ test.beforeAll(async () => {
       ...process.env,
       // Force software rendering
       ELECTRON_DISABLE_GPU: "1",
-    }
+    },
   });
   electronApp.on("window", async (page) => {
     const filename = page.url()?.split("/").pop();
@@ -67,9 +65,9 @@ test.beforeAll(async () => {
 test("renders the first page", async () => {
   const page: Page = await electronApp.firstWindow();
   // Wait longer for UI to stabilize
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState("networkidle");
   await page.waitForTimeout(2000);
-  
+
   // More resilient selector with longer timeout
   const title = await page.waitForSelector("h1", { timeout: 20000 });
   const text = await title.textContent();
@@ -79,9 +77,9 @@ test("renders the first page", async () => {
 test("renders page name", async () => {
   const page: Page = await electronApp.firstWindow();
   // Wait longer for UI to stabilize
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState("networkidle");
   await page.waitForTimeout(2000);
-  
+
   // More resilient selector with longer timeout
   await page.waitForSelector("h1", { timeout: 20000 });
   const pageName = await page.getByTestId("pageTitle");

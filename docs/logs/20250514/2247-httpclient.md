@@ -18,7 +18,7 @@ I first explored the API structure by examining TypeScript declarations in the n
 
 I attempted to directly replace fetch with HttpClient, making these changes:
 
-1. Added the HttpClient dependency to the OllamaServiceLive layer  
+1. Added the HttpClient dependency to the OllamaServiceLive layer
 2. Changed createOllamaService to accept an HttpClient parameter
 3. Created requests using `Request.post` and `Request.bodyUnsafeJson`
 4. Used `httpClient.execute()` instead of fetch directly
@@ -58,7 +58,7 @@ After several attempts at refactoring to use HttpClient and facing significant t
 
 This decision aligns with the pragmatic approach suggested in the analysis, which noted:
 
-> "If there was a desire to *fully* embrace the Effect ecosystem for HTTP, `OllamaServiceImpl.ts` itself could be refactored to use `HttpClient.HttpClient` service instead of global `fetch`. This would then allow the original `TestHttpClient.ts` (which mocked `HttpClient.HttpClient` service) to be used. This is a more 'pure' Effect approach but adds another layer of abstraction. The current solution (mocking global `fetch`) is pragmatic and effective."
+> "If there was a desire to _fully_ embrace the Effect ecosystem for HTTP, `OllamaServiceImpl.ts` itself could be refactored to use `HttpClient.HttpClient` service instead of global `fetch`. This would then allow the original `TestHttpClient.ts` (which mocked `HttpClient.HttpClient` service) to be used. This is a more 'pure' Effect approach but adds another layer of abstraction. The current solution (mocking global `fetch`) is pragmatic and effective."
 
 ## Next Steps
 

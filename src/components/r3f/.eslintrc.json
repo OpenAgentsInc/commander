@@ -1,5 +1,8 @@
 {
   "rules": {
-    "react/no-unknown-property": ["error", { "ignore": ["position", "args", "intensity", "roughness", "metalness"] }]
+    "react/no-unknown-property": [
+      "error",
+      { "ignore": ["position", "args", "intensity", "roughness", "metalness"] }
+    ]
   }
 }

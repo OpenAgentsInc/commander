@@ -1,7 +1,4 @@
-
 # **KeyService Placement and Naming**
-
-
 
 Following the pattern of existing services (e.g. src/services/ollama/OllamaService.ts ), the KeyService should live under its own folder. For example:
 
@@ -9,32 +6,23 @@ Following the pattern of existing services (e.g. src/services/ollama/OllamaServi
 
 - **Main file:** KeyService.ts inside that folder (src/services/key/KeyService.ts), exporting the service interface and implementation.
 
-
-
-
 Each service folder in the repo uses a <Name>Service.ts file (e.g. OllamaService.ts ), so “KeyService” follows that convention.
 
-
-
 ## **Module Structure (Effect v3 idioms)**
-
-
 
 Inside KeyService.ts, use Effect v3’s tagged service and layer pattern. For example:
 
 - **Interface:** Define export interface KeyService { … } listing methods:
 
-    - generateMnemonic(): Effect<never, never, string> – returns a random 12-word mnemonic.
+  - generateMnemonic(): Effect<never, never, string> – returns a random 12-word mnemonic.
 
-    - validateMnemonic(mnemonic: string): boolean – checks if the phrase is valid.
+  - validateMnemonic(mnemonic: string): boolean – checks if the phrase is valid.
 
-    - deriveSeed(mnemonic: string): Effect<never, never, Uint8Array> – derives a 64-byte seed from mnemonic.
+  - deriveSeed(mnemonic: string): Effect<never, never, Uint8Array> – derives a 64-byte seed from mnemonic.
 
-    - deriveKey(seed: Uint8Array, path: string): Effect<never, Error, <KeyType>> – derives a BIP32 key at the given path (you can return a string or object with key info).
-
+  - deriveKey(seed: Uint8Array, path: string): Effect<never, Error, <KeyType>> – derives a BIP32 key at the given path (you can return a string or object with key info).
 
 - **Tag:** Create a Context tag for injection, e.g.:
-
 
 ```
 import { Context, Effect } from "effect"
@@ -44,7 +32,6 @@ export const KeyService = Context.Tag<KeyService>()
 - (Other services use a similar Tag from the effect framework.)
 
 - **Live Layer:** Provide a live implementation using Effect layers. For example:
-
 
 ```
 import * as bip39 from "@scure/bip39"
@@ -64,29 +51,20 @@ export const KeyServiceLive = Effect.Layer.succeed(KeyService, {
 
 - **Exports:** Export the tag and layer (and the interface) from the module. For example:
 
-
 ```
 export type { KeyService }
 export { KeyService, KeyServiceLive }
 ```
 
-
-
-
-
 ## **Test File Location and Structure**
 
-
-
-Place tests under a __tests__ subfolder next to the service. For example:
+Place tests under a **tests** subfolder next to the service. For example:
 
 ```
 src/services/key/__tests__/index.test.ts
 ```
 
-This mirrors how other services are tested (e.g. tests for socket live under src/services/socket/__tests__ ). Use Vitest as the framework.
-
-
+This mirrors how other services are tested (e.g. tests for socket live under src/services/socket/**tests** ). Use Vitest as the framework.
 
 In the test file, import the service (using the project’s path aliases, e.g. import { KeyService } from "@/services/key/KeyService" or relative path) and write typical unit tests. Wrap Effect-returns using Effect.runPromise or similar. For example:
 
@@ -126,16 +104,10 @@ describe('KeyService', () => {
 })
 ```
 
-These tests show the pattern: use Vitest’s describe/it, call Effect-returning methods with runPromise, and check outputs. Tests reside in the __tests__ folder .
-
-
+These tests show the pattern: use Vitest’s describe/it, call Effect-returning methods with runPromise, and check outputs. Tests reside in the **tests** folder .
 
 **Compatibility:** Use only ESM imports (import statements) and avoid Node-only APIs so Electron/Vite can bundle. The @scure/bip39 and @scure/bip32 libraries are pure JS (ESM-compatible) and work in Electron.
 
-
-
-**Summary:** Create src/services/key/KeyService.ts exporting a KeyService interface, an Effect Context tag, and a live layer implementing mnemonic and key derivation. Put corresponding tests in src/services/key/__tests__/index.test.ts, following the patterns above. This aligns with existing services (e.g. OllamaService.ts in src/services/ollama ) and their test structure .
-
-
+**Summary:** Create src/services/key/KeyService.ts exporting a KeyService interface, an Effect Context tag, and a live layer implementing mnemonic and key derivation. Put corresponding tests in src/services/key/**tests**/index.test.ts, following the patterns above. This aligns with existing services (e.g. OllamaService.ts in src/services/ollama ) and their test structure .
 
 **Sources:** Existing service organization in the repo and test file placement .

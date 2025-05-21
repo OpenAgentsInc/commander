@@ -1,5 +1,5 @@
 // Export all symbols from the service interface
-export * from './BIP32Service';
+export * from "./BIP32Service";
 
 // Export implementation
-export * from './BIP32ServiceImpl';
+export * from "./BIP32ServiceImpl";

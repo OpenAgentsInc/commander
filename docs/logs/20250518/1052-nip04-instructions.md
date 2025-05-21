@@ -5,17 +5,22 @@ Here are the specific coding instructions:
 **Phase 1: Define NIP04Service Interface and Types**
 
 1.  **Create `src/services/nip04/NIP04Service.ts`:**
+
     ```typescript
     // src/services/nip04/NIP04Service.ts
     import { Effect, Context, Data } from "effect";
 
     // --- Custom Error Types ---
-    export class NIP04EncryptError extends Data.TaggedError("NIP04EncryptError")<{
+    export class NIP04EncryptError extends Data.TaggedError(
+      "NIP04EncryptError",
+    )<{
       readonly cause?: unknown;
       readonly message: string;
     }> {}
 
-    export class NIP04DecryptError extends Data.TaggedError("NIP04DecryptError")<{
+    export class NIP04DecryptError extends Data.TaggedError(
+      "NIP04DecryptError",
+    )<{
       readonly cause?: unknown;
       readonly message: string;
     }> {}
@@ -32,7 +37,7 @@ Here are the specific coding instructions:
       encrypt(
         ourSk: Uint8Array,
         theirPkHex: string,
-        plaintext: string
+        plaintext: string,
       ): Effect.Effect<string, NIP04EncryptError>;
 
       /**
@@ -45,18 +50,21 @@ Here are the specific coding instructions:
       decrypt(
         ourSk: Uint8Array,
         theirPkHex: string,
-        ciphertextWithIv: string
+        ciphertextWithIv: string,
       ): Effect.Effect<string, NIP04DecryptError>;
     }
 
     // --- Service Tag ---
-    export const NIP04Service = Context.GenericTag<NIP04Service>("NIP04Service");
+    export const NIP04Service =
+      Context.GenericTag<NIP04Service>("NIP04Service");
     ```
-    *   **Action:** Create this file.
+
+    - **Action:** Create this file.
 
 **Phase 2: Implement NIP04Service**
 
 1.  **Create `src/services/nip04/NIP04ServiceImpl.ts`:**
+
     ```typescript
     // src/services/nip04/NIP04ServiceImpl.ts
     import { Effect, Layer } from "effect";
@@ -72,46 +80,65 @@ Here are the specific coding instructions:
         encrypt: (ourSk: Uint8Array, theirPkHex: string, plaintext: string) =>
           Effect.tryPromise({
             try: () => nip04.encrypt(ourSk, theirPkHex, plaintext),
-            catch: (cause) => new NIP04EncryptError({ message: "NIP-04 encryption failed", cause }),
+            catch: (cause) =>
+              new NIP04EncryptError({
+                message: "NIP-04 encryption failed",
+                cause,
+              }),
           }),
 
-        decrypt: (ourSk: Uint8Array, theirPkHex: string, ciphertextWithIv: string) =>
+        decrypt: (
+          ourSk: Uint8Array,
+          theirPkHex: string,
+          ciphertextWithIv: string,
+        ) =>
           Effect.tryPromise({
             try: () => nip04.decrypt(ourSk, theirPkHex, ciphertextWithIv),
-            catch: (cause) => new NIP04DecryptError({ message: "NIP-04 decryption failed", cause }),
+            catch: (cause) =>
+              new NIP04DecryptError({
+                message: "NIP-04 decryption failed",
+                cause,
+              }),
           }),
       };
     }
 
     export const NIP04ServiceLive = Layer.succeed(
       NIP04Service,
-      createNIP04Service()
+      createNIP04Service(),
     );
     ```
-    *   **Action:** Create this file.
+
+    - **Action:** Create this file.
 
 2.  **Create `src/services/nip04/index.ts`:**
     ```typescript
     // src/services/nip04/index.ts
-    export * from './NIP04Service';
-    export * from './NIP04ServiceImpl';
+    export * from "./NIP04Service";
+    export * from "./NIP04ServiceImpl";
     ```
-    *   **Action:** Create this file.
+    - **Action:** Create this file.
 
 **Phase 3: Unit Test NIP04Service**
 
 1.  **Create `src/tests/unit/services/nip04/NIP04Service.test.ts`:**
+
     ```typescript
     // src/tests/unit/services/nip04/NIP04Service.test.ts
-    import { describe, it, expect, vi, beforeEach } from 'vitest';
-    import { Effect, Exit, Cause, Option, Layer } from 'effect';
-    import { nip04 } from 'nostr-tools'; // To mock
-    import { NIP04Service, NIP04ServiceLive, NIP04EncryptError, NIP04DecryptError } from '@/services/nip04';
-    import { generateSecretKey, getPublicKey } from 'nostr-tools/pure'; // For generating test keys
+    import { describe, it, expect, vi, beforeEach } from "vitest";
+    import { Effect, Exit, Cause, Option, Layer } from "effect";
+    import { nip04 } from "nostr-tools"; // To mock
+    import {
+      NIP04Service,
+      NIP04ServiceLive,
+      NIP04EncryptError,
+      NIP04DecryptError,
+    } from "@/services/nip04";
+    import { generateSecretKey, getPublicKey } from "nostr-tools/pure"; // For generating test keys
 
     // Mock nostr-tools's nip04 module
-    vi.mock('nostr-tools', async (importOriginal) => {
-      const original = await importOriginal<typeof import('nostr-tools')>();
+    vi.mock("nostr-tools", async (importOriginal) => {
+      const original = await importOriginal<typeof import("nostr-tools")>();
       return {
         ...original,
         nip04: {
@@ -122,10 +149,14 @@ Here are the specific coding instructions:
     });
 
     // Typed mock functions
-    const mockNip04Encrypt = nip04.encrypt as vi.MockedFunction<typeof nip04.encrypt>;
-    const mockNip04Decrypt = nip04.decrypt as vi.MockedFunction<typeof nip04.decrypt>;
+    const mockNip04Encrypt = nip04.encrypt as vi.MockedFunction<
+      typeof nip04.encrypt
+    >;
+    const mockNip04Decrypt = nip04.decrypt as vi.MockedFunction<
+      typeof nip04.decrypt
+    >;
 
-    describe('NIP04Service', () => {
+    describe("NIP04Service", () => {
       const ourSk = generateSecretKey();
       const theirPkHex = getPublicKey(generateSecretKey());
       const plaintext = "Hello, Nostr!";
@@ -138,12 +169,14 @@ Here are the specific coding instructions:
       const runWithLayer = <E, A>(effect: Effect.Effect<A, E, NIP04Service>) =>
         Effect.runPromiseExit(Effect.provide(effect, NIP04ServiceLive));
 
-      describe('encrypt', () => {
-        it('should encrypt plaintext successfully', async () => {
+      describe("encrypt", () => {
+        it("should encrypt plaintext successfully", async () => {
           mockNip04Encrypt.mockResolvedValue(ciphertextWithIv);
 
           const program = Effect.service(NIP04Service).pipe(
-            Effect.flatMap(service => service.encrypt(ourSk, theirPkHex, plaintext))
+            Effect.flatMap((service) =>
+              service.encrypt(ourSk, theirPkHex, plaintext),
+            ),
           );
           const exit = await runWithLayer(program);
 
@@ -151,21 +184,29 @@ Here are the specific coding instructions:
           if (Exit.isSuccess(exit)) {
             expect(exit.value).toBe(ciphertextWithIv);
           }
-          expect(mockNip04Encrypt).toHaveBeenCalledWith(ourSk, theirPkHex, plaintext);
+          expect(mockNip04Encrypt).toHaveBeenCalledWith(
+            ourSk,
+            theirPkHex,
+            plaintext,
+          );
         });
 
-        it('should return NIP04EncryptError on encryption failure', async () => {
+        it("should return NIP04EncryptError on encryption failure", async () => {
           const errorCause = new Error("Encryption library error");
           mockNip04Encrypt.mockRejectedValue(errorCause);
 
           const program = Effect.service(NIP04Service).pipe(
-            Effect.flatMap(service => service.encrypt(ourSk, theirPkHex, plaintext))
+            Effect.flatMap((service) =>
+              service.encrypt(ourSk, theirPkHex, plaintext),
+            ),
           );
           const exit = await runWithLayer(program);
 
           expect(Exit.isFailure(exit)).toBe(true);
           if (Exit.isFailure(exit)) {
-            const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
+            const error = Cause.failureOption(exit.cause).pipe(
+              Option.getOrThrow,
+            );
             expect(error).toBeInstanceOf(NIP04EncryptError);
             expect(error.message).toBe("NIP-04 encryption failed");
             expect(error.cause).toBe(errorCause);
@@ -173,12 +214,14 @@ Here are the specific coding instructions:
         });
       });
 
-      describe('decrypt', () => {
-        it('should decrypt ciphertext successfully', async () => {
+      describe("decrypt", () => {
+        it("should decrypt ciphertext successfully", async () => {
           mockNip04Decrypt.mockResolvedValue(plaintext);
 
           const program = Effect.service(NIP04Service).pipe(
-            Effect.flatMap(service => service.decrypt(ourSk, theirPkHex, ciphertextWithIv))
+            Effect.flatMap((service) =>
+              service.decrypt(ourSk, theirPkHex, ciphertextWithIv),
+            ),
           );
           const exit = await runWithLayer(program);
 
@@ -186,21 +229,29 @@ Here are the specific coding instructions:
           if (Exit.isSuccess(exit)) {
             expect(exit.value).toBe(plaintext);
           }
-          expect(mockNip04Decrypt).toHaveBeenCalledWith(ourSk, theirPkHex, ciphertextWithIv);
+          expect(mockNip04Decrypt).toHaveBeenCalledWith(
+            ourSk,
+            theirPkHex,
+            ciphertextWithIv,
+          );
         });
 
-        it('should return NIP04DecryptError on decryption failure', async () => {
+        it("should return NIP04DecryptError on decryption failure", async () => {
           const errorCause = new Error("Decryption library error");
           mockNip04Decrypt.mockRejectedValue(errorCause);
 
           const program = Effect.service(NIP04Service).pipe(
-            Effect.flatMap(service => service.decrypt(ourSk, theirPkHex, ciphertextWithIv))
+            Effect.flatMap((service) =>
+              service.decrypt(ourSk, theirPkHex, ciphertextWithIv),
+            ),
           );
           const exit = await runWithLayer(program);
 
           expect(Exit.isFailure(exit)).toBe(true);
           if (Exit.isFailure(exit)) {
-            const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
+            const error = Cause.failureOption(exit.cause).pipe(
+              Option.getOrThrow,
+            );
             expect(error).toBeInstanceOf(NIP04DecryptError);
             expect(error.message).toBe("NIP-04 decryption failed");
             expect(error.cause).toBe(errorCause);
@@ -209,33 +260,42 @@ Here are the specific coding instructions:
       });
     });
     ```
-    *   **Action:** Create this file.
+
+    - **Action:** Create this file.
 
 **Phase 4: Refactor NIP-90 Helpers to use NIP04Service**
 
 1.  **Modify `src/helpers/nip90/event_creation.ts`:**
+
     ```typescript
     // src/helpers/nip90/event_creation.ts
-    import { finalizeEvent, type EventTemplate } from 'nostr-tools/pure';
+    import { finalizeEvent, type EventTemplate } from "nostr-tools/pure";
     // Removed: import { nip04 } from 'nostr-tools';
-    import type { NostrEvent } from '@/services/nostr';
-    import { NIP04Service, NIP04EncryptError } from '@/services/nip04'; // Import NIP04Service and error
-    import { Effect } from 'effect'; // Import Effect
+    import type { NostrEvent } from "@/services/nostr";
+    import { NIP04Service, NIP04EncryptError } from "@/services/nip04"; // Import NIP04Service and error
+    import { Effect } from "effect"; // Import Effect
 
     export function createNip90JobRequest(
       requesterSk: Uint8Array,
       targetDvmPkHex: string,
       inputs: Array<[string, string, string?, string?, string?]>,
-      outputMimeType: string = 'text/plain',
+      outputMimeType: string = "text/plain",
       bidMillisats?: number,
       jobKind: number = 5100,
-      additionalParams?: Array<[string, string, string]>
-    ): Effect.Effect<NostrEvent, NIP04EncryptError, NIP04Service> { // Return Effect, require NIP04Service
+      additionalParams?: Array<[string, string, string]>,
+    ): Effect.Effect<NostrEvent, NIP04EncryptError, NIP04Service> {
+      // Return Effect, require NIP04Service
       return Effect.gen(function* (_) {
         const nip04Service = yield* _(NIP04Service); // Access the service from context
 
         const jobParametersToEncrypt: Array<[string, ...string[]]> = [
-          ...inputs.map(inputParams => ['i', ...inputParams.filter(p => p !== undefined)] as [string, ...string[]])
+          ...inputs.map(
+            (inputParams) =>
+              ["i", ...inputParams.filter((p) => p !== undefined)] as [
+                string,
+                ...string[],
+              ],
+          ),
         ];
 
         if (additionalParams) {
@@ -245,31 +305,35 @@ Here are the specific coding instructions:
         const stringifiedParams = JSON.stringify(jobParametersToEncrypt);
 
         // Encrypt using the service
-        const encryptedContent = yield* _(nip04Service.encrypt(requesterSk, targetDvmPkHex, stringifiedParams));
+        const encryptedContent = yield* _(
+          nip04Service.encrypt(requesterSk, targetDvmPkHex, stringifiedParams),
+        );
 
         const template: EventTemplate = {
           kind: jobKind,
           created_at: Math.floor(Date.now() / 1000),
           tags: [
-            ['p', targetDvmPkHex],
-            ['encrypted'],
-            ['output', outputMimeType],
+            ["p", targetDvmPkHex],
+            ["encrypted"],
+            ["output", outputMimeType],
           ],
           content: encryptedContent,
         };
 
         if (bidMillisats !== undefined && bidMillisats > 0) {
-          template.tags.push(['bid', bidMillisats.toString()]);
+          template.tags.push(["bid", bidMillisats.toString()]);
         }
 
         return finalizeEvent(template, requesterSk) as NostrEvent;
       });
     }
     ```
-    *   **Action:** Update this file.
+
+    - **Action:** Update this file.
 
 2.  **Modify `src/components/nip90/Nip90RequestForm.tsx`:**
     Update `handlePublishRequest` to handle the Effectful `createNip90JobRequest`.
+
     ```typescript
     // src/components/nip90/Nip90RequestForm.tsx
     import React, { useState, ChangeEvent } from 'react';
@@ -418,143 +482,201 @@ Here are the specific coding instructions:
       );
     }
     ```
-    *   **Action:** Update this file. Note the change in how `ephemeralSkHex` is handled for `localStorage` to ensure the correct value is stored before async state updates.
+
+    - **Action:** Update this file. Note the change in how `ephemeralSkHex` is handled for `localStorage` to ensure the correct value is stored before async state updates.
 
 3.  **Modify `src/helpers/nip90/event_decryption.ts`:**
+
     ```typescript
     // src/helpers/nip90/event_decryption.ts
     // Removed: import { nip04 } from 'nostr-tools';
-    import { hexToBytes } from '@noble/hashes/utils';
-    import { NIP04Service, NIP04DecryptError } from '@/services/nip04'; // Import NIP04Service and error
-    import { Effect } from 'effect'; // Import Effect
+    import { hexToBytes } from "@noble/hashes/utils";
+    import { NIP04Service, NIP04DecryptError } from "@/services/nip04"; // Import NIP04Service and error
+    import { Effect } from "effect"; // Import Effect
 
     export function decryptNip04Content(
       ourSkHex: string,
       theirPkHex: string,
-      encryptedContent: string
-    ): Effect.Effect<string, NIP04DecryptError, NIP04Service> { // Return Effect, require NIP04Service
+      encryptedContent: string,
+    ): Effect.Effect<string, NIP04DecryptError, NIP04Service> {
+      // Return Effect, require NIP04Service
       return Effect.gen(function* (_) {
         const nip04Service = yield* _(NIP04Service); // Access the service from context
         try {
           const ourSkUint8Array = hexToBytes(ourSkHex);
           // Decrypt using the service
-          return yield* _(nip04Service.decrypt(ourSkUint8Array, theirPkHex, encryptedContent));
-        } catch (error) { // Catch potential hexToBytes errors
-          return yield* _(Effect.fail(new NIP04DecryptError({ message: "Failed to convert secret key from hex", cause: error })));
+          return yield* _(
+            nip04Service.decrypt(ourSkUint8Array, theirPkHex, encryptedContent),
+          );
+        } catch (error) {
+          // Catch potential hexToBytes errors
+          return yield* _(
+            Effect.fail(
+              new NIP04DecryptError({
+                message: "Failed to convert secret key from hex",
+                cause: error,
+              }),
+            ),
+          );
         }
       });
     }
     ```
-    *   **Action:** Update this file.
+
+    - **Action:** Update this file.
 
 **Phase 5: Update Tests for NIP-90 Helpers and Components**
 
 1.  **Modify `src/tests/unit/helpers/nip90/event_creation.test.ts`:**
+
     ```typescript
     // src/tests/unit/helpers/nip90/event_creation.test.ts
-    import { describe, it, expect, vi } from 'vitest';
-    import { generateSecretKey, getPublicKey, finalizeEvent as actualFinalizeEvent } from 'nostr-tools/pure';
-    import { createNip90JobRequest } from '@/helpers/nip90/event_creation';
-    import type { NostrEvent } from '@/services/nostr';
-    import { NIP04Service, NIP04ServiceLive, NIP04EncryptError } from '@/services/nip04'; // Import real NIP04Service for testing
-    import { Effect, Exit, Layer, Cause, Option } from 'effect';
+    import { describe, it, expect, vi } from "vitest";
+    import {
+      generateSecretKey,
+      getPublicKey,
+      finalizeEvent as actualFinalizeEvent,
+    } from "nostr-tools/pure";
+    import { createNip90JobRequest } from "@/helpers/nip90/event_creation";
+    import type { NostrEvent } from "@/services/nostr";
+    import {
+      NIP04Service,
+      NIP04ServiceLive,
+      NIP04EncryptError,
+    } from "@/services/nip04"; // Import real NIP04Service for testing
+    import { Effect, Exit, Layer, Cause, Option } from "effect";
 
     // Mock only finalizeEvent from nostr-tools/pure, NIP04Service will use real nip04.encrypt
     // We will provide a mocked NIP04Service below for control.
-    vi.mock('nostr-tools/pure', async (importOriginal) => {
-        const original = await importOriginal<typeof import('nostr-tools/pure')>();
-        return {
-            ...original,
-            finalizeEvent: vi.fn((template, sk) => {
-                const pk = original.getPublicKey(sk);
-                return {
-                    ...template,
-                    id: 'mockEventId' + Date.now(),
-                    pubkey: pk,
-                    sig: 'mockSignature' + Date.now(),
-                    tags: template.tags || [],
-                    content: template.content || '', // content will be the mocked encrypted content
-                } as NostrEvent;
-            }),
-        };
+    vi.mock("nostr-tools/pure", async (importOriginal) => {
+      const original =
+        await importOriginal<typeof import("nostr-tools/pure")>();
+      return {
+        ...original,
+        finalizeEvent: vi.fn((template, sk) => {
+          const pk = original.getPublicKey(sk);
+          return {
+            ...template,
+            id: "mockEventId" + Date.now(),
+            pubkey: pk,
+            sig: "mockSignature" + Date.now(),
+            tags: template.tags || [],
+            content: template.content || "", // content will be the mocked encrypted content
+          } as NostrEvent;
+        }),
+      };
     });
 
-    const mockFinalizeEvent = actualFinalizeEvent as vi.MockedFunction<typeof actualFinalizeEvent>;
+    const mockFinalizeEvent = actualFinalizeEvent as vi.MockedFunction<
+      typeof actualFinalizeEvent
+    >;
 
-
-    describe('createNip90JobRequest', () => {
+    describe("createNip90JobRequest", () => {
       const sk = generateSecretKey();
       const dvmPkHex = getPublicKey(generateSecretKey());
-      const inputs: Array<[string, string, string?, string?, string?]> = [['Test input data', 'text']];
-      const outputMimeType = 'text/plain';
+      const inputs: Array<[string, string, string?, string?, string?]> = [
+        ["Test input data", "text"],
+      ];
+      const outputMimeType = "text/plain";
       const bidMillisats = 1000;
       const jobKind = 5100;
 
       const mockEncryptedContent = "mock-encrypted-content-from-service";
 
       // Create a mock NIP04Service layer
-      const mockNip04Encrypt = vi.fn(() => Effect.succeed(mockEncryptedContent));
+      const mockNip04Encrypt = vi.fn(() =>
+        Effect.succeed(mockEncryptedContent),
+      );
       const MockNIP04ServiceLayer = Layer.succeed(NIP04Service, {
         encrypt: mockNip04Encrypt,
         decrypt: vi.fn(() => Effect.succeed("decrypted")), // Mock decrypt as well
       });
 
-      it('should create an encrypted NIP-90 event using NIP04Service', async () => {
-        const program = createNip90JobRequest(sk, dvmPkHex, inputs, outputMimeType, bidMillisats, jobKind);
-        const exit = await Effect.runPromiseExit(Effect.provide(program, MockNIP04ServiceLayer));
+      it("should create an encrypted NIP-90 event using NIP04Service", async () => {
+        const program = createNip90JobRequest(
+          sk,
+          dvmPkHex,
+          inputs,
+          outputMimeType,
+          bidMillisats,
+          jobKind,
+        );
+        const exit = await Effect.runPromiseExit(
+          Effect.provide(program, MockNIP04ServiceLayer),
+        );
 
         expect(Exit.isSuccess(exit)).toBe(true);
         if (Exit.isSuccess(exit)) {
           const event = exit.value;
           expect(event.kind).toBe(jobKind);
           expect(event.content).toBe(mockEncryptedContent);
-          expect(event.tags).toEqual(expect.arrayContaining([
-            ['p', dvmPkHex],
-            ['encrypted'],
-            ['output', outputMimeType],
-            ['bid', bidMillisats.toString()],
-          ]));
+          expect(event.tags).toEqual(
+            expect.arrayContaining([
+              ["p", dvmPkHex],
+              ["encrypted"],
+              ["output", outputMimeType],
+              ["bid", bidMillisats.toString()],
+            ]),
+          );
           // Check that the input 'i' tag is NOT present unencrypted
-          expect(event.tags.some(t => t[0] === 'i')).toBe(false);
+          expect(event.tags.some((t) => t[0] === "i")).toBe(false);
         }
 
-        expect(mockNip04Encrypt).toHaveBeenCalledWith(sk, dvmPkHex, JSON.stringify([['i', 'Test input data', 'text']]));
+        expect(mockNip04Encrypt).toHaveBeenCalledWith(
+          sk,
+          dvmPkHex,
+          JSON.stringify([["i", "Test input data", "text"]]),
+        );
         expect(mockFinalizeEvent).toHaveBeenCalled();
       });
 
-      it('should propagate NIP04EncryptError if encryption fails', async () => {
-        const encryptError = new NIP04EncryptError({ message: "Test encrypt error" });
+      it("should propagate NIP04EncryptError if encryption fails", async () => {
+        const encryptError = new NIP04EncryptError({
+          message: "Test encrypt error",
+        });
         mockNip04Encrypt.mockReturnValueOnce(Effect.fail(encryptError));
 
-        const program = createNip90JobRequest(sk, dvmPkHex, inputs, outputMimeType, bidMillisats, jobKind);
-        const exit = await Effect.runPromiseExit(Effect.provide(program, MockNIP04ServiceLayer));
+        const program = createNip90JobRequest(
+          sk,
+          dvmPkHex,
+          inputs,
+          outputMimeType,
+          bidMillisats,
+          jobKind,
+        );
+        const exit = await Effect.runPromiseExit(
+          Effect.provide(program, MockNIP04ServiceLayer),
+        );
 
         expect(Exit.isFailure(exit)).toBe(true);
         if (Exit.isFailure(exit)) {
-            const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
-            expect(error).toBe(encryptError);
+          const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
+          expect(error).toBe(encryptError);
         }
       });
     });
     ```
-    *   **Action:** Update this file.
+
+    - **Action:** Update this file.
 
 2.  **Modify `src/tests/unit/helpers/nip90/event_decryption.test.ts`:**
+
     ```typescript
     // src/tests/unit/helpers/nip90/event_decryption.test.ts
-    import { describe, it, expect, vi } from 'vitest';
-    import { decryptNip04Content } from '@/helpers/nip90/event_decryption';
-    import { NIP04Service, NIP04DecryptError } from '@/services/nip04';
-    import { Effect, Exit, Layer, Cause, Option } from 'effect';
-    import { hexToBytes as actualHexToBytes } from '@noble/hashes/utils';
+    import { describe, it, expect, vi } from "vitest";
+    import { decryptNip04Content } from "@/helpers/nip90/event_decryption";
+    import { NIP04Service, NIP04DecryptError } from "@/services/nip04";
+    import { Effect, Exit, Layer, Cause, Option } from "effect";
+    import { hexToBytes as actualHexToBytes } from "@noble/hashes/utils";
 
-    vi.mock('@noble/hashes/utils', () => ({
-      hexToBytes: vi.fn().mockImplementation(actualHexToBytes) // Mock to allow spying or overriding
+    vi.mock("@noble/hashes/utils", () => ({
+      hexToBytes: vi.fn().mockImplementation(actualHexToBytes), // Mock to allow spying or overriding
     }));
-    const mockHexToBytes = actualHexToBytes as vi.MockedFunction<typeof actualHexToBytes>;
+    const mockHexToBytes = actualHexToBytes as vi.MockedFunction<
+      typeof actualHexToBytes
+    >;
 
-
-    describe('decryptNip04Content', () => {
+    describe("decryptNip04Content", () => {
       const ourSkHex = "ourSecretKeyHex";
       const theirPkHex = "theirPublicKeyHex";
       const encryptedContent = "encrypted?iv=iv";
@@ -566,9 +688,15 @@ Here are the specific coding instructions:
         decrypt: mockNip04Decrypt,
       });
 
-      it('should decrypt content using NIP04Service', async () => {
-        const program = decryptNip04Content(ourSkHex, theirPkHex, encryptedContent);
-        const exit = await Effect.runPromiseExit(Effect.provide(program, MockNIP04ServiceLayer));
+      it("should decrypt content using NIP04Service", async () => {
+        const program = decryptNip04Content(
+          ourSkHex,
+          theirPkHex,
+          encryptedContent,
+        );
+        const exit = await Effect.runPromiseExit(
+          Effect.provide(program, MockNIP04ServiceLayer),
+        );
 
         expect(Exit.isSuccess(exit)).toBe(true);
         if (Exit.isSuccess(exit)) {
@@ -576,30 +704,50 @@ Here are the specific coding instructions:
         }
         expect(mockHexToBytes).toHaveBeenCalledWith(ourSkHex);
         const ourSkUint8Array = actualHexToBytes(ourSkHex); // Use actual conversion for mock call verification
-        expect(mockNip04Decrypt).toHaveBeenCalledWith(ourSkUint8Array, theirPkHex, encryptedContent);
+        expect(mockNip04Decrypt).toHaveBeenCalledWith(
+          ourSkUint8Array,
+          theirPkHex,
+          encryptedContent,
+        );
       });
 
-      it('should propagate NIP04DecryptError if decryption fails', async () => {
-        const decryptError = new NIP04DecryptError({ message: "Test decrypt error" });
+      it("should propagate NIP04DecryptError if decryption fails", async () => {
+        const decryptError = new NIP04DecryptError({
+          message: "Test decrypt error",
+        });
         mockNip04Decrypt.mockReturnValueOnce(Effect.fail(decryptError));
         mockHexToBytes.mockReturnValueOnce(new Uint8Array(32)); // Ensure hexToBytes doesn't throw for this path
 
-        const program = decryptNip04Content(ourSkHex, theirPkHex, encryptedContent);
-        const exit = await Effect.runPromiseExit(Effect.provide(program, MockNIP04ServiceLayer));
+        const program = decryptNip04Content(
+          ourSkHex,
+          theirPkHex,
+          encryptedContent,
+        );
+        const exit = await Effect.runPromiseExit(
+          Effect.provide(program, MockNIP04ServiceLayer),
+        );
 
         expect(Exit.isFailure(exit)).toBe(true);
         if (Exit.isFailure(exit)) {
-            const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
-            expect(error).toBe(decryptError);
+          const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
+          expect(error).toBe(decryptError);
         }
       });
 
-      it('should return NIP04DecryptError if hexToBytes fails', async () => {
+      it("should return NIP04DecryptError if hexToBytes fails", async () => {
         const hexError = new Error("Invalid hex string");
-        mockHexToBytes.mockImplementationOnce(() => { throw hexError; });
+        mockHexToBytes.mockImplementationOnce(() => {
+          throw hexError;
+        });
 
-        const program = decryptNip04Content("invalid-hex", theirPkHex, encryptedContent);
-        const exit = await Effect.runPromiseExit(Effect.provide(program, MockNIP04ServiceLayer));
+        const program = decryptNip04Content(
+          "invalid-hex",
+          theirPkHex,
+          encryptedContent,
+        );
+        const exit = await Effect.runPromiseExit(
+          Effect.provide(program, MockNIP04ServiceLayer),
+        );
 
         expect(Exit.isFailure(exit)).toBe(true);
         if (Exit.isFailure(exit)) {
@@ -611,7 +759,8 @@ Here are the specific coding instructions:
       });
     });
     ```
-    *   **Action:** Update this file.
+
+    - **Action:** Update this file.
 
 3.  **Modify `src/tests/unit/components/nip90/Nip90RequestForm.test.tsx`:**
     The `Nip90RequestForm`'s `handlePublishRequest` now uses Effect composition that includes `NIP04Service`.
@@ -769,7 +918,8 @@ Here are the specific coding instructions:
 
     });
     ```
-    *   **Action:** Update this file.
+
+    - **Action:** Update this file.
 
 This refactoring ensures that NIP-04 cryptographic operations are encapsulated within their own service and are testable, aligning with the Effect-ts pattern used in the project.
 The tests need to provide the `NIP04ServiceLive` layer (or a mock layer) where the NIP-04 operations are now used.Okay, I'll provide the coding instructions to create the `NIP04Service`, implement it, test it, and then refactor the existing NIP-90 helper functions and their tests to use this new service.
@@ -777,17 +927,22 @@ The tests need to provide the `NIP04ServiceLive` layer (or a mock layer) where t
 **Phase 1: Define NIP04Service Interface and Types**
 
 1.  **Create `src/services/nip04/NIP04Service.ts`:**
+
     ```typescript
     // src/services/nip04/NIP04Service.ts
     import { Effect, Context, Data } from "effect";
 
     // --- Custom Error Types ---
-    export class NIP04EncryptError extends Data.TaggedError("NIP04EncryptError")<{
+    export class NIP04EncryptError extends Data.TaggedError(
+      "NIP04EncryptError",
+    )<{
       readonly cause?: unknown;
       readonly message: string;
     }> {}
 
-    export class NIP04DecryptError extends Data.TaggedError("NIP04DecryptError")<{
+    export class NIP04DecryptError extends Data.TaggedError(
+      "NIP04DecryptError",
+    )<{
       readonly cause?: unknown;
       readonly message: string;
     }> {}
@@ -804,7 +959,7 @@ The tests need to provide the `NIP04ServiceLive` layer (or a mock layer) where t
       encrypt(
         ourSk: Uint8Array,
         theirPkHex: string,
-        plaintext: string
+        plaintext: string,
       ): Effect.Effect<string, NIP04EncryptError>;
 
       /**
@@ -817,17 +972,19 @@ The tests need to provide the `NIP04ServiceLive` layer (or a mock layer) where t
       decrypt(
         ourSk: Uint8Array,
         theirPkHex: string,
-        ciphertextWithIv: string
+        ciphertextWithIv: string,
       ): Effect.Effect<string, NIP04DecryptError>;
     }
 
     // --- Service Tag ---
-    export const NIP04Service = Context.GenericTag<NIP04Service>("NIP04Service");
+    export const NIP04Service =
+      Context.GenericTag<NIP04Service>("NIP04Service");
     ```
 
 **Phase 2: Implement NIP04Service**
 
 1.  **Create `src/services/nip04/NIP04ServiceImpl.ts`:**
+
     ```typescript
     // src/services/nip04/NIP04ServiceImpl.ts
     import { Effect, Layer } from "effect";
@@ -843,44 +1000,62 @@ The tests need to provide the `NIP04ServiceLive` layer (or a mock layer) where t
         encrypt: (ourSk: Uint8Array, theirPkHex: string, plaintext: string) =>
           Effect.tryPromise({
             try: () => nip04.encrypt(ourSk, theirPkHex, plaintext),
-            catch: (cause) => new NIP04EncryptError({ message: "NIP-04 encryption failed", cause }),
+            catch: (cause) =>
+              new NIP04EncryptError({
+                message: "NIP-04 encryption failed",
+                cause,
+              }),
           }),
 
-        decrypt: (ourSk: Uint8Array, theirPkHex: string, ciphertextWithIv: string) =>
+        decrypt: (
+          ourSk: Uint8Array,
+          theirPkHex: string,
+          ciphertextWithIv: string,
+        ) =>
           Effect.tryPromise({
             try: () => nip04.decrypt(ourSk, theirPkHex, ciphertextWithIv),
-            catch: (cause) => new NIP04DecryptError({ message: "NIP-04 decryption failed", cause }),
+            catch: (cause) =>
+              new NIP04DecryptError({
+                message: "NIP-04 decryption failed",
+                cause,
+              }),
           }),
       };
     }
 
     export const NIP04ServiceLive = Layer.succeed(
       NIP04Service,
-      createNIP04Service()
+      createNIP04Service(),
     );
     ```
 
 2.  **Create `src/services/nip04/index.ts`:**
     ```typescript
     // src/services/nip04/index.ts
-    export * from './NIP04Service';
-    export * from './NIP04ServiceImpl';
+    export * from "./NIP04Service";
+    export * from "./NIP04ServiceImpl";
     ```
 
 **Phase 3: Unit Test NIP04Service**
 
 1.  **Create `src/tests/unit/services/nip04/NIP04Service.test.ts`:**
+
     ```typescript
     // src/tests/unit/services/nip04/NIP04Service.test.ts
-    import { describe, it, expect, vi, beforeEach } from 'vitest';
-    import { Effect, Exit, Cause, Option, Layer } from 'effect';
-    import { nip04 } from 'nostr-tools'; // To mock
-    import { NIP04Service, NIP04ServiceLive, NIP04EncryptError, NIP04DecryptError } from '@/services/nip04';
-    import { generateSecretKey, getPublicKey } from 'nostr-tools/pure'; // For generating test keys
+    import { describe, it, expect, vi, beforeEach } from "vitest";
+    import { Effect, Exit, Cause, Option, Layer } from "effect";
+    import { nip04 } from "nostr-tools"; // To mock
+    import {
+      NIP04Service,
+      NIP04ServiceLive,
+      NIP04EncryptError,
+      NIP04DecryptError,
+    } from "@/services/nip04";
+    import { generateSecretKey, getPublicKey } from "nostr-tools/pure"; // For generating test keys
 
     // Mock nostr-tools's nip04 module
-    vi.mock('nostr-tools', async (importOriginal) => {
-      const original = await importOriginal<typeof import('nostr-tools')>();
+    vi.mock("nostr-tools", async (importOriginal) => {
+      const original = await importOriginal<typeof import("nostr-tools")>();
       return {
         ...original,
         nip04: {
@@ -891,10 +1066,14 @@ The tests need to provide the `NIP04ServiceLive` layer (or a mock layer) where t
     });
 
     // Typed mock functions
-    const mockNip04Encrypt = nip04.encrypt as vi.MockedFunction<typeof nip04.encrypt>;
-    const mockNip04Decrypt = nip04.decrypt as vi.MockedFunction<typeof nip04.decrypt>;
+    const mockNip04Encrypt = nip04.encrypt as vi.MockedFunction<
+      typeof nip04.encrypt
+    >;
+    const mockNip04Decrypt = nip04.decrypt as vi.MockedFunction<
+      typeof nip04.decrypt
+    >;
 
-    describe('NIP04Service', () => {
+    describe("NIP04Service", () => {
       const ourSk = generateSecretKey();
       const theirPkHex = getPublicKey(generateSecretKey());
       const plaintext = "Hello, Nostr!";
@@ -907,12 +1086,14 @@ The tests need to provide the `NIP04ServiceLive` layer (or a mock layer) where t
       const runWithLayer = <E, A>(effect: Effect.Effect<A, E, NIP04Service>) =>
         Effect.runPromiseExit(Effect.provide(effect, NIP04ServiceLive));
 
-      describe('encrypt', () => {
-        it('should encrypt plaintext successfully', async () => {
+      describe("encrypt", () => {
+        it("should encrypt plaintext successfully", async () => {
           mockNip04Encrypt.mockResolvedValue(ciphertextWithIv);
 
           const program = Effect.service(NIP04Service).pipe(
-            Effect.flatMap(service => service.encrypt(ourSk, theirPkHex, plaintext))
+            Effect.flatMap((service) =>
+              service.encrypt(ourSk, theirPkHex, plaintext),
+            ),
           );
           const exit = await runWithLayer(program);
 
@@ -920,21 +1101,29 @@ The tests need to provide the `NIP04ServiceLive` layer (or a mock layer) where t
           if (Exit.isSuccess(exit)) {
             expect(exit.value).toBe(ciphertextWithIv);
           }
-          expect(mockNip04Encrypt).toHaveBeenCalledWith(ourSk, theirPkHex, plaintext);
+          expect(mockNip04Encrypt).toHaveBeenCalledWith(
+            ourSk,
+            theirPkHex,
+            plaintext,
+          );
         });
 
-        it('should return NIP04EncryptError on encryption failure', async () => {
+        it("should return NIP04EncryptError on encryption failure", async () => {
           const errorCause = new Error("Encryption library error");
           mockNip04Encrypt.mockRejectedValue(errorCause);
 
           const program = Effect.service(NIP04Service).pipe(
-            Effect.flatMap(service => service.encrypt(ourSk, theirPkHex, plaintext))
+            Effect.flatMap((service) =>
+              service.encrypt(ourSk, theirPkHex, plaintext),
+            ),
           );
           const exit = await runWithLayer(program);
 
           expect(Exit.isFailure(exit)).toBe(true);
           if (Exit.isFailure(exit)) {
-            const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
+            const error = Cause.failureOption(exit.cause).pipe(
+              Option.getOrThrow,
+            );
             expect(error).toBeInstanceOf(NIP04EncryptError);
             expect(error.message).toBe("NIP-04 encryption failed");
             expect(error.cause).toBe(errorCause);
@@ -942,12 +1131,14 @@ The tests need to provide the `NIP04ServiceLive` layer (or a mock layer) where t
         });
       });
 
-      describe('decrypt', () => {
-        it('should decrypt ciphertext successfully', async () => {
+      describe("decrypt", () => {
+        it("should decrypt ciphertext successfully", async () => {
           mockNip04Decrypt.mockResolvedValue(plaintext);
 
           const program = Effect.service(NIP04Service).pipe(
-            Effect.flatMap(service => service.decrypt(ourSk, theirPkHex, ciphertextWithIv))
+            Effect.flatMap((service) =>
+              service.decrypt(ourSk, theirPkHex, ciphertextWithIv),
+            ),
           );
           const exit = await runWithLayer(program);
 
@@ -955,21 +1146,29 @@ The tests need to provide the `NIP04ServiceLive` layer (or a mock layer) where t
           if (Exit.isSuccess(exit)) {
             expect(exit.value).toBe(plaintext);
           }
-          expect(mockNip04Decrypt).toHaveBeenCalledWith(ourSk, theirPkHex, ciphertextWithIv);
+          expect(mockNip04Decrypt).toHaveBeenCalledWith(
+            ourSk,
+            theirPkHex,
+            ciphertextWithIv,
+          );
         });
 
-        it('should return NIP04DecryptError on decryption failure', async () => {
+        it("should return NIP04DecryptError on decryption failure", async () => {
           const errorCause = new Error("Decryption library error");
           mockNip04Decrypt.mockRejectedValue(errorCause);
 
           const program = Effect.service(NIP04Service).pipe(
-            Effect.flatMap(service => service.decrypt(ourSk, theirPkHex, ciphertextWithIv))
+            Effect.flatMap((service) =>
+              service.decrypt(ourSk, theirPkHex, ciphertextWithIv),
+            ),
           );
           const exit = await runWithLayer(program);
 
           expect(Exit.isFailure(exit)).toBe(true);
           if (Exit.isFailure(exit)) {
-            const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
+            const error = Cause.failureOption(exit.cause).pipe(
+              Option.getOrThrow,
+            );
             expect(error).toBeInstanceOf(NIP04DecryptError);
             expect(error.message).toBe("NIP-04 decryption failed");
             expect(error.cause).toBe(errorCause);
@@ -982,27 +1181,34 @@ The tests need to provide the `NIP04ServiceLive` layer (or a mock layer) where t
 **Phase 4: Refactor NIP-90 Helpers to use NIP04Service**
 
 1.  **Modify `src/helpers/nip90/event_creation.ts`:**
+
     ```typescript
     // src/helpers/nip90/event_creation.ts
-    import { finalizeEvent, type EventTemplate } from 'nostr-tools/pure';
-    import type { NostrEvent } from '@/services/nostr';
-    import { NIP04Service, NIP04EncryptError } from '@/services/nip04';
-    import { Effect } from 'effect';
+    import { finalizeEvent, type EventTemplate } from "nostr-tools/pure";
+    import type { NostrEvent } from "@/services/nostr";
+    import { NIP04Service, NIP04EncryptError } from "@/services/nip04";
+    import { Effect } from "effect";
 
     export function createNip90JobRequest(
       requesterSk: Uint8Array,
       targetDvmPkHex: string,
       inputs: Array<[string, string, string?, string?, string?]>,
-      outputMimeType: string = 'text/plain',
+      outputMimeType: string = "text/plain",
       bidMillisats?: number,
       jobKind: number = 5100,
-      additionalParams?: Array<[string, string, string]>
+      additionalParams?: Array<[string, string, string]>,
     ): Effect.Effect<NostrEvent, NIP04EncryptError, NIP04Service> {
       return Effect.gen(function* (_) {
         const nip04Service = yield* _(NIP04Service);
 
         const jobParametersToEncrypt: Array<[string, ...string[]]> = [
-          ...inputs.map(inputParams => ['i', ...inputParams.filter(p => p !== undefined)] as [string, ...string[]])
+          ...inputs.map(
+            (inputParams) =>
+              ["i", ...inputParams.filter((p) => p !== undefined)] as [
+                string,
+                ...string[],
+              ],
+          ),
         ];
 
         if (additionalParams) {
@@ -1010,21 +1216,23 @@ The tests need to provide the `NIP04ServiceLive` layer (or a mock layer) where t
         }
 
         const stringifiedParams = JSON.stringify(jobParametersToEncrypt);
-        const encryptedContent = yield* _(nip04Service.encrypt(requesterSk, targetDvmPkHex, stringifiedParams));
+        const encryptedContent = yield* _(
+          nip04Service.encrypt(requesterSk, targetDvmPkHex, stringifiedParams),
+        );
 
         const template: EventTemplate = {
           kind: jobKind,
           created_at: Math.floor(Date.now() / 1000),
           tags: [
-            ['p', targetDvmPkHex],
-            ['encrypted'],
-            ['output', outputMimeType],
+            ["p", targetDvmPkHex],
+            ["encrypted"],
+            ["output", outputMimeType],
           ],
           content: encryptedContent,
         };
 
         if (bidMillisats !== undefined && bidMillisats > 0) {
-          template.tags.push(['bid', bidMillisats.toString()]);
+          template.tags.push(["bid", bidMillisats.toString()]);
         }
 
         return finalizeEvent(template, requesterSk) as NostrEvent;
@@ -1033,6 +1241,7 @@ The tests need to provide the `NIP04ServiceLive` layer (or a mock layer) where t
     ```
 
 2.  **Modify `src/components/nip90/Nip90RequestForm.tsx`:**
+
     ```typescript
     // src/components/nip90/Nip90RequestForm.tsx
     import React, { useState, ChangeEvent } from 'react';
@@ -1205,24 +1414,34 @@ The tests need to provide the `NIP04ServiceLive` layer (or a mock layer) where t
     ```
 
 3.  **Modify `src/helpers/nip90/event_decryption.ts`:**
+
     ```typescript
     // src/helpers/nip90/event_decryption.ts
-    import { hexToBytes } from '@noble/hashes/utils';
-    import { NIP04Service, NIP04DecryptError } from '@/services/nip04';
-    import { Effect } from 'effect';
+    import { hexToBytes } from "@noble/hashes/utils";
+    import { NIP04Service, NIP04DecryptError } from "@/services/nip04";
+    import { Effect } from "effect";
 
     export function decryptNip04Content(
       ourSkHex: string,
       theirPkHex: string,
-      encryptedContent: string
+      encryptedContent: string,
     ): Effect.Effect<string, NIP04DecryptError, NIP04Service> {
       return Effect.gen(function* (_) {
         const nip04Service = yield* _(NIP04Service);
         try {
           const ourSkUint8Array = hexToBytes(ourSkHex);
-          return yield* _(nip04Service.decrypt(ourSkUint8Array, theirPkHex, encryptedContent));
+          return yield* _(
+            nip04Service.decrypt(ourSkUint8Array, theirPkHex, encryptedContent),
+          );
         } catch (error) {
-          return yield* _(Effect.fail(new NIP04DecryptError({ message: "Failed to convert secret key from hex", cause: error })));
+          return yield* _(
+            Effect.fail(
+              new NIP04DecryptError({
+                message: "Failed to convert secret key from hex",
+                cause: error,
+              }),
+            ),
+          );
         }
       });
     }
@@ -1231,101 +1450,140 @@ The tests need to provide the `NIP04ServiceLive` layer (or a mock layer) where t
 **Phase 5: Update Tests for NIP-90 Helpers and Components**
 
 1.  **Modify `src/tests/unit/helpers/nip90/event_creation.test.ts`:**
+
     ```typescript
     // src/tests/unit/helpers/nip90/event_creation.test.ts
-    import { describe, it, expect, vi } from 'vitest';
-    import { generateSecretKey, getPublicKey, finalizeEvent } from 'nostr-tools/pure';
-    import { createNip90JobRequest } from '@/helpers/nip90/event_creation';
-    import type { NostrEvent } from '@/services/nostr';
-    import { NIP04Service, NIP04EncryptError } from '@/services/nip04';
-    import { Effect, Exit, Layer, Cause, Option } from 'effect';
+    import { describe, it, expect, vi } from "vitest";
+    import {
+      generateSecretKey,
+      getPublicKey,
+      finalizeEvent,
+    } from "nostr-tools/pure";
+    import { createNip90JobRequest } from "@/helpers/nip90/event_creation";
+    import type { NostrEvent } from "@/services/nostr";
+    import { NIP04Service, NIP04EncryptError } from "@/services/nip04";
+    import { Effect, Exit, Layer, Cause, Option } from "effect";
 
-    vi.mock('nostr-tools/pure', async (importOriginal) => {
-        const original = await importOriginal<typeof import('nostr-tools/pure')>();
-        return {
-            ...original,
-            finalizeEvent: vi.fn((template, sk) => {
-                const pk = original.getPublicKey(sk);
-                return {
-                    ...template,
-                    id: 'mockEventId' + Date.now(),
-                    pubkey: pk,
-                    sig: 'mockSignature' + Date.now(),
-                    tags: template.tags || [],
-                    content: template.content,
-                } as NostrEvent;
-            }),
-        };
+    vi.mock("nostr-tools/pure", async (importOriginal) => {
+      const original =
+        await importOriginal<typeof import("nostr-tools/pure")>();
+      return {
+        ...original,
+        finalizeEvent: vi.fn((template, sk) => {
+          const pk = original.getPublicKey(sk);
+          return {
+            ...template,
+            id: "mockEventId" + Date.now(),
+            pubkey: pk,
+            sig: "mockSignature" + Date.now(),
+            tags: template.tags || [],
+            content: template.content,
+          } as NostrEvent;
+        }),
+      };
     });
     const mockedFinalizeEvent = finalizeEvent as vi.Mock;
 
-    describe('createNip90JobRequest', () => {
+    describe("createNip90JobRequest", () => {
       const sk = generateSecretKey();
       const dvmPkHex = getPublicKey(generateSecretKey());
-      const inputs: Array<[string, string, string?, string?, string?]> = [['Test input data', 'text']];
-      const outputMimeType = 'text/plain';
+      const inputs: Array<[string, string, string?, string?, string?]> = [
+        ["Test input data", "text"],
+      ];
+      const outputMimeType = "text/plain";
       const bidMillisats = 1000;
       const jobKind = 5100;
 
       const mockEncryptedContent = "mock-encrypted-content-from-service";
-      const mockNip04Encrypt = vi.fn(() => Effect.succeed(mockEncryptedContent));
+      const mockNip04Encrypt = vi.fn(() =>
+        Effect.succeed(mockEncryptedContent),
+      );
       const MockNIP04ServiceLayer = Layer.succeed(NIP04Service, {
         encrypt: mockNip04Encrypt,
         decrypt: vi.fn(() => Effect.succeed("decrypted")),
       });
 
-      it('should create an encrypted NIP-90 event using NIP04Service', async () => {
-        const program = createNip90JobRequest(sk, dvmPkHex, inputs, outputMimeType, bidMillisats, jobKind);
-        const exit = await Effect.runPromiseExit(Effect.provide(program, MockNIP04ServiceLayer));
+      it("should create an encrypted NIP-90 event using NIP04Service", async () => {
+        const program = createNip90JobRequest(
+          sk,
+          dvmPkHex,
+          inputs,
+          outputMimeType,
+          bidMillisats,
+          jobKind,
+        );
+        const exit = await Effect.runPromiseExit(
+          Effect.provide(program, MockNIP04ServiceLayer),
+        );
 
         expect(Exit.isSuccess(exit)).toBe(true);
         if (Exit.isSuccess(exit)) {
           const event = exit.value;
           expect(event.kind).toBe(jobKind);
           expect(event.content).toBe(mockEncryptedContent);
-          expect(event.tags).toEqual(expect.arrayContaining([
-            ['p', dvmPkHex],
-            ['encrypted'],
-            ['output', outputMimeType],
-            ['bid', bidMillisats.toString()],
-          ]));
-          expect(event.tags.some(t => t[0] === 'i')).toBe(false);
+          expect(event.tags).toEqual(
+            expect.arrayContaining([
+              ["p", dvmPkHex],
+              ["encrypted"],
+              ["output", outputMimeType],
+              ["bid", bidMillisats.toString()],
+            ]),
+          );
+          expect(event.tags.some((t) => t[0] === "i")).toBe(false);
         }
-        expect(mockNip04Encrypt).toHaveBeenCalledWith(sk, dvmPkHex, JSON.stringify([['i', 'Test input data', 'text']]));
+        expect(mockNip04Encrypt).toHaveBeenCalledWith(
+          sk,
+          dvmPkHex,
+          JSON.stringify([["i", "Test input data", "text"]]),
+        );
         expect(mockedFinalizeEvent).toHaveBeenCalled();
       });
 
-      it('should propagate NIP04EncryptError if encryption fails', async () => {
-        const encryptError = new NIP04EncryptError({ message: "Test encrypt error" });
+      it("should propagate NIP04EncryptError if encryption fails", async () => {
+        const encryptError = new NIP04EncryptError({
+          message: "Test encrypt error",
+        });
         mockNip04Encrypt.mockReturnValueOnce(Effect.fail(encryptError));
 
-        const program = createNip90JobRequest(sk, dvmPkHex, inputs, outputMimeType, bidMillisats, jobKind);
-        const exit = await Effect.runPromiseExit(Effect.provide(program, MockNIP04ServiceLayer));
+        const program = createNip90JobRequest(
+          sk,
+          dvmPkHex,
+          inputs,
+          outputMimeType,
+          bidMillisats,
+          jobKind,
+        );
+        const exit = await Effect.runPromiseExit(
+          Effect.provide(program, MockNIP04ServiceLayer),
+        );
 
         expect(Exit.isFailure(exit)).toBe(true);
         if (Exit.isFailure(exit)) {
-            const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
-            expect(error).toBe(encryptError);
+          const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
+          expect(error).toBe(encryptError);
         }
       });
     });
     ```
 
 2.  **Modify `src/tests/unit/helpers/nip90/event_decryption.test.ts`:**
+
     ```typescript
     // src/tests/unit/helpers/nip90/event_decryption.test.ts
-    import { describe, it, expect, vi } from 'vitest';
-    import { decryptNip04Content } from '@/helpers/nip90/event_decryption';
-    import { NIP04Service, NIP04DecryptError } from '@/services/nip04';
-    import { Effect, Exit, Layer, Cause, Option } from 'effect';
-    import { hexToBytes } from '@noble/hashes/utils';
+    import { describe, it, expect, vi } from "vitest";
+    import { decryptNip04Content } from "@/helpers/nip90/event_decryption";
+    import { NIP04Service, NIP04DecryptError } from "@/services/nip04";
+    import { Effect, Exit, Layer, Cause, Option } from "effect";
+    import { hexToBytes } from "@noble/hashes/utils";
 
     // Keep hexToBytes as actual import, we can spy on it if needed, or let it run.
     // If it fails, our error handling in decryptNip04Content should catch it.
 
-    describe('decryptNip04Content', () => {
-      const ourSkHex = "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"; // Valid 32-byte hex
-      const theirPkHex = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"; // Valid 32-byte hex
+    describe("decryptNip04Content", () => {
+      const ourSkHex =
+        "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"; // Valid 32-byte hex
+      const theirPkHex =
+        "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"; // Valid 32-byte hex
       const encryptedContent = "encrypted?iv=iv";
       const decryptedPlaintext = "decrypted content";
 
@@ -1335,35 +1593,59 @@ The tests need to provide the `NIP04ServiceLive` layer (or a mock layer) where t
         decrypt: mockNip04Decrypt,
       });
 
-      it('should decrypt content using NIP04Service', async () => {
-        const program = decryptNip04Content(ourSkHex, theirPkHex, encryptedContent);
-        const exit = await Effect.runPromiseExit(Effect.provide(program, MockNIP04ServiceLayer));
+      it("should decrypt content using NIP04Service", async () => {
+        const program = decryptNip04Content(
+          ourSkHex,
+          theirPkHex,
+          encryptedContent,
+        );
+        const exit = await Effect.runPromiseExit(
+          Effect.provide(program, MockNIP04ServiceLayer),
+        );
 
         expect(Exit.isSuccess(exit)).toBe(true);
         if (Exit.isSuccess(exit)) {
           expect(exit.value).toBe(decryptedPlaintext);
         }
         const ourSkUint8Array = hexToBytes(ourSkHex);
-        expect(mockNip04Decrypt).toHaveBeenCalledWith(ourSkUint8Array, theirPkHex, encryptedContent);
+        expect(mockNip04Decrypt).toHaveBeenCalledWith(
+          ourSkUint8Array,
+          theirPkHex,
+          encryptedContent,
+        );
       });
 
-      it('should propagate NIP04DecryptError if decryption fails in service', async () => {
-        const decryptError = new NIP04DecryptError({ message: "Test decrypt error from service" });
+      it("should propagate NIP04DecryptError if decryption fails in service", async () => {
+        const decryptError = new NIP04DecryptError({
+          message: "Test decrypt error from service",
+        });
         mockNip04Decrypt.mockReturnValueOnce(Effect.fail(decryptError));
 
-        const program = decryptNip04Content(ourSkHex, theirPkHex, encryptedContent);
-        const exit = await Effect.runPromiseExit(Effect.provide(program, MockNIP04ServiceLayer));
+        const program = decryptNip04Content(
+          ourSkHex,
+          theirPkHex,
+          encryptedContent,
+        );
+        const exit = await Effect.runPromiseExit(
+          Effect.provide(program, MockNIP04ServiceLayer),
+        );
 
         expect(Exit.isFailure(exit)).toBe(true);
         if (Exit.isFailure(exit)) {
-            const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
-            expect(error).toBe(decryptError);
+          const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
+          expect(error).toBe(decryptError);
         }
       });
 
-      it('should return NIP04DecryptError if hexToBytes fails for secret key', async () => {
-        const program = decryptNip04Content("invalid-hex-sk", theirPkHex, encryptedContent);
-        const exit = await Effect.runPromiseExit(Effect.provide(program, MockNIP04ServiceLayer));
+      it("should return NIP04DecryptError if hexToBytes fails for secret key", async () => {
+        const program = decryptNip04Content(
+          "invalid-hex-sk",
+          theirPkHex,
+          encryptedContent,
+        );
+        const exit = await Effect.runPromiseExit(
+          Effect.provide(program, MockNIP04ServiceLayer),
+        );
 
         expect(Exit.isFailure(exit)).toBe(true);
         if (Exit.isFailure(exit)) {
@@ -1378,6 +1660,7 @@ The tests need to provide the `NIP04ServiceLive` layer (or a mock layer) where t
     ```
 
 3.  **Modify `src/tests/unit/components/nip90/Nip90RequestForm.test.tsx`:**
+
     ```typescript
     // src/tests/unit/components/nip90/Nip90RequestForm.test.tsx
     import React from 'react';
@@ -1523,17 +1806,22 @@ Here are the specific changes:
 **Phase 1 & 2: NIP04Service Definition and Implementation**
 
 1.  **Created `src/services/nip04/NIP04Service.ts`:**
+
     ```typescript
     // src/services/nip04/NIP04Service.ts
     import { Effect, Context, Data } from "effect";
 
     // --- Custom Error Types ---
-    export class NIP04EncryptError extends Data.TaggedError("NIP04EncryptError")<{
+    export class NIP04EncryptError extends Data.TaggedError(
+      "NIP04EncryptError",
+    )<{
       readonly cause?: unknown;
       readonly message: string;
     }> {}
 
-    export class NIP04DecryptError extends Data.TaggedError("NIP04DecryptError")<{
+    export class NIP04DecryptError extends Data.TaggedError(
+      "NIP04DecryptError",
+    )<{
       readonly cause?: unknown;
       readonly message: string;
     }> {}
@@ -1550,7 +1838,7 @@ Here are the specific changes:
       encrypt(
         ourSk: Uint8Array,
         theirPkHex: string,
-        plaintext: string
+        plaintext: string,
       ): Effect.Effect<string, NIP04EncryptError>;
 
       /**
@@ -1563,15 +1851,17 @@ Here are the specific changes:
       decrypt(
         ourSk: Uint8Array,
         theirPkHex: string,
-        ciphertextWithIv: string
+        ciphertextWithIv: string,
       ): Effect.Effect<string, NIP04DecryptError>;
     }
 
     // --- Service Tag ---
-    export const NIP04Service = Context.GenericTag<NIP04Service>("NIP04Service");
+    export const NIP04Service =
+      Context.GenericTag<NIP04Service>("NIP04Service");
     ```
 
 2.  **Created `src/services/nip04/NIP04ServiceImpl.ts`:**
+
     ```typescript
     // src/services/nip04/NIP04ServiceImpl.ts
     import { Effect, Layer } from "effect";
@@ -1587,44 +1877,62 @@ Here are the specific changes:
         encrypt: (ourSk: Uint8Array, theirPkHex: string, plaintext: string) =>
           Effect.tryPromise({
             try: () => nip04.encrypt(ourSk, theirPkHex, plaintext),
-            catch: (cause) => new NIP04EncryptError({ message: "NIP-04 encryption failed", cause }),
+            catch: (cause) =>
+              new NIP04EncryptError({
+                message: "NIP-04 encryption failed",
+                cause,
+              }),
           }),
 
-        decrypt: (ourSk: Uint8Array, theirPkHex: string, ciphertextWithIv: string) =>
+        decrypt: (
+          ourSk: Uint8Array,
+          theirPkHex: string,
+          ciphertextWithIv: string,
+        ) =>
           Effect.tryPromise({
             try: () => nip04.decrypt(ourSk, theirPkHex, ciphertextWithIv),
-            catch: (cause) => new NIP04DecryptError({ message: "NIP-04 decryption failed", cause }),
+            catch: (cause) =>
+              new NIP04DecryptError({
+                message: "NIP-04 decryption failed",
+                cause,
+              }),
           }),
       };
     }
 
     export const NIP04ServiceLive = Layer.succeed(
       NIP04Service,
-      createNIP04Service()
+      createNIP04Service(),
     );
     ```
 
 3.  **Created `src/services/nip04/index.ts`:**
     ```typescript
     // src/services/nip04/index.ts
-    export * from './NIP04Service';
-    export * from './NIP04ServiceImpl';
+    export * from "./NIP04Service";
+    export * from "./NIP04ServiceImpl";
     ```
 
 **Phase 3: Unit Test NIP04Service**
 
 1.  **Created `src/tests/unit/services/nip04/NIP04Service.test.ts`:**
+
     ```typescript
     // src/tests/unit/services/nip04/NIP04Service.test.ts
-    import { describe, it, expect, vi, beforeEach } from 'vitest';
-    import { Effect, Exit, Cause, Option, Layer } from 'effect';
-    import { nip04 } from 'nostr-tools'; // To mock
-    import { NIP04Service, NIP04ServiceLive, NIP04EncryptError, NIP04DecryptError } from '@/services/nip04';
-    import { generateSecretKey, getPublicKey } from 'nostr-tools/pure'; // For generating test keys
+    import { describe, it, expect, vi, beforeEach } from "vitest";
+    import { Effect, Exit, Cause, Option, Layer } from "effect";
+    import { nip04 } from "nostr-tools"; // To mock
+    import {
+      NIP04Service,
+      NIP04ServiceLive,
+      NIP04EncryptError,
+      NIP04DecryptError,
+    } from "@/services/nip04";
+    import { generateSecretKey, getPublicKey } from "nostr-tools/pure"; // For generating test keys
 
     // Mock nostr-tools's nip04 module
-    vi.mock('nostr-tools', async (importOriginal) => {
-      const original = await importOriginal<typeof import('nostr-tools')>();
+    vi.mock("nostr-tools", async (importOriginal) => {
+      const original = await importOriginal<typeof import("nostr-tools")>();
       return {
         ...original,
         nip04: {
@@ -1635,10 +1943,14 @@ Here are the specific changes:
     });
 
     // Typed mock functions
-    const mockNip04Encrypt = nip04.encrypt as vi.MockedFunction<typeof nip04.encrypt>;
-    const mockNip04Decrypt = nip04.decrypt as vi.MockedFunction<typeof nip04.decrypt>;
+    const mockNip04Encrypt = nip04.encrypt as vi.MockedFunction<
+      typeof nip04.encrypt
+    >;
+    const mockNip04Decrypt = nip04.decrypt as vi.MockedFunction<
+      typeof nip04.decrypt
+    >;
 
-    describe('NIP04Service', () => {
+    describe("NIP04Service", () => {
       const ourSk = generateSecretKey();
       const theirPkHex = getPublicKey(generateSecretKey());
       const plaintext = "Hello, Nostr!";
@@ -1651,12 +1963,14 @@ Here are the specific changes:
       const runWithLayer = <E, A>(effect: Effect.Effect<A, E, NIP04Service>) =>
         Effect.runPromiseExit(Effect.provide(effect, NIP04ServiceLive));
 
-      describe('encrypt', () => {
-        it('should encrypt plaintext successfully', async () => {
+      describe("encrypt", () => {
+        it("should encrypt plaintext successfully", async () => {
           mockNip04Encrypt.mockResolvedValue(ciphertextWithIv);
 
           const program = Effect.service(NIP04Service).pipe(
-            Effect.flatMap(service => service.encrypt(ourSk, theirPkHex, plaintext))
+            Effect.flatMap((service) =>
+              service.encrypt(ourSk, theirPkHex, plaintext),
+            ),
           );
           const exit = await runWithLayer(program);
 
@@ -1664,21 +1978,29 @@ Here are the specific changes:
           if (Exit.isSuccess(exit)) {
             expect(exit.value).toBe(ciphertextWithIv);
           }
-          expect(mockNip04Encrypt).toHaveBeenCalledWith(ourSk, theirPkHex, plaintext);
+          expect(mockNip04Encrypt).toHaveBeenCalledWith(
+            ourSk,
+            theirPkHex,
+            plaintext,
+          );
         });
 
-        it('should return NIP04EncryptError on encryption failure', async () => {
+        it("should return NIP04EncryptError on encryption failure", async () => {
           const errorCause = new Error("Encryption library error");
           mockNip04Encrypt.mockRejectedValue(errorCause);
 
           const program = Effect.service(NIP04Service).pipe(
-            Effect.flatMap(service => service.encrypt(ourSk, theirPkHex, plaintext))
+            Effect.flatMap((service) =>
+              service.encrypt(ourSk, theirPkHex, plaintext),
+            ),
           );
           const exit = await runWithLayer(program);
 
           expect(Exit.isFailure(exit)).toBe(true);
           if (Exit.isFailure(exit)) {
-            const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
+            const error = Cause.failureOption(exit.cause).pipe(
+              Option.getOrThrow,
+            );
             expect(error).toBeInstanceOf(NIP04EncryptError);
             expect(error.message).toBe("NIP-04 encryption failed");
             expect(error.cause).toBe(errorCause);
@@ -1686,12 +2008,14 @@ Here are the specific changes:
         });
       });
 
-      describe('decrypt', () => {
-        it('should decrypt ciphertext successfully', async () => {
+      describe("decrypt", () => {
+        it("should decrypt ciphertext successfully", async () => {
           mockNip04Decrypt.mockResolvedValue(plaintext);
 
           const program = Effect.service(NIP04Service).pipe(
-            Effect.flatMap(service => service.decrypt(ourSk, theirPkHex, ciphertextWithIv))
+            Effect.flatMap((service) =>
+              service.decrypt(ourSk, theirPkHex, ciphertextWithIv),
+            ),
           );
           const exit = await runWithLayer(program);
 
@@ -1699,21 +2023,29 @@ Here are the specific changes:
           if (Exit.isSuccess(exit)) {
             expect(exit.value).toBe(plaintext);
           }
-          expect(mockNip04Decrypt).toHaveBeenCalledWith(ourSk, theirPkHex, ciphertextWithIv);
+          expect(mockNip04Decrypt).toHaveBeenCalledWith(
+            ourSk,
+            theirPkHex,
+            ciphertextWithIv,
+          );
         });
 
-        it('should return NIP04DecryptError on decryption failure', async () => {
+        it("should return NIP04DecryptError on decryption failure", async () => {
           const errorCause = new Error("Decryption library error");
           mockNip04Decrypt.mockRejectedValue(errorCause);
 
           const program = Effect.service(NIP04Service).pipe(
-            Effect.flatMap(service => service.decrypt(ourSk, theirPkHex, ciphertextWithIv))
+            Effect.flatMap((service) =>
+              service.decrypt(ourSk, theirPkHex, ciphertextWithIv),
+            ),
           );
           const exit = await runWithLayer(program);
 
           expect(Exit.isFailure(exit)).toBe(true);
           if (Exit.isFailure(exit)) {
-            const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
+            const error = Cause.failureOption(exit.cause).pipe(
+              Option.getOrThrow,
+            );
             expect(error).toBeInstanceOf(NIP04DecryptError);
             expect(error.message).toBe("NIP-04 decryption failed");
             expect(error.cause).toBe(errorCause);
@@ -1726,27 +2058,34 @@ Here are the specific changes:
 **Phase 4: Refactor NIP-90 Helpers to use NIP04Service**
 
 1.  **Modified `src/helpers/nip90/event_creation.ts`:**
+
     ```typescript
     // src/helpers/nip90/event_creation.ts
-    import { finalizeEvent, type EventTemplate } from 'nostr-tools/pure';
-    import type { NostrEvent } from '@/services/nostr';
-    import { NIP04Service, NIP04EncryptError } from '@/services/nip04';
-    import { Effect } from 'effect';
+    import { finalizeEvent, type EventTemplate } from "nostr-tools/pure";
+    import type { NostrEvent } from "@/services/nostr";
+    import { NIP04Service, NIP04EncryptError } from "@/services/nip04";
+    import { Effect } from "effect";
 
     export function createNip90JobRequest(
       requesterSk: Uint8Array,
       targetDvmPkHex: string,
       inputs: Array<[string, string, string?, string?, string?]>,
-      outputMimeType: string = 'text/plain',
+      outputMimeType: string = "text/plain",
       bidMillisats?: number,
       jobKind: number = 5100,
-      additionalParams?: Array<[string, string, string]>
+      additionalParams?: Array<[string, string, string]>,
     ): Effect.Effect<NostrEvent, NIP04EncryptError, NIP04Service> {
       return Effect.gen(function* (_) {
         const nip04Service = yield* _(NIP04Service);
 
         const jobParametersToEncrypt: Array<[string, ...string[]]> = [
-          ...inputs.map(inputParams => ['i', ...inputParams.filter(p => p !== undefined)] as [string, ...string[]])
+          ...inputs.map(
+            (inputParams) =>
+              ["i", ...inputParams.filter((p) => p !== undefined)] as [
+                string,
+                ...string[],
+              ],
+          ),
         ];
 
         if (additionalParams) {
@@ -1754,21 +2093,23 @@ Here are the specific changes:
         }
 
         const stringifiedParams = JSON.stringify(jobParametersToEncrypt);
-        const encryptedContent = yield* _(nip04Service.encrypt(requesterSk, targetDvmPkHex, stringifiedParams));
+        const encryptedContent = yield* _(
+          nip04Service.encrypt(requesterSk, targetDvmPkHex, stringifiedParams),
+        );
 
         const template: EventTemplate = {
           kind: jobKind,
           created_at: Math.floor(Date.now() / 1000),
           tags: [
-            ['p', targetDvmPkHex],
-            ['encrypted'],
-            ['output', outputMimeType],
+            ["p", targetDvmPkHex],
+            ["encrypted"],
+            ["output", outputMimeType],
           ],
           content: encryptedContent,
         };
 
         if (bidMillisats !== undefined && bidMillisats > 0) {
-          template.tags.push(['bid', bidMillisats.toString()]);
+          template.tags.push(["bid", bidMillisats.toString()]);
         }
 
         return finalizeEvent(template, requesterSk) as NostrEvent;
@@ -1777,6 +2118,7 @@ Here are the specific changes:
     ```
 
 2.  **Modified `src/components/nip90/Nip90RequestForm.tsx`:**
+
     ```typescript
     // src/components/nip90/Nip90RequestForm.tsx
     import React, { useState, ChangeEvent } from 'react';
@@ -1951,24 +2293,34 @@ Here are the specific changes:
     ```
 
 3.  **Modified `src/helpers/nip90/event_decryption.ts`:**
+
     ```typescript
     // src/helpers/nip90/event_decryption.ts
-    import { hexToBytes } from '@noble/hashes/utils';
-    import { NIP04Service, NIP04DecryptError } from '@/services/nip04';
-    import { Effect } from 'effect';
+    import { hexToBytes } from "@noble/hashes/utils";
+    import { NIP04Service, NIP04DecryptError } from "@/services/nip04";
+    import { Effect } from "effect";
 
     export function decryptNip04Content(
       ourSkHex: string,
       theirPkHex: string,
-      encryptedContent: string
+      encryptedContent: string,
     ): Effect.Effect<string, NIP04DecryptError, NIP04Service> {
       return Effect.gen(function* (_) {
         const nip04Service = yield* _(NIP04Service);
         try {
           const ourSkUint8Array = hexToBytes(ourSkHex);
-          return yield* _(nip04Service.decrypt(ourSkUint8Array, theirPkHex, encryptedContent));
+          return yield* _(
+            nip04Service.decrypt(ourSkUint8Array, theirPkHex, encryptedContent),
+          );
         } catch (error) {
-          return yield* _(Effect.fail(new NIP04DecryptError({ message: "Failed to convert secret key from hex", cause: error })));
+          return yield* _(
+            Effect.fail(
+              new NIP04DecryptError({
+                message: "Failed to convert secret key from hex",
+                cause: error,
+              }),
+            ),
+          );
         }
       });
     }
@@ -1977,98 +2329,137 @@ Here are the specific changes:
 **Phase 5: Update Tests for NIP-90 Helpers and Components**
 
 1.  **Modified `src/tests/unit/helpers/nip90/event_creation.test.ts`:**
+
     ```typescript
     // src/tests/unit/helpers/nip90/event_creation.test.ts
-    import { describe, it, expect, vi } from 'vitest';
-    import { generateSecretKey, getPublicKey, finalizeEvent } from 'nostr-tools/pure';
-    import { createNip90JobRequest } from '@/helpers/nip90/event_creation';
-    import type { NostrEvent } from '@/services/nostr';
-    import { NIP04Service, NIP04EncryptError } from '@/services/nip04';
-    import { Effect, Exit, Layer, Cause, Option } from 'effect';
+    import { describe, it, expect, vi } from "vitest";
+    import {
+      generateSecretKey,
+      getPublicKey,
+      finalizeEvent,
+    } from "nostr-tools/pure";
+    import { createNip90JobRequest } from "@/helpers/nip90/event_creation";
+    import type { NostrEvent } from "@/services/nostr";
+    import { NIP04Service, NIP04EncryptError } from "@/services/nip04";
+    import { Effect, Exit, Layer, Cause, Option } from "effect";
 
-    vi.mock('nostr-tools/pure', async (importOriginal) => {
-        const original = await importOriginal<typeof import('nostr-tools/pure')>();
-        return {
-            ...original,
-            finalizeEvent: vi.fn((template, sk) => {
-                const pk = original.getPublicKey(sk); // Use original.getPublicKey
-                return {
-                    ...template,
-                    id: 'mockEventId' + Date.now(),
-                    pubkey: pk,
-                    sig: 'mockSignature' + Date.now(),
-                    tags: template.tags || [],
-                    content: template.content,
-                } as NostrEvent;
-            }),
-        };
+    vi.mock("nostr-tools/pure", async (importOriginal) => {
+      const original =
+        await importOriginal<typeof import("nostr-tools/pure")>();
+      return {
+        ...original,
+        finalizeEvent: vi.fn((template, sk) => {
+          const pk = original.getPublicKey(sk); // Use original.getPublicKey
+          return {
+            ...template,
+            id: "mockEventId" + Date.now(),
+            pubkey: pk,
+            sig: "mockSignature" + Date.now(),
+            tags: template.tags || [],
+            content: template.content,
+          } as NostrEvent;
+        }),
+      };
     });
     const mockedFinalizeEvent = finalizeEvent as vi.Mock;
 
-    describe('createNip90JobRequest', () => {
+    describe("createNip90JobRequest", () => {
       const sk = generateSecretKey();
       const dvmPkHex = getPublicKey(generateSecretKey());
-      const inputs: Array<[string, string, string?, string?, string?]> = [['Test input data', 'text']];
-      const outputMimeType = 'text/plain';
+      const inputs: Array<[string, string, string?, string?, string?]> = [
+        ["Test input data", "text"],
+      ];
+      const outputMimeType = "text/plain";
       const bidMillisats = 1000;
       const jobKind = 5100;
 
       const mockEncryptedContent = "mock-encrypted-content-from-service";
-      const mockNip04Encrypt = vi.fn(() => Effect.succeed(mockEncryptedContent));
+      const mockNip04Encrypt = vi.fn(() =>
+        Effect.succeed(mockEncryptedContent),
+      );
       const MockNIP04ServiceLayer = Layer.succeed(NIP04Service, {
         encrypt: mockNip04Encrypt,
         decrypt: vi.fn(() => Effect.succeed("decrypted")),
       });
 
-      it('should create an encrypted NIP-90 event using NIP04Service', async () => {
-        const program = createNip90JobRequest(sk, dvmPkHex, inputs, outputMimeType, bidMillisats, jobKind);
-        const exit = await Effect.runPromiseExit(Effect.provide(program, MockNIP04ServiceLayer));
+      it("should create an encrypted NIP-90 event using NIP04Service", async () => {
+        const program = createNip90JobRequest(
+          sk,
+          dvmPkHex,
+          inputs,
+          outputMimeType,
+          bidMillisats,
+          jobKind,
+        );
+        const exit = await Effect.runPromiseExit(
+          Effect.provide(program, MockNIP04ServiceLayer),
+        );
 
         expect(Exit.isSuccess(exit)).toBe(true);
         if (Exit.isSuccess(exit)) {
           const event = exit.value;
           expect(event.kind).toBe(jobKind);
           expect(event.content).toBe(mockEncryptedContent);
-          expect(event.tags).toEqual(expect.arrayContaining([
-            ['p', dvmPkHex],
-            ['encrypted'],
-            ['output', outputMimeType],
-            ['bid', bidMillisats.toString()],
-          ]));
-          expect(event.tags.some(t => t[0] === 'i')).toBe(false);
+          expect(event.tags).toEqual(
+            expect.arrayContaining([
+              ["p", dvmPkHex],
+              ["encrypted"],
+              ["output", outputMimeType],
+              ["bid", bidMillisats.toString()],
+            ]),
+          );
+          expect(event.tags.some((t) => t[0] === "i")).toBe(false);
         }
-        expect(mockNip04Encrypt).toHaveBeenCalledWith(sk, dvmPkHex, JSON.stringify([['i', 'Test input data', 'text']]));
+        expect(mockNip04Encrypt).toHaveBeenCalledWith(
+          sk,
+          dvmPkHex,
+          JSON.stringify([["i", "Test input data", "text"]]),
+        );
         expect(mockedFinalizeEvent).toHaveBeenCalled();
       });
 
-      it('should propagate NIP04EncryptError if encryption fails', async () => {
-        const encryptError = new NIP04EncryptError({ message: "Test encrypt error" });
+      it("should propagate NIP04EncryptError if encryption fails", async () => {
+        const encryptError = new NIP04EncryptError({
+          message: "Test encrypt error",
+        });
         mockNip04Encrypt.mockReturnValueOnce(Effect.fail(encryptError));
 
-        const program = createNip90JobRequest(sk, dvmPkHex, inputs, outputMimeType, bidMillisats, jobKind);
-        const exit = await Effect.runPromiseExit(Effect.provide(program, MockNIP04ServiceLayer));
+        const program = createNip90JobRequest(
+          sk,
+          dvmPkHex,
+          inputs,
+          outputMimeType,
+          bidMillisats,
+          jobKind,
+        );
+        const exit = await Effect.runPromiseExit(
+          Effect.provide(program, MockNIP04ServiceLayer),
+        );
 
         expect(Exit.isFailure(exit)).toBe(true);
         if (Exit.isFailure(exit)) {
-            const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
-            expect(error).toBe(encryptError);
+          const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
+          expect(error).toBe(encryptError);
         }
       });
     });
     ```
 
 2.  **Modified `src/tests/unit/helpers/nip90/event_decryption.test.ts`:**
+
     ```typescript
     // src/tests/unit/helpers/nip90/event_decryption.test.ts
-    import { describe, it, expect, vi } from 'vitest';
-    import { decryptNip04Content } from '@/helpers/nip90/event_decryption';
-    import { NIP04Service, NIP04DecryptError } from '@/services/nip04';
-    import { Effect, Exit, Layer, Cause, Option } from 'effect';
-    import { hexToBytes } from '@noble/hashes/utils';
+    import { describe, it, expect, vi } from "vitest";
+    import { decryptNip04Content } from "@/helpers/nip90/event_decryption";
+    import { NIP04Service, NIP04DecryptError } from "@/services/nip04";
+    import { Effect, Exit, Layer, Cause, Option } from "effect";
+    import { hexToBytes } from "@noble/hashes/utils";
 
-    describe('decryptNip04Content', () => {
-      const ourSkHex = "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20";
-      const theirPkHex = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899";
+    describe("decryptNip04Content", () => {
+      const ourSkHex =
+        "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20";
+      const theirPkHex =
+        "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899";
       const encryptedContent = "encrypted?iv=iv";
       const decryptedPlaintext = "decrypted content";
 
@@ -2078,35 +2469,59 @@ Here are the specific changes:
         decrypt: mockNip04Decrypt,
       });
 
-      it('should decrypt content using NIP04Service', async () => {
-        const program = decryptNip04Content(ourSkHex, theirPkHex, encryptedContent);
-        const exit = await Effect.runPromiseExit(Effect.provide(program, MockNIP04ServiceLayer));
+      it("should decrypt content using NIP04Service", async () => {
+        const program = decryptNip04Content(
+          ourSkHex,
+          theirPkHex,
+          encryptedContent,
+        );
+        const exit = await Effect.runPromiseExit(
+          Effect.provide(program, MockNIP04ServiceLayer),
+        );
 
         expect(Exit.isSuccess(exit)).toBe(true);
         if (Exit.isSuccess(exit)) {
           expect(exit.value).toBe(decryptedPlaintext);
         }
         const ourSkUint8Array = hexToBytes(ourSkHex);
-        expect(mockNip04Decrypt).toHaveBeenCalledWith(ourSkUint8Array, theirPkHex, encryptedContent);
+        expect(mockNip04Decrypt).toHaveBeenCalledWith(
+          ourSkUint8Array,
+          theirPkHex,
+          encryptedContent,
+        );
       });
 
-      it('should propagate NIP04DecryptError if decryption fails in service', async () => {
-        const decryptError = new NIP04DecryptError({ message: "Test decrypt error from service" });
+      it("should propagate NIP04DecryptError if decryption fails in service", async () => {
+        const decryptError = new NIP04DecryptError({
+          message: "Test decrypt error from service",
+        });
         mockNip04Decrypt.mockReturnValueOnce(Effect.fail(decryptError));
 
-        const program = decryptNip04Content(ourSkHex, theirPkHex, encryptedContent);
-        const exit = await Effect.runPromiseExit(Effect.provide(program, MockNIP04ServiceLayer));
+        const program = decryptNip04Content(
+          ourSkHex,
+          theirPkHex,
+          encryptedContent,
+        );
+        const exit = await Effect.runPromiseExit(
+          Effect.provide(program, MockNIP04ServiceLayer),
+        );
 
         expect(Exit.isFailure(exit)).toBe(true);
         if (Exit.isFailure(exit)) {
-            const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
-            expect(error).toBe(decryptError);
+          const error = Cause.failureOption(exit.cause).pipe(Option.getOrThrow);
+          expect(error).toBe(decryptError);
         }
       });
 
-      it('should return NIP04DecryptError if hexToBytes fails for secret key', async () => {
-        const program = decryptNip04Content("invalid-hex-sk", theirPkHex, encryptedContent);
-        const exit = await Effect.runPromiseExit(Effect.provide(program, MockNIP04ServiceLayer));
+      it("should return NIP04DecryptError if hexToBytes fails for secret key", async () => {
+        const program = decryptNip04Content(
+          "invalid-hex-sk",
+          theirPkHex,
+          encryptedContent,
+        );
+        const exit = await Effect.runPromiseExit(
+          Effect.provide(program, MockNIP04ServiceLayer),
+        );
 
         expect(Exit.isFailure(exit)).toBe(true);
         if (Exit.isFailure(exit)) {
@@ -2120,6 +2535,7 @@ Here are the specific changes:
     ```
 
 3.  **Modified `src/tests/unit/components/nip90/Nip90RequestForm.test.tsx`:**
+
     ```typescript
     // src/tests/unit/components/nip90/Nip90RequestForm.test.tsx
     import React from 'react';

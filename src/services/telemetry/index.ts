@@ -1,5 +1,5 @@
 // Export all symbols from the service interface
-export * from './TelemetryService';
+export * from "./TelemetryService";
 
 // Export implementation
-export * from './TelemetryServiceImpl';
+export * from "./TelemetryServiceImpl";

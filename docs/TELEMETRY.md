@@ -36,22 +36,25 @@ src/
 The `TelemetryService.ts` file defines:
 
 - **Event Schema**: Structure for telemetry events
-- **Error Types**: Custom tagged errors for type-safe error handling 
+- **Error Types**: Custom tagged errors for type-safe error handling
 - **Service Interface**: Methods for tracking events and managing preferences
 
 ```typescript
 // Event schema
 export const TelemetryEventSchema = Schema.Struct({
-  category: Schema.String,              // Required event category
-  action: Schema.String,                // Required action name
-  value: Schema.optional(Schema.Union(  // Optional payload value
-    Schema.String, 
-    Schema.Number, 
-    Schema.Boolean, 
-    Schema.Undefined
-  )),
+  category: Schema.String, // Required event category
+  action: Schema.String, // Required action name
+  value: Schema.optional(
+    Schema.Union(
+      // Optional payload value
+      Schema.String,
+      Schema.Number,
+      Schema.Boolean,
+      Schema.Undefined,
+    ),
+  ),
   label: Schema.optional(Schema.String), // Optional contextual label
-  timestamp: Schema.optional(Schema.Number) // Optional timestamp
+  timestamp: Schema.optional(Schema.Number), // Optional timestamp
 });
 
 // Error types
@@ -86,24 +89,35 @@ export function createTelemetryService(): TelemetryService {
   // Default to enabled
   let telemetryEnabled = true;
 
-  const trackEvent = (event: TelemetryEvent): Effect.Effect<void, TrackEventError> => {
+  const trackEvent = (
+    event: TelemetryEvent,
+  ): Effect.Effect<void, TrackEventError> => {
     return Effect.gen(function* (_) {
       // Validate the event schema
       yield* _(
         Schema.decodeUnknown(TelemetryEventSchema)(event),
         Effect.mapError(
-          (error) => new TrackEventError({ message: "Invalid event format", cause: error })
-        )
+          (error) =>
+            new TrackEventError({
+              message: "Invalid event format",
+              cause: error,
+            }),
+        ),
       );
 
       // Check if telemetry is enabled
       try {
-        const enabled = yield* _(isEnabled().pipe(
-          Effect.mapError(error => new TrackEventError({
-            message: error.message, 
-            cause: error.cause
-          }))
-        ));
+        const enabled = yield* _(
+          isEnabled().pipe(
+            Effect.mapError(
+              (error) =>
+                new TrackEventError({
+                  message: error.message,
+                  cause: error.cause,
+                }),
+            ),
+          ),
+        );
         if (!enabled) {
           return; // Skip tracking if disabled
         }
@@ -115,23 +129,23 @@ export function createTelemetryService(): TelemetryService {
       // Add timestamp if not provided
       const eventWithTimestamp = {
         ...event,
-        timestamp: event.timestamp || Date.now()
+        timestamp: event.timestamp || Date.now(),
       };
 
       // Log the event (in production, would send to server)
       try {
         // Skip logging during tests
-        const isTestEnv = process.env.NODE_ENV === 'test' || 
-                         process.env.VITEST !== undefined;
-        
+        const isTestEnv =
+          process.env.NODE_ENV === "test" || process.env.VITEST !== undefined;
+
         if (!isTestEnv) {
           console.log("[Telemetry]", eventWithTimestamp);
         }
         return;
       } catch (cause) {
-        throw new TrackEventError({ 
-          message: "Failed to track event", 
-          cause 
+        throw new TrackEventError({
+          message: "Failed to track event",
+          cause,
         });
       }
     });
@@ -145,7 +159,7 @@ export function createTelemetryService(): TelemetryService {
 // Layer for dependency injection
 export const TelemetryServiceLive = Layer.succeed(
   TelemetryService,
-  createTelemetryService()
+  createTelemetryService(),
 );
 ```
 
@@ -154,34 +168,36 @@ export const TelemetryServiceLive = Layer.succeed(
 ### In UI Components
 
 ```typescript
-import { TelemetryService, TelemetryServiceLive } from '@/services/telemetry';
-import { Effect, Exit, Cause } from 'effect';
+import { TelemetryService, TelemetryServiceLive } from "@/services/telemetry";
+import { Effect, Exit, Cause } from "effect";
 
 // Within your component
 const handleAction = async () => {
   const program = Effect.gen(function* (_) {
     const telemetryService = yield* _(TelemetryService);
-    
+
     // Track an event
-    yield* _(telemetryService.trackEvent({
-      category: 'user_interaction',
-      action: 'button_click',
-      label: 'submit_form',
-      value: Date.now()
-    }));
-    
+    yield* _(
+      telemetryService.trackEvent({
+        category: "user_interaction",
+        action: "button_click",
+        label: "submit_form",
+        value: Date.now(),
+      }),
+    );
+
     return "success";
   }).pipe(Effect.provide(TelemetryServiceLive));
-  
+
   const result = await Effect.runPromiseExit(program);
-  
+
   Exit.match(result, {
     onSuccess: () => {
       // Handle success
     },
     onFailure: (cause) => {
       console.error("Telemetry failed:", Cause.pretty(cause));
-    }
+    },
   });
 };
 ```
@@ -195,7 +211,7 @@ const checkTelemetryStatus = async () => {
     const telemetryService = yield* _(TelemetryService);
     return yield* _(telemetryService.isEnabled());
   }).pipe(Effect.provide(TelemetryServiceLive));
-  
+
   const isEnabled = await Effect.runPromise(program);
   return isEnabled;
 };
@@ -206,7 +222,7 @@ const setTelemetryStatus = async (enabled: boolean) => {
     const telemetryService = yield* _(TelemetryService);
     return yield* _(telemetryService.setEnabled(enabled));
   }).pipe(Effect.provide(TelemetryServiceLive));
-  
+
   await Effect.runPromise(program);
 };
 ```
@@ -215,13 +231,13 @@ const setTelemetryStatus = async (enabled: boolean) => {
 
 The telemetry system uses a consistent categorization system:
 
-| Category | Description | Example Actions |
-|----------|-------------|----------------|
-| `ui` | User interface interactions | `open_panel`, `close_dialog`, `toggle_theme` |
-| `navigation` | Navigation events | `page_view`, `tab_change` |
-| `feature` | Feature usage | `use_tool_x`, `configure_setting_y` |
-| `performance` | Performance metrics | `load_time`, `render_duration` |
-| `error` | Error conditions | `api_error`, `validation_failed` |
+| Category      | Description                 | Example Actions                              |
+| ------------- | --------------------------- | -------------------------------------------- |
+| `ui`          | User interface interactions | `open_panel`, `close_dialog`, `toggle_theme` |
+| `navigation`  | Navigation events           | `page_view`, `tab_change`                    |
+| `feature`     | Feature usage               | `use_tool_x`, `configure_setting_y`          |
+| `performance` | Performance metrics         | `load_time`, `render_duration`               |
+| `error`       | Error conditions            | `api_error`, `validation_failed`             |
 
 ## Extending the Telemetry Service
 
@@ -237,30 +253,30 @@ Example:
 
 ```typescript
 // Add persistent storage
-import { settings } from 'electron';
+import { settings } from "electron";
 
 const isEnabled = (): Effect.Effect<boolean, TelemetryError> => {
   return Effect.try({
     try: () => {
       // Use persistent storage
-      return settings.getSync('telemetry.enabled') || false;
+      return settings.getSync("telemetry.enabled") || false;
     },
-    catch: (cause) => new TelemetryError({ 
-      message: "Failed to check if telemetry is enabled", 
-      cause 
-    })
+    catch: (cause) =>
+      new TelemetryError({
+        message: "Failed to check if telemetry is enabled",
+        cause,
+      }),
   });
 };
 
 // Add network transport
 const sendTelemetryData = (events: TelemetryEvent[]): Promise<void> => {
-  return fetch('https://analytics.example.com/collect', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ events })
-  })
-  .then(response => {
-    if (!response.ok) throw new Error('Failed to send telemetry');
+  return fetch("https://analytics.example.com/collect", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ events }),
+  }).then((response) => {
+    if (!response.ok) throw new Error("Failed to send telemetry");
   });
 };
 ```
@@ -285,6 +301,7 @@ The telemetry system includes comprehensive tests to ensure all functionality wo
 - **Environment Detection**: Prevents console logging during tests
 
 Test structure:
+
 ```
 src/
 └── tests/

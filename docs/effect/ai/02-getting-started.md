@@ -1,21 +1,21 @@
 # Getting Started | Effect Documentation
+
 In this getting started guide, we will demonstrate how to generate a simple text completion using an LLM provider (OpenAi) using the Effect AI integration packages.
 
 We’ll walk through:
 
-*   Writing provider-agnostic logic to interact with an LLM
-*   Declaring the specific LLM model to use for the interaction
-*   Using a provider integration to make the program executable
+- Writing provider-agnostic logic to interact with an LLM
+- Declaring the specific LLM model to use for the interaction
+- Using a provider integration to make the program executable
 
-Installation
-------------
+## Installation
 
 First, we will need to install the base `@effect/ai` package to gain access to the core AI abstractions. In addition, we will need to install at least one provider integration package (in this case `@effect/ai-openai`):
 
-*   [npm](#tab-panel-30)
-*   [pnpm](#tab-panel-31)
-*   [Yarn](#tab-panel-32)
-*   [Bun](#tab-panel-33)
+- [npm](#tab-panel-30)
+- [pnpm](#tab-panel-31)
+- [Yarn](#tab-panel-32)
+- [Bun](#tab-panel-33)
 
 ```
 
@@ -27,9 +27,7 @@ npm install @effect/ai-openai
 npm install effect
 ```
 
-
-Define an Interaction with a Language Model
--------------------------------------------
+## Define an Interaction with a Language Model
 
 First let’s define a simple interaction with a large language model (LLM):
 
@@ -55,9 +53,7 @@ const generateDadJoke = Effect.gen(function*() {
 })
 ```
 
-
-Select a Provider
------------------
+## Select a Provider
 
 Next, we need to select which model provider we want to use:
 
@@ -95,11 +91,9 @@ const main = Effect.gen(function*() {
 })
 ```
 
-
 Before moving on, it is important that we understand the purpose of the `AiModel` data type.
 
-Understanding `AiModel`
------------------------
+## Understanding `AiModel`
 
 The `AiModel` data type represents a **provider-specific implementation** of one or more services, such as `AiLanguageModel` or `AiEmbeddingsModel`. It is the primary way that you can plug a real large language model into your program.
 
@@ -108,11 +102,10 @@ The `AiModel` data type represents a **provider-specific implementation** of one
 export interface AiModel<Provides, Requires> {}
 ```
 
-
 An `AiModel` has two generic type parameters:
 
-*   **Provides** - the services this model will provide when built
-*   **Requires** - the services this model will require to be built
+- **Provides** - the services this model will provide when built
+- **Requires** - the services this model will require to be built
 
 This allows Effect to track which services should be added to the requirements of the program that builds the `AiModel`, as well as which services the built `AiModel` can provide.
 
@@ -130,11 +123,10 @@ import { OpenAiLanguageModel } from "@effect/ai-openai"
 const Gpt4o = OpenAiLanguageModel.model("gpt-4o")
 ```
 
-
 This creates an `AiModel` that:
 
-*   **Provides** an OpenAi-specific implementation of the `AiLanguageModel` service using `"gpt-4o"`
-*   **Requires** an `OpenAiClient` to be built
+- **Provides** an OpenAi-specific implementation of the `AiLanguageModel` service using `"gpt-4o"`
+- **Requires** an `OpenAiClient` to be built
 
 ### Building an `AiModel`
 
@@ -148,7 +140,6 @@ Effect.gen(function*() {
   const gpt4o = yield* Gpt4o
 })
 ```
-
 
 A `Provider` has a single `.use(...)` method
 
@@ -186,7 +177,6 @@ const main = Effect.gen(function*() {
 })
 ```
 
-
 **Flexibility**
 
 If we know that one model or provider performs better at a given task than another, we can freely mix and match models and providers together.
@@ -221,7 +211,6 @@ const main = Effect.gen(function*() {
   const res3 = yield* claude.use(generateDadJoke)
 })
 ```
-
 
 Because Effect performs type-level dependency tracking, we can see that an `AnthropicClient` must now also be provided to make our program runnable.
 
@@ -276,9 +265,7 @@ const main = Effect.gen(function*() {
 DadJokes.Default
 ```
 
-
-Create a Provider Client
-------------------------
+## Create a Provider Client
 
 To make our code executable, we must finish satisfying our program’s requirements.
 
@@ -305,7 +292,6 @@ const main = Effect.gen(function*() {
   const response = yield* gpt4o.use(generateDadJoke)
 })
 ```
-
 
 We can see that our `main` program still requires us to provide an `OpenAiClient`.
 
@@ -340,7 +326,6 @@ const OpenAi = OpenAiClient.layerConfig({
   apiKey: Config.redacted("OPENAI_API_KEY")
 })
 ```
-
 
 In the code above, we use the `layerConfig` constructor from the `OpenAiClient` module to create a `Layer` which will produce an `OpenAiClient`. The `layerConfig` constructor allows us to read in configuration variables using Effect’s [configuration system](https://effect.website/docs/configuration/).
 
@@ -383,9 +368,7 @@ const OpenAi = OpenAiClient.layerConfig({
 const OpenAiWithHttp = Layer.provide(OpenAi, NodeHttpClient.layerUndici)
 ```
 
-
-Running the Program
--------------------
+## Running the Program
 
 Now that we have a `Layer` which provides us with an `OpenAiClient`, we’re ready to make our `main` program runnable.
 

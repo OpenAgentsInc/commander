@@ -1,5 +1,5 @@
 // Export all service components from SparkService.ts
-export * from './SparkService';
+export * from "./SparkService";
 
 // Export implementation from SparkServiceImpl.ts
-export * from './SparkServiceImpl';
+export * from "./SparkServiceImpl";

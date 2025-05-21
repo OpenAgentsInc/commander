@@ -1,1 +1,1 @@
-export { default as Nip90ConsumerChatPane } from './Nip90ConsumerChatPane';
+export { default as Nip90ConsumerChatPane } from "./Nip90ConsumerChatPane";

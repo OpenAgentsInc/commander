@@ -59,7 +59,8 @@ export interface NostrServiceConfig {
   readonly requestTimeoutMs: number;
 }
 
-export const NostrServiceConfigTag = Context.GenericTag<NostrServiceConfig>("NostrServiceConfig");
+export const NostrServiceConfigTag =
+  Context.GenericTag<NostrServiceConfig>("NostrServiceConfig");
 
 // --- Default Configuration Layer ---
 export const DefaultNostrServiceConfigLayer = Layer.succeed(
@@ -71,19 +72,23 @@ export const DefaultNostrServiceConfigLayer = Layer.succeed(
       "wss://relay.damus.io/",
       "wss://relay.snort.social/",
       "wss://offchain.pub/",
-      "wss://nostr-pub.wellorder.net/"
+      "wss://nostr-pub.wellorder.net/",
     ],
-    requestTimeoutMs: 10000 // 10 seconds
-  }
+    requestTimeoutMs: 10000, // 10 seconds
+  },
 );
 
 // --- Service Interface ---
 export interface NostrService {
   getPool(): Effect.Effect<SimplePool, NostrPoolError, never>;
-  listEvents(filters: NostrFilter[]): Effect.Effect<NostrEvent[], NostrRequestError, never>;
-  publishEvent(event: NostrEvent): Effect.Effect<void, NostrPublishError, never>;
+  listEvents(
+    filters: NostrFilter[],
+  ): Effect.Effect<NostrEvent[], NostrRequestError, never>;
+  publishEvent(
+    event: NostrEvent,
+  ): Effect.Effect<void, NostrPublishError, never>;
   cleanupPool(): Effect.Effect<void, NostrPoolError, never>;
-  
+
   /**
    * Subscribe to events matching the given filters
    * @param filters The filters to subscribe to
@@ -96,7 +101,7 @@ export interface NostrService {
     filters: NostrFilter[],
     onEvent: (event: NostrEvent) => void,
     relays?: readonly string[],
-    onEOSE?: (relay: string) => void
+    onEOSE?: (relay: string) => void,
   ): Effect.Effect<Subscription, NostrRequestError, never>;
 }
 

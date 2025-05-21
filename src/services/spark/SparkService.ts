@@ -1,6 +1,6 @@
-import { Context, Data, Effect, Schema, Layer } from 'effect';
-import { TelemetryService } from '@/services/telemetry';
-import { TrackEventError } from '@/services/telemetry/TelemetryService';
+import { Context, Data, Effect, Schema, Layer } from "effect";
+import { TelemetryService } from "@/services/telemetry";
+import { TrackEventError } from "@/services/telemetry/TelemetryService";
 
 /**
  * Spark service error types
@@ -24,15 +24,15 @@ export class SparkNotImplementedError extends SparkServiceError {}
 /**
  * Union type of all possible SparkService errors
  */
-export type SparkError = 
-  | SparkConfigError 
-  | SparkConnectionError 
-  | SparkAuthenticationError 
-  | SparkLightningError 
-  | SparkTransactionError 
-  | SparkBalanceError 
-  | SparkValidationError 
-  | SparkRPCError 
+export type SparkError =
+  | SparkConfigError
+  | SparkConnectionError
+  | SparkAuthenticationError
+  | SparkLightningError
+  | SparkTransactionError
+  | SparkBalanceError
+  | SparkValidationError
+  | SparkRPCError
   | SparkNotImplementedError;
 
 /**
@@ -50,21 +50,23 @@ export interface SparkServiceConfig {
   sparkSdkOptions?: Record<string, unknown>; // Will refine based on actual SDK types
 }
 
-export const SparkServiceConfigTag = Context.GenericTag<SparkServiceConfig>("SparkServiceConfig");
+export const SparkServiceConfigTag =
+  Context.GenericTag<SparkServiceConfig>("SparkServiceConfig");
 
 // Default configuration for development environments
 export const DefaultSparkServiceConfigLayer = Layer.succeed(
   SparkServiceConfigTag,
   {
     network: "REGTEST",
-    mnemonicOrSeed: "test test test test test test test test test test test junk", // Development only
+    mnemonicOrSeed:
+      "test test test test test test test test test test test junk", // Development only
     accountNumber: 2, // Must be ≥ 2 per SDK validation
     sparkSdkOptions: {
       // Use sensible defaults for local development - will populate from SDK examination
       grpcUrl: "http://localhost:8080",
       authToken: "dev_token",
-    }
-  }
+    },
+  },
 );
 
 /**
@@ -73,9 +75,11 @@ export const DefaultSparkServiceConfigLayer = Layer.succeed(
 export const CreateLightningInvoiceParamsSchema = Schema.Struct({
   amountSats: Schema.Number,
   memo: Schema.optional(Schema.String),
-  expirySeconds: Schema.optional(Schema.Number)
+  expirySeconds: Schema.optional(Schema.Number),
 });
-export type CreateLightningInvoiceParams = Schema.Schema.Type<typeof CreateLightningInvoiceParamsSchema>;
+export type CreateLightningInvoiceParams = Schema.Schema.Type<
+  typeof CreateLightningInvoiceParamsSchema
+>;
 
 /**
  * Lightning invoice payment parameters
@@ -83,24 +87,29 @@ export type CreateLightningInvoiceParams = Schema.Schema.Type<typeof CreateLight
 export const PayLightningInvoiceParamsSchema = Schema.Struct({
   invoice: Schema.String,
   maxFeeSats: Schema.Number,
-  timeoutSeconds: Schema.optional(Schema.Number)
+  timeoutSeconds: Schema.optional(Schema.Number),
 });
-export type PayLightningInvoiceParams = Schema.Schema.Type<typeof PayLightningInvoiceParamsSchema>;
+export type PayLightningInvoiceParams = Schema.Schema.Type<
+  typeof PayLightningInvoiceParamsSchema
+>;
 
 /**
  * Balance information returned by the Spark SDK
  */
 export interface BalanceInfo {
   balance: bigint;
-  tokenBalances: Map<string, { 
-    balance: bigint; 
-    tokenInfo: {
-      tokenId: string;
-      name: string;
-      symbol: string;
-      decimals: number;
+  tokenBalances: Map<
+    string,
+    {
+      balance: bigint;
+      tokenInfo: {
+        tokenId: string;
+        name: string;
+        symbol: string;
+        decimals: number;
+      };
     }
-  }>;
+  >;
 }
 
 /**
@@ -127,7 +136,7 @@ export interface LightningPayment {
     amountSats: number;
     feeSats: number;
     createdAt: number;
-    status: 'SUCCESS' | 'FAILED' | 'PENDING';
+    status: "SUCCESS" | "FAILED" | "PENDING";
     destination?: string;
   };
 }
@@ -137,26 +146,30 @@ export interface LightningPayment {
  */
 export interface SparkService {
   createLightningInvoice(
-    params: CreateLightningInvoiceParams
+    params: CreateLightningInvoiceParams,
   ): Effect.Effect<LightningInvoice, SparkError | TrackEventError, never>;
 
   payLightningInvoice(
-    params: PayLightningInvoiceParams
+    params: PayLightningInvoiceParams,
   ): Effect.Effect<LightningPayment, SparkError | TrackEventError, never>;
 
-  getBalance(): Effect.Effect<
-    BalanceInfo,
+  getBalance(): Effect.Effect<BalanceInfo, SparkError | TrackEventError, never>;
+
+  getSingleUseDepositAddress(): Effect.Effect<
+    string,
     SparkError | TrackEventError,
     never
   >;
-
-  getSingleUseDepositAddress(): Effect.Effect<string, SparkError | TrackEventError, never>;
 
   /**
    * Checks if the wallet is initialized and connected.
    * Returns true if the wallet is connected and ready to use, false otherwise.
    */
-  checkWalletStatus(): Effect.Effect<boolean, SparkError | TrackEventError, never>;
+  checkWalletStatus(): Effect.Effect<
+    boolean,
+    SparkError | TrackEventError,
+    never
+  >;
 
   /**
    * Checks the status of a Lightning invoice by its BOLT11 string.
@@ -164,8 +177,13 @@ export interface SparkService {
    * @returns An Effect with the invoice status ('pending', 'paid', 'expired', or 'error')
    *          and optionally the amount paid in millisatoshis if paid
    */
-  checkInvoiceStatus(invoiceBolt11: string): Effect.Effect<
-    { status: 'pending' | 'paid' | 'expired' | 'error', amountPaidMsats?: number },
+  checkInvoiceStatus(
+    invoiceBolt11: string,
+  ): Effect.Effect<
+    {
+      status: "pending" | "paid" | "expired" | "error";
+      amountPaidMsats?: number;
+    },
     SparkError | TrackEventError,
     never
   >;

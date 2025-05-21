@@ -1,29 +1,48 @@
 // src/components/hands/handPoseRecognition.ts
-import { HandPose, type HandLandmarks, type Landmark } from './handPoseTypes';
+import { HandPose, type HandLandmarks, type Landmark } from "./handPoseTypes";
 
 // Landmark indices based on MediaPipe Hands
 const LandmarkIndex = {
   WRIST: 0,
-  THUMB_CMC: 1, THUMB_MCP: 2, THUMB_IP: 3, THUMB_TIP: 4,
-  INDEX_FINGER_MCP: 5, INDEX_FINGER_PIP: 6, INDEX_FINGER_DIP: 7, INDEX_FINGER_TIP: 8,
-  MIDDLE_FINGER_MCP: 9, MIDDLE_FINGER_PIP: 10, MIDDLE_FINGER_DIP: 11, MIDDLE_FINGER_TIP: 12,
-  RING_FINGER_MCP: 13, RING_FINGER_PIP: 14, RING_FINGER_DIP: 15, RING_FINGER_TIP: 16,
-  PINKY_MCP: 17, PINKY_PIP: 18, PINKY_DIP: 19, PINKY_TIP: 20,
+  THUMB_CMC: 1,
+  THUMB_MCP: 2,
+  THUMB_IP: 3,
+  THUMB_TIP: 4,
+  INDEX_FINGER_MCP: 5,
+  INDEX_FINGER_PIP: 6,
+  INDEX_FINGER_DIP: 7,
+  INDEX_FINGER_TIP: 8,
+  MIDDLE_FINGER_MCP: 9,
+  MIDDLE_FINGER_PIP: 10,
+  MIDDLE_FINGER_DIP: 11,
+  MIDDLE_FINGER_TIP: 12,
+  RING_FINGER_MCP: 13,
+  RING_FINGER_PIP: 14,
+  RING_FINGER_DIP: 15,
+  RING_FINGER_TIP: 16,
+  PINKY_MCP: 17,
+  PINKY_PIP: 18,
+  PINKY_DIP: 19,
+  PINKY_TIP: 20,
 };
 
 // Helper function to calculate Euclidean distance between two 3D landmarks
 function distance(p1: Landmark, p2: Landmark): number {
   return Math.sqrt(
     Math.pow(p1.x - p2.x, 2) +
-    Math.pow(p1.y - p2.y, 2) +
-    Math.pow(p1.z - p2.z, 2)
+      Math.pow(p1.y - p2.y, 2) +
+      Math.pow(p1.z - p2.z, 2),
   );
 }
 
 // Helper to check if a finger is extended
 // Condition: Tip is further away from MCP than PIP is from MCP.
 // And Tip.y < PIP.y (assuming upright hand, smaller y is higher)
-function isFingerExtended(tip: Landmark, pip: Landmark, mcp: Landmark): boolean {
+function isFingerExtended(
+  tip: Landmark,
+  pip: Landmark,
+  mcp: Landmark,
+): boolean {
   // A simple check: tip y-coordinate is less (higher on screen) than pip y-coordinate
   // and pip y-coordinate is less than mcp y-coordinate.
   // This assumes a somewhat upright hand.
@@ -37,7 +56,12 @@ function isFingerExtended(tip: Landmark, pip: Landmark, mcp: Landmark): boolean 
 }
 
 // Helper to check if a finger is curled (tip y > pip y, and tip close to MCP)
-function isFingerCurled(tip: Landmark, pip: Landmark, mcp: Landmark, wrist: Landmark): boolean {
+function isFingerCurled(
+  tip: Landmark,
+  pip: Landmark,
+  mcp: Landmark,
+  wrist: Landmark,
+): boolean {
   const tipLowerThanPip = tip.y > pip.y;
 
   // Check if the tip is close to the MCP or palm (approximated by wrist-to-mcp distance)
@@ -48,7 +72,11 @@ function isFingerCurled(tip: Landmark, pip: Landmark, mcp: Landmark, wrist: Land
   // Or if tip is significantly "below" (larger y) its PIP
   const curledThreshold = referenceDistance * 0.7;
 
-  return tipLowerThanPip && (tipToMcpDistance < curledThreshold || (tip.y - pip.y) > referenceDistance * 0.1);
+  return (
+    tipLowerThanPip &&
+    (tipToMcpDistance < curledThreshold ||
+      tip.y - pip.y > referenceDistance * 0.1)
+  );
 }
 
 // Helper to calculate distance between thumb tip and index finger tip
@@ -62,9 +90,24 @@ function getPinchDistance(landmarks: HandLandmarks): number {
 function areOtherFingersCurled(landmarks: HandLandmarks): boolean {
   const wrist = landmarks[LandmarkIndex.WRIST];
   return (
-    isFingerCurled(landmarks[LandmarkIndex.MIDDLE_FINGER_TIP], landmarks[LandmarkIndex.MIDDLE_FINGER_PIP], landmarks[LandmarkIndex.MIDDLE_FINGER_MCP], wrist) &&
-    isFingerCurled(landmarks[LandmarkIndex.RING_FINGER_TIP], landmarks[LandmarkIndex.RING_FINGER_PIP], landmarks[LandmarkIndex.RING_FINGER_MCP], wrist) &&
-    isFingerCurled(landmarks[LandmarkIndex.PINKY_TIP], landmarks[LandmarkIndex.PINKY_PIP], landmarks[LandmarkIndex.PINKY_MCP], wrist)
+    isFingerCurled(
+      landmarks[LandmarkIndex.MIDDLE_FINGER_TIP],
+      landmarks[LandmarkIndex.MIDDLE_FINGER_PIP],
+      landmarks[LandmarkIndex.MIDDLE_FINGER_MCP],
+      wrist,
+    ) &&
+    isFingerCurled(
+      landmarks[LandmarkIndex.RING_FINGER_TIP],
+      landmarks[LandmarkIndex.RING_FINGER_PIP],
+      landmarks[LandmarkIndex.RING_FINGER_MCP],
+      wrist,
+    ) &&
+    isFingerCurled(
+      landmarks[LandmarkIndex.PINKY_TIP],
+      landmarks[LandmarkIndex.PINKY_PIP],
+      landmarks[LandmarkIndex.PINKY_MCP],
+      wrist,
+    )
   );
 }
 
@@ -84,15 +127,17 @@ function isPinchClosed(landmarks: HandLandmarks): boolean {
   const indexPip = landmarks[LandmarkIndex.INDEX_FINGER_PIP];
   const indexMcp = landmarks[LandmarkIndex.INDEX_FINGER_MCP];
 
-  const thumbExtendedVal = distance(thumbTip, thumbMcp) > distance(thumbIp, thumbMcp);
-  const indexExtendedVal = distance(indexTip, indexMcp) > distance(indexPip, indexMcp);
+  const thumbExtendedVal =
+    distance(thumbTip, thumbMcp) > distance(thumbIp, thumbMcp);
+  const indexExtendedVal =
+    distance(indexTip, indexMcp) > distance(indexPip, indexMcp);
 
   // Removed logging for pinch status
 
   // For testing, we'll use a simplified check that only looks at the distance
   // Once we have more data from logs, we can re-enable the other checks
   return closeFingers; // TEST WITH THIS FIRST
-  
+
   // Original complete check:
   // return closeFingers && othersCurled && thumbExtendedVal && indexExtendedVal;
 }
@@ -100,10 +145,30 @@ function isPinchClosed(landmarks: HandLandmarks): boolean {
 function isFist(landmarks: HandLandmarks): boolean {
   const wrist = landmarks[LandmarkIndex.WRIST];
   const fingersCurled =
-    isFingerCurled(landmarks[LandmarkIndex.INDEX_FINGER_TIP], landmarks[LandmarkIndex.INDEX_FINGER_PIP], landmarks[LandmarkIndex.INDEX_FINGER_MCP], wrist) &&
-    isFingerCurled(landmarks[LandmarkIndex.MIDDLE_FINGER_TIP], landmarks[LandmarkIndex.MIDDLE_FINGER_PIP], landmarks[LandmarkIndex.MIDDLE_FINGER_MCP], wrist) &&
-    isFingerCurled(landmarks[LandmarkIndex.RING_FINGER_TIP], landmarks[LandmarkIndex.RING_FINGER_PIP], landmarks[LandmarkIndex.RING_FINGER_MCP], wrist) &&
-    isFingerCurled(landmarks[LandmarkIndex.PINKY_TIP], landmarks[LandmarkIndex.PINKY_PIP], landmarks[LandmarkIndex.PINKY_MCP], wrist);
+    isFingerCurled(
+      landmarks[LandmarkIndex.INDEX_FINGER_TIP],
+      landmarks[LandmarkIndex.INDEX_FINGER_PIP],
+      landmarks[LandmarkIndex.INDEX_FINGER_MCP],
+      wrist,
+    ) &&
+    isFingerCurled(
+      landmarks[LandmarkIndex.MIDDLE_FINGER_TIP],
+      landmarks[LandmarkIndex.MIDDLE_FINGER_PIP],
+      landmarks[LandmarkIndex.MIDDLE_FINGER_MCP],
+      wrist,
+    ) &&
+    isFingerCurled(
+      landmarks[LandmarkIndex.RING_FINGER_TIP],
+      landmarks[LandmarkIndex.RING_FINGER_PIP],
+      landmarks[LandmarkIndex.RING_FINGER_MCP],
+      wrist,
+    ) &&
+    isFingerCurled(
+      landmarks[LandmarkIndex.PINKY_TIP],
+      landmarks[LandmarkIndex.PINKY_PIP],
+      landmarks[LandmarkIndex.PINKY_MCP],
+      wrist,
+    );
 
   if (!fingersCurled) return false;
 
@@ -113,18 +178,45 @@ function isFist(landmarks: HandLandmarks): boolean {
   const thumbMcp = landmarks[LandmarkIndex.THUMB_MCP];
   const thumbPip = landmarks[LandmarkIndex.INDEX_FINGER_PIP]; // reference for y-level
 
-  const thumbCurledOrAcross = thumbTip.y > thumbMcp.y || distance(thumbTip, thumbPip) < distance(landmarks[LandmarkIndex.WRIST], landmarks[LandmarkIndex.THUMB_MCP]) * 0.8;
+  const thumbCurledOrAcross =
+    thumbTip.y > thumbMcp.y ||
+    distance(thumbTip, thumbPip) <
+      distance(
+        landmarks[LandmarkIndex.WRIST],
+        landmarks[LandmarkIndex.THUMB_MCP],
+      ) *
+        0.8;
 
   return thumbCurledOrAcross;
 }
 
 function areAllFingersExtended(landmarks: HandLandmarks): boolean {
   return (
-    isFingerExtended(landmarks[LandmarkIndex.INDEX_FINGER_TIP], landmarks[LandmarkIndex.INDEX_FINGER_PIP], landmarks[LandmarkIndex.INDEX_FINGER_MCP]) &&
-    isFingerExtended(landmarks[LandmarkIndex.MIDDLE_FINGER_TIP], landmarks[LandmarkIndex.MIDDLE_FINGER_PIP], landmarks[LandmarkIndex.MIDDLE_FINGER_MCP]) &&
-    isFingerExtended(landmarks[LandmarkIndex.RING_FINGER_TIP], landmarks[LandmarkIndex.RING_FINGER_PIP], landmarks[LandmarkIndex.RING_FINGER_MCP]) &&
-    isFingerExtended(landmarks[LandmarkIndex.PINKY_TIP], landmarks[LandmarkIndex.PINKY_PIP], landmarks[LandmarkIndex.PINKY_MCP]) &&
-    isFingerExtended(landmarks[LandmarkIndex.THUMB_TIP], landmarks[LandmarkIndex.THUMB_IP], landmarks[LandmarkIndex.THUMB_MCP]) // Thumb uses IP instead of PIP
+    isFingerExtended(
+      landmarks[LandmarkIndex.INDEX_FINGER_TIP],
+      landmarks[LandmarkIndex.INDEX_FINGER_PIP],
+      landmarks[LandmarkIndex.INDEX_FINGER_MCP],
+    ) &&
+    isFingerExtended(
+      landmarks[LandmarkIndex.MIDDLE_FINGER_TIP],
+      landmarks[LandmarkIndex.MIDDLE_FINGER_PIP],
+      landmarks[LandmarkIndex.MIDDLE_FINGER_MCP],
+    ) &&
+    isFingerExtended(
+      landmarks[LandmarkIndex.RING_FINGER_TIP],
+      landmarks[LandmarkIndex.RING_FINGER_PIP],
+      landmarks[LandmarkIndex.RING_FINGER_MCP],
+    ) &&
+    isFingerExtended(
+      landmarks[LandmarkIndex.PINKY_TIP],
+      landmarks[LandmarkIndex.PINKY_PIP],
+      landmarks[LandmarkIndex.PINKY_MCP],
+    ) &&
+    isFingerExtended(
+      landmarks[LandmarkIndex.THUMB_TIP],
+      landmarks[LandmarkIndex.THUMB_IP],
+      landmarks[LandmarkIndex.THUMB_MCP],
+    ) // Thumb uses IP instead of PIP
   );
 }
 
@@ -149,7 +241,7 @@ function isFlatHand(landmarks: HandLandmarks): boolean {
 }
 
 function isOpenHand(landmarks: HandLandmarks): boolean {
-   if (!areAllFingersExtended(landmarks)) {
+  if (!areAllFingersExtended(landmarks)) {
     return false;
   }
   // For open hand, fingers should be spread out.
@@ -168,17 +260,38 @@ function isOpenHand(landmarks: HandLandmarks): boolean {
 
 function isTwoFingerV(landmarks: HandLandmarks): boolean {
   const wrist = landmarks[LandmarkIndex.WRIST];
-  const indexExtended = isFingerExtended(landmarks[LandmarkIndex.INDEX_FINGER_TIP], landmarks[LandmarkIndex.INDEX_FINGER_PIP], landmarks[LandmarkIndex.INDEX_FINGER_MCP]);
-  const middleExtended = isFingerExtended(landmarks[LandmarkIndex.MIDDLE_FINGER_TIP], landmarks[LandmarkIndex.MIDDLE_FINGER_PIP], landmarks[LandmarkIndex.MIDDLE_FINGER_MCP]);
+  const indexExtended = isFingerExtended(
+    landmarks[LandmarkIndex.INDEX_FINGER_TIP],
+    landmarks[LandmarkIndex.INDEX_FINGER_PIP],
+    landmarks[LandmarkIndex.INDEX_FINGER_MCP],
+  );
+  const middleExtended = isFingerExtended(
+    landmarks[LandmarkIndex.MIDDLE_FINGER_TIP],
+    landmarks[LandmarkIndex.MIDDLE_FINGER_PIP],
+    landmarks[LandmarkIndex.MIDDLE_FINGER_MCP],
+  );
 
-  const ringCurled = isFingerCurled(landmarks[LandmarkIndex.RING_FINGER_TIP], landmarks[LandmarkIndex.RING_FINGER_PIP], landmarks[LandmarkIndex.RING_FINGER_MCP], wrist);
-  const pinkyCurled = isFingerCurled(landmarks[LandmarkIndex.PINKY_TIP], landmarks[LandmarkIndex.PINKY_PIP], landmarks[LandmarkIndex.PINKY_MCP], wrist);
+  const ringCurled = isFingerCurled(
+    landmarks[LandmarkIndex.RING_FINGER_TIP],
+    landmarks[LandmarkIndex.RING_FINGER_PIP],
+    landmarks[LandmarkIndex.RING_FINGER_MCP],
+    wrist,
+  );
+  const pinkyCurled = isFingerCurled(
+    landmarks[LandmarkIndex.PINKY_TIP],
+    landmarks[LandmarkIndex.PINKY_PIP],
+    landmarks[LandmarkIndex.PINKY_MCP],
+    wrist,
+  );
 
   if (indexExtended && middleExtended && ringCurled && pinkyCurled) {
     // Ensure index and middle fingers are spread apart for a 'V'
     const indexTip = landmarks[LandmarkIndex.INDEX_FINGER_TIP];
     const middleTip = landmarks[LandmarkIndex.MIDDLE_FINGER_TIP];
-    const wristToIndexMcp = distance(landmarks[LandmarkIndex.WRIST], landmarks[LandmarkIndex.INDEX_FINGER_MCP]);
+    const wristToIndexMcp = distance(
+      landmarks[LandmarkIndex.WRIST],
+      landmarks[LandmarkIndex.INDEX_FINGER_MCP],
+    );
 
     // Spread threshold, e.g., 30% of the wrist-to-index-mcp distance
     const vSpreadThreshold = wristToIndexMcp * 0.3;
@@ -196,7 +309,7 @@ export function recognizeHandPose(landmarks: HandLandmarks | null): HandPose {
   if (isPinchClosed(landmarks)) {
     return HandPose.PINCH_CLOSED;
   }
-  
+
   // Order of checks can matter if poses are similar.
   // More specific poses (like Two-Finger V) should ideally be checked before more general ones (like Open Hand).
   if (isFist(landmarks)) {

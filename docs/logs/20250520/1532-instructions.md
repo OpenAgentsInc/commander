@@ -17,12 +17,12 @@ Modify the file as follows:
 
 ```typescript
 // src/services/dvm/Kind5050DVMService.ts
-import { Context, Effect, Data, Schema, Layer } from 'effect';
-import { TelemetryService } from '@/services/telemetry';
-import { TrackEventError } from '@/services/telemetry/TelemetryService';
-import { generateSecretKey, getPublicKey } from 'nostr-tools/pure';
-import { bytesToHex } from '@noble/hashes/utils';
-import type { JobHistoryEntry, JobStatistics } from '@/types/dvm'; // Ensure this import exists if these types are used by the service
+import { Context, Effect, Data, Schema, Layer } from "effect";
+import { TelemetryService } from "@/services/telemetry";
+import { TrackEventError } from "@/services/telemetry/TelemetryService";
+import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
+import { bytesToHex } from "@noble/hashes/utils";
+import type { JobHistoryEntry, JobStatistics } from "@/types/dvm"; // Ensure this import exists if these types are used by the service
 
 // ... (DVMServiceError types and DefaultTextGenerationJobConfig interface remain the same) ...
 export class DVMServiceError extends Data.TaggedError("DVMServiceError")<{
@@ -36,7 +36,13 @@ export class DVMJobRequestError extends DVMServiceError {}
 export class DVMJobProcessingError extends DVMServiceError {}
 export class DVMPaymentError extends DVMServiceError {}
 export class DVMInvocationError extends DVMServiceError {}
-export type DVMError = DVMConfigError | DVMConnectionError | DVMJobRequestError | DVMJobProcessingError | DVMPaymentError | DVMInvocationError;
+export type DVMError =
+  | DVMConfigError
+  | DVMConnectionError
+  | DVMJobRequestError
+  | DVMJobProcessingError
+  | DVMPaymentError
+  | DVMInvocationError;
 
 export interface DefaultTextGenerationJobConfig {
   model: string;
@@ -58,7 +64,8 @@ export interface Kind5050DVMServiceConfig {
   defaultTextGenerationJobConfig: DefaultTextGenerationJobConfig;
 }
 
-export const Kind5050DVMServiceConfigTag = Context.GenericTag<Kind5050DVMServiceConfig>("Kind5050DVMServiceConfig");
+export const Kind5050DVMServiceConfigTag =
+  Context.GenericTag<Kind5050DVMServiceConfig>("Kind5050DVMServiceConfig");
 
 // Generate a default dev keypair
 const devDvmSkBytes = generateSecretKey();
@@ -82,13 +89,13 @@ export const defaultKind5050DVMServiceConfig: Kind5050DVMServiceConfig = {
     frequency_penalty: 0.5,
     minPriceSats: 10,
     pricePer1kTokens: 2,
-  }
+  },
 };
 
 // 2. Use this constant for the Layer
 export const DefaultKind5050DVMServiceConfigLayer = Layer.succeed(
   Kind5050DVMServiceConfigTag,
-  defaultKind5050DVMServiceConfig // Use the exported constant here
+  defaultKind5050DVMServiceConfig, // Use the exported constant here
 );
 // --- MODIFICATION END ---
 
@@ -99,15 +106,20 @@ export interface Kind5050DVMService {
   getJobHistory(options: {
     page: number;
     pageSize: number;
-    filters?: Partial<JobHistoryEntry>
+    filters?: Partial<JobHistoryEntry>;
   }): Effect.Effect<
     { entries: JobHistoryEntry[]; totalCount: number },
     DVMError | TrackEventError,
     never
   >;
-  getJobStatistics(): Effect.Effect<JobStatistics, DVMError | TrackEventError, never>;
+  getJobStatistics(): Effect.Effect<
+    JobStatistics,
+    DVMError | TrackEventError,
+    never
+  >;
 }
-export const Kind5050DVMService = Context.GenericTag<Kind5050DVMService>("Kind5050DVMService");
+export const Kind5050DVMService =
+  Context.GenericTag<Kind5050DVMService>("Kind5050DVMService");
 ```
 
 **Step 2: Modify `src/stores/dvmSettingsStore.ts` to use the exported default config object.**
@@ -121,17 +133,20 @@ Modify the file as follows:
 
 ```typescript
 // src/stores/dvmSettingsStore.ts
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import type { DefaultTextGenerationJobConfig, Kind5050DVMServiceConfig } from '@/services/dvm/Kind5050DVMService';
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import type {
+  DefaultTextGenerationJobConfig,
+  Kind5050DVMServiceConfig,
+} from "@/services/dvm/Kind5050DVMService";
 // --- MODIFICATION START ---
 // 1. Remove DefaultKind5050DVMServiceConfigLayer import
 // import { DefaultKind5050DVMServiceConfigLayer } from '@/services/dvm/Kind5050DVMService';
 // 2. Import the exported default config object
-import { defaultKind5050DVMServiceConfig } from '@/services/dvm/Kind5050DVMService';
+import { defaultKind5050DVMServiceConfig } from "@/services/dvm/Kind5050DVMService";
 // --- MODIFICATION END ---
-import { getPublicKey as nostrGetPublicKey } from 'nostr-tools/pure';
-import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
+import { getPublicKey as nostrGetPublicKey } from "nostr-tools/pure";
+import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
 
 export interface DVMUserSettings {
   dvmPrivateKeyHex?: string;
@@ -168,8 +183,12 @@ export const useDVMSettingsStore = create<DVMSettingsStoreState>()(
       resetSettings: () => set({ settings: {} }),
 
       // The getEffective* methods will use `defaultConfigValues` which is now correctly initialized.
-      getEffectivePrivateKeyHex: () => { // Added this based on its usage in getEffectiveConfig and store definition
-        return get().settings.dvmPrivateKeyHex || defaultConfigValues.dvmPrivateKeyHex;
+      getEffectivePrivateKeyHex: () => {
+        // Added this based on its usage in getEffectiveConfig and store definition
+        return (
+          get().settings.dvmPrivateKeyHex ||
+          defaultConfigValues.dvmPrivateKeyHex
+        );
       },
       getDerivedPublicKeyHex: () => {
         const skHex = get().settings.dvmPrivateKeyHex;
@@ -177,21 +196,32 @@ export const useDVMSettingsStore = create<DVMSettingsStoreState>()(
         try {
           return nostrGetPublicKey(hexToBytes(skHex));
         } catch (e) {
-          console.warn("Could not derive public key from stored private key:", e);
+          console.warn(
+            "Could not derive public key from stored private key:",
+            e,
+          );
           return defaultConfigValues.dvmPublicKeyHex; // Fallback on error
         }
       },
       getEffectiveRelays: () => {
         const userRelaysCsv = get().settings.relaysCsv;
         if (!userRelaysCsv) return defaultConfigValues.relays;
-        const userRelays = userRelaysCsv.split('\n').map(r => r.trim()).filter(r => r.length > 0);
+        const userRelays = userRelaysCsv
+          .split("\n")
+          .map((r) => r.trim())
+          .filter((r) => r.length > 0);
         return userRelays.length > 0 ? userRelays : defaultConfigValues.relays;
       },
       getEffectiveSupportedJobKinds: () => {
         const userKindsCsv = get().settings.supportedJobKindsCsv;
         if (!userKindsCsv) return defaultConfigValues.supportedJobKinds;
-        const userKinds = userKindsCsv.split(',').map(k => parseInt(k.trim(), 10)).filter(k => !isNaN(k));
-        return userKinds.length > 0 ? userKinds : defaultConfigValues.supportedJobKinds;
+        const userKinds = userKindsCsv
+          .split(",")
+          .map((k) => parseInt(k.trim(), 10))
+          .filter((k) => !isNaN(k));
+        return userKinds.length > 0
+          ? userKinds
+          : defaultConfigValues.supportedJobKinds;
       },
       getEffectiveTextGenerationConfig: () => {
         const userConfig = get().settings.textGenerationConfig || {};
@@ -202,7 +232,8 @@ export const useDVMSettingsStore = create<DVMSettingsStoreState>()(
       },
       getEffectiveConfig: () => {
         const privateKeyHex = get().getEffectivePrivateKeyHex();
-        const derivedPublicKeyHex = get().getDerivedPublicKeyHex() || defaultConfigValues.dvmPublicKeyHex; // Ensure fallback
+        const derivedPublicKeyHex =
+          get().getDerivedPublicKeyHex() || defaultConfigValues.dvmPublicKeyHex; // Ensure fallback
         const relays = get().getEffectiveRelays();
         const supportedJobKinds = get().getEffectiveSupportedJobKinds();
         const textGenerationConfig = get().getEffectiveTextGenerationConfig();
@@ -218,10 +249,10 @@ export const useDVMSettingsStore = create<DVMSettingsStoreState>()(
       },
     }),
     {
-      name: 'dvm-user-settings-storage', // Ensure consistent naming from original file if it was different
+      name: "dvm-user-settings-storage", // Ensure consistent naming from original file if it was different
       storage: createJSONStorage(() => localStorage),
-    }
-  )
+    },
+  ),
 );
 ```
 
@@ -229,7 +260,7 @@ export const useDVMSettingsStore = create<DVMSettingsStoreState>()(
 
 The original code attempted to get the default configuration values by accessing `DefaultKind5050DVMServiceConfigLayer.context._unsafeGet(...)`. This is incorrect because `DefaultKind5050DVMServiceConfigLayer` is an `Effect.Layer` object, which doesn't have a `.context` property for direct unsafe access to its provided values at the module's top level. The `_unsafeGet` method is intended for use on a fully resolved `Context.Context` object, typically within an Effect runtime.
 
-The `Layer.succeed(Tag, value)` constructor directly uses the `value` as the service implementation for the `Tag` when the layer is built. By exporting this `value` (the default configuration object) from `src/services/dvm/Kind5050DVMService.ts` and importing it directly in `src/stores/dvmSettingsStore.ts`, we bypass the incorrect layer inspection and use the plain JavaScript object as intended. This resolves the "Cannot read properties of undefined (reading '_unsafeGet')" error. I also ensured `getDerivedPublicKeyHex` provides a fallback to the default PK if the user's SK is not set or invalid, matching the logic in `getEffectiveConfig`.
+The `Layer.succeed(Tag, value)` constructor directly uses the `value` as the service implementation for the `Tag` when the layer is built. By exporting this `value` (the default configuration object) from `src/services/dvm/Kind5050DVMService.ts` and importing it directly in `src/stores/dvmSettingsStore.ts`, we bypass the incorrect layer inspection and use the plain JavaScript object as intended. This resolves the "Cannot read properties of undefined (reading '\_unsafeGet')" error. I also ensured `getDerivedPublicKeyHex` provides a fallback to the default PK if the user's SK is not set or invalid, matching the logic in `getEffectiveConfig`.
 
 **Final Actions:**
 Run `pnpm t` to check for TypeScript errors and `pnpm start` to verify the frontend no longer crashes.Okay, Agent, it seems the error `Cannot read properties of undefined (reading '_unsafeGet') at dvmSettingsStore.ts:39:74` stems from an incorrect way of trying to access the default configuration value from an `Effect.Layer` at the module's top level.
@@ -246,22 +277,30 @@ Here's how to fix it:
 
 ```typescript
 // src/services/dvm/Kind5050DVMService.ts
-import { Context, Effect, Data, Schema, Layer } from 'effect';
-import { TelemetryService } from '@/services/telemetry';
-import { TrackEventError } from '@/services/telemetry/TelemetryService';
-import { generateSecretKey, getPublicKey } from 'nostr-tools/pure';
-import { bytesToHex } from '@noble/hashes/utils';
-import type { JobHistoryEntry, JobStatistics } from '@/types/dvm';
+import { Context, Effect, Data, Schema, Layer } from "effect";
+import { TelemetryService } from "@/services/telemetry";
+import { TrackEventError } from "@/services/telemetry/TelemetryService";
+import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
+import { bytesToHex } from "@noble/hashes/utils";
+import type { JobHistoryEntry, JobStatistics } from "@/types/dvm";
 
 // DVM service errors (ensure these are defined as in your existing file)
-export class DVMServiceError extends Data.TaggedError("DVMServiceError")<{ /* ... */ }> {}
+export class DVMServiceError extends Data.TaggedError("DVMServiceError")<{
+  /* ... */
+}> {}
 export class DVMConfigError extends DVMServiceError {}
 export class DVMConnectionError extends DVMServiceError {}
 export class DVMJobRequestError extends DVMServiceError {}
 export class DVMJobProcessingError extends DVMServiceError {}
 export class DVMPaymentError extends DVMServiceError {}
 export class DVMInvocationError extends DVMServiceError {}
-export type DVMError = DVMConfigError | DVMConnectionError | DVMJobRequestError | DVMJobProcessingError | DVMPaymentError | DVMInvocationError;
+export type DVMError =
+  | DVMConfigError
+  | DVMConnectionError
+  | DVMJobRequestError
+  | DVMJobProcessingError
+  | DVMPaymentError
+  | DVMInvocationError;
 
 export interface DefaultTextGenerationJobConfig {
   model: string;
@@ -283,7 +322,8 @@ export interface Kind5050DVMServiceConfig {
   defaultTextGenerationJobConfig: DefaultTextGenerationJobConfig;
 }
 
-export const Kind5050DVMServiceConfigTag = Context.GenericTag<Kind5050DVMServiceConfig>("Kind5050DVMServiceConfig");
+export const Kind5050DVMServiceConfigTag =
+  Context.GenericTag<Kind5050DVMServiceConfig>("Kind5050DVMServiceConfig");
 
 const devDvmSkBytes = generateSecretKey();
 const devDvmSkHex = bytesToHex(devDvmSkBytes);
@@ -306,13 +346,13 @@ export const defaultKind5050DVMServiceConfigObject: Kind5050DVMServiceConfig = {
     frequency_penalty: 0.5,
     minPriceSats: 10,
     pricePer1kTokens: 2,
-  }
+  },
 };
 
 // 2. Use this constant for the Layer
 export const DefaultKind5050DVMServiceConfigLayer = Layer.succeed(
   Kind5050DVMServiceConfigTag,
-  defaultKind5050DVMServiceConfigObject // Use the exported constant here
+  defaultKind5050DVMServiceConfigObject, // Use the exported constant here
 );
 // --- MODIFICATION END ---
 
@@ -323,15 +363,20 @@ export interface Kind5050DVMService {
   getJobHistory(options: {
     page: number;
     pageSize: number;
-    filters?: Partial<JobHistoryEntry>
+    filters?: Partial<JobHistoryEntry>;
   }): Effect.Effect<
     { entries: JobHistoryEntry[]; totalCount: number },
     DVMError | TrackEventError,
     never
   >;
-  getJobStatistics(): Effect.Effect<JobStatistics, DVMError | TrackEventError, never>;
+  getJobStatistics(): Effect.Effect<
+    JobStatistics,
+    DVMError | TrackEventError,
+    never
+  >;
 }
-export const Kind5050DVMService = Context.GenericTag<Kind5050DVMService>("Kind5050DVMService");
+export const Kind5050DVMService =
+  Context.GenericTag<Kind5050DVMService>("Kind5050DVMService");
 ```
 
 **Step 2: Modify `src/stores/dvmSettingsStore.ts` to use the exported default configuration object.**
@@ -343,17 +388,20 @@ export const Kind5050DVMService = Context.GenericTag<Kind5050DVMService>("Kind50
 
 ```typescript
 // src/stores/dvmSettingsStore.ts
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import type { DefaultTextGenerationJobConfig, Kind5050DVMServiceConfig } from '@/services/dvm/Kind5050DVMService';
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import type {
+  DefaultTextGenerationJobConfig,
+  Kind5050DVMServiceConfig,
+} from "@/services/dvm/Kind5050DVMService";
 // --- MODIFICATION START ---
 // 1. Remove DefaultKind5050DVMServiceConfigLayer import
 // import { DefaultKind5050DVMServiceConfigLayer } from '@/services/dvm/Kind5050DVMService';
 // 2. Import the exported default config object
-import { defaultKind5050DVMServiceConfigObject } from '@/services/dvm/Kind5050DVMService';
+import { defaultKind5050DVMServiceConfigObject } from "@/services/dvm/Kind5050DVMService";
 // --- MODIFICATION END ---
-import { getPublicKey as nostrGetPublicKey } from 'nostr-tools/pure'; // Renamed to avoid conflict
-import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
+import { getPublicKey as nostrGetPublicKey } from "nostr-tools/pure"; // Renamed to avoid conflict
+import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
 
 export interface DVMUserSettings {
   dvmPrivateKeyHex?: string;
@@ -389,7 +437,10 @@ export const useDVMSettingsStore = create<DVMSettingsStoreState>()(
         })),
       resetSettings: () => set({ settings: {} }),
       getEffectivePrivateKeyHex: () => {
-        return get().settings.dvmPrivateKeyHex || defaultConfigValues.dvmPrivateKeyHex;
+        return (
+          get().settings.dvmPrivateKeyHex ||
+          defaultConfigValues.dvmPrivateKeyHex
+        );
       },
       getDerivedPublicKeyHex: () => {
         const skHex = get().settings.dvmPrivateKeyHex;
@@ -397,21 +448,32 @@ export const useDVMSettingsStore = create<DVMSettingsStoreState>()(
         try {
           return nostrGetPublicKey(hexToBytes(skHex)); // Use renamed import
         } catch (e) {
-          console.warn("Could not derive public key from stored private key:", e);
+          console.warn(
+            "Could not derive public key from stored private key:",
+            e,
+          );
           return defaultConfigValues.dvmPublicKeyHex; // Fallback on error
         }
       },
       getEffectiveRelays: () => {
         const userRelaysCsv = get().settings.relaysCsv;
         if (!userRelaysCsv) return defaultConfigValues.relays;
-        const userRelays = userRelaysCsv.split('\n').map(r => r.trim()).filter(r => r.length > 0);
+        const userRelays = userRelaysCsv
+          .split("\n")
+          .map((r) => r.trim())
+          .filter((r) => r.length > 0);
         return userRelays.length > 0 ? userRelays : defaultConfigValues.relays;
       },
       getEffectiveSupportedJobKinds: () => {
         const userKindsCsv = get().settings.supportedJobKindsCsv;
         if (!userKindsCsv) return defaultConfigValues.supportedJobKinds;
-        const userKinds = userKindsCsv.split(',').map(k => parseInt(k.trim(), 10)).filter(k => !isNaN(k));
-        return userKinds.length > 0 ? userKinds : defaultConfigValues.supportedJobKinds;
+        const userKinds = userKindsCsv
+          .split(",")
+          .map((k) => parseInt(k.trim(), 10))
+          .filter((k) => !isNaN(k));
+        return userKinds.length > 0
+          ? userKinds
+          : defaultConfigValues.supportedJobKinds;
       },
       getEffectiveTextGenerationConfig: () => {
         const userConfig = get().settings.textGenerationConfig || {};
@@ -422,7 +484,8 @@ export const useDVMSettingsStore = create<DVMSettingsStoreState>()(
       },
       getEffectiveConfig: () => {
         const privateKeyHex = get().getEffectivePrivateKeyHex();
-        const derivedPublicKeyHex = get().getDerivedPublicKeyHex() || defaultConfigValues.dvmPublicKeyHex;
+        const derivedPublicKeyHex =
+          get().getDerivedPublicKeyHex() || defaultConfigValues.dvmPublicKeyHex;
         const relays = get().getEffectiveRelays();
         const supportedJobKinds = get().getEffectiveSupportedJobKinds();
         const textGenerationConfig = get().getEffectiveTextGenerationConfig();
@@ -438,10 +501,10 @@ export const useDVMSettingsStore = create<DVMSettingsStoreState>()(
       },
     }),
     {
-      name: 'dvm-user-settings-storage',
+      name: "dvm-user-settings-storage",
       storage: createJSONStorage(() => localStorage),
-    }
-  )
+    },
+  ),
 );
 ```
 

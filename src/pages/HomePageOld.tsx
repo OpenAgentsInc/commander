@@ -1,8 +1,14 @@
 // @ts-nocheck - This file is legacy and will be replaced
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Canvas } from '@react-three/fiber';
-import * as THREE from 'three';
-import { HandTrackingUIControls, MainSceneContent, HandPose, type PinchCoordinates, useHandTracking } from "@/components/hands";
+import { Canvas } from "@react-three/fiber";
+import * as THREE from "three";
+import {
+  HandTrackingUIControls,
+  MainSceneContent,
+  HandPose,
+  type PinchCoordinates,
+  useHandTracking,
+} from "@/components/hands";
 import { ChatContainer } from "@/components/chat";
 import { Nip90EventList, Nip90RequestForm } from "@/components/nip90";
 import { useUIElementsStore, UIPosition } from "@/stores/uiElementsStore";
@@ -11,10 +17,14 @@ import { SimplePool } from "nostr-tools/pool";
 import { BIP39Service, BIP39ServiceLive } from "@/services/bip39";
 import { BIP32Service, BIP32ServiceLive } from "@/services/bip32";
 import { NIP19Service, NIP19ServiceLive } from "@/services/nip19";
-import { TelemetryService, TelemetryServiceLive, type TelemetryEvent } from "@/services/telemetry";
+import {
+  TelemetryService,
+  TelemetryServiceLive,
+  type TelemetryEvent,
+} from "@/services/telemetry";
 import { hexToBytes } from "@noble/hashes/utils";
 import { Button } from "@/components/ui/button";
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Create a query client instance
 const queryClient = new QueryClient();
@@ -31,17 +41,19 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
   activeHandPose,
   pinchMidpoint,
 }) => {
-  const chatWindowId = 'chatWindow';
+  const chatWindowId = "chatWindow";
   const defaultPosition = { x: 16, y: window.innerHeight - 366 }; // 350px height + 16px padding
 
   // Ensure element exists in store with default position
   useUIElementsStore.getState().ensureElement(chatWindowId, defaultPosition);
 
   // Get element state and store actions
-  const elementState = useUIElementsStore(useCallback(state => state.getElement(chatWindowId), [chatWindowId]));
-  const setPosition = useUIElementsStore(state => state.setElementPosition);
-  const pinElement = useUIElementsStore(state => state.pinElement);
-  const unpinElement = useUIElementsStore(state => state.unpinElement);
+  const elementState = useUIElementsStore(
+    useCallback((state) => state.getElement(chatWindowId), [chatWindowId]),
+  );
+  const setPosition = useUIElementsStore((state) => state.setElementPosition);
+  const pinElement = useUIElementsStore((state) => state.pinElement);
+  const unpinElement = useUIElementsStore((state) => state.unpinElement);
 
   // Mouse drag state
   const [isMouseDragging, setIsMouseDragging] = useState(false);
@@ -101,20 +113,36 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
           // Pinch closed but not over window
         }
       }
-    }
-    else if (isPinchDragging && isPinching && pinchMidpoint && pinchDragStartRef.current && initialElementPosRef.current) {
+    } else if (
+      isPinchDragging &&
+      isPinching &&
+      pinchMidpoint &&
+      pinchDragStartRef.current &&
+      initialElementPosRef.current
+    ) {
       // Continue pinch drag - calculate direct deltas in screen pixels
       const deltaX = pinchMidpoint.x - pinchDragStartRef.current.x;
       const deltaY = pinchMidpoint.y - pinchDragStartRef.current.y;
 
       // Apply deltas with boundary checking
-      const newX = Math.max(0, Math.min(window.innerWidth - 350, initialElementPosRef.current.x + deltaX));
-      const newY = Math.max(0, Math.min(window.innerHeight - 300, initialElementPosRef.current.y + deltaY));
+      const newX = Math.max(
+        0,
+        Math.min(
+          window.innerWidth - 350,
+          initialElementPosRef.current.x + deltaX,
+        ),
+      );
+      const newY = Math.max(
+        0,
+        Math.min(
+          window.innerHeight - 300,
+          initialElementPosRef.current.y + deltaY,
+        ),
+      );
 
       // Update position
       setPosition(chatWindowId, { x: newX, y: newY });
-    }
-    else if (isPinchDragging && !isPinching) {
+    } else if (isPinchDragging && !isPinching) {
       // End pinch drag when pinch is released
       setIsPinchDragging(false);
       pinchDragStartRef.current = null;
@@ -129,7 +157,7 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
     isMouseDragging,
     chatWindowId,
     setPosition,
-    pinElement
+    pinElement,
   ]);
 
   // Handle mouse events for drag-to-move
@@ -147,15 +175,32 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
     // Add global mousemove and mouseup event listeners
     // These are specific to this drag operation and will be cleaned up
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      if (!isMouseDragging || !mouseDragStartRef.current || !initialElementPosRef.current) return;
+      if (
+        !isMouseDragging ||
+        !mouseDragStartRef.current ||
+        !initialElementPosRef.current
+      )
+        return;
 
       // Calculate drag deltas
       const deltaX = moveEvent.clientX - mouseDragStartRef.current.x;
       const deltaY = moveEvent.clientY - mouseDragStartRef.current.y;
 
       // Apply deltas with boundary checking
-      const newX = Math.max(0, Math.min(window.innerWidth - 350, initialElementPosRef.current.x + deltaX));
-      const newY = Math.max(0, Math.min(window.innerHeight - 300, initialElementPosRef.current.y + deltaY));
+      const newX = Math.max(
+        0,
+        Math.min(
+          window.innerWidth - 350,
+          initialElementPosRef.current.x + deltaX,
+        ),
+      );
+      const newY = Math.max(
+        0,
+        Math.min(
+          window.innerHeight - 300,
+          initialElementPosRef.current.y + deltaY,
+        ),
+      );
 
       // Update position
       setPosition(chatWindowId, { x: newX, y: newY });
@@ -179,24 +224,26 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
 
   // Dynamic styling including position
   const chatWindowStyle: React.CSSProperties = {
-    position: 'absolute',
+    position: "absolute",
     left: `${currentPosition.x}px`,
     top: `${currentPosition.y}px`,
-    width: '350px',
-    height: '350px',
+    width: "350px",
+    height: "350px",
     zIndex: 20,
-    pointerEvents: 'auto', // Make this element interactive
-    cursor: 'grab',
-    transition: 'box-shadow 0.3s ease, transform 0.3s ease',
-    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-    userSelect: 'none', // Prevent text selection while dragging
+    pointerEvents: "auto", // Make this element interactive
+    cursor: "grab",
+    transition: "box-shadow 0.3s ease, transform 0.3s ease",
+    boxShadow:
+      "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+    userSelect: "none", // Prevent text selection while dragging
   };
 
   // Apply active/dragging style
   if (isMouseDragging || isPinchDragging) {
-    chatWindowStyle.cursor = 'grabbing';
-    chatWindowStyle.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2)';
-    chatWindowStyle.transform = 'scale(1.01)';
+    chatWindowStyle.cursor = "grabbing";
+    chatWindowStyle.boxShadow =
+      "0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2)";
+    chatWindowStyle.transform = "scale(1.01)";
   }
 
   return (
@@ -204,13 +251,13 @@ const PinnableChatWindow: React.FC<PinnableChatWindowProps> = ({
       id={chatWindowId}
       style={chatWindowStyle}
       onMouseDown={handleMouseDown}
-      className="border rounded-md shadow-lg bg-background/80 backdrop-blur-sm text-foreground overflow-hidden"
+      className="bg-background/80 text-foreground overflow-hidden rounded-md border shadow-lg backdrop-blur-sm"
     >
-      <div className="p-2 text-xs text-muted-foreground font-semibold">
+      <div className="text-muted-foreground p-2 text-xs font-semibold">
         OpenAgents Chat
       </div>
       <ChatContainer
-        className="bg-transparent !h-[calc(100%-28px)]"
+        className="!h-[calc(100%-28px)] bg-transparent"
         systemMessage="You are an AI agent named 'Agent' inside an app used by a human called Commander. Respond helpfully but concisely, in 2-3 sentences."
         model="gemma3:1b"
       />
@@ -229,26 +276,30 @@ export default function HomePage() {
     handPosition,
     activeHandPose,
     pinchMidpoint,
-    trackedHands
+    trackedHands,
   } = useHandTracking({ enabled: true });
 
   // BIP39 Demo state
   const [mnemonicResult, setMnemonicResult] = useState<string | null>(null);
   const [bip32Result, setBip32Result] = useState<string | null>(null);
   const [nip19Result, setNip19Result] = useState<string | null>(null);
-  
+
   // Telemetry state
   const [telemetryResult, setTelemetryResult] = useState<string | null>(null);
   const [telemetryEnabled, setTelemetryEnabled] = useState(false);
-  
+
   // Effect to check initial telemetry status
   useEffect(() => {
     const program = Effect.gen(function* (_) {
       const telemetryService = yield* _(TelemetryService);
       return yield* _(telemetryService.isEnabled());
-    }).pipe(Effect.provide(Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)));
-    
-    Effect.runPromiseExit(program).then(exit => {
+    }).pipe(
+      Effect.provide(
+        Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer),
+      ),
+    );
+
+    Effect.runPromiseExit(program).then((exit) => {
       if (Exit.isSuccess(exit)) {
         setTelemetryEnabled(exit.value);
       }
@@ -262,7 +313,7 @@ export default function HomePage() {
       return yield* _(bip39Service.generateMnemonic({ strength: 128 }));
     }).pipe(Effect.provide(BIP39ServiceLive));
 
-    Effect.runPromiseExit(program).then(exit => {
+    Effect.runPromiseExit(program).then((exit) => {
       if (Exit.isSuccess(exit)) {
         setMnemonicResult(exit.value);
       } else {
@@ -270,20 +321,22 @@ export default function HomePage() {
           category: "log:error",
           action: "generic_console_replacement",
           label: "Failed to generate mnemonic",
-          value: Cause.pretty(exit.cause)
+          value: Cause.pretty(exit.cause),
         };
-        
+
         Effect.gen(function* (_) {
           const telemetryService = yield* _(TelemetryService);
           yield* _(telemetryService.trackEvent(telemetryEventData));
-        }).pipe(
-          Effect.provide(TelemetryServiceLive),
-          (effect) => Effect.runPromise(effect).catch(err => {
+        }).pipe(Effect.provide(TelemetryServiceLive), (effect) =>
+          Effect.runPromise(effect).catch((err) => {
             // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
-          })
+            console.error(
+              "TelemetryService.trackEvent failed:",
+              err instanceof Error ? err.message : String(err),
+            );
+          }),
         );
-        
+
         setMnemonicResult("Error generating mnemonic. See logs for details.");
       }
     });
@@ -292,21 +345,21 @@ export default function HomePage() {
   // Function to test BIP32 derivation
   const handleTestBIP32Click = () => {
     // Simplified implementation to fix type errors
-    const program = Effect.gen(function*(_) {
+    const program = Effect.gen(function* (_) {
       const bip39Service = yield* _(BIP39Service);
-      const mnemonic = yield* _(bip39Service.generateMnemonic({ strength: 128 }));
-      
+      const mnemonic = yield* _(
+        bip39Service.generateMnemonic({ strength: 128 }),
+      );
+
       return {
         mnemonic,
         seed: "dummy-seed-value",
         path: "m/84'/0'/0'/0/0",
-        nsec: "nsec1..."
+        nsec: "nsec1...",
       };
-    }).pipe(
-      Effect.provide(BIP39ServiceLive)
-    );
+    }).pipe(Effect.provide(BIP39ServiceLive));
 
-    Effect.runPromiseExit(program).then(exit => {
+    Effect.runPromiseExit(program).then((exit) => {
       if (Exit.isSuccess(exit)) {
         setBip32Result(JSON.stringify(exit.value, null, 2));
       } else {
@@ -314,20 +367,22 @@ export default function HomePage() {
           category: "log:error",
           action: "generic_console_replacement",
           label: "Failed BIP32 test",
-          value: Cause.pretty(exit.cause)
+          value: Cause.pretty(exit.cause),
         };
-        
+
         Effect.gen(function* (_) {
           const telemetryService = yield* _(TelemetryService);
           yield* _(telemetryService.trackEvent(telemetryEventData));
-        }).pipe(
-          Effect.provide(TelemetryServiceLive),
-          (effect) => Effect.runPromise(effect).catch(err => {
+        }).pipe(Effect.provide(TelemetryServiceLive), (effect) =>
+          Effect.runPromise(effect).catch((err) => {
             // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
-          })
+            console.error(
+              "TelemetryService.trackEvent failed:",
+              err instanceof Error ? err.message : String(err),
+            );
+          }),
         );
-        
+
         setBip32Result("Error in BIP32 test. See logs for details.");
       }
     });
@@ -336,23 +391,22 @@ export default function HomePage() {
   // Function to test NIP19 encoding
   const handleTestNIP19Click = () => {
     // Simplified implementation to fix type errors
-    const program = Effect.gen(function*(_) {
+    const program = Effect.gen(function* (_) {
       const nip19Service = yield* _(NIP19Service);
-      const pubkey = "3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d";
+      const pubkey =
+        "3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d";
       const npub = yield* _(nip19Service.encodeNpub(pubkey));
-      
+
       return {
         npub,
         note: "note1...",
         nprofile: "nprofile1...",
         nevent: "nevent1...",
-        decoded: { type: "npub", data: pubkey }
+        decoded: { type: "npub", data: pubkey },
       };
-    }).pipe(
-      Effect.provide(NIP19ServiceLive)
-    );
+    }).pipe(Effect.provide(NIP19ServiceLive));
 
-    Effect.runPromiseExit(program).then(exit => {
+    Effect.runPromiseExit(program).then((exit) => {
       if (Exit.isSuccess(exit)) {
         setNip19Result(JSON.stringify(exit.value, null, 2));
       } else {
@@ -360,20 +414,22 @@ export default function HomePage() {
           category: "log:error",
           action: "generic_console_replacement",
           label: "Failed NIP19 test",
-          value: Cause.pretty(exit.cause)
+          value: Cause.pretty(exit.cause),
         };
-        
+
         Effect.gen(function* (_) {
           const telemetryService = yield* _(TelemetryService);
           yield* _(telemetryService.trackEvent(telemetryEventData));
-        }).pipe(
-          Effect.provide(TelemetryServiceLive),
-          (effect) => Effect.runPromise(effect).catch(err => {
+        }).pipe(Effect.provide(TelemetryServiceLive), (effect) =>
+          Effect.runPromise(effect).catch((err) => {
             // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
-          })
+            console.error(
+              "TelemetryService.trackEvent failed:",
+              err instanceof Error ? err.message : String(err),
+            );
+          }),
         );
-        
+
         setNip19Result("Error in NIP19 test. See logs for details.");
       }
     });
@@ -383,82 +439,86 @@ export default function HomePage() {
   const handleTestTelemetryClick = () => {
     // Toggle telemetry state
     const newState = !telemetryEnabled;
-    
-    const program = Effect.gen(function*(_) {
+
+    const program = Effect.gen(function* (_) {
       const telemetryService = yield* _(TelemetryService);
-      
+
       // Update telemetry state
       yield* _(telemetryService.setEnabled(newState));
-      
+
       // Get the new state to confirm
       const isEnabled = yield* _(telemetryService.isEnabled());
-      
+
       // Test event tracking
       if (isEnabled) {
-        yield* _(telemetryService.trackEvent({
-          category: "test",
-          action: "telemetry_test",
-          value: `${Date.now()}`,
-        }));
+        yield* _(
+          telemetryService.trackEvent({
+            category: "test",
+            action: "telemetry_test",
+            value: `${Date.now()}`,
+          }),
+        );
       }
-      
+
       return {
         enabled: isEnabled,
-        message: isEnabled ? 
-          "Telemetry enabled and test event tracked successfully" : 
-          "Telemetry disabled"
+        message: isEnabled
+          ? "Telemetry enabled and test event tracked successfully"
+          : "Telemetry disabled",
       };
-    }).pipe(
-      Effect.provide(TelemetryServiceLive)
-    );
+    }).pipe(Effect.provide(TelemetryServiceLive));
 
-    Effect.runPromiseExit(program).then(exit => {
+    Effect.runPromiseExit(program).then((exit) => {
       if (Exit.isSuccess(exit)) {
         const details = exit.value;
         setTelemetryEnabled(details.enabled);
-        
+
         // Track the telemetry test completion
         const telemetryTestEvent: TelemetryEvent = {
           category: "log:info",
           action: "generic_console_replacement",
           label: "Telemetry test complete",
-          value: JSON.stringify(details)
+          value: JSON.stringify(details),
         };
-        
+
         Effect.gen(function* (_) {
           const telemetryService = yield* _(TelemetryService);
           yield* _(telemetryService.trackEvent(telemetryTestEvent));
-        }).pipe(
-          Effect.provide(TelemetryServiceLive),
-          (effect) => Effect.runPromise(effect).catch(err => {
+        }).pipe(Effect.provide(TelemetryServiceLive), (effect) =>
+          Effect.runPromise(effect).catch((err) => {
             // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
-          })
+            console.error(
+              "TelemetryService.trackEvent failed:",
+              err instanceof Error ? err.message : String(err),
+            );
+          }),
         );
-        
+
         setTelemetryResult(JSON.stringify(details, null, 2));
       } else {
         const cause = exit.cause;
-        
+
         // Track the telemetry test failure
         const telemetryFailureEvent: TelemetryEvent = {
           category: "log:error",
           action: "generic_console_replacement",
           label: "Telemetry test failed",
-          value: Cause.pretty(cause)
+          value: Cause.pretty(cause),
         };
-        
+
         Effect.gen(function* (_) {
           const telemetryService = yield* _(TelemetryService);
           yield* _(telemetryService.trackEvent(telemetryFailureEvent));
-        }).pipe(
-          Effect.provide(TelemetryServiceLive),
-          (effect) => Effect.runPromise(effect).catch(err => {
+        }).pipe(Effect.provide(TelemetryServiceLive), (effect) =>
+          Effect.runPromise(effect).catch((err) => {
             // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
-          })
+            console.error(
+              "TelemetryService.trackEvent failed:",
+              err instanceof Error ? err.message : String(err),
+            );
+          }),
         );
-        
+
         setTelemetryResult(`Error testing telemetry. See logs for details.`);
       }
     });
@@ -471,97 +531,112 @@ export default function HomePage() {
       const startTestEvent: TelemetryEvent = {
         category: "log:info",
         action: "generic_console_replacement",
-        label: "[HomePage] Testing direct Nostr relay connection..."
+        label: "[HomePage] Testing direct Nostr relay connection...",
       };
-      
+
       Effect.gen(function* (_) {
         const telemetryService = yield* _(TelemetryService);
         yield* _(telemetryService.trackEvent(startTestEvent));
-      }).pipe(
-        Effect.provide(TelemetryServiceLive),
-        (effect) => Effect.runPromise(effect).catch(err => {
+      }).pipe(Effect.provide(TelemetryServiceLive), (effect) =>
+        Effect.runPromise(effect).catch((err) => {
           // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-          console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
-        })
+          console.error(
+            "TelemetryService.trackEvent failed:",
+            err instanceof Error ? err.message : String(err),
+          );
+        }),
       );
       const pool = new SimplePool();
       const relays = ["wss://relay.damus.io/"]; // Test with one reliable relay
       const filter = { kinds: [5000, 5001], limit: 5 };
-      
+
       try {
         // Log the relay query start via telemetry
         const queryStartEvent: TelemetryEvent = {
           category: "log:info",
           action: "generic_console_replacement",
-          label: "[Direct Test] Querying relay directly..."
+          label: "[Direct Test] Querying relay directly...",
         };
-        
+
         Effect.gen(function* (_) {
           const telemetryService = yield* _(TelemetryService);
           yield* _(telemetryService.trackEvent(queryStartEvent));
-        }).pipe(
-          Effect.provide(TelemetryServiceLive),
-          (effect) => Effect.runPromise(effect).catch(err => {
+        }).pipe(Effect.provide(TelemetryServiceLive), (effect) =>
+          Effect.runPromise(effect).catch((err) => {
             // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
-          })
+            console.error(
+              "TelemetryService.trackEvent failed:",
+              err instanceof Error ? err.message : String(err),
+            );
+          }),
         );
-        const events = await pool.querySync(relays, filter, {maxWait: 5000});
+        const events = await pool.querySync(relays, filter, { maxWait: 5000 });
         // Log the query result via telemetry
         const queryResultEvent: TelemetryEvent = {
           category: "log:info",
           action: "generic_console_replacement",
           label: "[Direct Test] Direct pool query result",
-          value: JSON.stringify(events.length) // Just log the count for brevity
+          value: JSON.stringify(events.length), // Just log the count for brevity
         };
-        
+
         Effect.gen(function* (_) {
           const telemetryService = yield* _(TelemetryService);
           yield* _(telemetryService.trackEvent(queryResultEvent));
-        }).pipe(
-          Effect.provide(TelemetryServiceLive),
-          (effect) => Effect.runPromise(effect).catch(err => {
+        }).pipe(Effect.provide(TelemetryServiceLive), (effect) =>
+          Effect.runPromise(effect).catch((err) => {
             // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
-          })
+            console.error(
+              "TelemetryService.trackEvent failed:",
+              err instanceof Error ? err.message : String(err),
+            );
+          }),
         );
         if (events.length === 0) {
           // Log the empty result and fallback attempt via telemetry
           const emptyResultEvent: TelemetryEvent = {
             category: "log:info",
             action: "generic_console_replacement",
-            label: "[Direct Test] No events found with kinds 5000, 5001. Trying a more common kind (1)..."
+            label:
+              "[Direct Test] No events found with kinds 5000, 5001. Trying a more common kind (1)...",
           };
-          
+
           Effect.gen(function* (_) {
             const telemetryService = yield* _(TelemetryService);
             yield* _(telemetryService.trackEvent(emptyResultEvent));
-          }).pipe(
-            Effect.provide(TelemetryServiceLive),
-            (effect) => Effect.runPromise(effect).catch(err => {
+          }).pipe(Effect.provide(TelemetryServiceLive), (effect) =>
+            Effect.runPromise(effect).catch((err) => {
               // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-              console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
-            })
+              console.error(
+                "TelemetryService.trackEvent failed:",
+                err instanceof Error ? err.message : String(err),
+              );
+            }),
           );
-          
-          const eventsKind1 = await pool.querySync(relays, { kinds: [1], limit: 3 }, {maxWait: 5000});
-          
+
+          const eventsKind1 = await pool.querySync(
+            relays,
+            { kinds: [1], limit: 3 },
+            { maxWait: 5000 },
+          );
+
           // Log the fallback query results via telemetry
           const fallbackResultEvent: TelemetryEvent = {
             category: "log:info",
             action: "generic_console_replacement",
-            label: `[Direct Test] Found ${eventsKind1.length} events of kind 1`
+            label: `[Direct Test] Found ${eventsKind1.length} events of kind 1`,
           };
-          
+
           Effect.gen(function* (_) {
             const telemetryService = yield* _(TelemetryService);
             yield* _(telemetryService.trackEvent(fallbackResultEvent));
-          }).pipe(
-            Effect.provide(TelemetryServiceLive),
-            (effect) => Effect.runPromise(effect).catch(err => {
+          }).pipe(Effect.provide(TelemetryServiceLive), (effect) =>
+            Effect.runPromise(effect).catch((err) => {
               // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-              console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
-            })
+              console.error(
+                "TelemetryService.trackEvent failed:",
+                err instanceof Error ? err.message : String(err),
+              );
+            }),
           );
         }
         pool.close(relays);
@@ -571,37 +646,40 @@ export default function HomePage() {
           category: "log:error",
           action: "generic_console_replacement",
           label: "[Direct Test] Direct pool query error",
-          value: e instanceof Error ? 
-            JSON.stringify({ message: e.message, stack: e.stack }) : 
-            String(e)
+          value:
+            e instanceof Error
+              ? JSON.stringify({ message: e.message, stack: e.stack })
+              : String(e),
         };
-        
+
         Effect.gen(function* (_) {
           const telemetryService = yield* _(TelemetryService);
           yield* _(telemetryService.trackEvent(errorEvent));
-        }).pipe(
-          Effect.provide(TelemetryServiceLive),
-          (effect) => Effect.runPromise(effect).catch(err => {
+        }).pipe(Effect.provide(TelemetryServiceLive), (effect) =>
+          Effect.runPromise(effect).catch((err) => {
             // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
-          })
+            console.error(
+              "TelemetryService.trackEvent failed:",
+              err instanceof Error ? err.message : String(err),
+            );
+          }),
         );
-        
+
         pool.close(relays);
       }
     };
-    
+
     // Run the test after a short delay to allow the app to initialize
     const timer = setTimeout(() => {
       testDirectNostrConnection();
     }, 2000);
-    
+
     return () => clearTimeout(timer);
   }, []);
 
   // Add WebGL context lost/restored event listeners
   useEffect(() => {
-    const canvas = mainCanvasContainerRef.current?.querySelector('canvas');
+    const canvas = mainCanvasContainerRef.current?.querySelector("canvas");
     if (!canvas) return;
 
     const handleContextLost = (event: Event) => {
@@ -610,20 +688,22 @@ export default function HomePage() {
         category: "log:error",
         action: "webgl_context_lost",
         label: "[HomePage] WebGL Context Lost",
-        value: String(event.type)
+        value: String(event.type),
       };
-      
+
       Effect.gen(function* (_) {
         const telemetryService = yield* _(TelemetryService);
         yield* _(telemetryService.trackEvent(contextLostEvent));
-      }).pipe(
-        Effect.provide(TelemetryServiceLive),
-        (effect) => Effect.runPromise(effect).catch(err => {
+      }).pipe(Effect.provide(TelemetryServiceLive), (effect) =>
+        Effect.runPromise(effect).catch((err) => {
           // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-          console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
-        })
+          console.error(
+            "TelemetryService.trackEvent failed:",
+            err instanceof Error ? err.message : String(err),
+          );
+        }),
       );
-      
+
       event.preventDefault(); // Try to prevent default behavior
     };
 
@@ -633,35 +713,41 @@ export default function HomePage() {
         category: "log:info",
         action: "webgl_context_restored",
         label: "[HomePage] WebGL Context Restored",
-        value: String(event.type)
+        value: String(event.type),
       };
-      
+
       Effect.gen(function* (_) {
         const telemetryService = yield* _(TelemetryService);
         yield* _(telemetryService.trackEvent(contextRestoredEvent));
-      }).pipe(
-        Effect.provide(TelemetryServiceLive),
-        (effect) => Effect.runPromise(effect).catch(err => {
+      }).pipe(Effect.provide(TelemetryServiceLive), (effect) =>
+        Effect.runPromise(effect).catch((err) => {
           // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-          console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
-        })
+          console.error(
+            "TelemetryService.trackEvent failed:",
+            err instanceof Error ? err.message : String(err),
+          );
+        }),
       );
     };
 
-    canvas.addEventListener('webglcontextlost', handleContextLost, false);
-    canvas.addEventListener('webglcontextrestored', handleContextRestored, false);
+    canvas.addEventListener("webglcontextlost", handleContextLost, false);
+    canvas.addEventListener(
+      "webglcontextrestored",
+      handleContextRestored,
+      false,
+    );
     // Added WebGL context listeners
 
     return () => {
-      canvas.removeEventListener('webglcontextlost', handleContextLost);
-      canvas.removeEventListener('webglcontextrestored', handleContextRestored);
+      canvas.removeEventListener("webglcontextlost", handleContextLost);
+      canvas.removeEventListener("webglcontextrestored", handleContextRestored);
       // Removed WebGL context listeners
     };
   }, []); // Empty dependency array to run once after initial mount
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="flex flex-col h-full w-full relative overflow-hidden bg-black">
+      <div className="relative flex h-full w-full flex-col overflow-hidden bg-black">
         {/* Semi-transparent overlay */}
         <div className="canvas-overlay" />
 
@@ -678,7 +764,7 @@ export default function HomePage() {
               failIfMajorPerformanceCaveat: false,
               depth: true,
               stencil: false,
-              preserveDrawingBuffer: true // Can help with context issues
+              preserveDrawingBuffer: true, // Can help with context issues
             }}
             dpr={1} // Fixed DPR instead of range for more stability
             onCreated={({ gl, scene }) => {
@@ -692,49 +778,64 @@ export default function HomePage() {
               gl.shadowMap.type = THREE.PCFSoftShadowMap;
 
               // Add WebGL context listeners directly to the gl object
-              gl.domElement.addEventListener('webglcontextlost', (event) => {
-                const contextLostEvent: TelemetryEvent = {
-                  category: "log:error",
-                  action: "webgl_context_lost",
-                  label: "[HomePage] WebGL Context Lost (from onCreated)",
-                  value: String(event.type)
-                };
-                
-                Effect.gen(function* (_) {
-                  const telemetryService = yield* _(TelemetryService);
-                  yield* _(telemetryService.trackEvent(contextLostEvent));
-                }).pipe(
-                  Effect.provide(TelemetryServiceLive),
-                  (effect) => Effect.runPromise(effect).catch(err => {
-                    // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-                    console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
-                  })
-                );
-                
-                event.preventDefault();
-              }, false);
+              gl.domElement.addEventListener(
+                "webglcontextlost",
+                (event) => {
+                  const contextLostEvent: TelemetryEvent = {
+                    category: "log:error",
+                    action: "webgl_context_lost",
+                    label: "[HomePage] WebGL Context Lost (from onCreated)",
+                    value: String(event.type),
+                  };
 
-              gl.domElement.addEventListener('webglcontextrestored', () => {
-                const contextRestoredEvent: TelemetryEvent = {
-                  category: "log:info",
-                  action: "webgl_context_restored",
-                  label: "[HomePage] WebGL Context Restored (from onCreated)"
-                };
-                
-                Effect.gen(function* (_) {
-                  const telemetryService = yield* _(TelemetryService);
-                  yield* _(telemetryService.trackEvent(contextRestoredEvent));
-                }).pipe(
-                  Effect.provide(TelemetryServiceLive),
-                  (effect) => Effect.runPromise(effect).catch(err => {
-                    // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-                    console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err));
-                  })
-                );
-              }, false);
+                  Effect.gen(function* (_) {
+                    const telemetryService = yield* _(TelemetryService);
+                    yield* _(telemetryService.trackEvent(contextLostEvent));
+                  }).pipe(Effect.provide(TelemetryServiceLive), (effect) =>
+                    Effect.runPromise(effect).catch((err) => {
+                      // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+                      console.error(
+                        "TelemetryService.trackEvent failed:",
+                        err instanceof Error ? err.message : String(err),
+                      );
+                    }),
+                  );
+
+                  event.preventDefault();
+                },
+                false,
+              );
+
+              gl.domElement.addEventListener(
+                "webglcontextrestored",
+                () => {
+                  const contextRestoredEvent: TelemetryEvent = {
+                    category: "log:info",
+                    action: "webgl_context_restored",
+                    label: "[HomePage] WebGL Context Restored (from onCreated)",
+                  };
+
+                  Effect.gen(function* (_) {
+                    const telemetryService = yield* _(TelemetryService);
+                    yield* _(telemetryService.trackEvent(contextRestoredEvent));
+                  }).pipe(Effect.provide(TelemetryServiceLive), (effect) =>
+                    Effect.runPromise(effect).catch((err) => {
+                      // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+                      console.error(
+                        "TelemetryService.trackEvent failed:",
+                        err instanceof Error ? err.message : String(err),
+                      );
+                    }),
+                  );
+                },
+                false,
+              );
             }}
           >
-            <MainSceneContent handPosition={handPosition} activeHandPose={activeHandPose} />
+            <MainSceneContent
+              handPosition={handPosition}
+              activeHandPose={activeHandPose}
+            />
           </Canvas>
         </div>
 
@@ -750,12 +851,18 @@ export default function HomePage() {
         />
 
         {/* UI Overlay */}
-        <div className="relative w-full h-full z-10" style={{ pointerEvents: 'none' }}>
+        <div
+          className="relative z-10 h-full w-full"
+          style={{ pointerEvents: "none" }}
+        >
           {/* Chat Window (left side) */}
-          <div className="absolute top-16 left-4 w-[calc(50%-2rem)] h-[calc(100%-8rem)] z-20" style={{ pointerEvents: 'auto' }}>
-            <div className="h-full border rounded-md shadow-lg bg-background/80 backdrop-blur-sm overflow-hidden">
+          <div
+            className="absolute top-16 left-4 z-20 h-[calc(100%-8rem)] w-[calc(50%-2rem)]"
+            style={{ pointerEvents: "auto" }}
+          >
+            <div className="bg-background/80 h-full overflow-hidden rounded-md border shadow-lg backdrop-blur-sm">
               <ChatContainer
-                className="bg-transparent !h-full"
+                className="!h-full bg-transparent"
                 systemMessage="You are an AI agent named 'Agent' inside an app used by a human called Commander. Respond helpfully but concisely, in 2-3 sentences."
                 model="gemma3:1b"
               />
@@ -763,62 +870,93 @@ export default function HomePage() {
           </div>
 
           {/* NIP-90 Request Form and Event List (right side) */}
-          <div className="absolute top-16 right-4 w-[calc(50%-2rem)] h-[calc(100%-8rem)] z-20 flex flex-col gap-4" style={{ pointerEvents: 'auto' }}>
+          <div
+            className="absolute top-16 right-4 z-20 flex h-[calc(100%-8rem)] w-[calc(50%-2rem)] flex-col gap-4"
+            style={{ pointerEvents: "auto" }}
+          >
             {/* NIP-90 Request Form */}
-            <div className="border rounded-md shadow-lg bg-background/80 backdrop-blur-sm text-foreground p-4">
+            <div className="bg-background/80 text-foreground rounded-md border p-4 shadow-lg backdrop-blur-sm">
               <Nip90RequestForm />
             </div>
             {/* NIP-90 Event List */}
-            <div className="flex-grow border rounded-md shadow-lg bg-background/80 backdrop-blur-sm overflow-hidden text-foreground min-h-0">
+            <div className="bg-background/80 text-foreground min-h-0 flex-grow overflow-hidden rounded-md border shadow-lg backdrop-blur-sm">
               <Nip90EventList />
             </div>
           </div>
-          
+
           {/* Test Buttons */}
-          <div className="absolute bottom-4 right-4 flex flex-col gap-2" style={{ pointerEvents: 'auto' }}>
+          <div
+            className="absolute right-4 bottom-4 flex flex-col gap-2"
+            style={{ pointerEvents: "auto" }}
+          >
             <div>
-              <Button onClick={handleGenerateMnemonicClick} variant="secondary" className="mb-1">
+              <Button
+                onClick={handleGenerateMnemonicClick}
+                variant="secondary"
+                className="mb-1"
+              >
                 Generate Test Mnemonic
               </Button>
-              
+
               {mnemonicResult && (
-                <div className="p-2 bg-background/80 backdrop-blur-sm rounded-md text-sm max-w-96 overflow-hidden text-ellipsis whitespace-nowrap">
+                <div className="bg-background/80 max-w-96 overflow-hidden rounded-md p-2 text-sm text-ellipsis whitespace-nowrap backdrop-blur-sm">
                   {mnemonicResult}
                 </div>
               )}
             </div>
-            
+
             <div>
-              <Button onClick={handleTestBIP32Click} variant="secondary" className="mb-1">
+              <Button
+                onClick={handleTestBIP32Click}
+                variant="secondary"
+                className="mb-1"
+              >
                 Test BIP32 & NIP19
               </Button>
-              
+
               {bip32Result && (
-                <div className="p-2 bg-background/80 backdrop-blur-sm rounded-md text-sm max-w-96 overflow-auto whitespace-pre-wrap" style={{ maxHeight: '12rem' }}>
+                <div
+                  className="bg-background/80 max-w-96 overflow-auto rounded-md p-2 text-sm whitespace-pre-wrap backdrop-blur-sm"
+                  style={{ maxHeight: "12rem" }}
+                >
                   {bip32Result}
                 </div>
               )}
             </div>
-            
+
             <div>
-              <Button onClick={handleTestNIP19Click} variant="secondary" className="mb-1">
+              <Button
+                onClick={handleTestNIP19Click}
+                variant="secondary"
+                className="mb-1"
+              >
                 Test NIP19 Encoding
               </Button>
-              
+
               {nip19Result && (
-                <div className="p-2 bg-background/80 backdrop-blur-sm rounded-md text-sm max-w-96 overflow-auto whitespace-pre-wrap" style={{ maxHeight: '12rem' }}>
+                <div
+                  className="bg-background/80 max-w-96 overflow-auto rounded-md p-2 text-sm whitespace-pre-wrap backdrop-blur-sm"
+                  style={{ maxHeight: "12rem" }}
+                >
                   {nip19Result}
                 </div>
               )}
             </div>
-            
+
             <div>
-              <Button onClick={handleTestTelemetryClick} variant={telemetryEnabled ? "destructive" : "secondary"} className="mb-1">
+              <Button
+                onClick={handleTestTelemetryClick}
+                variant={telemetryEnabled ? "destructive" : "secondary"}
+                className="mb-1"
+              >
                 {telemetryEnabled ? "Disable Telemetry" : "Enable Telemetry"}
               </Button>
-              
+
               {telemetryResult && (
-                <div className="p-2 bg-background/80 backdrop-blur-sm rounded-md text-sm max-w-96 overflow-auto whitespace-pre-wrap" style={{ maxHeight: '12rem' }}>
+                <div
+                  className="bg-background/80 max-w-96 overflow-auto rounded-md p-2 text-sm whitespace-pre-wrap backdrop-blur-sm"
+                  style={{ maxHeight: "12rem" }}
+                >
                   {telemetryResult}
                 </div>
               )}

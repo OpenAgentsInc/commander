@@ -5,21 +5,22 @@ Here's a breakdown of the likely causes and specific instructions to fix them:
 **Likely Causes:**
 
 1.  **Non-active pane drag stops (~20px issue):**
-    *   When a non-active pane is clicked to drag, it becomes active. This state change (`isActive` prop) causes a re-render.
-    *   The `useEffect` hooks in `useResizeHandlers` listen to `initialPosition` (derived from props `initialX`, `initialY` coming from the store).
-        ```typescript
-        // src/panes/Pane.tsx -> useResizeHandlers
-        useEffect(() => {
-          setPosition(initialPosition);
-        }, [initialPosition.x, initialPosition.y]);
-        ```
-    *   If the pane's `x` or `y` in the store changes *for any reason* immediately after it becomes active (e.g., due to `ensurePaneIsVisible` logic being triggered by the store update, or some other side-effect of `bringPaneToFrontAction`), these `useEffect`s will reset the local `position` state of the `Pane` component to these new prop values.
-    *   `useDrag` uses the `from: () => [position.x, position.y]` callback to get its reference point. If this `position` (local state) is reset mid-gesture, the `offset` calculation from `useDrag` becomes inconsistent with the visual position, leading to the drag effectively "jumping" or "stopping" relative to the mouse movement.
+
+    - When a non-active pane is clicked to drag, it becomes active. This state change (`isActive` prop) causes a re-render.
+    - The `useEffect` hooks in `useResizeHandlers` listen to `initialPosition` (derived from props `initialX`, `initialY` coming from the store).
+      ```typescript
+      // src/panes/Pane.tsx -> useResizeHandlers
+      useEffect(() => {
+        setPosition(initialPosition);
+      }, [initialPosition.x, initialPosition.y]);
+      ```
+    - If the pane's `x` or `y` in the store changes _for any reason_ immediately after it becomes active (e.g., due to `ensurePaneIsVisible` logic being triggered by the store update, or some other side-effect of `bringPaneToFrontAction`), these `useEffect`s will reset the local `position` state of the `Pane` component to these new prop values.
+    - `useDrag` uses the `from: () => [position.x, position.y]` callback to get its reference point. If this `position` (local state) is reset mid-gesture, the `offset` calculation from `useDrag` becomes inconsistent with the visual position, leading to the drag effectively "jumping" or "stopping" relative to the mouse movement.
 
 2.  **Choppy drag for active pane (lag issue):**
-    *   The `Pane` component's root `div` has `transition-all duration-100 ease-out`. This CSS transition applies to `left` and `top` properties.
-    *   `@use-gesture/react` updates `left` and `top` directly via inline styles during the drag.
-    *   The CSS transition will try to animate these changes, causing a delay or "smoothing" effect that makes the drag feel laggy or choppy instead of being directly tied to the mouse.
+    - The `Pane` component's root `div` has `transition-all duration-100 ease-out`. This CSS transition applies to `left` and `top` properties.
+    - `@use-gesture/react` updates `left` and `top` directly via inline styles during the drag.
+    - The CSS transition will try to animate these changes, causing a delay or "smoothing" effect that makes the drag feel laggy or choppy instead of being directly tied to the mouse.
 
 **Specific Instructions to Fix:**
 
@@ -27,11 +28,11 @@ Here's a breakdown of the likely causes and specific instructions to fix them:
 
 Modify `src/panes/Pane.tsx`:
 
-*   Introduce `isDragging` and `isResizing` local states in the `Pane` component.
-*   These states will be controlled by the `active` property provided by `useDrag` for the main drag and each resize handle.
-*   Conditionally apply the `transition-all` class only when `isDragging` and `isResizing` are both `false`.
-*   Pass an `isInteracting` flag (derived from `isDragging || isResizing`) to `useResizeHandlers`.
-*   Modify the `useEffect` hooks within `useResizeHandlers` to only sync `initialPosition` and `initialSize` (props) to local `position` and `size` states if `isInteracting` is `false`. This prevents props from resetting local state while the user is actively manipulating the pane.
+- Introduce `isDragging` and `isResizing` local states in the `Pane` component.
+- These states will be controlled by the `active` property provided by `useDrag` for the main drag and each resize handle.
+- Conditionally apply the `transition-all` class only when `isDragging` and `isResizing` are both `false`.
+- Pass an `isInteracting` flag (derived from `isDragging || isResizing`) to `useResizeHandlers`.
+- Modify the `useEffect` hooks within `useResizeHandlers` to only sync `initialPosition` and `initialSize` (props) to local `position` and `size` states if `isInteracting` is `false`. This prevents props from resetting local state while the user is actively manipulating the pane.
 
 **File: `src/panes/Pane.tsx`**
 
@@ -319,9 +320,9 @@ export const Pane: React.FC<PaneProps> = ({
 1.  **`isDragging`, `isResizing`, `isInteracting` states:** Added to the `Pane` component. `isDragging` is set by the main drag handler, `isResizing` is set via a callback passed to `useResizeHandlers`.
 2.  **Conditional Transitions:** The `className` for the main `div` now includes `${!isInteracting ? 'transition-all duration-100 ease-out' : ''}`. This removes CSS transitions during drag/resize.
 3.  **`useResizeHandlers` Modification:**
-    *   Takes `isCurrentlyInteracting` and `setIsResizing` as new arguments.
-    *   The `useEffect` hooks that sync `initialPosition` and `initialSize` props to local `position` and `size` states are now conditional: `if (!isCurrentlyInteracting && ...)`. This is crucial to prevent the local `position` (used by `useDrag`'s `from` function) from being reset by prop changes while a gesture is active.
-    *   The `makeResizeHandler` function now uses `memo` properly. `memo` is initialized on `first` and returned by the handler to be passed to the next event. This ensures that `deltaX` and `deltaY` are always relative to the drag start of that specific resize action.
-    *   Corrected the logic within `makeResizeHandler` for each corner to ensure only relevant properties (`newX`, `newY`, `newWidth`, `newHeight`) are updated for that specific resize type. For example, resizing from `top` should only change `newY` and `newHeight`.
+    - Takes `isCurrentlyInteracting` and `setIsResizing` as new arguments.
+    - The `useEffect` hooks that sync `initialPosition` and `initialSize` props to local `position` and `size` states are now conditional: `if (!isCurrentlyInteracting && ...)`. This is crucial to prevent the local `position` (used by `useDrag`'s `from` function) from being reset by prop changes while a gesture is active.
+    - The `makeResizeHandler` function now uses `memo` properly. `memo` is initialized on `first` and returned by the handler to be passed to the next event. This ensures that `deltaX` and `deltaY` are always relative to the drag start of that specific resize action.
+    - Corrected the logic within `makeResizeHandler` for each corner to ensure only relevant properties (`newX`, `newY`, `newWidth`, `newHeight`) are updated for that specific resize type. For example, resizing from `top` should only change `newY` and `newHeight`.
 
 With these changes, the dragging behavior should be much smoother and the issue with non-active panes stopping should be resolved. The core idea is to ensure the local `position` state used by `useDrag` as its `from` reference is stable during an interaction, and that CSS transitions don't interfere with direct style manipulation.
