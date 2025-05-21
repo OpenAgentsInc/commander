@@ -56,18 +56,18 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
 
     // Get the Ollama model name from config, with a default fallback
     const modelNameEffect = configService.get("OLLAMA_MODEL_NAME").pipe(
-      Effect.orElseSucceed(() => "gemma3:1b"), // Default model if not configured
       Effect.tapError(e => telemetry.trackEvent({
         category: "ai:config:error", 
-        action: "ollama_model_name_fetch_failed", 
+        action: "ollama_model_name_fetch_failed_raw", 
         label: "OLLAMA_MODEL_NAME", 
         value: (e instanceof Error ? e.message : String(e))
       }).pipe(Effect.ignoreLogged)),
       Effect.mapError(e => new AIConfigurationError({
-        message: "Error fetching Ollama Model Name.", 
+        message: "Error fetching Ollama Model Name config.", 
         cause: e, 
         context: { keyName: "OLLAMA_MODEL_NAME" }
-      }))
+      })),
+      Effect.orElseSucceed(() => "gemma3:1b") // Default model if not configured
     );
     const modelName = yield* _(modelNameEffect);
     yield* _(telemetry.trackEvent({ 

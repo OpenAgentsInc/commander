@@ -7,7 +7,7 @@ export const TelemetryEventSchema = Schema.Struct({
   value: Schema.optional(Schema.Union(Schema.String, Schema.Number, Schema.Boolean, Schema.Undefined)),
   label: Schema.optional(Schema.String),
   timestamp: Schema.optional(Schema.Number),
-  context: Schema.optional(Schema.Record(Schema.String, () => Schema.Unknown))
+  context: Schema.optional(Schema.record(Schema.String, Schema.Unknown))
 });
 
 export type TelemetryEvent = Schema.Schema.Type<typeof TelemetryEventSchema>;

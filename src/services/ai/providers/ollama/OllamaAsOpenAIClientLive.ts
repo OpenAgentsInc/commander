@@ -148,7 +148,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                     request: HttpClientRequest.get("ollama-ipc-nonstream"),
                     response: HttpClientResponse.empty({ status: 500 }),
                     reason: "StatusCode",
-                    error: providerError,
+                    cause: providerError,
                     message: providerError.message
                   });
                 }
@@ -160,8 +160,8 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
           create: (_params: any) => Effect.fail(new HttpClientError.ResponseError({
             request: HttpClientRequest.get("ollama-ipc-embeddings"),
             response: HttpClientResponse.empty({ status: 501 }),
-            reason: "NotImplemented",
-            error: new AIProviderError({ 
+            reason: "StatusCode",
+            cause: new AIProviderError({ 
               message: "OllamaAdapter: embeddings.create not implemented", 
               provider: "OllamaAdapter" 
             }),
@@ -172,8 +172,8 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
           list: () => Effect.fail(new HttpClientError.ResponseError({
             request: HttpClientRequest.get("ollama-ipc-models"),
             response: HttpClientResponse.empty({ status: 501 }),
-            reason: "NotImplemented",
-            error: new AIProviderError({ 
+            reason: "StatusCode",
+            cause: new AIProviderError({ 
               message: "OllamaAdapter: models.list not implemented", 
               provider: "OllamaAdapter" 
             }),
@@ -239,7 +239,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                     request: HttpClientRequest.get("ollama-ipc-stream"),
                     response: HttpClientResponse.empty({ status: 500 }),
                     reason: "StatusCode",
-                    error: err,
+                    cause: err,
                     message: err.message
                   }));
                 }
@@ -274,7 +274,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                   request: HttpClientRequest.get("ollama-ipc-stream-error"),
                   response: HttpClientResponse.empty({ status: 500 }),
                   reason: "StatusCode",
-                  error: providerError,
+                  cause: providerError,
                   message: providerError.message
                 }));
               }
@@ -298,7 +298,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
               request: HttpClientRequest.get("ollama-ipc-stream-setup"),
               response: HttpClientResponse.empty({ status: 500 }),
               reason: "StatusCode",
-              error: setupError,
+              cause: setupError,
               message: setupError.message
             }));
           }
@@ -322,8 +322,8 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
         Stream.fail(new HttpClientError.ResponseError({
           request,
           response: HttpClientResponse.empty({ status: 501 }),
-          reason: "NotImplemented",
-          error: new AIProviderError({ 
+          reason: "StatusCode",
+          cause: new AIProviderError({ 
             message: "OllamaAdapter: streamRequest not implemented directly", 
             provider: "OllamaAdapter" 
           }),
