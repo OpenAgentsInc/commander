@@ -1,5 +1,6 @@
 import { app, BrowserWindow, nativeTheme } from "electron"; // Add nativeTheme
 import registerListeners from "./helpers/ipc/listeners-register";
+import { addOllamaEventListeners } from "./helpers/ipc/ollama/ollama-listeners";
 // "electron-squirrel-startup" seems broken when packaging with vite
 //import started from "electron-squirrel-startup";
 import path from "path";
@@ -9,6 +10,16 @@ import {
 } from "electron-devtools-installer";
 
 const inDevelopment = process.env.NODE_ENV === "development";
+
+// Register Ollama event listeners as early as possible
+// This ensures the handlers are registered before the renderer tries to use them
+console.log("[Main Process] Registering Ollama event listeners early");
+try {
+  addOllamaEventListeners();
+  console.log("[Main Process] Successfully registered Ollama event listeners early");
+} catch (error) {
+  console.error("[Main Process] Failed to register Ollama event listeners early:", error);
+}
 
 function createWindow() {
   // Force dark theme for native Electron elements
@@ -27,6 +38,9 @@ function createWindow() {
     },
     // titleBarStyle: "hidden",
   });
+  
+  // Register other listeners after window creation
+  console.log("[Main Process] Registering all IPC listeners");
   registerListeners(mainWindow);
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {

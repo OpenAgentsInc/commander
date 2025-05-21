@@ -37,15 +37,43 @@ const SellComputePane: React.FC = () => {
 
   const checkOllamaStatus = useCallback(async () => {
     setStatusLoading(s => ({ ...s, ollama: true }));
-    const ollamaProgram = Effect.flatMap(OllamaService, s => s.checkOllamaStatus());
-    runPromiseExit(Effect.provide(ollamaProgram, runtime)).then(exit => {
-      if (Exit.isSuccess(exit)) setIsOllamaConnected(exit.value);
-      else {
-        console.error("Ollama status check failed:", Cause.squash(exit.cause));
+    
+    try {
+      console.log("[SellComputePane] Attempting to check Ollama status via IPC");
+      
+      // First try the IPC channel
+      if (window.electronAPI?.ollama?.checkStatus) {
+        try {
+          const isConnected = await window.electronAPI.ollama.checkStatus();
+          console.log("[SellComputePane] IPC Ollama status check succeeded:", isConnected);
+          setIsOllamaConnected(isConnected);
+          return;
+        } catch (ipcError) {
+          console.error("[SellComputePane] IPC Ollama status check failed, falling back to direct check:", ipcError);
+          // Continue to fallback
+        }
+      } else {
+        console.warn("[SellComputePane] IPC checkStatus not available, using direct check");
+      }
+      
+      // Fallback: Try direct HTTP check with Effect (might fail due to CORS)
+      console.log("[SellComputePane] Attempting direct Ollama status check");
+      const ollamaProgram = Effect.flatMap(OllamaService, s => s.checkOllamaStatus());
+      const exit = await runPromiseExit(Effect.provide(ollamaProgram, runtime));
+      
+      if (Exit.isSuccess(exit)) {
+        console.log("[SellComputePane] Direct Ollama status check succeeded:", exit.value);
+        setIsOllamaConnected(exit.value);
+      } else {
+        console.error("[SellComputePane] Direct Ollama status check failed:", Cause.squash(exit.cause));
         setIsOllamaConnected(false);
       }
+    } catch (error) {
+      console.error("[SellComputePane] Ollama status check failed with uncaught error:", error);
+      setIsOllamaConnected(false);
+    } finally {
       setStatusLoading(s => ({ ...s, ollama: false }));
-    });
+    }
   }, [runtime]);
 
   const checkDVMStatus = useCallback(async () => {
@@ -63,9 +91,18 @@ const SellComputePane: React.FC = () => {
   }, [runtime]);
 
   useEffect(() => {
+    // Add a delay before checking Ollama status to ensure IPC handlers are registered
     checkWalletStatus();
-    checkOllamaStatus();
+    
+    // Delay the Ollama status check to give the main process time to register handlers
+    const ollamaCheckTimer = setTimeout(() => {
+      console.log("[SellComputePane] Running delayed Ollama status check");
+      checkOllamaStatus();
+    }, 1000); // 1 second delay
+    
     checkDVMStatus();
+    
+    return () => clearTimeout(ollamaCheckTimer);
   }, [checkWalletStatus, checkOllamaStatus, checkDVMStatus]);
 
   const handleGoOnlineToggle = async () => {
