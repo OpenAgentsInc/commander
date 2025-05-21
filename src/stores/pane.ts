@@ -102,26 +102,39 @@ export const usePaneStore = create<PaneStoreType>()(
       openSeedPhraseBackupPane: (params) => openSeedPhraseBackupPaneAction(set, params),
       openRestoreWalletPane: () => openRestoreWalletPaneAction(set),
       resetHUDState: () => {
+        // Force recreate initial panes with current screen dimensions
+        const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+        const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+        
+        // Create new sell compute pane at the center
+        const newSellComputePane: Pane = {
+          id: SELL_COMPUTE_PANE_ID_CONST,
+          type: 'sell_compute',
+          title: 'Sell Compute Power',
+          x: Math.max(PANE_MARGIN, (screenWidth - SELL_COMPUTE_INITIAL_WIDTH) / 2),
+          y: Math.max(PANE_MARGIN, (screenHeight - SELL_COMPUTE_INITIAL_HEIGHT) / 3),
+          width: SELL_COMPUTE_INITIAL_WIDTH,
+          height: SELL_COMPUTE_INITIAL_HEIGHT,
+          isActive: true,
+          dismissable: true,
+          content: {},
+        };
+        
+        // Create clean state with just the sell compute pane
         const newInitialState: PaneState = {
-            panes: getInitialPanes(),
-            activePaneId: SELL_COMPUTE_PANE_ID_CONST, // Sell Compute active on reset
-            lastPanePosition: null,
+          panes: [newSellComputePane],
+          activePaneId: SELL_COMPUTE_PANE_ID_CONST,
+          lastPanePosition: {
+            x: newSellComputePane.x,
+            y: newSellComputePane.y,
+            width: newSellComputePane.width,
+            height: newSellComputePane.height
+          },
         };
 
-        const newSellComputePane = newInitialState.panes.find(p => p.id === SELL_COMPUTE_PANE_ID_CONST);
-        if (newSellComputePane) {
-            set({
-                ...newInitialState,
-                lastPanePosition: {
-                    x: newSellComputePane.x,
-                    y: newSellComputePane.y,
-                    width: newSellComputePane.width,
-                    height: newSellComputePane.height
-                }
-            });
-        } else {
-            set(newInitialState);
-        }
+        // Apply the new state
+        console.log("Resetting HUD to initial state", newInitialState);
+        set(newInitialState);
       },
 
       // Toggle actions for keyboard shortcuts

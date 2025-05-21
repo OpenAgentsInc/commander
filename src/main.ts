@@ -25,10 +25,19 @@ function createWindow() {
   // Force dark theme for native Electron elements
   nativeTheme.themeSource = "dark";
 
+  // Get screen dimensions and calculate 90% of width and height
+  const { screen } = require('electron');
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.workAreaSize;
+  const windowWidth = Math.floor(width * 0.9);
+  const windowHeight = Math.floor(height * 0.9);
+
   const preload = path.join(__dirname, "preload.js");
   const mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: windowWidth,
+    height: windowHeight,
+    // Center the window
+    center: true,
     webPreferences: {
       devTools: inDevelopment,
       contextIsolation: true,

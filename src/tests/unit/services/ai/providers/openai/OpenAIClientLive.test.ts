@@ -9,8 +9,20 @@ import { AIConfigurationError } from '@/services/ai/core/AIError';
 import { TelemetryService } from '@/services/telemetry';
 
 // Helper for type issues in tests
-const runEffect = async (effect: Effect.Effect<any, any, any>) => {
-  return Effect.runPromise(effect);
+// @ts-ignore - intentionally ignoring type mismatches for Effect parameters
+const runEffect = async <T>(effect: Effect.Effect<T, any, any>): Promise<T> => {
+  try {
+    return await Effect.runPromise(effect as any);
+  } catch (error: any) {
+    // Unwrap FiberFailure to get the actual error
+    if (error && error._id === 'FiberFailure') {
+      // Get the defect from the cause
+      if (error.cause && error.cause.defect) {
+        throw error.cause.defect;
+      }
+    }
+    throw error;
+  }
 };
 
 // Create a mock HttpClient
@@ -133,13 +145,10 @@ describe('OpenAIClientLive', () => {
       await runEffect(Effect.provide(program, testLayer));
       // Should not reach here
       expect(true).toBe(false);
-    } catch (error: any) {
-      // First unwrap the FiberFailure if needed
-      const actualError = error._id === 'FiberFailure' ? error.cause.defect : error;
-      
-      expect(actualError).toBeInstanceOf(AIConfigurationError);
-      expect(actualError.message).toContain('OpenAI API Key not found');
-      expect(actualError.context).toHaveProperty('keyName', 'OPENAI_API_KEY');
+    } catch (error: any) {      
+      expect(error).toBeInstanceOf(AIConfigurationError);
+      expect(error.message).toContain('OpenAI API Key not found');
+      expect(error.context).toHaveProperty('keyName', 'OPENAI_API_KEY');
       
       // Verify telemetry error event
       expect(MockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
@@ -171,12 +180,9 @@ describe('OpenAIClientLive', () => {
       await runEffect(Effect.provide(program, testLayer));
       // Should not reach here
       expect(true).toBe(false);
-    } catch (error: any) {
-      // First unwrap the FiberFailure if needed
-      const actualError = error._id === 'FiberFailure' ? error.cause.defect : error;
-      
-      expect(actualError).toBeInstanceOf(AIConfigurationError);
-      expect(actualError.message).toBe('OpenAI API Key cannot be empty.');
+    } catch (error: any) {      
+      expect(error).toBeInstanceOf(AIConfigurationError);
+      expect(error.message).toBe('OpenAI API Key cannot be empty.');
       
       // Verify telemetry events
       expect(MockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({

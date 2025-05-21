@@ -10,7 +10,11 @@ import { usePaneStore } from "@/stores/pane";
 import { useShallow } from 'zustand/react/shallow';
 import { Hotbar } from "@/components/hud/Hotbar";
 import BitcoinBalanceDisplay from "@/components/hud/BitcoinBalanceDisplay";
-import { KeyboardControls, type KeyboardControlsState } from '@react-three/drei';
+import { KeyboardControls } from '@react-three/drei';
+// Create our own type that matches the one from the library
+interface KeyboardControlsState {
+  [key: string]: boolean;
+}
 import { AppControls, appControlsMap } from '@/controls';
 import { isMacOs } from '@/utils/os';
 
@@ -212,11 +216,9 @@ export default function HomePage() {
 
   // Handler for keyboard shortcuts (kept as a backup, but we'll primarily use the global handler)
   const handleKeyboardChange = useCallback(
-    (actionName: string, pressed: boolean, kbdState: KeyboardControlsState<AppControls>) => {
+    (actionName: string, pressed: boolean, kbdState: KeyboardControlsState) => {
       // This function is now a fallback and mainly kept for interface compatibility
       if (!pressed) return;
-      
-      // We're not using kbdState.event since that's what's causing the warning
       
       // Handle different action types through the above global handler instead
     },
