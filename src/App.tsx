@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect } from "react";
+import React, { useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { syncThemeWithLocal } from "./helpers/theme_helpers";
 import { useTranslation } from "react-i18next";
@@ -56,8 +56,8 @@ export default function App() {
     updateAppLanguage(i18n);
   }, [i18n]);
 
-  // Use layout effect to ensure wallet setup is checked before render
-  useLayoutEffect(() => {
+  // Check wallet setup after the initial render and browser paint
+  useEffect(() => {
     checkWalletSetupNeeded();
   }, []);
 
