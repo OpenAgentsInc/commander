@@ -1,5 +1,5 @@
 // src/services/ai/core/AgentChatMessage.ts
-import { Schema } from "@effect/schema";
+import { Schema } from "effect";
 
 /**
  * Schema for tool calls in chat messages

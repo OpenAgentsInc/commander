@@ -17,11 +17,11 @@ This log tracks the implementation of Phase 0 (Foundation and Setup) and Phase 1
 ### Phase 1: Core AI Service Abstractions
 - [x] Define AgentLanguageModel service
 - [x] Define AgentChatSession service
-- [ ] Define AgentToolkitManager service
+- [x] Define AgentToolkitManager service
 - [x] Define AgentChatMessage schema
-- [ ] Define Provider Configuration schemas
-- [ ] Define custom AI error types
-- [ ] Create core AI services index.ts
+- [x] Define Provider Configuration schemas
+- [x] Define custom AI error types
+- [x] Create core AI services index.ts
 
 ## Progress Log
 
@@ -73,3 +73,43 @@ Note: There were some peer dependency warnings which might need to be addressed 
   - Added methods for preparing messages for AI models
   - Included token counting and context window handling
   - Created Context.GenericTag for dependency injection
+
+### May 21, 2025 - 14:25
+- Implemented AgentToolkitManager service interface:
+  - Defined methods for tool management (register, get toolkit)
+  - Added method for executing tools with given arguments
+  - Created Context.GenericTag for dependency injection
+  - Re-exported AiToolkit and AiTool types from @effect/ai
+
+### May 21, 2025 - 14:30
+- Implemented Provider Configuration schemas:
+  - Created base provider configuration schema with common fields
+  - Added specialized schemas for different provider types (API key, URL-based)
+  - Created provider-specific schemas for OpenAI, Ollama, and Anthropic
+  - Added discriminated union schema for typed configurations
+  - Used Schema from Effect for type validation and derivation
+
+### May 21, 2025 - 14:35
+- Implemented custom AI error types:
+  - Created AIGenericError as the base class using Data.TaggedError
+  - Added specialized error types for different failure scenarios
+  - Created AIProviderError for API/provider-specific issues
+  - Added AIConfigurationError for setup problems
+  - Implemented AIToolExecutionError for tool use failures
+  - Created AIContextWindowError for token limit issues
+  - Added helper function to convert generic errors to Provider errors
+
+### May 21, 2025 - 14:40
+- Organized core AI services index.ts:
+  - Added comprehensive documentation for the module
+  - Categorized exports by type (services, data structures, errors)
+  - Ensured all core abstractions are properly exported
+  - Completed implementation of Phase 0 and Phase 1
+
+### May 21, 2025 - 14:50
+- Fixed TypeScript errors:
+  - Fixed import paths to match actual @effect/ai package structure
+  - Corrected ToolKit types in AgentToolkitManager
+  - Fixed AIError class definitions with proper tag handling 
+  - Successfully passed TypeScript type checking
+  - Ensured complete compatibility with Effect's type system

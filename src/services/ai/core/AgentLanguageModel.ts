@@ -1,22 +1,35 @@
 // src/services/ai/core/AgentLanguageModel.ts
 import { Context, Effect, Stream } from "effect";
-import type { 
-  AiError, 
-  AiResponse, 
-  AiTextChunk,
-  GenerateTextOptions, 
-  StreamTextOptions, 
-  GenerateStructuredOptions 
-} from "@effect/ai/AiLanguageModel"; 
 
-// Re-export types from @effect/ai for convenience
-export type { 
-  AiError, 
-  AiResponse, 
-  AiTextChunk, 
-  GenerateTextOptions, 
-  StreamTextOptions,
-  GenerateStructuredOptions 
+// Import from @effect/ai package
+import type { AiError } from "@effect/ai/AiError";
+import type { AiResponse } from "@effect/ai/AiResponse"; 
+
+// Define the types we need based on Effect AI's interface
+export type AiTextChunk = {
+  text: string;
+};
+
+export type GenerateTextOptions = {
+  prompt: string;
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+};
+
+export type StreamTextOptions = {
+  prompt: string;
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+};
+
+export type GenerateStructuredOptions = {
+  prompt: string;
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+  schema?: unknown;
 };
 
 /**
