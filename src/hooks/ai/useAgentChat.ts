@@ -43,13 +43,9 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
   const currentAssistantMessageIdRef = useRef<string | null>(null);
 
   const runTelemetry = useCallback((event: TelemetryEvent) => {
-    const telemetryService = runtimeRef.current.context.unsafeGet(TelemetryService);
     Effect.runFork(
-      Effect.provideService(
-        Effect.flatMap(TelemetryService, ts => ts.trackEvent(event)),
-        TelemetryService,
-        telemetryService
-      )
+      Effect.flatMap(TelemetryService, ts => ts.trackEvent(event))
+        .pipe(Effect.provide(runtimeRef.current))
     );
   }, []); // runtimeRef is stable
 
@@ -125,7 +121,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
         })
       ));
     }).pipe(
-      Effect.provideService(AgentLanguageModel, runtimeRef.current.context.unsafeGet(AgentLanguageModel)),
+      Effect.provide(runtimeRef.current),
       Effect.tapErrorCause((cause) => Effect.sync(() => {
         // Check if the error is due to AbortSignal
         let isAbort = signal.aborted;

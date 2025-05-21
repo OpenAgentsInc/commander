@@ -28,16 +28,15 @@ const AgentChatPane: React.FC = () => {
 
   useEffect(() => {
     // Track pane open event
-    const telemetryService = runtime.context.unsafeGet(TelemetryService);
     Effect.runFork(
-      Effect.provideService(
-        Effect.flatMap(TelemetryService, ts => ts.trackEvent({
+      Effect.flatMap(TelemetryService, ts => 
+        ts.trackEvent({
           category: 'ui:pane',
           action: 'open_agent_chat_pane',
           label: AGENT_CHAT_PANE_TITLE
-        })),
-        TelemetryService,
-        telemetryService
+        })
+      ).pipe(
+        Effect.provide(runtime)
       )
     );
   }, [runtime]);
@@ -60,7 +59,11 @@ const AgentChatPane: React.FC = () => {
           <AlertTitle>AI Error</AlertTitle>
           <AlertDescription className="text-xs">
             {error.message || "An unknown AI error occurred."}
-            {error.cause && <div className="mt-1 text-xs opacity-70">Cause: {error.cause.toString()}</div>}
+            {error.cause ? (
+              <div className="mt-1 text-xs opacity-70">
+                Cause: {error.cause instanceof Error ? error.cause.message : String(error.cause)}
+              </div>
+            ) : null}
           </AlertDescription>
         </Alert>
       )}
