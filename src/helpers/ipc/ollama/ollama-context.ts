@@ -1,13 +1,17 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { 
   OLLAMA_CHAT_COMPLETION_CHANNEL,
-  OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL
+  OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL,
+  OLLAMA_STATUS_CHECK
 } from "./ollama-channels";
 
 export function exposeOllamaContext() {
   contextBridge.exposeInMainWorld("electronAPI", {
     ...(window.electronAPI || {}),
     ollama: {
+      // Add a status check endpoint that uses Electron's IPC to avoid CORS
+      checkStatus: () => ipcRenderer.invoke(OLLAMA_STATUS_CHECK),
+    
       generateChatCompletion: (request: unknown) => 
         ipcRenderer.invoke(OLLAMA_CHAT_COMPLETION_CHANNEL, request),
       
@@ -72,6 +76,7 @@ declare global {
   interface Window {
     electronAPI: {
       ollama: {
+        checkStatus: () => Promise<boolean>;
         generateChatCompletion: (request: unknown) => Promise<any>;
         generateChatCompletionStream: (
           request: unknown, 

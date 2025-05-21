@@ -31,13 +31,28 @@ export const OllamaServiceLive = Layer.effect(
         // Get the base HttpClient
         const baseHttpClient = yield* _(HttpClient);
         
-        // In Ollama client, we'd normally want to disable tracer propagation
-        // to prevent the traceparent header from causing CORS issues
-        // However, for tests, we need to be careful since the mock client doesn't support this
-        
-        // We'll just use the base HttpClient directly for now
-        // The proper fix would involve implementing a custom HTTP client with headers removed
-        const ollamaHttpClient = baseHttpClient;
+        // Create a custom HTTP client that strips out the traceparent header
+        // to prevent CORS issues with Ollama API
+        const ollamaHttpClient: HttpClientService = {
+            ...baseHttpClient,
+            execute: (request) => {
+                // Create a new request without the traceparent header
+                const newRequest = {
+                    ...request,
+                    headers: {
+                        ...request.headers
+                    }
+                };
+                
+                // Remove the traceparent header if it exists
+                if (newRequest.headers && 'traceparent' in newRequest.headers) {
+                    delete newRequest.headers['traceparent'];
+                }
+                
+                // Execute the modified request
+                return baseHttpClient.execute(newRequest);
+            }
+        };
         
         return createOllamaService(config, ollamaHttpClient);
     })

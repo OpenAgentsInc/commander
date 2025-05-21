@@ -1,29 +1,17 @@
-import { ipcMain, BrowserWindow } from "electron";
+import { ipcMain } from "electron"; // Removed BrowserWindow as it's not used
 import { Effect, Layer, Stream, Cause, Exit, Option } from "effect";
 import { NodeHttpClient } from "@effect/platform-node";
 import { 
   OLLAMA_CHAT_COMPLETION_CHANNEL,
-  OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL
+  OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL,
+  OLLAMA_STATUS_CHECK
 } from "./ollama-channels";
 import { 
   OllamaService,
-  OllamaServiceConfigTag,
   UiOllamaConfigLive
 } from "@/services/ollama/OllamaService";
 import { OllamaServiceLive } from "@/services/ollama/OllamaServiceImpl";
 import type { OllamaService as IOllamaService } from "@/services/ollama/OllamaService"; // For type annotation
-
-// Create a combined layer for the Ollama service with all dependencies
-let ollamaServiceLayer: Layer.Layer<IOllamaService, never, never>;
-try {
-  ollamaServiceLayer = Layer.provide(
-    OllamaServiceLive,
-    Layer.merge(UiOllamaConfigLive, NodeHttpClient.layer)
-  );
-} catch (e) {
-  console.error("Critical error defining Ollama service layer:", e);
-  throw e;
-}
 
 // Track active streams for cancellation
 const activeStreams = new Map<string, () => void>();
@@ -83,12 +71,64 @@ function extractErrorForIPC(error: any): object {
 }
 
 export function addOllamaEventListeners() {
+  console.log("[IPC Setup] Beginning Ollama event listeners registration...");
+  
+  // Create a combined layer for the Ollama service with all dependencies
+  // MOVED INSIDE the function to ensure it's created at the right time in Electron's lifecycle
+  let ollamaServiceLayer: Layer.Layer<IOllamaService, never, never>;
   try {
-    // Non-streaming handler (invoke/return)
-    ipcMain.handle(OLLAMA_CHAT_COMPLETION_CHANNEL, async (_, request) => {
-      // Ensure ollamaServiceLayer was defined
+    ollamaServiceLayer = Layer.provide(
+      OllamaServiceLive,
+      Layer.merge(UiOllamaConfigLive, NodeHttpClient.layer)
+    );
+    console.log("[IPC Setup] Ollama service layer defined successfully inside addOllamaEventListeners.");
+  } catch (e) {
+    console.error("[IPC Setup] CRITICAL ERROR: Failed to define Ollama service layer:", e);
+    throw e; // Re-throw to ensure we know if this is the source of the issue
+  }
+  try {
+    // Status check handler - completely avoids CORS issues by using IPC
+    console.log(`[IPC Setup] Registering handler for ${OLLAMA_STATUS_CHECK}...`);
+    ipcMain.handle(OLLAMA_STATUS_CHECK, async () => {
+      console.log("[IPC Handler] Received request to check Ollama status through IPC");
+      
+      // The ollamaServiceLayer should be defined at this point since we're within the same scope
+      // We're keeping a simplified check as a defense-in-depth measure
       if (!ollamaServiceLayer) {
-        console.error("IPC HANDLER ERROR: ollamaServiceLayer is not defined!");
+        console.error("[IPC Handler] CRITICAL ERROR: ollamaServiceLayer is not defined!");
+        return false; // Consider it not connected
+      }
+
+      const program = Effect.gen(function*(_) {
+        const ollamaService = yield* _(OllamaService);
+        return yield* _(ollamaService.checkOllamaStatus());
+      }).pipe(
+        Effect.provide(ollamaServiceLayer),
+        Effect.catchAll((cause) => {
+          console.error("[IPC Handler] Error during Ollama status check:", Cause.pretty(cause));
+          return Effect.succeed(false); // Return false for any errors
+        })
+      );
+
+      try {
+        const result = await Effect.runPromise(program);
+        console.log(`[IPC Handler] Ollama status check result: ${result}`);
+        return result;
+      } catch (error) {
+        console.error("[IPC Handler] Ollama status check runPromise failed:", error);
+        return false; // Consider it not connected
+      }
+    });
+    console.log(`[IPC Setup] Handler for ${OLLAMA_STATUS_CHECK} registered successfully.`);
+    
+    // Non-streaming handler (invoke/return)
+    console.log(`[IPC Setup] Registering handler for ${OLLAMA_CHAT_COMPLETION_CHANNEL}...`);
+    ipcMain.handle(OLLAMA_CHAT_COMPLETION_CHANNEL, async (_, request) => {
+      console.log("[IPC Handler] Received request for chat completion");
+      
+      // The ollamaServiceLayer should be defined at this point
+      if (!ollamaServiceLayer) {
+        console.error("[IPC Handler] CRITICAL ERROR: ollamaServiceLayer is not defined!");
         return { __error: true, message: "Service layer not initialized" };
       }
 
@@ -101,19 +141,24 @@ export function addOllamaEventListeners() {
 
       try {
         const result = await Effect.runPromise(program);
+        console.log("[IPC Handler] Chat completion generated successfully");
         return result;
       } catch (error) {
-        console.error("Ollama API call failed:", error);
-        // Return error details
+        console.error("[IPC Handler] Ollama API call failed:", error);
+        // Return error details in a format that can be serialized over IPC
         return extractErrorForIPC(error);
       }
     });
+    console.log(`[IPC Setup] Handler for ${OLLAMA_CHAT_COMPLETION_CHANNEL} registered successfully.`);
 
     // Streaming handler (send/on)
+    console.log(`[IPC Setup] Registering listener for ${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL}...`);
     ipcMain.on(OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL, async (event, requestId, request) => {
-      // Ensure ollamaServiceLayer was defined
+      console.log(`[IPC Listener] Received streaming request ${requestId}`);
+      
+      // The ollamaServiceLayer should be defined at this point
       if (!ollamaServiceLayer) {
-        console.error("IPC HANDLER ERROR: ollamaServiceLayer is not defined!");
+        console.error("[IPC Listener] CRITICAL ERROR: ollamaServiceLayer is not defined!");
         event.sender.send(`${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL}:error`, requestId, {
           __error: true, 
           message: "Service layer not initialized"
@@ -127,18 +172,17 @@ export function addOllamaEventListeners() {
         stream: true
       };
 
-      console.log(`[IPC Listener] Starting streaming request ${requestId} for model: ${streamingRequest.model}`);
+      console.log(`[IPC Listener] Setting up streaming request ${requestId} for model: ${streamingRequest.model || 'unknown'}`);
       
       const program = Effect.gen(function*(_) {
         const ollamaService = yield* _(OllamaService);
-        console.log("[IPC Listener] About to call ollamaService.generateChatCompletionStream");
-        // Don't try to yield the stream directly - it's not an Effect
-        // Instead, we return it from the generator
+        console.log(`[IPC Listener] About to call ollamaService.generateChatCompletionStream for ${requestId}`);
+        // Return the stream from the generator
         return ollamaService.generateChatCompletionStream(streamingRequest);
       }).pipe(
         Effect.provide(ollamaServiceLayer),
         Effect.tapError(err => Effect.sync(() => {
-          console.error("[IPC Listener] Error in Effect program that was supposed to yield a Stream:", err);
+          console.error(`[IPC Listener] Error in stream program for ${requestId}:`, err);
         }))
       );
 
@@ -158,7 +202,7 @@ export function addOllamaEventListeners() {
 
         if (Exit.isFailure(streamResult)) {
           // The program to get the stream itself failed
-          console.error("[IPC Listener] Ollama stream initialization failed (program error):", Cause.pretty(streamResult.cause));
+          console.error(`[IPC Listener] Ollama stream initialization failed for ${requestId}:`, Cause.pretty(streamResult.cause));
           
           // Extract a serializable error from streamResult.cause
           const errorForIPC = extractErrorForIPC(Cause.squash(streamResult.cause));
@@ -171,18 +215,20 @@ export function addOllamaEventListeners() {
         const stream = streamResult.value;
         console.log(`[IPC Listener] Stream obtained, starting processing for requestId: ${requestId}`);
 
+        // Initialize or reset chunk counter for this request
+        chunkCounter[requestId] = 0;
+
         // Define the effect for processing each chunk
         const processChunkEffect = (chunk: any) => {
           if (!signal.aborted) {
-            // Only log first chunk and every 10th chunk to reduce noise
-            if (!chunkCounter[requestId]) {
-              chunkCounter[requestId] = 1;
+            // Track chunk count for logging
+            chunkCounter[requestId]++;
+            
+            // Log first chunk and every 10th chunk to reduce noise
+            if (chunkCounter[requestId] === 1) {
               console.log(`[IPC Listener] First chunk received for ${requestId}`);
-            } else {
-              chunkCounter[requestId]++;
-              if (chunkCounter[requestId] % 10 === 0) {
-                console.log(`[IPC Listener] Received ${chunkCounter[requestId]} chunks for ${requestId}`);
-              }
+            } else if (chunkCounter[requestId] % 10 === 0) {
+              console.log(`[IPC Listener] Received ${chunkCounter[requestId]} chunks for ${requestId}`);
             }
             
             // Send to renderer
@@ -193,16 +239,15 @@ export function addOllamaEventListeners() {
 
         // Define the stream processing effect
         console.log(`[IPC Listener] Creating Stream.runForEach effect for stream ${requestId}`);
-        // Must call Stream.runForEach with the stream as first argument and the handler function second
         const streamProcessingEffect = Stream.runForEach(stream, processChunkEffect);
 
-        // Run the stream processing without any unnecessary Layer.setRequestCache
+        // Run the stream processing
         console.log(`[IPC Listener] Running stream processing effect for ${requestId}`);
         const finalExit = await Effect.runPromiseExit(streamProcessingEffect);
 
         if (Exit.isSuccess(finalExit)) {
           if (!signal.aborted) {
-            console.log(`[IPC Listener] Stream ${requestId} completed successfully.`);
+            console.log(`[IPC Listener] Stream ${requestId} completed successfully with ${chunkCounter[requestId]} chunks.`);
             event.sender.send(`${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL}:done`, requestId);
           } else {
             console.log(`[IPC Listener] Stream ${requestId} was aborted before completion.`);
@@ -223,20 +268,28 @@ export function addOllamaEventListeners() {
       } finally {
         console.log(`[IPC Listener] Cleaning up activeStream for requestId: ${requestId}`);
         activeStreams.delete(requestId);
+        delete chunkCounter[requestId]; // Clean up the chunk counter
       }
     });
+    console.log(`[IPC Setup] Listener for ${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL} registered successfully.`);
 
     // Stream cancellation handler
+    console.log(`[IPC Setup] Registering listener for ${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL}:cancel...`);
     ipcMain.on(`${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL}:cancel`, (_, requestId) => {
+      console.log(`[IPC Listener] Received cancel request for stream: ${requestId}`);
       if (activeStreams.has(requestId)) {
         console.log(`[IPC Listener] Cancelling stream ${requestId}`);
         activeStreams.get(requestId)?.();
         activeStreams.delete(requestId);
       } else {
-        console.log(`[IPC Listener] Received cancel request for non-existent stream: ${requestId}`);
+        console.log(`[IPC Listener] Cannot cancel: stream ${requestId} not found in active streams.`);
       }
     });
+    console.log(`[IPC Setup] Listener for ${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL}:cancel registered successfully.`);
+    
+    console.log("[IPC Setup] All Ollama event listeners registered successfully.");
   } catch (e) {
-    console.error(`Error registering Ollama event listeners:`, e);
+    console.error("[IPC Setup] ERROR: Failed to register Ollama event listeners:", e);
+    // If we fail to register handlers, it's critical to log this
   }
 }
