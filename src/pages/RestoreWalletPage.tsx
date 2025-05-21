@@ -1,19 +1,33 @@
 import React, { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
 import { useWalletStore } from '@/stores/walletStore';
+import { usePaneStore } from '@/stores/pane';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, KeyRound } from 'lucide-react';
 import SelfCustodyNoticeDialog from '@/components/wallet/SelfCustodyNoticeDialog';
 
-const RestoreWalletPage: React.FC = () => {
-  const navigate = useNavigate();
-  const restoreWallet = useWalletStore(state => state.restoreWallet);
-  const hasSeenSelfCustodyNotice = useWalletStore(state => state.hasSeenSelfCustodyNotice);
-  const error = useWalletStore(state => state.error);
-  const isLoading = useWalletStore(state => state.isLoading);
-  const clearError = useWalletStore(state => state.clearError);
+interface RestoreWalletPageProps {
+  paneId: string; // To close this pane when done
+}
+
+const RestoreWalletPage: React.FC<RestoreWalletPageProps> = ({ paneId }) => {
+  const { restoreWallet, hasSeenSelfCustodyNotice, error, isLoading, clearError } = useWalletStore(
+    (state) => ({
+      restoreWallet: state.restoreWallet,
+      hasSeenSelfCustodyNotice: state.hasSeenSelfCustodyNotice,
+      error: state.error,
+      isLoading: state.isLoading,
+      clearError: state.clearError,
+    })
+  );
+  
+  const { removePane, openWalletSetupPane } = usePaneStore(
+    (state) => ({
+      removePane: state.removePane,
+      openWalletSetupPane: state.openWalletSetupPane
+    })
+  );
   
   const [seedPhrase, setSeedPhrase] = useState('');
   const [isRestoring, setIsRestoring] = useState(false);
@@ -33,13 +47,14 @@ const RestoreWalletPage: React.FC = () => {
     try {
       const success = await restoreWallet(seedPhrase.trim());
       if (success) {
+        // Close this pane
+        removePane(paneId);
+        
         if (!hasSeenSelfCustodyNotice) {
           // Show the self custody notice dialog
           setShowSelfCustodyNotice(true);
-        } else {
-          // Navigate directly to the main app
-          navigate({ to: '/' });
         }
+        // No need to navigate, closing the pane will reveal the main app
       }
     } finally {
       setIsRestoring(false);
@@ -47,7 +62,7 @@ const RestoreWalletPage: React.FC = () => {
   };
 
   return (
-    <div className="container flex items-center justify-center min-h-screen p-4">
+    <div className="container flex items-center justify-center min-h-full p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mb-2 flex justify-center">
@@ -83,7 +98,11 @@ const RestoreWalletPage: React.FC = () => {
           </Button>
           
           <Button
-            onClick={() => navigate({ to: '/setup-wallet' })}
+            onClick={() => {
+              clearError();
+              removePane(paneId); // Close this pane
+              openWalletSetupPane(); // Open wallet setup pane
+            }}
             variant="outline"
             className="w-full"
           >

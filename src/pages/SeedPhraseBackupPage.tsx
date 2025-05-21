@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearch } from '@tanstack/react-router';
+import React, { useState } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
+import { usePaneStore } from '@/stores/pane';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -9,36 +9,30 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Copy, Check, Loader2 } from 'lucide-react';
 import SelfCustodyNoticeDialog from '@/components/wallet/SelfCustodyNoticeDialog';
 
-const SeedPhraseBackupPage: React.FC = () => {
-  const navigate = useNavigate();
-  const search = useSearch({ from: '/backup-seed-phrase' });
-  // Access the search params safely
-  const searchParams = new URLSearchParams(window.location.search);
-  const seedPhraseFromURL = searchParams.get('seedPhrase');
-  
+interface SeedPhraseBackupPageProps {
+  seedPhrase: string; // Passed directly as prop from pane content
+  paneId: string; // To close this pane when done
+}
+
+const SeedPhraseBackupPage: React.FC<SeedPhraseBackupPageProps> = ({ seedPhrase, paneId }) => {
   // Get wallet store methods
-  const _initializeWalletWithSeed = useWalletStore(state => state._initializeWalletWithSeed);
-  const hasSeenSelfCustodyNotice = useWalletStore(state => state.hasSeenSelfCustodyNotice);
-  const error = useWalletStore(state => state.error);
-  const isLoading = useWalletStore(state => state.isLoading);
-  const clearError = useWalletStore(state => state.clearError);
+  const { _initializeWalletWithSeed, hasSeenSelfCustodyNotice, error, isLoading, clearError } = useWalletStore(
+    (state) => ({
+      _initializeWalletWithSeed: state._initializeWalletWithSeed,
+      hasSeenSelfCustodyNotice: state.hasSeenSelfCustodyNotice,
+      error: state.error,
+      isLoading: state.isLoading,
+      clearError: state.clearError,
+    })
+  );
+  
+  const removePane = usePaneStore((state) => state.removePane);
   
   // Local state
-  const [seedPhrase, setSeedPhrase] = useState<string>('');
   const [isSaved, setIsSaved] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
   const [showSelfCustodyNotice, setShowSelfCustodyNotice] = useState(false);
-
-  useEffect(() => {
-    // Set the seed phrase from URL params
-    if (seedPhraseFromURL) {
-      setSeedPhrase(seedPhraseFromURL);
-    } else {
-      // If no seed phrase is provided, redirect back to setup
-      navigate({ to: '/setup-wallet' });
-    }
-  }, [seedPhraseFromURL, navigate]);
 
   const handleCopyToClipboard = () => {
     navigator.clipboard.writeText(seedPhrase).then(() => {
@@ -74,13 +68,14 @@ const SeedPhraseBackupPage: React.FC = () => {
     try {
       const success = await _initializeWalletWithSeed(seedPhrase, true);
       if (success) {
+        // Close this pane
+        removePane(paneId);
+        
         if (!hasSeenSelfCustodyNotice) {
           // Show the self custody notice dialog
           setShowSelfCustodyNotice(true);
-        } else {
-          // Navigate directly to the main app
-          navigate({ to: '/' });
         }
+        // No need to navigate, closing the pane will reveal the main app
       }
     } finally {
       setIsInitializing(false);
@@ -88,7 +83,7 @@ const SeedPhraseBackupPage: React.FC = () => {
   };
 
   return (
-    <div className="container flex items-center justify-center min-h-screen p-4">
+    <div className="container flex items-center justify-center min-h-full p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-2xl text-center">Your Secret Recovery Phrase</CardTitle>

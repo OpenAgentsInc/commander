@@ -18,6 +18,11 @@ import {
   openNip90ConsumerChatPaneAction,
   openNip90GlobalFeedPaneAction,
   openWalletPaneAction,
+  // New page pane actions
+  openSecondPagePaneAction, 
+  openWalletSetupPaneAction,
+  openSeedPhraseBackupPaneAction,
+  openRestoreWalletPaneAction,
 } from "./panes/actions";
 import { 
   DEFAULT_NIP28_PANE_ID,
@@ -87,6 +92,11 @@ export const usePaneStore = create<PaneStoreType>()(
       openNip90ConsumerChatPane: () => openNip90ConsumerChatPaneAction(set),
       openNip90GlobalFeedPane: () => openNip90GlobalFeedPaneAction(set),
       openWalletPane: () => openWalletPaneAction(set),
+      // New page pane actions
+      openSecondPagePane: () => openSecondPagePaneAction(set),
+      openWalletSetupPane: () => openWalletSetupPaneAction(set),
+      openSeedPhraseBackupPane: (params) => openSeedPhraseBackupPaneAction(set, params),
+      openRestoreWalletPane: () => openRestoreWalletPaneAction(set),
       resetHUDState: () => {
         const newInitialState: PaneState = {
             panes: getInitialPanes(),

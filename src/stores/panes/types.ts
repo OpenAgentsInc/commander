@@ -1,4 +1,6 @@
 import { Pane, PaneInput } from '@/types/pane';
+import type { StoreApi } from 'zustand';
+import type { OpenSeedPhraseBackupPaneParams } from './actions/openSeedPhraseBackupPane';
 
 export interface PaneState {
   panes: Pane[];
@@ -24,10 +26,13 @@ export interface PaneStoreType extends PaneState {
   openNip90GlobalFeedPane: () => void; // Open NIP-90 Global Feed pane
   openWalletPane: () => void; // Open Wallet pane
   resetHUDState: () => void;
+  
+  // New page pane actions
+  openSecondPagePane: () => void;
+  openWalletSetupPane: () => void;
+  openSeedPhraseBackupPane: (params: OpenSeedPhraseBackupPaneParams) => void;
+  openRestoreWalletPane: () => void;
 }
-
-// Use Zustand's own type for better compatibility
-import type { StoreApi } from 'zustand';
 
 export type SetPaneStore = StoreApi<PaneStoreType>['setState'];
 

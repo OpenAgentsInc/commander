@@ -1,16 +1,31 @@
 import React, { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
 import { useWalletStore } from '@/stores/walletStore';
+import { usePaneStore } from '@/stores/pane';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, Wallet } from 'lucide-react';
 
-const WalletSetupPage: React.FC = () => {
-  const navigate = useNavigate();
-  const generateNewWallet = useWalletStore((state) => state.generateNewWallet);
-  const isLoading = useWalletStore((state) => state.isLoading);
-  const error = useWalletStore((state) => state.error);
-  const clearError = useWalletStore((state) => state.clearError);
+interface WalletSetupPageProps {
+  paneId: string; // To close this pane when navigating
+}
+
+const WalletSetupPage: React.FC<WalletSetupPageProps> = ({ paneId }) => {
+  const { generateNewWallet, isLoading, error, clearError } = useWalletStore(
+    (state) => ({
+      generateNewWallet: state.generateNewWallet,
+      isLoading: state.isLoading,
+      error: state.error,
+      clearError: state.clearError,
+    })
+  );
+  
+  const { openSeedPhraseBackupPane, openRestoreWalletPane, removePane } = usePaneStore(
+    (state) => ({
+      openSeedPhraseBackupPane: state.openSeedPhraseBackupPane,
+      openRestoreWalletPane: state.openRestoreWalletPane,
+      removePane: state.removePane,
+    })
+  );
   
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -20,11 +35,9 @@ const WalletSetupPage: React.FC = () => {
     try {
       const newSeedPhrase = await generateNewWallet();
       if (newSeedPhrase) {
-        // Navigate to backup page, passing the seed phrase as state
-        navigate({ 
-          to: '/backup-seed-phrase',
-          search: { seedPhrase: newSeedPhrase }
-        });
+        // Open seed phrase backup pane and pass the seed phrase via content
+        openSeedPhraseBackupPane({ seedPhrase: newSeedPhrase });
+        removePane(paneId); // Close this pane
       }
     } finally {
       setIsGenerating(false);
@@ -33,12 +46,13 @@ const WalletSetupPage: React.FC = () => {
 
   const handleRestoreWallet = () => {
     clearError();
-    // Navigate to restore page
-    navigate({ to: '/restore-wallet' });
+    // Open restore wallet pane
+    openRestoreWalletPane();
+    removePane(paneId); // Close this pane
   };
 
   return (
-    <div className="container flex items-center justify-center min-h-screen p-4">
+    <div className="container flex items-center justify-center min-h-full p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mb-2 flex justify-center">

@@ -1,5 +1,4 @@
 import React from 'react';
-import { useNavigate } from '@tanstack/react-router';
 import { useWalletStore } from '@/stores/walletStore';
 import {
   Dialog,
@@ -21,7 +20,6 @@ const SelfCustodyNoticeDialog: React.FC<SelfCustodyNoticeDialogProps> = ({
   open, 
   onOpenChange 
 }) => {
-  const navigate = useNavigate();
   const setHasSeenSelfCustodyNotice = useWalletStore((state) => state.setHasSeenSelfCustodyNotice);
 
   const handleConfirm = () => {
@@ -29,8 +27,8 @@ const SelfCustodyNoticeDialog: React.FC<SelfCustodyNoticeDialogProps> = ({
     setHasSeenSelfCustodyNotice();
     onOpenChange(false);
     
-    // Navigate to the main app
-    navigate({ to: '/' });
+    // No need to navigate - the dialog is shown over the main app view
+    // and closing it will reveal the main app
   };
 
   return (
