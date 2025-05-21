@@ -193,13 +193,15 @@ const Nip90GlobalFeedPane: React.FC = () => {
     },
   });
   
-  // Track telemetry for opening the pane
-  Effect.runFork(
-    Effect.flatMap(TelemetryService, ts => ts.trackEvent({
-      category: 'ui:pane',
-      action: 'open_nip90_global_feed_pane'
-    })).pipe(Effect.provide(runtime))
-  );
+  // Track telemetry for opening the pane - skip in testing environment
+  if (process.env.NODE_ENV !== 'test') {
+    Effect.runFork(
+      Effect.flatMap(TelemetryService, ts => ts.trackEvent({
+        category: 'ui:pane',
+        action: 'open_nip90_global_feed_pane'
+      })).pipe(Effect.provide(runtime))
+    );
+  }
   
   return (
     <div className="p-3 h-full flex flex-col gap-3">

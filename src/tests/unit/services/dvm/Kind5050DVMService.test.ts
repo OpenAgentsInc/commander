@@ -14,8 +14,14 @@ import { OllamaService, OllamaChatCompletionResponse } from "@/services/ollama";
 import { SparkService, LightningInvoice } from "@/services/spark";
 import { NIP04Service } from "@/services/nip04";
 import { TelemetryService } from "@/services/telemetry";
-import { bytesToHex } from "@noble/hashes/utils";
 import type { JobHistoryEntry, JobStatistics } from "@/types/dvm";
+
+// Use our own bytesToHex to avoid dependencies on @noble/hashes
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
 
 // Mock the dvmSettingsStore
 vi.mock("@/stores/dvmSettingsStore", () => ({
@@ -25,6 +31,64 @@ vi.mock("@/stores/dvmSettingsStore", () => ({
       getDerivedPublicKeyHex: () => defaultKind5050DVMServiceConfig.dvmPublicKeyHex,
     }),
   },
+}));
+
+// Create a complete mock setup for the bitcoin-related libraries
+vi.mock("@noble/secp256k1", () => ({
+  schnorr: {
+    verify: vi.fn().mockReturnValue(true),
+    sign: vi.fn().mockReturnValue(new Uint8Array(64).fill(1)),
+  },
+  utils: {
+    randomPrivateKey: vi.fn().mockReturnValue(new Uint8Array(32).fill(1)),
+  },
+  getPublicKey: vi.fn().mockReturnValue(new Uint8Array(33).fill(2)),
+}));
+
+// Mock all bitcoin and cryptography-related modules
+vi.mock("bitcoinjs-lib", () => {
+  return {
+    initEccLib: vi.fn(),
+    networks: {
+      bitcoin: { bip32: { public: 0, private: 0 } },
+      testnet: { bip32: { public: 0, private: 0 } },
+    },
+    payments: {
+      p2pkh: vi.fn().mockReturnValue({ address: "mockAddress" }),
+    },
+    Psbt: function() {
+      return {
+        addInput: vi.fn(),
+        addOutput: vi.fn(),
+        signInput: vi.fn(),
+        validateSignaturesOfInput: vi.fn().mockReturnValue(true),
+        finalizeAllInputs: vi.fn(),
+        extractTransaction: vi.fn().mockReturnValue({ toHex: () => "mocktxhex" }),
+      };
+    },
+  };
+});
+
+// Mock Spark SDK and any ECC library it might use
+vi.mock("@buildonspark/lrc20-sdk", () => ({
+  default: {
+    initEccLib: vi.fn(),
+    createLightningInvoice: vi.fn().mockResolvedValue({
+      invoice: {
+        encodedInvoice: "lnbc10...",
+        paymentHash: "0001020304050607080900010203040506070809000102030405060708090102",
+      }
+    }),
+  },
+}));
+
+// Prevent any actual cryptographic operations
+vi.mock("noble-hashes/hmac", () => ({
+  hmac: vi.fn().mockReturnValue(new Uint8Array(32).fill(3)),
+}));
+
+vi.mock("noble-hashes/sha256", () => ({
+  sha256: vi.fn().mockReturnValue(new Uint8Array(32).fill(4)),
 }));
 
 // Sample test data
