@@ -21,7 +21,7 @@ const RestoreWalletPage: React.FC<RestoreWalletPageProps> = ({ paneId }) => {
       isLoading: state.isLoading,
       clearError: state.clearError,
     }),
-    shallow // Add shallow equality check to prevent unnecessary re-renders
+    shallow
   );
   
   const { removePane, openWalletSetupPane } = usePaneStore(
@@ -29,7 +29,7 @@ const RestoreWalletPage: React.FC<RestoreWalletPageProps> = ({ paneId }) => {
       removePane: state.removePane,
       openWalletSetupPane: state.openWalletSetupPane
     }),
-    shallow // Add shallow equality check to prevent unnecessary re-renders
+    shallow
   );
   
   const [seedPhrase, setSeedPhrase] = useState('');
