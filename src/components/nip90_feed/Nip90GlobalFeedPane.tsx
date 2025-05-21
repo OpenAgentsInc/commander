@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Effect, Exit, Cause } from 'effect';
-import { NostrService, NostrEvent } from '@/services/nostr/NostrService';
+import { NostrEvent } from '@/services/nostr/NostrService';
+import { NIP90Service } from '@/services/nip90/NIP90Service';
 import { getMainRuntime } from '@/services/runtime';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { RefreshCcw, ExternalLink, AlertCircle, MessageSquare, ArrowDown, ArrowUp, Info } from 'lucide-react';
 import { TelemetryService } from '@/services/telemetry';
 import { bech32 } from '@scure/base';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Component for displaying a single NIP-90 event
 const Nip90EventCard: React.FC<{ event: NostrEvent }> = ({ event }) => {
@@ -183,7 +185,7 @@ const Nip90GlobalFeedPane: React.FC = () => {
   } = useQuery<NostrEvent[], Error>({
     queryKey: ['nip90GlobalFeed', eventsLimit],
     queryFn: async () => {
-      const program = Effect.flatMap(NostrService, s => s.listPublicNip90Events(eventsLimit));
+      const program = Effect.flatMap(NIP90Service, s => s.listPublicEvents(eventsLimit));
       const exitResult = await Effect.runPromiseExit(Effect.provide(program, runtime));
       
       if (Exit.isSuccess(exitResult)) return exitResult.value;
@@ -204,7 +206,16 @@ const Nip90GlobalFeedPane: React.FC = () => {
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold">NIP-90 Global Feed</h2>
-          <Info className="h-4 w-4 text-muted-foreground cursor-help" title="Shows recent NIP-90 events (job requests, results, and feedback) from connected relays" />
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Shows recent NIP-90 events (job requests, results, and feedback) from connected relays</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
         
         <Button onClick={() => refetch()} size="sm" variant="outline" disabled={isLoading || isFetching}>

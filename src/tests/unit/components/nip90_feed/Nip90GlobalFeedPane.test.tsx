@@ -1,38 +1,30 @@
+import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Nip90GlobalFeedPane from '@/components/nip90_feed/Nip90GlobalFeedPane';
-import { NostrService, NostrEvent } from '@/services/nostr/NostrService';
-import { Effect, Layer, Exit } from 'effect';
+import { NostrEvent } from '@/services/nostr/NostrService';
+import { NIP90Service } from '@/services/nip90/NIP90Service';
+import { Effect, Exit } from 'effect';
 import { TelemetryService } from '@/services/telemetry';
+import { useQuery } from '@tanstack/react-query';
+
+// Mock the @tanstack/react-query module
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: vi.fn(),
+}));
 
 // Mock dependencies
 vi.mock('@/services/runtime', () => ({
   getMainRuntime: vi.fn(() => ({
     context: {
       get: vi.fn((service) => {
-        if (service === NostrService) return mockedNostrService;
+        if (service === NIP90Service) return mockedNip90Service;
         if (service === TelemetryService) return mockedTelemetryService;
         return undefined;
       })
     }
   }))
-}));
-
-// Mock the useQuery hook
-vi.mock('@tanstack/react-query', () => ({
-  useQuery: vi.fn(({ queryFn }) => {
-    // Store the function to call later
-    lastQueryFn = queryFn;
-    
-    return {
-      data: mockEvents,
-      isLoading: false,
-      error: null,
-      refetch: vi.fn(),
-      isFetching: false
-    };
-  })
 }));
 
 // Mock the bech32 encoder since we don't need actual encoding in tests
@@ -42,10 +34,17 @@ vi.mock('@scure/base', () => ({
   }
 }));
 
+// Mock the ui components we're using
+vi.mock("@/components/ui/tooltip", () => ({
+  Tooltip: ({ children }: { children: React.ReactNode }) => <div data-testid="tooltip">{children}</div>,
+  TooltipTrigger: ({ children }: { children: React.ReactNode }) => <div data-testid="tooltip-trigger">{children}</div>,
+  TooltipContent: ({ children }: { children: React.ReactNode }) => <div data-testid="tooltip-content">{children}</div>,
+  TooltipProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="tooltip-provider">{children}</div>,
+}));
+
 // Variables to store mocks
-let mockedNostrService: NostrService;
-let mockedTelemetryService: TelemetryService;
-let lastQueryFn: () => Promise<NostrEvent[]>;
+let mockedNip90Service: Partial<NIP90Service>;
+let mockedTelemetryService: Partial<TelemetryService>;
 let mockEvents: NostrEvent[];
 
 // Sample events for testing
@@ -73,17 +72,11 @@ describe('Nip90GlobalFeedPane Component', () => {
       createSampleEvent(7000), // Feedback
     ];
     
-    // Mock NostrService
-    mockedNostrService = {
-      listPublicNip90Events: vi.fn((limit = 50) => 
+    // Mock NIP90Service
+    mockedNip90Service = {
+      listPublicEvents: vi.fn((limit = 50) => 
         Effect.succeed(mockEvents)
       ),
-      // Add other required methods with empty implementations
-      getPool: vi.fn(() => Effect.succeed({} as any)),
-      listEvents: vi.fn(() => Effect.succeed([])),
-      publishEvent: vi.fn(() => Effect.succeed(undefined as void)),
-      cleanupPool: vi.fn(() => Effect.succeed(undefined as void)),
-      subscribeToEvents: vi.fn(() => Effect.succeed({ unsub: () => {} })),
     };
     
     // Mock TelemetryService
@@ -96,6 +89,15 @@ describe('Nip90GlobalFeedPane Component', () => {
     // Mock the Effect.runPromiseExit for the query function
     vi.spyOn(Effect, 'runPromiseExit').mockImplementation(async () => {
       return Exit.succeed(mockEvents);
+    });
+
+    // Mock useQuery to return the data
+    (useQuery as Vi.Mock).mockReturnValue({
+      data: mockEvents,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+      isFetching: false
     });
   });
   
@@ -121,7 +123,13 @@ describe('Nip90GlobalFeedPane Component', () => {
   
   it('handles empty data gracefully', async () => {
     // Set mockEvents to empty to simulate no events found
-    mockEvents = [];
+    (useQuery as Vi.Mock).mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+      isFetching: false
+    });
     
     render(<Nip90GlobalFeedPane />);
     
@@ -131,15 +139,13 @@ describe('Nip90GlobalFeedPane Component', () => {
   
   it('shows loading state', async () => {
     // Override the useQuery mock for this test
-    vi.mocked(vi.hoisted(() => import('@tanstack/react-query'))).mockImplementation(() => ({
-      useQuery: vi.fn(() => ({
-        data: undefined,
-        isLoading: true,
-        error: null,
-        refetch: vi.fn(),
-        isFetching: true
-      }))
-    }));
+    (useQuery as Vi.Mock).mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+      isFetching: true
+    });
     
     render(<Nip90GlobalFeedPane />);
     
@@ -149,15 +155,13 @@ describe('Nip90GlobalFeedPane Component', () => {
   
   it('shows error state', async () => {
     // Override the useQuery mock for this test
-    vi.mocked(vi.hoisted(() => import('@tanstack/react-query'))).mockImplementation(() => ({
-      useQuery: vi.fn(() => ({
-        data: undefined,
-        isLoading: false,
-        error: new Error('Test error'),
-        refetch: vi.fn(),
-        isFetching: false
-      }))
-    }));
+    (useQuery as Vi.Mock).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error('Test error'),
+      refetch: vi.fn(),
+      isFetching: false
+    });
     
     render(<Nip90GlobalFeedPane />);
     

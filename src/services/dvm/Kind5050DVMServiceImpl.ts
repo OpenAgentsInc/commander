@@ -1,4 +1,5 @@
-import { Effect, Layer, Schema, Option, Cause, Fiber, Schedule, Duration } from 'effect';
+import { Effect, Layer, Schema, Option, Cause, Schedule, Duration } from 'effect';
+import * as Fiber from 'effect/Fiber';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { finalizeEvent, type EventTemplate } from 'nostr-tools/pure';
 import { TelemetryService, TrackEventError } from '@/services/telemetry';
@@ -136,7 +137,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
     let currentSubscription: Subscription | null = null;
     let currentDvmPublicKeyHex = useDVMSettingsStore.getState().getDerivedPublicKeyHex() || config.dvmPublicKeyHex;
     // Use more specific typing for the fiber
-    let invoiceCheckFiber: Fiber.RuntimeFiber<void, never> | null = null;
+    let invoiceCheckFiber: Fiber.RuntimeFiber<number, never> | null = null;
     
     // Track service initialization
     yield* _(telemetry.trackEvent({
@@ -659,7 +660,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         ];
 
         // Start the invoice check fiber if it's not already running
-        if (!invoiceCheckFiber || Fiber.isDone(invoiceCheckFiber)) {
+        if (!invoiceCheckFiber || Option.isSome(Fiber.unsafePoll(invoiceCheckFiber))) {
           const scheduledInvoiceChecks = Effect.repeat(
             checkAndUpdateInvoiceStatuses().pipe(
               Effect.provideService(SparkService, spark),
@@ -752,7 +753,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           isActiveInternal = false;
 
           // Cancel invoice check fiber if it's running
-          if (invoiceCheckFiber && !Fiber.isDone(invoiceCheckFiber)) {
+          if (invoiceCheckFiber && Option.isNone(Fiber.unsafePoll(invoiceCheckFiber))) {
             Fiber.interrupt(invoiceCheckFiber);
             invoiceCheckFiber = null;
           }
@@ -828,6 +829,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
             ["i", prompt, "text"],
             ["output", "text/plain"]
           ],
+          content: "", 
           sig: "simulated_signature_for_test_only"
         };
 
@@ -887,7 +889,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
       startListening: () => 
         startListening().pipe(
           Effect.catchAllCause(cause => {
-            // Use Effect.flatMap instead of yield* for non-generator callback
+            // Use Effect.runFork instead of yield* for non-generator callback
             Effect.runFork(telemetry.trackEvent({
               category: 'dvm:error',
               action: 'startListening_uncaught_error',
@@ -900,7 +902,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
       stopListening: () => 
         stopListening().pipe(
           Effect.catchAllCause(cause => {
-            // Use Effect.flatMap instead of yield* for non-generator callback
+            // Use Effect.runFork instead of yield* for non-generator callback
             Effect.runFork(telemetry.trackEvent({
               category: 'dvm:error',
               action: 'stopListening_uncaught_error',
@@ -913,7 +915,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
       isListening: () =>
         isListening().pipe(
           Effect.catchAllCause(cause => {
-            // Use Effect.flatMap instead of yield* for non-generator callback
+            // Use Effect.runFork instead of yield* for non-generator callback
             Effect.runFork(telemetry.trackEvent({
               category: 'dvm:error',
               action: 'isListening_uncaught_error',
@@ -926,7 +928,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
       processLocalTestJob: (prompt, requesterPkOverride) =>
         processLocalTestJob(prompt, requesterPkOverride).pipe(
           Effect.catchAllCause(cause => {
-            // Use Effect.flatMap instead of yield* for non-generator callback
+            // Use Effect.runFork instead of yield* for non-generator callback
             Effect.runFork(telemetry.trackEvent({
               category: 'dvm:error',
               action: 'processLocalTestJob_uncaught_error',
