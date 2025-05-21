@@ -19,10 +19,8 @@ describe("AgentChatMessage", () => {
       };
       
       const result = Schema.decode(AgentChatMessageSchema)(userMessage);
-      expect(result).toEqual({
-        _tag: "Right",
-        right: userMessage
-      });
+      expect(result._tag).toBe("Right");
+      expect(result.right).toEqual(userMessage);
     });
 
     it("should validate a valid assistant message", () => {
@@ -33,10 +31,8 @@ describe("AgentChatMessage", () => {
       };
       
       const result = Schema.decode(AgentChatMessageSchema)(assistantMessage);
-      expect(result).toEqual({
-        _tag: "Right",
-        right: assistantMessage
-      });
+      expect(result._tag).toBe("Right");
+      expect(result.right).toEqual(assistantMessage);
     });
 
     it("should validate a valid system message", () => {
@@ -47,10 +43,8 @@ describe("AgentChatMessage", () => {
       };
       
       const result = Schema.decode(AgentChatMessageSchema)(systemMessage);
-      expect(result).toEqual({
-        _tag: "Right",
-        right: systemMessage
-      });
+      expect(result._tag).toBe("Right");
+      expect(result.right).toEqual(systemMessage);
     });
 
     it("should validate a valid tool message", () => {
@@ -63,10 +57,8 @@ describe("AgentChatMessage", () => {
       };
       
       const result = Schema.decode(AgentChatMessageSchema)(toolMessage);
-      expect(result).toEqual({
-        _tag: "Right",
-        right: toolMessage
-      });
+      expect(result._tag).toBe("Right");
+      expect(result.right).toEqual(toolMessage);
     });
 
     it("should validate a message with tool calls", () => {
@@ -87,10 +79,8 @@ describe("AgentChatMessage", () => {
       };
       
       const result = Schema.decode(AgentChatMessageSchema)(toolCallMessage);
-      expect(result).toEqual({
-        _tag: "Right",
-        right: toolCallMessage
-      });
+      expect(result._tag).toBe("Right");
+      expect(result.right).toEqual(toolCallMessage);
     });
 
     it("should fail to validate an invalid message with incorrect role", () => {

@@ -300,3 +300,37 @@ Okay, Agent, here are the specific instructions for implementing **Phase 0 (Foun
 ---
 
 Upon completion of these tasks, Phase 0 and Phase 1 will be established, providing a solid, typed foundation for the subsequent provider implementations and UI integration. Remember to commit your changes after each significant step.
+
+---
+
+## Suggested Tests for Phase 1
+
+The following tests should be written to ensure proper functioning of the core AI service abstractions:
+
+1. **AgentLanguageModel Tests**:
+   - Test the Context.Tag creation and service usage pattern
+   - Verify that the interface can be properly implemented 
+   - Test error handling with mock implementations
+
+2. **AgentChatSession Tests**:
+   - Test message addition and retrieval
+   - Test history management (especially with limits)
+   - Test token counting functionality
+   - Test preparation of messages for AI models
+
+3. **AgentChatMessage Tests**:
+   - Validate schema definitions using Schema.decode/encode
+   - Test helper functions for creating different message types
+   - Ensure proper handling of tool calls in messages
+
+4. **AgentToolkitManager Tests**:
+   - Test tool registration and retrieval
+   - Test toolkit creation with multiple tools
+   - Test tool execution with mock tools
+
+5. **Error Handling Tests**:
+   - Test each error type construction
+   - Test error inheritance and _tag property
+   - Test error conversion utilities
+
+These tests should be placed in `src/tests/unit/services/ai/core/` with one test file per service interface. Use Effect's testing utilities and mocks where appropriate.
