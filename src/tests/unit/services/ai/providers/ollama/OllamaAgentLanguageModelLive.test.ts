@@ -45,7 +45,7 @@ const MockOllamaOpenAIClient = Layer.succeed(OllamaOpenAIClientTag, mockClientSe
 const mockHttpClient = {
   request: vi.fn(() => Effect.succeed({ status: 200, body: {} })),
 };
-const MockHttpClient = Layer.succeed(HttpClient.HttpClient, mockHttpClient);
+const MockHttpClient = Layer.succeed(HttpClient.Tag, mockHttpClient);
 
 // Mock the chat completions create to return test data
 mockChatCompletionsCreate.mockImplementation(() => Effect.succeed({
