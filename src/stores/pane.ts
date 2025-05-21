@@ -34,8 +34,11 @@ import {
   SELL_COMPUTE_PANE_ID_CONST,
   SELL_COMPUTE_INITIAL_WIDTH,
   SELL_COMPUTE_INITIAL_HEIGHT,
-  HOTBAR_APPROX_HEIGHT
+  HOTBAR_APPROX_HEIGHT,
+  WALLET_PANE_ID,
+  WALLET_PANE_TITLE
 } from "./panes/constants";
+import { DVM_JOB_HISTORY_PANE_ID } from "./panes/actions/openDvmJobHistoryPane";
 
 // Function to get initial panes
 const getInitialPanes = (): Pane[] => {
@@ -119,6 +122,178 @@ export const usePaneStore = create<PaneStoreType>()(
             set(newInitialState);
         }
       },
+
+      // Toggle actions for keyboard shortcuts
+      toggleSellComputePane: () => set((state) => {
+        const paneId = SELL_COMPUTE_PANE_ID_CONST;
+        const existingPane = state.panes.find(p => p.id === paneId);
+        
+        if (existingPane && state.activePaneId === paneId) {
+          // Pane is open and active, so remove it
+          const remainingPanes = state.panes.filter(pane => pane.id !== paneId);
+          let newActivePaneId: string | null = null;
+          if (remainingPanes.length > 0) {
+            newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
+          }
+          const updatedPanes = remainingPanes.map(p => ({ 
+            ...p, 
+            isActive: p.id === newActivePaneId 
+          }));
+          
+          return { 
+            ...state, 
+            panes: updatedPanes, 
+            activePaneId: newActivePaneId 
+          };
+        } else {
+          // Pane doesn't exist or isn't active, so open/activate it
+          if (existingPane) {
+            // Pane exists but isn't active, bring it to front
+            const updatedPanes = state.panes.map(p => ({
+              ...p,
+              isActive: p.id === paneId
+            }));
+            
+            return {
+              ...state,
+              panes: updatedPanes,
+              activePaneId: paneId
+            };
+          } else {
+            // Pane doesn't exist, create it
+            const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+            const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+            
+            const newPaneInput: PaneInput = {
+              id: paneId,
+              type: 'sell_compute',
+              title: 'Sell Compute Power',
+              x: Math.max(PANE_MARGIN, (screenWidth - SELL_COMPUTE_INITIAL_WIDTH) / 2),
+              y: Math.max(PANE_MARGIN, (screenHeight - SELL_COMPUTE_INITIAL_HEIGHT) / 3),
+              width: SELL_COMPUTE_INITIAL_WIDTH,
+              height: SELL_COMPUTE_INITIAL_HEIGHT,
+              dismissable: true,
+              content: {}
+            };
+            
+            return addPaneAction(set, newPaneInput, false)(state);
+          }
+        }
+      }),
+
+      toggleWalletPane: () => set((state) => {
+        const paneId = WALLET_PANE_ID;
+        const existingPane = state.panes.find(p => p.id === paneId);
+        
+        if (existingPane && state.activePaneId === paneId) {
+          // Pane is open and active, so remove it
+          const remainingPanes = state.panes.filter(pane => pane.id !== paneId);
+          let newActivePaneId: string | null = null;
+          if (remainingPanes.length > 0) {
+            newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
+          }
+          const updatedPanes = remainingPanes.map(p => ({ 
+            ...p, 
+            isActive: p.id === newActivePaneId 
+          }));
+          
+          return { 
+            ...state, 
+            panes: updatedPanes, 
+            activePaneId: newActivePaneId 
+          };
+        } else {
+          // Pane doesn't exist or isn't active, so open/activate it
+          if (existingPane) {
+            // Pane exists but isn't active, bring it to front
+            const updatedPanes = state.panes.map(p => ({
+              ...p,
+              isActive: p.id === paneId
+            }));
+            
+            return {
+              ...state,
+              panes: updatedPanes,
+              activePaneId: paneId
+            };
+          } else {
+            // Pane doesn't exist, create it
+            const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+            const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+            
+            const newPaneInput: PaneInput = {
+              id: paneId,
+              type: 'wallet',
+              title: WALLET_PANE_TITLE,
+              x: Math.max(PANE_MARGIN, (screenWidth - 450) / 2 + 50),
+              y: Math.max(PANE_MARGIN, (screenHeight - 550) / 3 + 50),
+              width: 450,
+              height: 550,
+              dismissable: true,
+              content: {}
+            };
+            
+            return addPaneAction(set, newPaneInput, false)(state);
+          }
+        }
+      }),
+
+      toggleDvmJobHistoryPane: () => set((state) => {
+        const paneId = DVM_JOB_HISTORY_PANE_ID;
+        const existingPane = state.panes.find(p => p.id === paneId);
+        
+        if (existingPane && state.activePaneId === paneId) {
+          // Pane is open and active, so remove it
+          const remainingPanes = state.panes.filter(pane => pane.id !== paneId);
+          let newActivePaneId: string | null = null;
+          if (remainingPanes.length > 0) {
+            newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
+          }
+          const updatedPanes = remainingPanes.map(p => ({ 
+            ...p, 
+            isActive: p.id === newActivePaneId 
+          }));
+          
+          return { 
+            ...state, 
+            panes: updatedPanes, 
+            activePaneId: newActivePaneId 
+          };
+        } else {
+          // Pane doesn't exist or isn't active, so open/activate it
+          if (existingPane) {
+            // Pane exists but isn't active, bring it to front
+            const updatedPanes = state.panes.map(p => ({
+              ...p,
+              isActive: p.id === paneId
+            }));
+            
+            return {
+              ...state,
+              panes: updatedPanes,
+              activePaneId: paneId
+            };
+          } else {
+            // Pane doesn't exist, create it
+            const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+            const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+            
+            const newPaneInput: PaneInput = {
+              id: paneId,
+              type: 'dvm_job_history',
+              title: 'DVM Job History & Stats',
+              x: Math.max(PANE_MARGIN, (screenWidth - 800) / 2 - 50),
+              y: Math.max(PANE_MARGIN, (screenHeight - 600) / 3 - 50),
+              width: 800,
+              height: 600,
+              dismissable: true,
+              content: {}
+            };
+            
+            return addPaneAction(set, newPaneInput, false)(state);
+          }
+        }
+      }),
     }),
     {
       name: 'commander-pane-storage-v2',

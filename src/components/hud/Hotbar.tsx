@@ -3,59 +3,36 @@ import { cn } from '@/utils/tailwind';
 import { HotbarItem } from './HotbarItem';
 import { RefreshCw, Store, History, Hand, Wallet } from 'lucide-react';
 import { usePaneStore } from '@/stores/pane';
+import { useShallow } from 'zustand/react/shallow';
+import {
+  SELL_COMPUTE_PANE_ID_CONST,
+  WALLET_PANE_ID,
+} from '@/stores/panes/constants';
+import { DVM_JOB_HISTORY_PANE_ID } from '@/stores/panes/actions/openDvmJobHistoryPane';
 
 interface HotbarProps {
   className?: string;
   isHandTrackingActive: boolean;
   onToggleHandTracking: () => void;
-  onOpenSellComputePane: () => void;
-  onOpenDvmJobHistoryPane: () => void;
+  onToggleSellComputePane: () => void;
+  onToggleWalletPane: () => void;
+  onToggleDvmJobHistoryPane: () => void;
 }
 
 export const Hotbar: React.FC<HotbarProps> = ({ 
   className, 
   isHandTrackingActive, 
   onToggleHandTracking, 
-  onOpenSellComputePane,
-  onOpenDvmJobHistoryPane 
+  onToggleSellComputePane,
+  onToggleWalletPane,
+  onToggleDvmJobHistoryPane 
 }) => {
-  const resetHUDState = usePaneStore((state) => state.resetHUDState);
-  const openWalletPane = usePaneStore((state) => state.openWalletPane);
-  const removePane = usePaneStore((state) => state.removePane);
-  const panes = usePaneStore((state) => state.panes);
-  const activePaneId = usePaneStore((state) => state.activePaneId);
-  
-  const SELL_COMPUTE_PANE_ID = 'sell_compute';
-  const DVM_JOB_HISTORY_PANE_ID = 'dvm_job_history';
-  const WALLET_PANE_ID = 'wallet_pane';
-
-  // Toggle functions for panes
-  const toggleSellComputePane = () => {
-    const paneExists = panes.some(pane => pane.id === SELL_COMPUTE_PANE_ID);
-    if (paneExists && activePaneId === SELL_COMPUTE_PANE_ID) {
-      removePane(SELL_COMPUTE_PANE_ID);
-    } else {
-      onOpenSellComputePane();
-    }
-  };
-
-  const toggleDvmJobHistoryPane = () => {
-    const paneExists = panes.some(pane => pane.id === DVM_JOB_HISTORY_PANE_ID);
-    if (paneExists && activePaneId === DVM_JOB_HISTORY_PANE_ID) {
-      removePane(DVM_JOB_HISTORY_PANE_ID);
-    } else {
-      onOpenDvmJobHistoryPane();
-    }
-  };
-
-  const toggleWalletPane = () => {
-    const paneExists = panes.some(pane => pane.id === WALLET_PANE_ID);
-    if (paneExists && activePaneId === WALLET_PANE_ID) {
-      removePane(WALLET_PANE_ID);
-    } else {
-      openWalletPane();
-    }
-  };
+  const { resetHUDState, activePaneId } = usePaneStore(
+    useShallow(state => ({
+      resetHUDState: state.resetHUDState,
+      activePaneId: state.activePaneId
+    }))
+  );
 
   return (
     <div
@@ -64,32 +41,28 @@ export const Hotbar: React.FC<HotbarProps> = ({
         className
       )}
     >
-      <HotbarItem slotNumber={1} onClick={toggleSellComputePane} title="Sell Compute" isActive={activePaneId === SELL_COMPUTE_PANE_ID}>
+      <HotbarItem slotNumber={1} onClick={onToggleSellComputePane} title="Sell Compute" isActive={activePaneId === SELL_COMPUTE_PANE_ID_CONST}>
         <Store className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
-      <HotbarItem slotNumber={2} onClick={toggleWalletPane} title="Wallet" isActive={activePaneId === WALLET_PANE_ID}>
+      <HotbarItem slotNumber={2} onClick={onToggleWalletPane} title="Wallet" isActive={activePaneId === WALLET_PANE_ID}>
         <Wallet className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
-      {/* Commented out hand tracking button
       <HotbarItem slotNumber={3} onClick={onToggleHandTracking} title={isHandTrackingActive ? "Disable Hand Tracking" : "Enable Hand Tracking"} isActive={isHandTrackingActive}>
         <Hand className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
-      */}
-      <HotbarItem slotNumber={3} onClick={toggleDvmJobHistoryPane} title="DVM Job History" isActive={activePaneId === DVM_JOB_HISTORY_PANE_ID}>
+      <HotbarItem slotNumber={4} onClick={onToggleDvmJobHistoryPane} title="DVM Job History" isActive={activePaneId === DVM_JOB_HISTORY_PANE_ID}>
         <History className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
+      <HotbarItem slotNumber={5} onClick={resetHUDState} title="Reset HUD Layout">
+        <RefreshCw className="w-5 h-5 text-muted-foreground" />
+      </HotbarItem>
       
-      {/* Fill the middle slots with empty HotbarItems */}
-      {Array.from({ length: 5 }).map((_, i) => (
-        <HotbarItem key={`empty-slot-${i}`} slotNumber={i + 4} isGhost>
+      {/* Fill the remaining slots with empty HotbarItems */}
+      {Array.from({ length: 4 }).map((_, i) => (
+        <HotbarItem key={`empty-slot-${i}`} slotNumber={i + 6} isGhost>
           <span className="w-5 h-5" />
         </HotbarItem>
       ))}
-      
-      {/* Reset HUD button in slot 9 */}
-      <HotbarItem slotNumber={9} onClick={resetHUDState} title="Reset HUD Layout">
-        <RefreshCw className="w-5 h-5 text-muted-foreground" />
-      </HotbarItem>
     </div>
   );
 };

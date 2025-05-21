@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { PaneManager } from "@/panes/PaneManager";
 import { SimpleGrid } from "@/components/home/SimpleGrid";
 import { HandTracking, HandPose } from "@/components/hands";
@@ -7,8 +7,12 @@ import {
   type HandLandmarks,
 } from "@/components/hands/handPoseTypes";
 import { usePaneStore } from "@/stores/pane";
+import { useShallow } from 'zustand/react/shallow';
 import { Hotbar } from "@/components/hud/Hotbar";
 import BitcoinBalanceDisplay from "@/components/hud/BitcoinBalanceDisplay";
+import { KeyboardControls, type KeyboardControlsState } from '@react-three/drei';
+import { AppControls, appControlsMap } from '@/controls';
+import { isMacOs } from '@/utils/os';
 
 interface HandDataContext {
   activeHandPose: HandPose;
@@ -29,16 +33,31 @@ export default function HomePage() {
   const initialPinchPositionRef = useRef<{ x: number; y: number } | null>(null);
   const paneStartPosRef = useRef<{ x: number; y: number } | null>(null);
 
+  // Get all necessary functions and state from usePaneStore using a single selector
   const {
     panes,
     bringPaneToFront,
     updatePanePosition,
     activePaneId: currentActivePaneId,
-    openSellComputePane,
-    openDvmJobHistoryPane,
-  } = usePaneStore();
+    toggleSellComputePane,
+    toggleWalletPane,
+    toggleDvmJobHistoryPane,
+    resetHUDState,
+  } = usePaneStore(
+    useShallow((state) => ({
+      panes: state.panes,
+      bringPaneToFront: state.bringPaneToFront,
+      updatePanePosition: state.updatePanePosition,
+      activePaneId: state.activePaneId,
+      toggleSellComputePane: state.toggleSellComputePane,
+      toggleWalletPane: state.toggleWalletPane,
+      toggleDvmJobHistoryPane: state.toggleDvmJobHistoryPane,
+      resetHUDState: state.resetHUDState,
+    }))
+  );
 
-  const toggleHandTracking = () => {
+  // Wrap toggleHandTracking in useCallback to prevent unnecessary re-renders
+  const toggleHandTracking = useCallback(() => {
     const newState = !isHandTrackingActive;
     setIsHandTrackingActive(newState);
     if (!newState && draggingPaneId) {
@@ -47,12 +66,13 @@ export default function HomePage() {
       initialPinchPositionRef.current = null;
       paneStartPosRef.current = null;
     }
-  };
+  }, [isHandTrackingActive, draggingPaneId]);
 
   // Use a ref to compare previous and current data to avoid unnecessary state updates
   const prevHandDataRef = useRef<HandDataContext | null>(null);
 
-  const handleHandDataUpdate = (data: HandDataContext) => {
+  // Wrap handleHandDataUpdate in useCallback to prevent unnecessary re-renders
+  const handleHandDataUpdate = useCallback((data: HandDataContext) => {
     // Only update state if data has meaningfully changed
     // This prevents unnecessary re-renders and update loops
     if (
@@ -65,7 +85,7 @@ export default function HomePage() {
       prevHandDataRef.current = data;
       setHandData(data);
     }
-  };
+  }, []);
 
   // Effect for pinch-to-drag logic
   useEffect(() => {
@@ -139,28 +159,88 @@ export default function HomePage() {
         paneStartPosRef.current = null;
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHandTrackingActive, handData, draggingPaneId]);
+  }, [isHandTrackingActive, handData, draggingPaneId, panes, currentActivePaneId, bringPaneToFront, updatePanePosition]);
+
+  // Set up a global keydown handler since KeyboardControls doesn't always provide the event
+  useEffect(() => {
+    const handleGlobalKeyDown = (event: KeyboardEvent) => {
+      // Only handle modifier + digit combinations
+      const modifier = isMacOs() ? event.metaKey : event.ctrlKey;
+      if (!modifier) return;
+      
+      const digit = parseInt(event.key);
+      if (isNaN(digit) || digit < 1 || digit > 5) return;
+      
+      event.preventDefault();
+      
+      // Call the appropriate toggle function based on the digit
+      switch (digit) {
+        case 1:
+          console.log('Keyboard: Toggle Sell Compute');
+          toggleSellComputePane();
+          break;
+        case 2:
+          console.log('Keyboard: Toggle Wallet Pane');
+          toggleWalletPane();
+          break;
+        case 3:
+          console.log('Keyboard: Toggle Hand Tracking');
+          toggleHandTracking();
+          break;
+        case 4:
+          console.log('Keyboard: Toggle DVM Job History Pane');
+          toggleDvmJobHistoryPane();
+          break;
+        case 5:
+          console.log('Keyboard: Reset HUD');
+          resetHUDState();
+          break;
+      }
+    };
+    
+    // Add global event listener
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+    };
+  }, [toggleSellComputePane, toggleWalletPane, toggleHandTracking, toggleDvmJobHistoryPane, resetHUDState]);
+
+  // Handler for keyboard shortcuts (kept as a backup, but we'll primarily use the global handler)
+  const handleKeyboardChange = useCallback(
+    (actionName: string, pressed: boolean, kbdState: KeyboardControlsState<AppControls>) => {
+      // This function is now a fallback and mainly kept for interface compatibility
+      if (!pressed) return;
+      
+      // We're not using kbdState.event since that's what's causing the warning
+      
+      // Handle different action types through the above global handler instead
+    },
+    []
+  );
 
   return (
-    <div className="relative h-full w-full overflow-hidden">
-      <SimpleGrid />
-      <PaneManager />
-      <BitcoinBalanceDisplay />
+    <KeyboardControls map={appControlsMap} onChange={handleKeyboardChange}>
+      <div className="relative h-full w-full overflow-hidden">
+        <SimpleGrid />
+        <PaneManager />
+        <BitcoinBalanceDisplay />
 
-      {/* HandTracking component is still here but its toggle is removed from UI */}
-      <HandTracking
-        showHandTracking={isHandTrackingActive}
-        setShowHandTracking={setIsHandTrackingActive}
-        onHandDataUpdate={handleHandDataUpdate}
-      />
+        <HandTracking
+          showHandTracking={isHandTrackingActive}
+          setShowHandTracking={setIsHandTrackingActive}
+          onHandDataUpdate={handleHandDataUpdate}
+        />
 
-      <Hotbar
-        isHandTrackingActive={isHandTrackingActive}
-        onToggleHandTracking={toggleHandTracking}
-        onOpenSellComputePane={openSellComputePane}
-        onOpenDvmJobHistoryPane={openDvmJobHistoryPane}
-      />
-    </div>
+        <Hotbar
+          isHandTrackingActive={isHandTrackingActive}
+          onToggleHandTracking={toggleHandTracking}
+          onToggleSellComputePane={toggleSellComputePane}
+          onToggleWalletPane={toggleWalletPane}
+          onToggleDvmJobHistoryPane={toggleDvmJobHistoryPane}
+        />
+      </div>
+    </KeyboardControls>
   );
 }
