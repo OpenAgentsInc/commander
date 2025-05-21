@@ -46,6 +46,7 @@ export default function HomePage() {
     toggleSellComputePane,
     toggleWalletPane,
     toggleDvmJobHistoryPane,
+    toggleAgentChatPane,
   } = usePaneStore(
     useShallow((state) => ({
       panes: state.panes,
@@ -55,6 +56,7 @@ export default function HomePage() {
       toggleSellComputePane: state.toggleSellComputePane,
       toggleWalletPane: state.toggleWalletPane,
       toggleDvmJobHistoryPane: state.toggleDvmJobHistoryPane,
+      toggleAgentChatPane: state.toggleAgentChatPane,
     }))
   );
 
@@ -171,7 +173,7 @@ export default function HomePage() {
       if (!modifier) return;
       
       const digit = parseInt(event.key);
-      if (isNaN(digit) || digit < 1 || digit > 3) return;
+      if (isNaN(digit) || digit < 1 || digit > 4) return;
       
       event.preventDefault();
       
@@ -190,12 +192,15 @@ export default function HomePage() {
           toggleDvmJobHistoryPane();
           break;
         case 4:
+          console.log('Keyboard: Toggle Agent Chat Pane');
+          toggleAgentChatPane();
+          break;
         case 5:
         case 6:
         case 7:
         case 8:
         case 9:
-          // No operation for slots 4-9
+          // No operation for slots 5-9
           break;
       }
     };
@@ -207,7 +212,7 @@ export default function HomePage() {
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown);
     };
-  }, [toggleSellComputePane, toggleWalletPane, toggleHandTracking, toggleDvmJobHistoryPane]);
+  }, [toggleSellComputePane, toggleWalletPane, toggleHandTracking, toggleDvmJobHistoryPane, toggleAgentChatPane]);
 
   // Handler for keyboard shortcuts (kept as a backup, but we'll primarily use the global handler)
   const handleKeyboardChange = useCallback(
@@ -239,6 +244,7 @@ export default function HomePage() {
           onToggleSellComputePane={toggleSellComputePane}
           onToggleWalletPane={toggleWalletPane}
           onToggleDvmJobHistoryPane={toggleDvmJobHistoryPane}
+          onToggleAgentChatPane={toggleAgentChatPane}
         />
       </div>
     </KeyboardControls>

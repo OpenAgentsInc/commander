@@ -37,6 +37,8 @@ export interface PaneStoreType extends PaneState {
   toggleSellComputePane: () => void; // Toggle Sell Compute pane (open if closed, close if open)
   toggleWalletPane: () => void; // Toggle Wallet pane (open if closed, close if open)
   toggleDvmJobHistoryPane: () => void; // Toggle DVM Job History pane (open if closed, close if open)
+  toggleAgentChatPane: () => void; // Toggle Agent Chat pane (open if closed, close if open)
+  openAgentChatPane: () => void; // Open Agent Chat pane
 }
 
 export type SetPaneStore = StoreApi<PaneStoreType>['setState'];

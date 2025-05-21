@@ -18,3 +18,6 @@ export * from './openSecondPagePane';
 export * from './openWalletSetupPane';
 export * from './openSeedPhraseBackupPane';
 export * from './openRestoreWalletPane';
+// Agent chat pane actions
+export * from './openAgentChatPane';
+export * from './toggleAgentChatPane';

@@ -11,6 +11,7 @@ import { Nip90DvmTestPane } from '@/components/nip90_dvm_test';
 import { Nip90ConsumerChatPane } from '@/components/nip90_consumer_chat';
 import { Nip90GlobalFeedPane } from '@/components/nip90_feed';
 import { WalletPane } from '@/components/wallet';
+import { AgentChatPane } from '@/components/ai';
 // Import page components that will now be rendered in panes
 import SecondPage from '@/pages/SecondPage';
 import WalletSetupPage from '@/pages/WalletSetupPage';
@@ -116,6 +117,9 @@ export const PaneManager = () => {
           {pane.type === 'restore_wallet_content' && (
             <RestoreWalletPage paneId={pane.id} />
           )}
+          {pane.type === 'agent_chat' && (
+            <AgentChatPane />
+          )}
           {pane.type === 'default' && <PlaceholderDefaultComponent type={pane.type} />}
           {/* Generic fallback */}
           {!(
@@ -136,6 +140,7 @@ export const PaneManager = () => {
             pane.type === 'wallet_setup_content' ||
             pane.type === 'seed_phrase_backup_content' ||
             pane.type === 'restore_wallet_content' ||
+            pane.type === 'agent_chat' ||
             pane.type === 'default'
           ) && <PlaceholderDefaultComponent type={pane.type} />}
         </PaneComponent>

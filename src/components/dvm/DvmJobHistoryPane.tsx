@@ -92,7 +92,7 @@ const DvmJobHistoryPane: React.FC = () => {
           <>
             <Card><CardHeader><CardTitle className="text-sm">Total Jobs</CardTitle></CardHeader><CardContent><p className="text-xl font-bold">{statsData.totalJobsProcessed}</p></CardContent></Card>
             <Card><CardHeader><CardTitle className="text-sm">Successful</CardTitle></CardHeader><CardContent><p className="text-xl font-bold text-green-500">{statsData.totalSuccessfulJobs}</p></CardContent></Card>
-            <Card><CardHeader><CardTitle className="text-sm">Revenue (Sats)</CardTitle></CardHeader><CardContent><p className="text-xl font-bold text-yellow-500">{statsData.totalRevenueSats}</p></CardContent></Card>
+            <Card><CardHeader><CardTitle className="text-sm">Revenue (₿)</CardTitle></CardHeader><CardContent><p className="text-xl font-bold text-yellow-500">{statsData.totalRevenueSats}</p></CardContent></Card>
             <Card><CardHeader><CardTitle className="text-sm">Failed</CardTitle></CardHeader><CardContent><p className="text-xl font-bold text-destructive">{statsData.totalFailedJobs}</p></CardContent></Card>
           </>
         )}
@@ -109,7 +109,7 @@ const DvmJobHistoryPane: React.FC = () => {
                 <TableHead>Requester</TableHead>
                 <TableHead>Kind</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Amount (Sats)</TableHead>
+                <TableHead>Amount (₿)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

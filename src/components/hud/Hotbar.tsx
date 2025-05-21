@@ -1,12 +1,13 @@
 import React from 'react';
 import { cn } from '@/utils/tailwind';
 import { HotbarItem } from './HotbarItem';
-import { Store, History, Hand, Wallet } from 'lucide-react';
+import { Store, History, Hand, Wallet, Bot } from 'lucide-react';
 import { usePaneStore } from '@/stores/pane';
 import { useShallow } from 'zustand/react/shallow';
 import {
   SELL_COMPUTE_PANE_ID_CONST,
   WALLET_PANE_ID,
+  AGENT_CHAT_PANE_ID,
 } from '@/stores/panes/constants';
 import { DVM_JOB_HISTORY_PANE_ID } from '@/stores/panes/actions/openDvmJobHistoryPane';
 
@@ -17,6 +18,7 @@ interface HotbarProps {
   onToggleSellComputePane: () => void;
   onToggleWalletPane: () => void;
   onToggleDvmJobHistoryPane: () => void;
+  onToggleAgentChatPane: () => void;
 }
 
 export const Hotbar: React.FC<HotbarProps> = ({ 
@@ -25,7 +27,8 @@ export const Hotbar: React.FC<HotbarProps> = ({
   onToggleHandTracking, 
   onToggleSellComputePane,
   onToggleWalletPane,
-  onToggleDvmJobHistoryPane 
+  onToggleDvmJobHistoryPane,
+  onToggleAgentChatPane
 }) => {
   const { activePaneId } = usePaneStore(
     useShallow(state => ({
@@ -54,10 +57,13 @@ export const Hotbar: React.FC<HotbarProps> = ({
       <HotbarItem slotNumber={3} onClick={onToggleDvmJobHistoryPane} title="DVM Job History" isActive={activePaneId === DVM_JOB_HISTORY_PANE_ID}>
         <History className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
+      <HotbarItem slotNumber={4} onClick={onToggleAgentChatPane} title="Agent Chat" isActive={activePaneId === AGENT_CHAT_PANE_ID}>
+        <Bot className="w-5 h-5 text-muted-foreground" />
+      </HotbarItem>
       
       {/* Fill the remaining slots with empty HotbarItems */}
-      {Array.from({ length: 6 }).map((_, i) => (
-        <HotbarItem key={`empty-slot-${i}`} slotNumber={i + 4} isGhost>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <HotbarItem key={`empty-slot-${i}`} slotNumber={i + 5} isGhost>
           <span className="w-5 h-5" />
         </HotbarItem>
       ))}

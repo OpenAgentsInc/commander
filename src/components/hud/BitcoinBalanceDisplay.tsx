@@ -47,8 +47,7 @@ const BitcoinBalanceDisplay: React.FC = () => {
       title="Open Wallet"
       className="fixed top-4 right-4 z-[10000] p-2 h-8 flex items-center bg-background/70 border border-border/30 rounded-md shadow-lg backdrop-blur-sm text-xs font-mono text-foreground cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors"
     >
-      <span className="text-yellow-500 mr-1.5 font-bold">₿</span>
-      {displayContent}
+      <span className="text-yellow-500 mr-1 font-bold">₿</span>{displayContent}
       <Button
         variant="ghost"
         size="icon"

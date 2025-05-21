@@ -163,7 +163,7 @@ const WalletPane: React.FC = () => {
       <Card className="flex-grow flex flex-col border-0 shadow-none bg-transparent">
         <CardHeader className="p-2 pt-0 pb-1 text-center">
           <CardTitle className="text-base flex items-center justify-center">
-            <Bitcoin className="w-4 h-4 mr-2 text-yellow-500" /> Commander Wallet
+            <Bitcoin className="w-4 h-4 mr-2 text-yellow-500" /> Wallet
           </CardTitle>
         </CardHeader>
         <CardContent className="p-1 flex-grow overflow-hidden">

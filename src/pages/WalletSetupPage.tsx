@@ -60,7 +60,7 @@ const WalletSetupPage: React.FC<WalletSetupPageProps> = ({ paneId }) => {
           <div className="mb-2 flex justify-center">
             <Wallet className="h-12 w-12 text-primary" />
           </div>
-          <CardTitle className="text-2xl">Welcome to Commander Wallet</CardTitle>
+          <CardTitle className="text-2xl">Bitcoin Wallet Setup</CardTitle>
           <CardDescription>
             Securely manage your funds and agent interactions.
           </CardDescription>
