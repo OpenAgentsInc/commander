@@ -35,7 +35,7 @@ const Nip90ConsumerChatPane: React.FC = () => {
     sparkAddress: null, sparkBalance: 'Loading...', error: null, isLoading: true
   });
   const [showSensitive, setShowSensitive] = useState(false);
-  const [targetDvmNpub, setTargetDvmNpub] = useState<string>("");
+  const [targetDvmInput, setTargetDvmInput] = useState<string>(""); // Renamed for clarity
 
   const runtime = getMainRuntime(); // Get the main app runtime
 
@@ -131,8 +131,8 @@ const Nip90ConsumerChatPane: React.FC = () => {
   } = useNip90ConsumerChat({
     nostrPrivateKeyHex: walletState.privateKeyHex,
     nostrPublicKeyHex: walletState.publicKeyHex,
-    targetDvmPubkeyHex: targetDvmNpub.trim() || undefined, // Pass target DVM if set
-    runtime, // Pass the main runtime to the hook
+    targetDvmPubkeyHex: targetDvmInput.trim() || undefined, // Pass the raw input to the hook
+    runtime,
   });
 
   const handleSendMessage = () => {
@@ -181,12 +181,12 @@ const Nip90ConsumerChatPane: React.FC = () => {
       </Card>
 
       <div className="my-2 space-y-1">
-        <Label htmlFor="targetDvmNpub">Target DVM Pubkey (Optional - npub or hex)</Label>
+        <Label htmlFor="targetDvmInput">Target DVM (Optional - npub or hex for encryption)</Label>
         <Input
-          id="targetDvmNpub"
-          value={targetDvmNpub}
-          onChange={(e) => setTargetDvmNpub(e.target.value)}
-          placeholder="npub1... or hex public key (leave blank to broadcast)"
+          id="targetDvmInput"
+          value={targetDvmInput}
+          onChange={(e) => setTargetDvmInput(e.target.value)}
+          placeholder="npub1... or hex pubkey (leave blank for unencrypted broadcast)"
           className="h-7 text-xs"
           disabled={walletState.isLoading}
         />
