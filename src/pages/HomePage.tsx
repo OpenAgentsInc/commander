@@ -173,7 +173,7 @@ export default function HomePage() {
       if (!modifier) return;
       
       const digit = parseInt(event.key);
-      if (isNaN(digit) || digit < 1 || digit > 4) return;
+      if (isNaN(digit) || digit < 1 || digit > 9) return;
       
       event.preventDefault();
       
@@ -199,8 +199,11 @@ export default function HomePage() {
         case 6:
         case 7:
         case 8:
+          // No operation for slots 5-8
+          break;
         case 9:
-          // No operation for slots 5-9
+          console.log('Keyboard: Toggle Hand Tracking');
+          toggleHandTracking();
           break;
       }
     };

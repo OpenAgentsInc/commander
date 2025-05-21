@@ -62,11 +62,15 @@ export const Hotbar: React.FC<HotbarProps> = ({
       </HotbarItem>
       
       {/* Fill the remaining slots with empty HotbarItems */}
-      {Array.from({ length: 5 }).map((_, i) => (
+      {Array.from({ length: 4 }).map((_, i) => (
         <HotbarItem key={`empty-slot-${i}`} slotNumber={i + 5} isGhost>
           <span className="w-5 h-5" />
         </HotbarItem>
       ))}
+      
+      <HotbarItem slotNumber={9} onClick={onToggleHandTracking} title={isHandTrackingActive ? "Disable Hand Tracking" : "Enable Hand Tracking"} isActive={isHandTrackingActive}>
+        <Hand className="w-5 h-5 text-muted-foreground" />
+      </HotbarItem>
     </div>
   );
 };
