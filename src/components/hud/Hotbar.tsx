@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '@/utils/tailwind';
 import { HotbarItem } from './HotbarItem';
-import { RefreshCw, Store, History } from 'lucide-react';
+import { RefreshCw, Store, History, Hand } from 'lucide-react';
 import { usePaneStore } from '@/stores/pane';
 
 interface HotbarProps {
@@ -37,13 +37,16 @@ export const Hotbar: React.FC<HotbarProps> = ({
       <HotbarItem slotNumber={2} onClick={onOpenDvmJobHistoryPane} title="DVM Job History" isActive={activePaneId === DVM_JOB_HISTORY_PANE_ID}>
         <History className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
-      <HotbarItem slotNumber={3} onClick={resetHUDState} title="Reset HUD Layout">
+      <HotbarItem slotNumber={3} onClick={onToggleHandTracking} title={isHandTrackingActive ? "Disable Hand Tracking" : "Enable Hand Tracking"} isActive={isHandTrackingActive}>
+        <Hand className="w-5 h-5 text-muted-foreground" />
+      </HotbarItem>
+      <HotbarItem slotNumber={4} onClick={resetHUDState} title="Reset HUD Layout">
         <RefreshCw className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
       
-      {/* Fill the remaining 6 slots with empty HotbarItems */}
-      {Array.from({ length: 6 }).map((_, i) => (
-        <HotbarItem key={`empty-slot-${i}`} slotNumber={i + 4} isGhost>
+      {/* Fill the remaining 5 slots with empty HotbarItems */}
+      {Array.from({ length: 5 }).map((_, i) => (
+        <HotbarItem key={`empty-slot-${i}`} slotNumber={i + 5} isGhost>
           <span className="w-5 h-5" />
         </HotbarItem>
       ))}

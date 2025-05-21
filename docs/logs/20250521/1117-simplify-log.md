@@ -70,3 +70,27 @@ These changes effectively focus the user experience on the core "GO ONLINE, EARN
    - `/src/components/hud/index.ts` - Updated exports to include BitcoinBalanceDisplay
 
 All code has been implemented according to the requirements, focusing on the "GO ONLINE, EARN BITCOIN" core loop while preserving all existing functionality.
+
+## Further Updates
+
+After the initial implementation, we made the following changes:
+
+1. Updated the wallet display in `BitcoinBalanceDisplay.tsx`:
+   - Added placeholder for wallet pane functionality with comments and debug logging
+   - Temporarily still opens Sell Compute pane until wallet pane is implemented
+   - Removed the lightning bolt symbol and "sats" text from the display
+   - Used a single yellow ₿ symbol instead of the Bitcoin icon
+   - Fixed redundant Bitcoin symbols by only showing one ₿ followed by the balance
+
+2. Re-added the hand tracking button to the Hotbar:
+   - Added it as slot number 3
+   - Moved the Reset HUD button to slot 4
+   - Adjusted the number of empty placeholder slots from 6 to 5
+
+3. Fixed TypeScript errors:
+   - Added `isGhost` property to `HotbarItemProps` interface in `/src/components/hud/HotbarItem.tsx`
+   - Added the property to the component destructuring
+   - Used it in the className to style ghost items with reduced opacity
+   - Fixed export issues in `/src/components/hud/index.ts` by changing to proper imports/exports
+
+All TypeScript errors have been fixed, and the code now passes the TypeScript check with `pnpm run t`.

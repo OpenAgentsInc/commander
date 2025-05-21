@@ -26,7 +26,12 @@ const BitcoinBalanceDisplay: React.FC = () => {
     refetchIntervalInBackground: true,
   });
 
+  // Placeholder for wallet pane - will be implemented by a separate agent
   const handleDisplayClick = () => {
+    // Placeholder - for now, just log that this would open a wallet pane
+    console.log('Opening wallet pane (placeholder - to be implemented)');
+    
+    // Temporarily still open sell compute pane until wallet pane is implemented
     openSellComputePane();
   };
 
@@ -36,7 +41,7 @@ const BitcoinBalanceDisplay: React.FC = () => {
   } else if (error) {
     displayContent = <><AlertTriangle className="h-3 w-3 mr-1 text-destructive" /> Error</>;
   } else if (balanceData) {
-    displayContent = `⚡ ${balanceData.balance.toString()} sats`;
+    displayContent = `${balanceData.balance.toString()}`;
   } else {
     displayContent = <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Initializing...</>;
   }
@@ -47,7 +52,7 @@ const BitcoinBalanceDisplay: React.FC = () => {
       title="Open Wallet / Sell Compute Pane"
       className="fixed top-4 right-4 z-[10000] p-2 h-8 flex items-center bg-background/70 border border-border/30 rounded-md shadow-lg backdrop-blur-sm text-xs font-mono text-foreground cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors"
     >
-      <Bitcoin className="h-3 w-3 mr-1.5 text-yellow-500" />
+      <span className="text-yellow-500 mr-1.5 font-bold">₿</span>
       {displayContent}
       <Button
         variant="ghost"

@@ -1,5 +1,9 @@
-export { BitcoinBalanceDisplay } from './BitcoinBalanceDisplay'
-export { Hotbar } from './Hotbar'
-export { HotbarItem } from './HotbarItem'
-export { NewChannelButton } from './NewChannelButton'
-export { Nip90DashboardButton } from './Nip90DashboardButton'
+import BitcoinBalanceDisplay from './BitcoinBalanceDisplay'
+import { Hotbar } from './Hotbar'
+import { HotbarItem } from './HotbarItem'
+
+export {
+  BitcoinBalanceDisplay,
+  Hotbar,
+  HotbarItem
+}
