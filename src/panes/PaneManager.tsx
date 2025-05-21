@@ -1,5 +1,6 @@
 import React from 'react';
 import { usePaneStore } from '@/stores/pane';
+import { useShallow } from 'zustand/react/shallow';
 import { Pane as PaneComponent } from '@/panes/Pane';
 import { Pane as PaneType } from '@/types/pane';
 import { Nip28ChannelChat } from '@/components/nip28';
@@ -10,6 +11,11 @@ import { Nip90DvmTestPane } from '@/components/nip90_dvm_test';
 import { Nip90ConsumerChatPane } from '@/components/nip90_consumer_chat';
 import { Nip90GlobalFeedPane } from '@/components/nip90_feed';
 import { WalletPane } from '@/components/wallet';
+// Import page components that will now be rendered in panes
+import SecondPage from '@/pages/SecondPage';
+import WalletSetupPage from '@/pages/WalletSetupPage';
+import SeedPhraseBackupPage from '@/pages/SeedPhraseBackupPage';
+import RestoreWalletPage from '@/pages/RestoreWalletPage';
 
 // Placeholder Content Components
 const PlaceholderChatComponent = ({ threadId }: { threadId?: string }) => <div className="p-2">Chat Pane Content {threadId && `for ${threadId}`}</div>;
@@ -26,7 +32,12 @@ const PlaceholderDefaultComponent = ({ type }: { type: string }) => <div classNa
 
 
 export const PaneManager = () => {
-  const { panes, activePaneId } = usePaneStore();
+  const { panes, activePaneId } = usePaneStore(
+    useShallow((state) => ({
+      panes: state.panes,
+      activePaneId: state.activePaneId
+    }))
+  );
   // const createNip28Channel = usePaneStore((state) => state.createNip28ChannelPane); // No longer needed here
 
   const stripIdPrefix = (id: string): string => {
@@ -92,8 +103,21 @@ export const PaneManager = () => {
           {pane.type === 'wallet' && (
             <WalletPane />
           )}
+          {/* New page pane types */}
+          {pane.type === 'second_page_content' && (
+            <SecondPage />
+          )}
+          {pane.type === 'wallet_setup_content' && pane.id && (
+            <WalletSetupPage paneId={pane.id} key={pane.id} />
+          )}
+          {pane.type === 'seed_phrase_backup_content' && pane.content?.seedPhrase && (
+            <SeedPhraseBackupPage seedPhrase={pane.content.seedPhrase} paneId={pane.id} />
+          )}
+          {pane.type === 'restore_wallet_content' && (
+            <RestoreWalletPage paneId={pane.id} />
+          )}
           {pane.type === 'default' && <PlaceholderDefaultComponent type={pane.type} />}
-          {/* Add other pane types here, or a more generic fallback */}
+          {/* Generic fallback */}
           {!(
             pane.type === 'chat' ||
             pane.type === 'chats' ||
@@ -108,6 +132,10 @@ export const PaneManager = () => {
             pane.type === 'nip90_consumer_chat' ||
             pane.type === 'nip90_global_feed' ||
             pane.type === 'wallet' ||
+            pane.type === 'second_page_content' ||
+            pane.type === 'wallet_setup_content' ||
+            pane.type === 'seed_phrase_backup_content' ||
+            pane.type === 'restore_wallet_content' ||
             pane.type === 'default'
           ) && <PlaceholderDefaultComponent type={pane.type} />}
         </PaneComponent>

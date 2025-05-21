@@ -13,3 +13,8 @@ export * from './openNip90DvmTestPane';
 export * from './openNip90ConsumerChatPane';
 export * from './openNip90GlobalFeedPane';
 export * from './openWalletPane';
+// New page pane actions
+export * from './openSecondPagePane';
+export * from './openWalletSetupPane';
+export * from './openSeedPhraseBackupPane';
+export * from './openRestoreWalletPane';

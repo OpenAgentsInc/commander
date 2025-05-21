@@ -1,33 +1,39 @@
 import React from "react";
-import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { usePaneStore } from "@/stores/pane";
 import {
   NavigationMenu as NavigationMenuBase,
   NavigationMenuItem,
-  NavigationMenuLink,
   NavigationMenuList,
   navigationMenuTriggerStyle,
 } from "../ui/navigation-menu";
+import { Button } from "../ui/button";
 
 export default function NavigationMenu() {
   const { t } = useTranslation();
+  const openSecondPagePane = usePaneStore((state) => state.openSecondPagePane);
 
   return (
     <NavigationMenuBase className="px-2 font-mono text-muted-foreground">
       <NavigationMenuList>
         <NavigationMenuItem>
-          <Link to="/">
-            <NavigationMenuLink className={navigationMenuTriggerStyle()}>
-              {t("titleHomePage")}
-            </NavigationMenuLink>
-          </Link>
+          {/* Home button can just reset HUD or do nothing for now */}
+          <Button 
+            variant="ghost" 
+            className={navigationMenuTriggerStyle()}
+            onClick={() => console.log("Home clicked")}
+          >
+            {t("titleHomePage")}
+          </Button>
         </NavigationMenuItem>
         <NavigationMenuItem>
-          <Link to="/second-page">
-            <NavigationMenuLink className={navigationMenuTriggerStyle()}>
-              {t("titleSecondPage")}
-            </NavigationMenuLink>
-          </Link>
+          <Button 
+            variant="ghost" 
+            className={navigationMenuTriggerStyle()}
+            onClick={() => openSecondPagePane()}
+          >
+            {t("titleSecondPage")}
+          </Button>
         </NavigationMenuItem>
       </NavigationMenuList>
     </NavigationMenuBase>

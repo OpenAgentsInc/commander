@@ -1,6 +1,6 @@
 export type Pane = {
   id: string; // Unique identifier for the pane. For chat panes, this might be derived from a chat/thread ID.
-  type: 'default' | 'chat' | 'chats' | 'user' | 'diff' | 'changelog' | 'nip28_channel' | 'nip90_dashboard' | 'sell_compute' | 'dvm_job_history' | 'nip90_dvm_test' | 'nip90_consumer_chat' | 'nip90_global_feed' | 'wallet' | string; // Type of content the pane displays. Add more as needed.
+  type: 'default' | 'chat' | 'chats' | 'user' | 'diff' | 'changelog' | 'nip28_channel' | 'nip90_dashboard' | 'sell_compute' | 'dvm_job_history' | 'nip90_dvm_test' | 'nip90_consumer_chat' | 'nip90_global_feed' | 'wallet' | 'second_page_content' | 'wallet_setup_content' | 'seed_phrase_backup_content' | 'restore_wallet_content' | string; // Type of content the pane displays. Add more as needed.
   title: string; // Title displayed in the pane's title bar.
   x: number; // X-coordinate of the top-left corner.
   y: number; // Y-coordinate of the top-left corner.
@@ -13,6 +13,8 @@ export type Pane = {
     newContent?: string;
     channelId?: string; // Added for NIP28 channels
     channelName?: string; // Optional: for initial title for NIP28 channels
+    seedPhrase?: string; // Added for seed phrase backup pane
+    data?: Record<string, any>; // Generic data bucket for panes
     [key: string]: unknown; // Allows for other content properties
   };
   // Add any other pane-specific properties here, e.g.:

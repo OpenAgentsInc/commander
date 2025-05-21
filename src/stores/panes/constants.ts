@@ -35,3 +35,16 @@ export const NIP90_GLOBAL_FEED_PANE_TITLE = 'NIP-90 Global Feed';
 // Constants for Wallet pane
 export const WALLET_PANE_ID = 'wallet_pane';
 export const WALLET_PANE_TITLE = 'Bitcoin Wallet';
+
+// Constants for Page Panes (refactored from previous router pages)
+export const SECOND_PAGE_PANE_ID = 'second_page_pane_id';
+export const SECOND_PAGE_PANE_TITLE = 'Second Page';
+
+export const WALLET_SETUP_PANE_ID = 'wallet_setup_pane_id';
+export const WALLET_SETUP_PANE_TITLE = 'Wallet Setup';
+
+export const SEED_PHRASE_BACKUP_PANE_ID = 'seed_phrase_backup_pane_id';
+export const SEED_PHRASE_BACKUP_PANE_TITLE = 'Backup Seed Phrase';
+
+export const RESTORE_WALLET_PANE_ID = 'restore_wallet_pane_id';
+export const RESTORE_WALLET_PANE_TITLE = 'Restore Wallet';

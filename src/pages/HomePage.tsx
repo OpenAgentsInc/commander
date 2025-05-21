@@ -2,7 +2,10 @@ import React, { useState, useEffect, useRef } from "react";
 import { PaneManager } from "@/panes/PaneManager";
 import { SimpleGrid } from "@/components/home/SimpleGrid";
 import { HandTracking, HandPose } from "@/components/hands";
-import { type PinchCoordinates, type HandLandmarks } from "@/components/hands/handPoseTypes";
+import {
+  type PinchCoordinates,
+  type HandLandmarks,
+} from "@/components/hands/handPoseTypes";
 import { usePaneStore } from "@/stores/pane";
 import { Hotbar } from "@/components/hud/Hotbar";
 import BitcoinBalanceDisplay from "@/components/hud/BitcoinBalanceDisplay";
@@ -26,12 +29,20 @@ export default function HomePage() {
   const initialPinchPositionRef = useRef<{ x: number; y: number } | null>(null);
   const paneStartPosRef = useRef<{ x: number; y: number } | null>(null);
 
-  const { panes, bringPaneToFront, updatePanePosition, activePaneId: currentActivePaneId, openSellComputePane, openDvmJobHistoryPane } = usePaneStore();
+  const {
+    panes,
+    bringPaneToFront,
+    updatePanePosition,
+    activePaneId: currentActivePaneId,
+    openSellComputePane,
+    openDvmJobHistoryPane,
+  } = usePaneStore();
 
   const toggleHandTracking = () => {
     const newState = !isHandTrackingActive;
     setIsHandTrackingActive(newState);
-    if (!newState && draggingPaneId) { // If turning off while dragging
+    if (!newState && draggingPaneId) {
+      // If turning off while dragging
       setDraggingPaneId(null);
       initialPinchPositionRef.current = null;
       paneStartPosRef.current = null;
@@ -40,15 +51,17 @@ export default function HomePage() {
 
   // Use a ref to compare previous and current data to avoid unnecessary state updates
   const prevHandDataRef = useRef<HandDataContext | null>(null);
-  
+
   const handleHandDataUpdate = (data: HandDataContext) => {
     // Only update state if data has meaningfully changed
     // This prevents unnecessary re-renders and update loops
-    if (!prevHandDataRef.current || 
-        data.activeHandPose !== prevHandDataRef.current.activeHandPose ||
-        data.trackedHandsCount !== prevHandDataRef.current.trackedHandsCount ||
-        JSON.stringify(data.pinchMidpoint) !== JSON.stringify(prevHandDataRef.current.pinchMidpoint)) {
-      
+    if (
+      !prevHandDataRef.current ||
+      data.activeHandPose !== prevHandDataRef.current.activeHandPose ||
+      data.trackedHandsCount !== prevHandDataRef.current.trackedHandsCount ||
+      JSON.stringify(data.pinchMidpoint) !==
+        JSON.stringify(prevHandDataRef.current.pinchMidpoint)
+    ) {
       prevHandDataRef.current = data;
       setHandData(data);
     }
@@ -56,7 +69,12 @@ export default function HomePage() {
 
   // Effect for pinch-to-drag logic
   useEffect(() => {
-    if (!isHandTrackingActive || !handData || !handData.pinchMidpoint || handData.trackedHandsCount === 0) {
+    if (
+      !isHandTrackingActive ||
+      !handData ||
+      !handData.pinchMidpoint ||
+      handData.trackedHandsCount === 0
+    ) {
       if (draggingPaneId) {
         setDraggingPaneId(null);
         initialPinchPositionRef.current = null;
@@ -81,7 +99,10 @@ export default function HomePage() {
           ) {
             setDraggingPaneId(pane.id);
             paneStartPosRef.current = { x: pane.x, y: pane.y };
-            initialPinchPositionRef.current = { x: pinchMidpoint.x, y: pinchMidpoint.y };
+            initialPinchPositionRef.current = {
+              x: pinchMidpoint.x,
+              y: pinchMidpoint.y,
+            };
             if (pane.id !== currentActivePaneId) {
               bringPaneToFront(pane.id);
             }
@@ -98,31 +119,35 @@ export default function HomePage() {
         if (Math.abs(deltaX) >= 1 || Math.abs(deltaY) >= 1) {
           const newX = paneStartPosRef.current.x + deltaX;
           const newY = paneStartPosRef.current.y + deltaY;
-          
+
           // Update the refs to the new values to track relative movement
-          initialPinchPositionRef.current = { x: pinchMidpoint.x, y: pinchMidpoint.y };
+          initialPinchPositionRef.current = {
+            x: pinchMidpoint.x,
+            y: pinchMidpoint.y,
+          };
           paneStartPosRef.current = { x: newX, y: newY };
-          
+
           // Update the store
           updatePanePosition(draggingPaneId, newX, newY);
         }
       }
-    } else { // Pinch released or pose changed
+    } else {
+      // Pinch released or pose changed
       if (draggingPaneId) {
         setDraggingPaneId(null);
         initialPinchPositionRef.current = null;
         paneStartPosRef.current = null;
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHandTrackingActive, handData, draggingPaneId]);
 
   return (
-    <div className="relative w-full h-full overflow-hidden">
+    <div className="relative h-full w-full overflow-hidden">
       <SimpleGrid />
       <PaneManager />
       <BitcoinBalanceDisplay />
-      
+
       {/* HandTracking component is still here but its toggle is removed from UI */}
       <HandTracking
         showHandTracking={isHandTrackingActive}

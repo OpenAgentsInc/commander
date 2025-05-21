@@ -1,44 +1,60 @@
-import React, { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import React, { useState, useCallback } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
+import { usePaneStore } from '@/stores/pane';
+import { useShallow } from 'zustand/react/shallow';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, Wallet } from 'lucide-react';
 
-const WalletSetupPage: React.FC = () => {
-  const navigate = useNavigate();
-  const generateNewWallet = useWalletStore((state) => state.generateNewWallet);
-  const isLoading = useWalletStore((state) => state.isLoading);
-  const error = useWalletStore((state) => state.error);
-  const clearError = useWalletStore((state) => state.clearError);
+interface WalletSetupPageProps {
+  paneId: string; // To close this pane when navigating
+}
+
+const WalletSetupPage: React.FC<WalletSetupPageProps> = ({ paneId }) => {
+  const { generateNewWallet, isLoading, error, clearError } = useWalletStore(
+    useShallow((state) => ({
+      generateNewWallet: state.generateNewWallet,
+      isLoading: state.isLoading,
+      error: state.error,
+      clearError: state.clearError,
+    }))
+  );
+  
+  const { openSeedPhraseBackupPane, openRestoreWalletPane, removePane } = usePaneStore(
+    useShallow((state) => ({
+      openSeedPhraseBackupPane: state.openSeedPhraseBackupPane,
+      openRestoreWalletPane: state.openRestoreWalletPane,
+      removePane: state.removePane,
+    }))
+  );
   
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const handleCreateNewWallet = async () => {
+  // Memoize handlers to prevent unnecessary re-renders
+  const handleCreateNewWallet = useCallback(async () => {
     setIsGenerating(true);
     clearError();
     try {
       const newSeedPhrase = await generateNewWallet();
       if (newSeedPhrase) {
-        // Navigate to backup page, passing the seed phrase as state
-        navigate({ 
-          to: '/backup-seed-phrase',
-          search: { seedPhrase: newSeedPhrase }
-        });
+        // Open seed phrase backup pane and pass the seed phrase via content
+        openSeedPhraseBackupPane({ seedPhrase: newSeedPhrase });
+        removePane(paneId); // Close this pane
       }
     } finally {
       setIsGenerating(false);
     }
-  };
+  }, [clearError, generateNewWallet, openSeedPhraseBackupPane, paneId, removePane]);
 
-  const handleRestoreWallet = () => {
+  const handleRestoreWallet = useCallback(() => {
     clearError();
-    // Navigate to restore page
-    navigate({ to: '/restore-wallet' });
-  };
+    // Open restore wallet pane
+    openRestoreWalletPane();
+    removePane(paneId); // Close this pane
+  }, [clearError, openRestoreWalletPane, paneId, removePane]);
 
   return (
-    <div className="container flex items-center justify-center min-h-screen p-4">
+    <div className="container flex items-center justify-center min-h-full p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mb-2 flex justify-center">
@@ -70,7 +86,7 @@ const WalletSetupPage: React.FC = () => {
             className="w-full"
             size="lg"
             variant="outline"
-            disabled={isLoading}
+            disabled={isLoading || isGenerating}
           >
             Restore Existing Wallet
           </Button>
@@ -86,4 +102,5 @@ const WalletSetupPage: React.FC = () => {
   );
 };
 
-export default WalletSetupPage;
+// Use React.memo to prevent unnecessary re-renders
+export default React.memo(WalletSetupPage);

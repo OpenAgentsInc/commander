@@ -1,6 +1,6 @@
 import React from 'react';
-import { useNavigate } from '@tanstack/react-router';
 import { useWalletStore } from '@/stores/walletStore';
+import { usePaneStore } from '@/stores/pane';
 import {
   Dialog,
   DialogTrigger,
@@ -18,15 +18,15 @@ interface LogoutWarningDialogProps {
 }
 
 const LogoutWarningDialog: React.FC<LogoutWarningDialogProps> = ({ children }) => {
-  const navigate = useNavigate();
   const logout = useWalletStore((state) => state.logout);
+  const openWalletSetupPane = usePaneStore((state) => state.openWalletSetupPane);
   const [open, setOpen] = React.useState(false);
 
   const handleLogout = () => {
     logout();
     setOpen(false);
-    // Navigate to the wallet setup page after logout
-    navigate({ to: '/setup-wallet' });
+    // Open the wallet setup pane after logout
+    openWalletSetupPane();
   };
 
   return (
