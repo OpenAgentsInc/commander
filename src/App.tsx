@@ -10,6 +10,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { useWalletStore } from "@/stores/walletStore";
 import { usePaneStore } from "@/stores/pane";
+import { shallow } from 'zustand/shallow';
 import { 
   WALLET_SETUP_PANE_ID, 
   SEED_PHRASE_BACKUP_PANE_ID, 
@@ -32,8 +33,14 @@ export default function App() {
 
   // Get wallet and pane state properly using hooks
   const isWalletInitialized = useWalletStore((state) => state.isInitialized);
-  const panes = usePaneStore((state) => state.panes);
-  const openWalletSetupPane = usePaneStore((state) => state.openWalletSetupPane);
+  // Use object destructuring with shallow for the panes and openWalletSetupPane to prevent unnecessary re-renders
+  const { panes, openWalletSetupPane } = usePaneStore(
+    (state) => ({
+      panes: state.panes,
+      openWalletSetupPane: state.openWalletSetupPane
+    }),
+    shallow
+  );
   
   // New effect for wallet initialization check
   useEffect(() => {

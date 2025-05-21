@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, KeyRound } from 'lucide-react';
+import { shallow } from 'zustand/shallow';
 import SelfCustodyNoticeDialog from '@/components/wallet/SelfCustodyNoticeDialog';
 
 interface RestoreWalletPageProps {
@@ -19,14 +20,16 @@ const RestoreWalletPage: React.FC<RestoreWalletPageProps> = ({ paneId }) => {
       error: state.error,
       isLoading: state.isLoading,
       clearError: state.clearError,
-    })
+    }),
+    shallow // Add shallow equality check to prevent unnecessary re-renders
   );
   
   const { removePane, openWalletSetupPane } = usePaneStore(
     (state) => ({
       removePane: state.removePane,
       openWalletSetupPane: state.openWalletSetupPane
-    })
+    }),
+    shallow // Add shallow equality check to prevent unnecessary re-renders
   );
   
   const [seedPhrase, setSeedPhrase] = useState('');
