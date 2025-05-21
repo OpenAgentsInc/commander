@@ -1,51 +1,67 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+// import userEvent from '@testing-library/user-event'; // Not used in current tests
 import type { Mock } from 'vitest';
 
 // Set test environment
 process.env.NODE_ENV = 'test';
 
-// We need to do a full mock of the effect module
-vi.mock('effect', async () => {
-  const actual = await vi.importActual('effect');
-  return actual;
+// Mock Effect module
+vi.mock('effect', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('effect')>();
+  return {
+    ...actual, // Preserve all original exports (Exit, Cause, Schema, Data, etc.)
+    Effect: { // Target the 'Effect' named export (which is an object/namespace)
+      ...(actual.Effect as object), // Spread its original members
+      runFork: vi.fn(), // Specifically mock runFork, as used by component for telemetry
+      // runPromiseExit is used in the component's queryFn, but useQuery itself is mocked,
+      // so its queryFn won't execute with the real Effect.runPromiseExit in these tests.
+    },
+  };
 });
 
 // Mock the @tanstack/react-query module
 vi.mock('@tanstack/react-query', () => ({
   useQuery: vi.fn(),
+  // Keep QueryClient and QueryClientProvider real as they are used for wrapping
+  QueryClient: vi.fn(() => ({
+    clear: vi.fn(), // Mock methods used by tests if any
+    invalidateQueries: vi.fn(),
+    refetchQueries: vi.fn(),
+  })),
+  QueryClientProvider: ({ children }: { children: React.ReactNode }) => React.createElement(React.Fragment, null, children),
 }));
 
 // Import after mocks are defined
 import Nip90GlobalFeedPane from '@/components/nip90_feed/Nip90GlobalFeedPane';
 import { NostrEvent } from '@/services/nostr/NostrService';
 import { NIP90Service } from '@/services/nip90/NIP90Service';
-import { Effect } from 'effect';
+// Effect will be the mocked version here
+import { Effect } from 'effect'; // eslint-disable-line @typescript-eslint/no-redeclare
 import { TelemetryService } from '@/services/telemetry';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query'; // eslint-disable-line @typescript-eslint/no-redeclare
+
 
 // Mock dependencies
 vi.mock('@/services/runtime', () => ({
   getMainRuntime: vi.fn(() => ({
     context: {
-      get: vi.fn((service) => {
-        if (service === NIP90Service) return mockedNip90Service;
-        if (service === TelemetryService) return mockedTelemetryService;
+      get: vi.fn((serviceTag) => {
+        if (serviceTag === NIP90Service) return mockedNip90Service;
+        if (serviceTag === TelemetryService) return mockedTelemetryService;
         return undefined;
       })
     },
-    pipe: vi.fn(() => ({
-      provide: vi.fn()
-    }))
+    pipe: vi.fn().mockReturnThis(), // Mock chaining for provide
+    provide: vi.fn().mockReturnThis(),
   }))
 }));
 
 // Mock the bech32 encoder since we don't need actual encoding in tests
 vi.mock('@scure/base', () => ({
   bech32: {
-    encode: vi.fn((prefix, data) => `${prefix}1${Buffer.isBuffer(data) ? '0123456789abcdef' : data}`)
+    encode: vi.fn((prefix, data) => `${prefix}1mockencoded${data.toString().substring(0,5)}`)
   }
 }));
 
@@ -66,7 +82,7 @@ let mockEvents: NostrEvent[];
 const createSampleEvent = (kind: number): NostrEvent => ({
   id: `test-event-${kind}-${Math.random().toString(36).substring(2, 8)}`,
   pubkey: "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
-  created_at: Math.floor(Date.now() / 1000),
+  created_at: Math.floor(Date.now() / 1000) - Math.floor(Math.random() * 100), // Add some variance
   kind,
   tags: [
     ["e", "referenced-event"],
@@ -74,36 +90,28 @@ const createSampleEvent = (kind: number): NostrEvent => ({
     ...(kind === 7000 ? [["status", "success"]] : []),
     ...(kind >= 5000 && kind < 6000 ? [["i", "Example prompt", "text"]] : []),
   ],
-  content: kind === 5100 ? "Input prompt" : "Response content",
+  content: kind === 5100 ? "Input prompt content" : "Response result content",
   sig: "signature",
 });
 
 describe('Nip90GlobalFeedPane Component', () => {
   beforeEach(() => {
-    // Create sample events of different kinds
     mockEvents = [
-      createSampleEvent(5100), // Job request
-      createSampleEvent(6100), // Job result
-      createSampleEvent(7000), // Feedback
-    ];
-    
-    // Mock NIP90Service
+      createSampleEvent(5100),
+      createSampleEvent(6100),
+      createSampleEvent(7000),
+    ].sort((a,b) => b.created_at - a.created_at); // Ensure sorted by date desc
+
     mockedNip90Service = {
-      listPublicEvents: vi.fn((limit = 50) => 
-        Effect.succeed(mockEvents)
-      ),
+      listPublicEvents: vi.fn(() => Effect.succeed(mockEvents)),
     };
-    
-    // Mock TelemetryService
+
     mockedTelemetryService = {
       trackEvent: vi.fn(() => Effect.succeed(undefined as void)),
       isEnabled: vi.fn(() => Effect.succeed(true)),
       setEnabled: vi.fn(() => Effect.succeed(undefined as void)),
     };
-    
-    // Instead of mocking runPromiseExit, we'll mock the useQuery hook's behavior
 
-    // Mock useQuery to return the data
     (useQuery as Mock).mockReturnValue({
       data: mockEvents,
       isLoading: false,
@@ -112,32 +120,22 @@ describe('Nip90GlobalFeedPane Component', () => {
       isFetching: false
     });
   });
-  
+
   it('renders the component with event cards', async () => {
     render(<Nip90GlobalFeedPane />);
-    
-    // Check that the title is rendered
     expect(screen.getByText('NIP-90 Global Feed')).toBeInTheDocument();
-    
-    // Check that cards are rendered for each event
-    expect(screen.getByText('Job Request (5100)')).toBeInTheDocument();
-    expect(screen.getByText('Job Result (6100)')).toBeInTheDocument();
-    expect(screen.getByText('Feedback (success)')).toBeInTheDocument();
+    expect(screen.getByText(/Job Request \(5100\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/Job Result \(6100\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/Feedback \(success\)/i)).toBeInTheDocument();
   });
-  
+
   it('displays event content correctly', async () => {
     render(<Nip90GlobalFeedPane />);
-    
-    // Check that content sections are displayed - use getAllByText since there are multiple elements
-    const contentLabels = screen.getAllByText(/content:/i);
-    expect(contentLabels.length).toBeGreaterThan(0);
-    
-    // We don't test for specific content since our mock data might not be accurately reflected in the component
-    // Just verify the structure exists
+    // Look for content sections rather than specific content text
+    expect(screen.getAllByText(/Content:/i).length).toBeGreaterThan(0);
   });
-  
+
   it('handles empty data gracefully', async () => {
-    // Set mockEvents to empty to simulate no events found
     (useQuery as Mock).mockReturnValue({
       data: [],
       isLoading: false,
@@ -145,43 +143,34 @@ describe('Nip90GlobalFeedPane Component', () => {
       refetch: vi.fn(),
       isFetching: false
     });
-    
     render(<Nip90GlobalFeedPane />);
-    
-    // Check for empty state message
     expect(screen.getByText('No NIP-90 events found on connected relays.')).toBeInTheDocument();
   });
-  
-  it('shows loading state', async () => {
-    // Override the useQuery mock for this test
+
+  it('shows loading state placeholders', async () => {
     (useQuery as Mock).mockReturnValue({
-      data: undefined,
+      data: undefined, // No data yet
       isLoading: true,
       error: null,
       refetch: vi.fn(),
       isFetching: true
     });
-    
     render(<Nip90GlobalFeedPane />);
-    
-    // No specific loading UI to check, but the component should not crash
-    expect(screen.getByText('NIP-90 Global Feed')).toBeInTheDocument();
+    // Check for placeholder cards (based on current placeholder implementation)
+    const placeholderElements = document.querySelectorAll('.animate-pulse');
+    expect(placeholderElements.length).toBeGreaterThan(0); // At least one placeholder element
   });
-  
+
   it('shows error state', async () => {
-    // Override the useQuery mock for this test
     (useQuery as Mock).mockReturnValue({
       data: undefined,
       isLoading: false,
-      error: new Error('Test error'),
+      error: new Error('Network request failed'),
       refetch: vi.fn(),
       isFetching: false
     });
-    
     render(<Nip90GlobalFeedPane />);
-    
-    // Check for error message
     expect(screen.getByText('Error Loading NIP-90 Events')).toBeInTheDocument();
-    expect(screen.getByText('Test error')).toBeInTheDocument();
+    expect(screen.getByText('Network request failed')).toBeInTheDocument();
   });
 });
