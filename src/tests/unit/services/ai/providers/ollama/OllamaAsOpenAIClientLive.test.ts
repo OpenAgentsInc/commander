@@ -51,12 +51,23 @@ describe('OllamaAsOpenAIClientLive', () => {
     const program = Effect.gen(function*(_) {
       const client = yield* _(OllamaOpenAIClientTag);
       expect(client).toBeDefined();
+      
       // Use runtime type checking instead of static typing
+      // Check client structure according to OpenAiClient.Service interface
       expect(client).toHaveProperty('client');
       expect(client.client).toHaveProperty('chat');
       expect(client.client.chat).toHaveProperty('completions');
       expect(client.client.chat.completions).toHaveProperty('create');
       expect(typeof client.client.chat.completions.create).toBe('function');
+      
+      // Check the top-level stream method
+      expect(client).toHaveProperty('stream');
+      expect(typeof client.stream).toBe('function');
+      
+      // Check the streamRequest method
+      expect(client).toHaveProperty('streamRequest');
+      expect(typeof client.streamRequest).toBe('function');
+      
       return true;
     });
 
@@ -116,7 +127,8 @@ describe('OllamaAsOpenAIClientLive', () => {
 
     const program = Effect.gen(function*(_) {
       const client = yield* _(OllamaOpenAIClientTag);
-      const result = yield* _(client['chat.completions.create']({
+      // Access the create method via the client.client.chat.completions path
+      const result = yield* _(client.client.chat.completions.create({
         model: 'test-model',
         messages: [{ role: 'user', content: 'Test prompt' }],
         stream: false

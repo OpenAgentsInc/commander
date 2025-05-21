@@ -6,6 +6,7 @@ import { AgentLanguageModel } from '@/services/ai/core';
 import { AIProviderError } from '@/services/ai/core/AIError';
 import { OllamaAgentLanguageModelLive } from '@/services/ai/providers/ollama/OllamaAgentLanguageModelLive';
 import { OllamaOpenAIClientTag } from '@/services/ai/providers/ollama/OllamaAsOpenAIClientLive';
+import { HttpClient } from '@effect/platform/HttpClient';
 
 // Mock the @effect/ai-openai imports
 vi.mock('@effect/ai-openai', async (importOriginal) => {
@@ -18,7 +19,9 @@ vi.mock('@effect/ai-openai', async (importOriginal) => {
 // Mock the OpenAI client
 const mockChatCompletionsCreate = vi.fn();
 const mockStream = vi.fn();
-const MockOllamaOpenAIClient = Layer.succeed(OllamaOpenAIClientTag, {
+
+// Create a properly typed mock client that matches OpenAiClient.Service
+const mockClientService = {
   client: {
     chat: {
       completions: {
@@ -26,15 +29,23 @@ const MockOllamaOpenAIClient = Layer.succeed(OllamaOpenAIClientTag, {
       }
     },
     embeddings: {
-      create: vi.fn()
+      create: vi.fn(() => Effect.die("mock embeddings not implemented"))
     },
     models: {
-      list: vi.fn()
+      list: vi.fn(() => Effect.die("mock models.list not implemented"))
     }
   },
-  streamRequest: vi.fn(),
+  streamRequest: vi.fn(() => Stream.die("mock streamRequest not implemented")),
   stream: mockStream
-});
+};
+
+const MockOllamaOpenAIClient = Layer.succeed(OllamaOpenAIClientTag, mockClientService);
+
+// Mock HttpClient for OpenAiLanguageModel
+const mockHttpClient = {
+  request: vi.fn(() => Effect.succeed({ status: 200, body: {} })),
+};
+const MockHttpClient = Layer.succeed(HttpClient.HttpClient, mockHttpClient);
 
 // Mock the chat completions create to return test data
 mockChatCompletionsCreate.mockImplementation(() => Effect.succeed({
@@ -164,7 +175,8 @@ describe('OllamaAgentLanguageModelLive', () => {
               Layer.mergeAll(
                 MockOllamaOpenAIClient,
                 MockConfigurationService,
-                MockTelemetryService
+                MockTelemetryService,
+                MockHttpClient
               )
             )
           )
@@ -197,7 +209,8 @@ describe('OllamaAgentLanguageModelLive', () => {
               Layer.mergeAll(
                 MockOllamaOpenAIClient,
                 MockConfigurationService,
-                MockTelemetryService
+                MockTelemetryService,
+                MockHttpClient
               )
             )
           )
@@ -232,7 +245,8 @@ describe('OllamaAgentLanguageModelLive', () => {
               Layer.mergeAll(
                 MockOllamaOpenAIClient,
                 MockConfigurationService,
-                MockTelemetryService
+                MockTelemetryService,
+                MockHttpClient
               )
             )
           )
@@ -278,7 +292,8 @@ describe('OllamaAgentLanguageModelLive', () => {
                 Layer.mergeAll(
                   MockOllamaOpenAIClient,
                   MockConfigurationService,
-                  MockTelemetryService
+                  MockTelemetryService,
+                  MockHttpClient
                 )
               )
             )

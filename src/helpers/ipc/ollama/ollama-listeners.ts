@@ -8,7 +8,8 @@ import {
 } from "./ollama-channels";
 import { 
   OllamaService,
-  UiOllamaConfigLive
+  UiOllamaConfigLive,
+  OllamaHttpError
 } from "@/services/ollama/OllamaService";
 import { OllamaServiceLive } from "@/services/ollama/OllamaServiceImpl";
 import type { OllamaService as IOllamaService } from "@/services/ollama/OllamaService"; // For type annotation
@@ -126,19 +127,17 @@ export function addOllamaEventListeners() {
     // Don't throw, try to continue but mark that we should do a basic fallback
     ollamaServiceLayer = Layer.succeed(OllamaService, {
       checkOllamaStatus: () => Effect.succeed(false),
-      generateChatCompletion: () => Effect.fail({
-        _tag: "OllamaHttpError", 
-        message: "Ollama service not properly initialized",
-        request: {},
-        response: {}
-      }),
+      generateChatCompletion: () => Effect.fail(new OllamaHttpError(
+        "Ollama service not properly initialized",
+        {},
+        {}
+      )),
       generateChatCompletionStream: () => { 
-        throw { 
-          _tag: "OllamaHttpError", 
-          message: "Ollama service not properly initialized",
-          request: {},
-          response: {}
-        };
+        throw new OllamaHttpError(
+          "Ollama service not properly initialized",
+          {},
+          {}
+        );
       }
     });
     

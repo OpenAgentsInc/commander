@@ -4,7 +4,7 @@ import { OpenAiClient } from "@effect/ai-openai";
 import * as HttpClientError from "@effect/platform/HttpClientError";
 import * as HttpClientRequest from "@effect/platform/HttpClientRequest";
 import * as HttpClientResponse from "@effect/platform/HttpClientResponse";
-// Import Stream chunk here rather than as a type since we need to use it as a value
+// Import StreamChunk class for compatibility
 import { StreamChunk } from "@effect/ai-openai/OpenAiClient";
 import { ConfigurationService } from "@/services/configuration";
 import { AIProviderError } from "@/services/ai/core/AIError";
@@ -12,6 +12,50 @@ import { TelemetryService } from "@/services/telemetry";
 
 // We are providing the standard OpenAiClient.OpenAiClient tag
 export const OllamaOpenAIClientTag = OpenAiClient.OpenAiClient;
+
+// Types for chat completions
+type ChatCompletionCreateParams = {
+  model: string;
+  messages: Array<{role: string; content: string}>;
+  temperature?: number;
+  max_tokens?: number;
+  stream?: boolean;
+  [key: string]: any;
+};
+
+type ChatCompletion = {
+  id: string;
+  object: string;
+  created: number;
+  model: string;
+  choices: Array<{
+    index: number;
+    message: {role: string; content: string};
+    finish_reason: string;
+  }>;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+};
+
+type ChatCompletionChunk = {
+  id: string;
+  object: string;
+  created: number;
+  model: string;
+  choices: Array<{
+    index: number;
+    delta: {role?: string; content?: string};
+    finish_reason: string | null;
+  }>;
+  usage?: any;
+};
+
+type StreamCompletionRequest = ChatCompletionCreateParams & {
+  stream: true;
+};
 
 export const OllamaAsOpenAIClientLive = Layer.effect(
   OllamaOpenAIClientTag,
@@ -39,13 +83,14 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
 
     // Implement the OpenAiClient interface
     return OllamaOpenAIClientTag.of({
+      // client property containing methods like chat.completions.create
       client: {
         chat: {
           completions: {
-            create: (params: any) => {
-              const ipcParams = { ...params }; // Pass params as is; main process OllamaService handles defaults if needed.
+            create: (params: ChatCompletionCreateParams) => {
+              // Ensure stream is explicitly false for this path
+              const nonStreamingParams = { ...params, stream: false };
               
-              // Non-streaming implementation (we handle streaming separately)
               return Effect.tryPromise({
                 try: async () => {
                   await Effect.runPromise(telemetry.trackEvent({ 
@@ -54,7 +99,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                     label: params.model 
                   }));
                   
-                  const response = await ollamaIPC.generateChatCompletion(ipcParams);
+                  const response = await ollamaIPC.generateChatCompletion(nonStreamingParams);
                   
                   if (response && response.__error) {
                     const providerError = new AIProviderError({
@@ -79,8 +124,8 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                     label: params.model 
                   }));
                   
-                  // In practice, we'd need to properly map the response to match OpenAI's expected schema
-                  return response;
+                  // Return OpenAI-compatible response
+                  return response as ChatCompletion;
                 },
                 catch: (error) => {
                   const providerError = error instanceof AIProviderError ? error : new AIProviderError({
@@ -98,14 +143,13 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                     }));
                   }
                   
+                  // Use HttpClientError for compatibility with OpenAiClient interface
                   return new HttpClientError.ResponseError({
                     request: HttpClientRequest.get("ollama-ipc-nonstream"),
-                    response: HttpClientResponse.json(
-                      500, 
-                      { error: providerError.message }, 
-                      { headers: {} }
-                    ),
-                    reason: "StatusCode"
+                    response: HttpClientResponse.empty({ status: 500 }),
+                    reason: "StatusCode",
+                    error: providerError,
+                    message: providerError.message
                   });
                 }
               });
@@ -113,26 +157,36 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
           }
         },
         embeddings: {
-          create: () => Effect.die(new AIProviderError({ 
-            message: "OllamaAdapter: embeddings.create not implemented", 
-            provider: "OllamaAdapter" 
+          create: (_params: any) => Effect.fail(new HttpClientError.ResponseError({
+            request: HttpClientRequest.get("ollama-ipc-embeddings"),
+            response: HttpClientResponse.empty({ status: 501 }),
+            reason: "NotImplemented",
+            error: new AIProviderError({ 
+              message: "OllamaAdapter: embeddings.create not implemented", 
+              provider: "OllamaAdapter" 
+            }),
+            message: "OllamaAdapter: embeddings.create not implemented"
           }))
         },
         models: {
-          list: () => Effect.die(new AIProviderError({ 
-            message: "OllamaAdapter: models.list not implemented", 
-            provider: "OllamaAdapter" 
+          list: () => Effect.fail(new HttpClientError.ResponseError({
+            request: HttpClientRequest.get("ollama-ipc-models"),
+            response: HttpClientResponse.empty({ status: 501 }),
+            reason: "NotImplemented",
+            error: new AIProviderError({ 
+              message: "OllamaAdapter: models.list not implemented", 
+              provider: "OllamaAdapter" 
+            }),
+            message: "OllamaAdapter: models.list not implemented"
           }))
         }
       },
       
-      streamRequest: (request) => Effect.die(new AIProviderError({ 
-        message: "OllamaAdapter: streamRequest not implemented directly, use stream instead", 
-        provider: "OllamaAdapter" 
-      })),
-      
-      stream: (params: any) => {
-        // Stream implementation
+      // Top-level stream method for streaming chat completions
+      stream: (params: StreamCompletionRequest) => {
+        // Ensure stream parameter is set to true
+        const streamingParams = { ...params, stream: true };
+        
         return Stream.async<StreamChunk, HttpClientError.HttpClientError>(emit => {
           Effect.runFork(telemetry.trackEvent({ 
             category: "ollama_adapter:stream", 
@@ -144,29 +198,49 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
           
           try {
             ipcStreamCancel = ollamaIPC.generateChatCompletionStream(
-              params,
+              streamingParams,
               (chunk) => {
                 if (chunk && typeof chunk === 'object' && 'choices' in chunk) {
-                  // Convert chunk to StreamChunk
-                  // This is a simplification - in practice, we'd need to properly map the structure
+                  // Convert chunk to a StreamChunk for compatibility
+                  const content = chunk.choices?.[0]?.delta?.content || "";
                   const streamChunk = new StreamChunk({
                     parts: [
                       {
                         _tag: "Content",
-                        content: chunk.choices[0]?.message?.content || ""
+                        content
                       }
                     ]
                   });
                   emit.single(streamChunk);
+                  
+                  /* Commented out ChatCompletionChunk format since we're using StreamChunk
+                  const openAiChunk = {
+                    id: chunk.id || `ollama-chunk-${Date.now()}`,
+                    object: "chat.completion.chunk",
+                    created: chunk.created || Math.floor(Date.now() / 1000),
+                    model: chunk.model || params.model,
+                    choices: chunk.choices.map((ollamaChoice: any) => ({
+                      index: ollamaChoice.index,
+                      delta: {
+                        role: ollamaChoice.delta?.role,
+                        content: ollamaChoice.delta?.content,
+                      },
+                      finish_reason: ollamaChoice.finish_reason || null,
+                    })),
+                  };
+                  */
                 } else {
+                  const err = new AIProviderError({
+                    message: "Ollama IPC stream received unexpected chunk format",
+                    provider: "OllamaAdapter(IPC-Stream)",
+                    context: { chunk }
+                  });
                   emit.fail(new HttpClientError.ResponseError({
                     request: HttpClientRequest.get("ollama-ipc-stream"),
-                    response: HttpClientResponse.json(
-                      500, 
-                      { error: "Ollama IPC stream received unexpected chunk format" }, 
-                      { headers: {} }
-                    ),
-                    reason: "StatusCode"
+                    response: HttpClientResponse.empty({ status: 500 }),
+                    reason: "StatusCode",
+                    error: err,
+                    message: err.message
                   }));
                 }
               },
@@ -189,17 +263,19 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                   label: ipcError.message || "Unknown IPC error" 
                 }));
                 
+                const providerError = new AIProviderError({
+                  message: `Ollama IPC stream error: ${ipcError.message || "Unknown error"}`,
+                  provider: "OllamaAdapter(IPC-Stream)",
+                  cause: error,
+                  context: { model: params.model }
+                });
+                
                 emit.fail(new HttpClientError.ResponseError({
-                  request: HttpClientRequest.get("ollama-ipc-stream"),
-                  response: HttpClientResponse.json(
-                    500, 
-                    { 
-                      error: `Ollama IPC stream error: ${ipcError.message || "Unknown error"}`,
-                      context: { model: params.model }
-                    }, 
-                    { headers: {} }
-                  ),
-                  reason: "StatusCode"
+                  request: HttpClientRequest.get("ollama-ipc-stream-error"),
+                  response: HttpClientResponse.empty({ status: 500 }),
+                  reason: "StatusCode",
+                  error: providerError,
+                  message: providerError.message
                 }));
               }
             );
@@ -212,17 +288,18 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
               label: errorMsg 
             }));
             
+            const setupError = new AIProviderError({
+              message: errorMsg,
+              provider: "OllamaAdapterSetup(IPC-Stream)",
+              cause: e
+            });
+            
             emit.fail(new HttpClientError.ResponseError({
-              request: HttpClientRequest.get("ollama-ipc-stream"),
-              response: HttpClientResponse.json(
-                500, 
-                { 
-                  error: errorMsg,
-                  provider: "OllamaAdapterSetup(IPC-Stream)"
-                }, 
-                { headers: {} }
-              ),
-              reason: "StatusCode"
+              request: HttpClientRequest.get("ollama-ipc-stream-setup"),
+              response: HttpClientResponse.empty({ status: 500 }),
+              reason: "StatusCode",
+              error: setupError,
+              message: setupError.message
             }));
           }
           
@@ -238,7 +315,20 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
             }
           });
         });
-      }
+      },
+      
+      // streamRequest method (can be a stub if not needed)
+      streamRequest: <A>(request: HttpClientRequest.HttpClientRequest) =>
+        Stream.fail(new HttpClientError.ResponseError({
+          request,
+          response: HttpClientResponse.empty({ status: 501 }),
+          reason: "NotImplemented",
+          error: new AIProviderError({ 
+            message: "OllamaAdapter: streamRequest not implemented directly", 
+            provider: "OllamaAdapter" 
+          }),
+          message: "OllamaAdapter: streamRequest not implemented directly"
+        })) as Stream.Stream<A, HttpClientError.HttpClientError>,
     });
   })
 );

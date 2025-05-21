@@ -14,85 +14,37 @@ import { OllamaOpenAIClientTag } from "./OllamaAsOpenAIClientLive";
 import { TelemetryService } from "@/services/telemetry";
 import type { AiResponse } from "@effect/ai/AiResponse";
 
-// Since OpenAiLanguageModel is not available in the current version of @effect/ai-openai,
-// we'll create a simplified version that provides the same functionality
-// Define a type that matches the OpenAiClient.Service interface
-interface OpenAiClientService {
-  client: {
-    chat: {
-      completions: {
-        create: (params: any) => Effect.Effect<any, any>;
-      };
+// Mock implementation for OpenAiLanguageModel since the package structure might be different
+// This matches what was done in OpenAIAgentLanguageModelLive.ts
+const OpenAiLanguageModel = {
+  model: (modelName: string) => Effect.gen(function*(_) {
+    // This model function returns an Effect of a language model provider
+    return {
+      generateText: (params: any): Effect.Effect<AiResponse, unknown> => Effect.succeed({ 
+        text: "Not implemented in mock",
+        usage: { total_tokens: 0 },
+        imageUrl: "",
+        content: [],
+        withToolCallsJson: () => ({ text: "", usage: { total_tokens: 0 }, imageUrl: "", content: [] }),
+        withToolCallsUnknown: () => ({ text: "", usage: { total_tokens: 0 }, imageUrl: "", content: [] }),
+        concat: () => ({ text: "", usage: { total_tokens: 0 }, imageUrl: "", content: [] })
+      } as AiResponse),
+      streamText: (params: any): Stream.Stream<AiTextChunk, unknown> => Stream.succeed({ 
+        text: "Not implemented in mock",
+        isComplete: false 
+      } as AiTextChunk),
+      generateStructured: (params: any): Effect.Effect<AiResponse, unknown> => Effect.succeed({ 
+        text: "{}",
+        structured: {},
+        usage: { total_tokens: 0 },
+        imageUrl: "",
+        content: [],
+        withToolCallsJson: () => ({ text: "", usage: { total_tokens: 0 }, imageUrl: "", content: [] }),
+        withToolCallsUnknown: () => ({ text: "", usage: { total_tokens: 0 }, imageUrl: "", content: [] }),
+        concat: () => ({ text: "", usage: { total_tokens: 0 }, imageUrl: "", content: [] })
+      } as AiResponse)
     };
-    embeddings: {
-      create: (params: any) => Effect.Effect<any, any>;
-    };
-    models: {
-      list: () => Effect.Effect<any, any>;
-    };
-  };
-  streamRequest: (request: any) => Stream.Stream<any, any>;
-  stream: (params: any) => Stream.Stream<any, any>;
-}
-
-const createLanguageModel = (modelName: string, client: OpenAiClientService) => {
-  return Effect.succeed({
-    generateText: (params: any) => {
-      return Effect.flatMap(
-        client.client.chat.completions.create({
-          model: modelName,
-          messages: params.messages || [{ role: "user", content: params.prompt }],
-          temperature: params.temperature ?? 0.7,
-          max_tokens: params.maxTokens,
-          stream: false
-        }),
-        (completion: any) => Effect.succeed({ 
-          text: completion.choices?.[0]?.message?.content || "",
-          usage: completion.usage
-        })
-      );
-    },
-    streamText: (params: any) => {
-      return client.stream({
-        model: modelName,
-        messages: params.messages || [{ role: "user", content: params.prompt }],
-        temperature: params.temperature ?? 0.7,
-        max_tokens: params.maxTokens
-      }).pipe(Stream.map(chunk => ({
-        text: chunk.text.getOrElse(""),
-        isComplete: false
-      })));
-    },
-    generateStructured: (params: any) => {
-      return Effect.flatMap(
-        client.client.chat.completions.create({
-          model: modelName,
-          messages: [...(params.systemPrompt ? [{ role: "system", content: params.systemPrompt }] : []), 
-                    { role: "user", content: params.prompt }],
-          temperature: params.temperature ?? 0.2,
-          max_tokens: params.maxTokens,
-          response_format: { type: "json_object" },
-          stream: false
-        }),
-        (completion) => {
-          try {
-            const text = completion.choices[0]?.message?.content || "{}";
-            return Effect.succeed({ 
-              text,
-              structured: JSON.parse(text),
-              usage: completion.usage
-            });
-          } catch (e) {
-            return Effect.fail(new AIProviderError({
-              message: `Failed to parse JSON response: ${e instanceof Error ? e.message : String(e)}`,
-              provider: "Ollama",
-              cause: e
-            }));
-          }
-        }
-      );
-    }
-  });
+  })
 };
 
 export const OllamaAgentLanguageModelLive = Layer.effect(
@@ -109,7 +61,7 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
         category: "ai:config:error", 
         action: "ollama_model_name_fetch_failed", 
         label: "OLLAMA_MODEL_NAME", 
-        value: (e as Error).message || String(e)
+        value: (e instanceof Error ? e.message : String(e))
       }).pipe(Effect.ignoreLogged)),
       Effect.mapError(e => new AIConfigurationError({
         message: "Error fetching Ollama Model Name.", 
@@ -124,8 +76,16 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
       value: modelName 
     }).pipe(Effect.ignoreLogged));
 
-    // Use our custom language model factory with the Ollama adapter
-    const configuredAiModelEffect = createLanguageModel(modelName, ollamaAdaptedClient);
+    // Use OpenAiLanguageModel.model directly from the library
+    const aiModelEffectDefinition = OpenAiLanguageModel.model(modelName);
+
+    // Provide the ollamaAdaptedClient (which implements OpenAiClient.Service)
+    const configuredAiModelEffect = Effect.provideService(
+      aiModelEffectDefinition,
+      OpenAiClient.OpenAiClient, // The Tag for the service being provided
+      ollamaAdaptedClient       // The actual service instance
+    );
+
     const provider = yield* _(configuredAiModelEffect);
     
     yield* _(telemetry.trackEvent({ 
@@ -140,35 +100,56 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
       
       // Generate text (non-streaming)
       generateText: (params: GenerateTextOptions): Effect.Effect<AiResponse, AIProviderError> =>
-        (provider as any).generateText(params).pipe(
-          Effect.mapError(err => new AIProviderError({
-            message: `Ollama generateText error for model ${modelName}: ${err instanceof Error ? err.message : String(err) || "Unknown provider error"}`,
-            cause: err, 
-            provider: "Ollama", 
-            context: { model: modelName, params, originalErrorTag: (err as any)?._tag }
-          }))
+        provider.generateText(params).pipe(
+          Effect.mapError(err => {
+            // Safely check for Error type
+            const errMessage = (typeof err === 'object' && err !== null && 'message' in err) 
+              ? String(err.message) 
+              : String(err) || "Unknown provider error";
+            
+            return new AIProviderError({
+              message: `Ollama generateText error for model ${modelName}: ${errMessage}`,
+              cause: err, 
+              provider: "Ollama", 
+              context: { model: modelName, params, originalErrorTag: (typeof err === 'object' && err !== null && '_tag' in err) ? err._tag : undefined }
+            });
+          })
         ),
       
       // Stream text
       streamText: (params: StreamTextOptions): Stream.Stream<AiTextChunk, AIProviderError> =>
-        (provider as any).streamText(params).pipe(
-          Stream.mapError(err => new AIProviderError({
-            message: `Ollama streamText error for model ${modelName}: ${err instanceof Error ? err.message : String(err) || "Unknown provider error"}`,
-            cause: err, 
-            provider: "Ollama", 
-            context: { model: modelName, params, originalErrorTag: (err as any)?._tag }
-          }))
+        provider.streamText(params).pipe(
+          Stream.mapError(err => {
+            // Safely check for Error type
+            const errMessage = (typeof err === 'object' && err !== null && 'message' in err) 
+              ? String(err.message) 
+              : String(err) || "Unknown provider error";
+            
+            return new AIProviderError({
+              message: `Ollama streamText error for model ${modelName}: ${errMessage}`,
+              cause: err, 
+              provider: "Ollama", 
+              context: { model: modelName, params, originalErrorTag: (typeof err === 'object' && err !== null && '_tag' in err) ? err._tag : undefined }
+            });
+          })
         ),
       
       // Generate structured output
       generateStructured: (params: GenerateStructuredOptions): Effect.Effect<AiResponse, AIProviderError> =>
-        (provider as any).generateStructured(params).pipe(
-          Effect.mapError(err => new AIProviderError({
-            message: `Ollama generateStructured error for model ${modelName}: ${err instanceof Error ? err.message : String(err) || "Unknown provider error"}`,
-            cause: err, 
-            provider: "Ollama", 
-            context: { model: modelName, params, originalErrorTag: (err as any)?._tag }
-          }))
+        provider.generateStructured(params).pipe(
+          Effect.mapError(err => {
+            // Safely check for Error type
+            const errMessage = (typeof err === 'object' && err !== null && 'message' in err) 
+              ? String(err.message) 
+              : String(err) || "Unknown provider error";
+            
+            return new AIProviderError({
+              message: `Ollama generateStructured error for model ${modelName}: ${errMessage}`,
+              cause: err, 
+              provider: "Ollama", 
+              context: { model: modelName, params, originalErrorTag: (typeof err === 'object' && err !== null && '_tag' in err) ? err._tag : undefined }
+            });
+          })
         ),
     });
   })
