@@ -32,6 +32,11 @@ export interface PaneStoreType extends PaneState {
   openWalletSetupPane: () => void;
   openSeedPhraseBackupPane: (params: OpenSeedPhraseBackupPaneParams) => void;
   openRestoreWalletPane: () => void;
+  
+  // Toggle actions for keyboard shortcuts
+  toggleSellComputePane: () => void; // Toggle Sell Compute pane (open if closed, close if open)
+  toggleWalletPane: () => void; // Toggle Wallet pane (open if closed, close if open)
+  toggleDvmJobHistoryPane: () => void; // Toggle DVM Job History pane (open if closed, close if open)
 }
 
 export type SetPaneStore = StoreApi<PaneStoreType>['setState'];

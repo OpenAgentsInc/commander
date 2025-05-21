@@ -1,3 +1,3 @@
-// This file will re-export core AI services and provider implementations later
+// src/services/ai/index.ts
 export * from './core';
-// export * from './providers'; // Placeholder for later phases
+export * from './providers'; // Export the providers

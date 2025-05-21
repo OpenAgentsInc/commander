@@ -22,6 +22,9 @@ import { HttpClient } from '@effect/platform';
 import { SparkService, SparkServiceLive, DefaultSparkServiceConfigLayer } from '@/services/spark';
 import { NIP90Service, NIP90ServiceLive } from '@/services/nip90';
 import { Kind5050DVMService, Kind5050DVMServiceLive, DefaultKind5050DVMServiceConfigLayer } from '@/services/dvm';
+import { ConfigurationService, ConfigurationServiceLive, DefaultDevConfigLayer } from '@/services/configuration';
+import { OpenAIProvider } from '@/services/ai/providers';
+import { AgentLanguageModel } from '@/services/ai/core';
 
 // Define the full context type for the runtime
 export type FullAppContext =
@@ -36,7 +39,9 @@ export type FullAppContext =
   SparkService |
   NIP90Service |
   Kind5050DVMService |
-  HttpClient.HttpClient;
+  HttpClient.HttpClient |
+  ConfigurationService |
+  AgentLanguageModel;
 
 // Runtime instance - will be initialized asynchronously
 let mainRuntimeInstance: Runtime.Runtime<FullAppContext>;
@@ -45,6 +50,9 @@ let mainRuntimeInstance: Runtime.Runtime<FullAppContext>;
 
 // Compose individual services with their direct dependencies
 const telemetryLayer = TelemetryServiceLive.pipe(Layer.provide(DefaultTelemetryConfigLayer));
+const configLayer = ConfigurationServiceLive.pipe(Layer.provide(telemetryLayer));
+const devConfigLayer = DefaultDevConfigLayer.pipe(Layer.provide(configLayer));
+
 const nostrLayer = NostrServiceLive.pipe(
   Layer.provide(DefaultNostrServiceConfigLayer),
   Layer.provide(telemetryLayer) // NostrService gets Telemetry
@@ -77,9 +85,31 @@ const kind5050DVMLayer = Kind5050DVMServiceLive.pipe(
   )
 );
 
+// AI service layers
+const openAIClientLayer = OpenAIProvider.OpenAIClientLive.pipe(
+  Layer.provide(
+    Layer.mergeAll(
+      devConfigLayer,
+      telemetryLayer,
+      BrowserHttpClient.layerXMLHttpRequest
+    )
+  )
+);
+
+const openAILanguageModelLayer = OpenAIProvider.OpenAIAgentLanguageModelLive.pipe(
+  Layer.provide(
+    Layer.mergeAll(
+      openAIClientLayer,
+      devConfigLayer,
+      telemetryLayer
+    )
+  )
+);
+
 // Full application layer - compose services incrementally using mergeAll
 export const FullAppLayer = Layer.mergeAll(
   telemetryLayer, // Provides TelemetryService
+  devConfigLayer, // Provides ConfigurationService with development defaults
   nostrLayer,     // Provides NostrService (its Telemetry dep is met)
   nip04Layer,
   NIP19ServiceLive,
@@ -90,7 +120,8 @@ export const FullAppLayer = Layer.mergeAll(
   sparkLayer,
   nip90Layer,
   kind5050DVMLayer,
-  BrowserHttpClient.layerXMLHttpRequest // Provides HttpClient
+  BrowserHttpClient.layerXMLHttpRequest, // Provides HttpClient
+  openAILanguageModelLayer  // Provides AgentLanguageModel through OpenAI
 );
 
 // Asynchronous function to initialize the runtime
