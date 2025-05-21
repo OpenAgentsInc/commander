@@ -1,5 +1,4 @@
 import React, { useEffect } from "react";
-import { createRoot } from "react-dom/client";
 import { syncThemeWithLocal } from "./helpers/theme_helpers";
 import { useTranslation } from "react-i18next";
 import "./localization/i18n";
@@ -10,10 +9,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { useWalletStore } from "@/stores/walletStore";
 import { usePaneStore } from "@/stores/pane";
-import { 
-  WALLET_SETUP_PANE_ID, 
-  SEED_PHRASE_BACKUP_PANE_ID, 
-  RESTORE_WALLET_PANE_ID 
+import {
+  WALLET_SETUP_PANE_ID,
+  SEED_PHRASE_BACKUP_PANE_ID,
+  RESTORE_WALLET_PANE_ID,
 } from "@/stores/panes/constants";
 
 // Create a client
@@ -25,17 +24,18 @@ let hasCheckedWalletSetup = false;
 
 function checkWalletSetupNeeded() {
   if (hasCheckedWalletSetup) return;
-  
+
   const isWalletInitialized = useWalletStore.getState().isInitialized;
   const panes = usePaneStore.getState().panes;
-  
+
   if (!isWalletInitialized) {
-    const setupPaneIsOpen = panes.some(p => 
-      p.id === WALLET_SETUP_PANE_ID ||
-      p.id === SEED_PHRASE_BACKUP_PANE_ID ||
-      p.id === RESTORE_WALLET_PANE_ID
+    const setupPaneIsOpen = panes.some(
+      (p) =>
+        p.id === WALLET_SETUP_PANE_ID ||
+        p.id === SEED_PHRASE_BACKUP_PANE_ID ||
+        p.id === RESTORE_WALLET_PANE_ID,
     );
-    
+
     if (!setupPaneIsOpen) {
       // Schedule this to happen outside the current call stack
       setTimeout(() => {
@@ -43,7 +43,7 @@ function checkWalletSetupNeeded() {
       }, 0);
     }
   }
-  
+
   hasCheckedWalletSetup = true;
 }
 
