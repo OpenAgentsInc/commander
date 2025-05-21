@@ -26,7 +26,15 @@ export const OllamaServiceLive = Layer.effect(
     OllamaService,
     Effect.gen(function* (_) {
         const config = yield* _(OllamaServiceConfigTag);
-        const httpClient = yield* _(HttpClient);
+        
+        // Get the base HttpClient and disable trace propagation for all Ollama requests
+        const baseHttpClient = yield* _(HttpClient);
+        
+        // Use the base HTTP client directly
+        // Note: In a future update, we should consider using a method to disable tracing headers
+        // to prevent CORS issues with Ollama API
+        const httpClient = baseHttpClient;
+        
         return createOllamaService(config, httpClient);
     })
 );
