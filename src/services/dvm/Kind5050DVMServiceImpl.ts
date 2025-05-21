@@ -679,6 +679,76 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         })
       );
 
+    /**
+     * Process a local test job (not involving Nostr network)
+     * For testing the DVM functionality locally
+     */
+    const processLocalTestJob = (
+      prompt: string,
+      requesterPkOverride?: string
+    ): Effect.Effect<string, DVMError | OllamaError | SparkError | NIP04EncryptError | NIP04DecryptError> =>
+      Effect.gen(function* (_) {
+        // Use effectiveConfig for DVM keys and text generation defaults
+        const effectiveConfig = useDVMSettingsStore.getState().getEffectiveConfig();
+        const dvmPrivateKeyHex = effectiveConfig.dvmPrivateKeyHex;
+        const textGenConfig = effectiveConfig.defaultTextGenerationJobConfig;
+
+        yield* _(telemetry.trackEvent({
+          category: "dvm:test_job",
+          action: "local_test_job_start",
+          label: `Prompt: ${prompt.substring(0,30)}...`
+        }).pipe(Effect.ignoreLogged));
+
+        // 1. Perform Ollama Inference
+        const ollamaRequest: OllamaChatCompletionRequest = {
+          model: textGenConfig.model, // Use configured model
+          messages: [{ role: "user", content: prompt }],
+          stream: false,
+        };
+        const ollamaResult = yield* _(ollama.generateChatCompletion(ollamaRequest).pipe(
+          Effect.mapError(e => new DVMJobProcessingError({ message: "Test job: Ollama inference failed", cause: e }))
+        ));
+        const ollamaOutput = ollamaResult.choices[0]?.message.content || "";
+
+        // 2. (Mock) Invoice Generation - we don't need a real invoice for a local test
+        const mockInvoiceAmountSats = textGenConfig.minPriceSats; // Use min price as placeholder
+        const mockBolt11Invoice = `mockinvoice_for_testjob_${Date.now()}`;
+
+        yield* _(telemetry.trackEvent({
+          category: "dvm:test_job",
+          action: "mock_invoice_generated",
+          label: `Test Job: ${mockBolt11Invoice}`
+        }).pipe(Effect.ignoreLogged));
+
+        // 3. (Optional) Encryption if requesterPkOverride is provided
+        let finalOutputContent = ollamaOutput;
+        if (requesterPkOverride) {
+          const dvmSkBytes = hexToBytes(dvmPrivateKeyHex);
+          finalOutputContent = yield* _(nip04.encrypt(dvmSkBytes, requesterPkOverride, ollamaOutput).pipe(
+            Effect.mapError(e => new DVMJobProcessingError({ message: "Test job: Failed to encrypt result", cause: e }))
+          ));
+        }
+
+        yield* _(telemetry.trackEvent({
+          category: "dvm:test_job",
+          action: "local_test_job_success",
+          label: `Result length: ${finalOutputContent.length}`
+        }).pipe(Effect.ignoreLogged));
+
+        return finalOutputContent; // Return the processed (and possibly encrypted) content
+      }).pipe(
+        Effect.catchAllCause(cause => {
+          const dvmError = Option.getOrElse(Cause.failureOption(cause), () =>
+            new DVMJobProcessingError({ message: "Unknown error during local test job", cause })
+          );
+          return telemetry.trackEvent({
+            category: "dvm:error",
+            action: "local_test_job_failure",
+            label: dvmError.message
+          }).pipe(Effect.ignoreLogged, Effect.andThen(Effect.fail(dvmError as DVMError)));
+        })
+      );
+
     // Return the service interface
     return {
       startListening: (): Effect.Effect<void, DVMConfigError | DVMConnectionError | TrackEventError, never> => 
@@ -882,7 +952,10 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           };
           
           return mockStats;
-        })
+        }),
+        
+      // Add the processLocalTestJob method to the returned service
+      processLocalTestJob
     };
   })
 );
