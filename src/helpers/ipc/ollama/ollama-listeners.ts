@@ -71,6 +71,13 @@ function extractErrorForIPC(error: any): object {
 }
 
 export function addOllamaEventListeners() {
+  // Flag to track if we've already registered these handlers
+  // This prevents duplicate handlers if called multiple times
+  if ((global as any).__ollamaEventListenersRegistered) {
+    console.log("[IPC Setup] Ollama event listeners already registered, skipping...");
+    return;
+  }
+
   console.log("[IPC Setup] Beginning Ollama event listeners registration...");
   
   // Create a combined layer for the Ollama service with all dependencies
@@ -84,7 +91,26 @@ export function addOllamaEventListeners() {
     console.log("[IPC Setup] Ollama service layer defined successfully inside addOllamaEventListeners.");
   } catch (e) {
     console.error("[IPC Setup] CRITICAL ERROR: Failed to define Ollama service layer:", e);
-    throw e; // Re-throw to ensure we know if this is the source of the issue
+    console.error("[IPC Setup] Details:", e instanceof Error ? e.stack : String(e));
+    // Don't throw, try to continue but mark that we should do a basic fallback
+    ollamaServiceLayer = Layer.succeed(OllamaService, {
+      checkOllamaStatus: () => Effect.succeed(false),
+      generateChatCompletion: () => Effect.fail({
+        _tag: "OllamaHttpError", 
+        message: "Ollama service not properly initialized",
+        request: {},
+        response: {}
+      } as any), // Cast to any to avoid TypeScript errors
+      generateChatCompletionStream: () => { 
+        throw { 
+          _tag: "OllamaHttpError", 
+          message: "Ollama service not properly initialized",
+          request: {},
+          response: {}
+        };
+      }
+    });
+    console.log("[IPC Setup] Created fallback Ollama service layer");
   }
   try {
     // Status check handler - completely avoids CORS issues by using IPC
@@ -104,8 +130,12 @@ export function addOllamaEventListeners() {
         return yield* _(ollamaService.checkOllamaStatus());
       }).pipe(
         Effect.provide(ollamaServiceLayer),
-        Effect.catchAll((cause) => {
-          console.error("[IPC Handler] Error during Ollama status check:", Cause.pretty(cause));
+        Effect.catchAll((error) => {
+          // Handle error object without using Cause.pretty since it's not a Cause type
+          const errorMessage = typeof error === 'object' && error !== null 
+            ? (error._tag || '') + ': ' + (error.message || JSON.stringify(error)) 
+            : String(error);
+          console.error("[IPC Handler] Error during Ollama status check:", errorMessage);
           return Effect.succeed(false); // Return false for any errors
         })
       );
@@ -288,8 +318,27 @@ export function addOllamaEventListeners() {
     console.log(`[IPC Setup] Listener for ${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL}:cancel registered successfully.`);
     
     console.log("[IPC Setup] All Ollama event listeners registered successfully.");
+    
+    // Mark that we've successfully registered the listeners to avoid duplicates
+    (global as any).__ollamaEventListenersRegistered = true;
   } catch (e) {
     console.error("[IPC Setup] ERROR: Failed to register Ollama event listeners:", e);
-    // If we fail to register handlers, it's critical to log this
+    console.error("[IPC Setup] Details:", e instanceof Error ? e.stack : String(e));
+    
+    // Register a very basic fallback handler for the status check
+    // This ensures that even if the full registration fails,
+    // the renderer process won't get a "No handler registered" error
+    try {
+      if (!ipcMain.listenerCount(OLLAMA_STATUS_CHECK)) {
+        console.log("[IPC Setup] Registering emergency fallback handler for status check");
+        ipcMain.handle(OLLAMA_STATUS_CHECK, async () => {
+          console.log("[IPC Handler] Using emergency fallback handler for status check");
+          return false; // Always report as not connected
+        });
+        console.log("[IPC Setup] Emergency fallback handler registered");
+      }
+    } catch (fallbackError) {
+      console.error("[IPC Setup] Critical failure - could not even register fallback handler:", fallbackError);
+    }
   }
 }
