@@ -47,22 +47,26 @@ export const Hotbar: React.FC<HotbarProps> = ({
       <HotbarItem slotNumber={2} onClick={onToggleWalletPane} title="Wallet" isActive={activePaneId === WALLET_PANE_ID}>
         <Wallet className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
+      {/* Hand tracking button intentionally commented out
       <HotbarItem slotNumber={3} onClick={onToggleHandTracking} title={isHandTrackingActive ? "Disable Hand Tracking" : "Enable Hand Tracking"} isActive={isHandTrackingActive}>
         <Hand className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
-      <HotbarItem slotNumber={4} onClick={onToggleDvmJobHistoryPane} title="DVM Job History" isActive={activePaneId === DVM_JOB_HISTORY_PANE_ID}>
+      */}
+      <HotbarItem slotNumber={3} onClick={onToggleDvmJobHistoryPane} title="DVM Job History" isActive={activePaneId === DVM_JOB_HISTORY_PANE_ID}>
         <History className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
-      <HotbarItem slotNumber={5} onClick={resetHUDState} title="Reset HUD Layout">
-        <RefreshCw className="w-5 h-5 text-muted-foreground" />
-      </HotbarItem>
       
-      {/* Fill the remaining slots with empty HotbarItems */}
-      {Array.from({ length: 4 }).map((_, i) => (
-        <HotbarItem key={`empty-slot-${i}`} slotNumber={i + 6} isGhost>
+      {/* Fill the middle slots with empty HotbarItems */}
+      {Array.from({ length: 5 }).map((_, i) => (
+        <HotbarItem key={`empty-slot-${i}`} slotNumber={i + 4} isGhost>
           <span className="w-5 h-5" />
         </HotbarItem>
       ))}
+      
+      {/* Reset HUD button in slot 9 */}
+      <HotbarItem slotNumber={9} onClick={resetHUDState} title="Reset HUD Layout">
+        <RefreshCw className="w-5 h-5 text-muted-foreground" />
+      </HotbarItem>
     </div>
   );
 };

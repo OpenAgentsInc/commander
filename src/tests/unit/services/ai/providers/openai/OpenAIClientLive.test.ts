@@ -82,24 +82,24 @@ describe('OpenAIClientLive', () => {
     const result = await runPromiseAny(program.pipe(Effect.provide(testLayer)));
 
     // Verify mock calls
-    expect(mockConfigService.getSecret).toHaveBeenCalledWith('OPENAI_API_KEY');
-    expect(mockConfigService.get).toHaveBeenCalledWith('OPENAI_BASE_URL');
+    expect(MockConfigurationService.getSecret).toHaveBeenCalledWith('OPENAI_API_KEY');
+    expect(MockConfigurationService.get).toHaveBeenCalledWith('OPENAI_BASE_URL');
     
     // Verify the client was successfully created
     expect(result).toBeDefined();
     
     // Verify telemetry events
-    expect(mockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
+    expect(MockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
       category: "ai:config",
       action: "openai_api_key_loaded"
     }));
     
-    expect(mockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
+    expect(MockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
       category: "ai:config",
       action: "openai_base_url_loaded"
     }));
     
-    expect(mockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
+    expect(MockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
       category: "ai:config",
       action: "openai_client_created"
     }));
@@ -107,11 +107,11 @@ describe('OpenAIClientLive', () => {
 
   it('should throw AIConfigurationError when API key is not found', async () => {
     // Mock failed API key response
-    mockConfigService.getSecret.mockImplementation((key) => {
+    (MockConfigurationService.getSecret as any).mockImplementation((key) => {
       return Effect.fail({ _tag: 'ConfigError', message: `Key not found: ${key}` });
     });
 
-    mockConfigService.get.mockImplementation((key) => {
+    (MockConfigurationService.get as any).mockImplementation((key) => {
       if (key === 'OPENAI_BASE_URL') return Effect.succeed('https://api.openai.com/v1');
       return Effect.fail({ _tag: 'ConfigError', message: `Key not found: ${key}` });
     });
@@ -137,7 +137,7 @@ describe('OpenAIClientLive', () => {
       expect(error.context).toHaveProperty('keyName', 'OPENAI_API_KEY');
       
       // Verify telemetry error event
-      expect(mockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
+      expect(MockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
         category: "ai:config:error",
         action: "openai_api_key_fetch_failed"
       }));
@@ -146,7 +146,7 @@ describe('OpenAIClientLive', () => {
 
   it('should throw AIConfigurationError when API key is empty', async () => {
     // Mock empty API key response
-    mockConfigService.getSecret.mockImplementation((key) => {
+    (MockConfigurationService.getSecret as any).mockImplementation((key) => {
       if (key === 'OPENAI_API_KEY') return Effect.succeed('   ');
       return Effect.fail({ _tag: 'ConfigError', message: `Key not found: ${key}` });
     });
@@ -171,7 +171,7 @@ describe('OpenAIClientLive', () => {
       expect(error.message).toBe('OpenAI API Key cannot be empty.');
       
       // Verify telemetry events
-      expect(mockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
+      expect(MockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
         category: "ai:config",
         action: "openai_api_key_loaded"
       }));
@@ -180,12 +180,12 @@ describe('OpenAIClientLive', () => {
 
   it('should support optional base URL (none provided)', async () => {
     // Mock successful API key response but no base URL
-    mockConfigService.getSecret.mockImplementation((key) => {
+    (MockConfigurationService.getSecret as any).mockImplementation((key) => {
       if (key === 'OPENAI_API_KEY') return Effect.succeed('mock-api-key');
       return Effect.fail({ _tag: 'ConfigError', message: `Key not found: ${key}` });
     });
 
-    mockConfigService.get.mockImplementation((key) => {
+    (MockConfigurationService.get as any).mockImplementation((key) => {
       return Effect.fail({ _tag: 'ConfigError', message: `Key not found: ${key}` });
     });
 
@@ -203,19 +203,19 @@ describe('OpenAIClientLive', () => {
     const result = await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
 
     // Verify mock calls
-    expect(mockConfigService.getSecret).toHaveBeenCalledWith('OPENAI_API_KEY');
-    expect(mockConfigService.get).toHaveBeenCalledWith('OPENAI_BASE_URL');
+    expect(MockConfigurationService.getSecret).toHaveBeenCalledWith('OPENAI_API_KEY');
+    expect(MockConfigurationService.get).toHaveBeenCalledWith('OPENAI_BASE_URL');
     
     // Verify the client was successfully created
     expect(result).toBeDefined();
     
     // Verify telemetry events
-    expect(mockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
+    expect(MockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
       category: "ai:config",
       action: "openai_api_key_loaded"
     }));
     
-    expect(mockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
+    expect(MockTelemetryService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({
       category: "ai:config",
       action: "openai_base_url_not_configured"
     }));

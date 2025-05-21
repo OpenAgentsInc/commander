@@ -184,14 +184,17 @@ export default function HomePage() {
           toggleWalletPane();
           break;
         case 3:
-          console.log('Keyboard: Toggle Hand Tracking');
-          toggleHandTracking();
-          break;
-        case 4:
           console.log('Keyboard: Toggle DVM Job History Pane');
           toggleDvmJobHistoryPane();
           break;
+        case 4:
         case 5:
+        case 6:
+        case 7:
+        case 8:
+          // No operation for slots 4-8
+          break;
+        case 9:
           console.log('Keyboard: Reset HUD');
           resetHUDState();
           break;

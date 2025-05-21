@@ -1,10 +1,7 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest';
-import { Effect, Layer } from 'effect';
+import { Effect, Layer, Stream } from 'effect';
 import { FullAppLayer } from '@/services/runtime';
 import { AgentLanguageModel } from '@/services/ai/core';
-
-// To fix type errors in tests, cast to any
-const runPromiseAny = (effect: any) => Effect.runPromise(effect);
 
 // Mock the problematic dependencies before importing them
 vi.mock('@buildonspark/spark-sdk', () => {
@@ -53,7 +50,7 @@ describe('Effect Runtime Initialization', () => {
 
     // Expecting this to resolve. If it rejects, the test fails, indicating a problem
     // in FullAppLayer composition (e.g., "Service not found").
-    await expect(runPromiseAny(program)).resolves.toBeDefined();
+    await expect(Effect.runPromise(program)).resolves.toBeDefined();
   });
   
   it('should successfully resolve AgentLanguageModel from FullAppLayer', async () => {
@@ -64,7 +61,7 @@ describe('Effect Runtime Initialization', () => {
     );
 
     // Using the FullAppLayer, which should now include OpenAIAgentLanguageModelLive
-    const result = await runPromiseAny(program.pipe(Effect.provide(Layer.toRuntime(FullAppLayer).pipe(Effect.scoped))));
+    const result = await Effect.runPromise(Effect.provide(program, FullAppLayer));
     
     // Verify the service was resolved successfully
     expect(result).toBeDefined();

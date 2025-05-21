@@ -4,6 +4,7 @@ import { Pane, PaneInput } from "@/types/pane";
 import { PaneStoreType, PaneState } from "./panes/types";
 import {
   addPaneAction,
+  addPaneActionLogic,
   removePaneAction,
   updatePanePositionAction,
   updatePaneSizeAction,
@@ -176,7 +177,7 @@ export const usePaneStore = create<PaneStoreType>()(
               content: {}
             };
             
-            return addPaneAction(set, newPaneInput, false)(state);
+            return addPaneActionLogic(state, newPaneInput, false);
           }
         }
       }),
@@ -233,7 +234,7 @@ export const usePaneStore = create<PaneStoreType>()(
               content: {}
             };
             
-            return addPaneAction(set, newPaneInput, false)(state);
+            return addPaneActionLogic(state, newPaneInput, false);
           }
         }
       }),
@@ -290,7 +291,7 @@ export const usePaneStore = create<PaneStoreType>()(
               content: {}
             };
             
-            return addPaneAction(set, newPaneInput, false)(state);
+            return addPaneActionLogic(state, newPaneInput, false);
           }
         }
       }),

@@ -1,15 +1,10 @@
 // src/services/ai/providers/openai/OpenAIClientLive.ts
-import { Layer, Effect, Config, Option, Context } from "effect";
+import { Layer, Effect, Config, Option, Context, Redacted } from "effect";
 import { OpenAiClient } from "@effect/ai-openai"; // Tag from @effect/ai-openai
 import { ConfigurationService, type ConfigError } from "@/services/configuration"; // Adjust path and ensure ConfigError is a typed error
 import * as HttpClient from "@effect/platform/HttpClient"; // Import everything from HttpClient
 import { AIConfigurationError } from "@/services/ai/core/AIError";
 import { TelemetryService } from "@/services/telemetry";
-
-// Mock Redacted class since we can't import it directly
-class Redacted<T> {
-  constructor(readonly value: T) {}
-}
 
 export const OpenAIClientLive = Layer.effect(
   OpenAiClient.OpenAiClient, // The service tag this layer provides
@@ -69,7 +64,7 @@ export const OpenAIClientLive = Layer.effect(
     }
 
     // Create a redacted API key for OpenAI client
-    const redactedApiKey = new Redacted(apiKey);
+    const redactedApiKey = Redacted.make(apiKey);
     
     const clientSetupConfig = {
       apiKey: Config.succeed(redactedApiKey),

@@ -1,7 +1,6 @@
 // src/services/ai/providers/openai/OpenAIAgentLanguageModelLive.ts
 import { Layer, Effect, Stream, Context } from "effect";
 import { AgentLanguageModel, type GenerateTextOptions, type StreamTextOptions, type GenerateStructuredOptions, type AiTextChunk } from "@/services/ai/core";
-import type { AiError } from "@effect/ai/AiError"; // Native AiError from @effect/ai
 import type { AiResponse } from "@effect/ai/AiResponse"; // Native AiResponse from @effect/ai
 import { OpenAiClient } from "@effect/ai-openai";
 import { ConfigurationService, type ConfigError } from "@/services/configuration";
@@ -12,11 +11,11 @@ import { TelemetryService } from "@/services/telemetry";
 // This is a workaround for typescript errors
 const OpenAiLanguageModel = {
   model: (modelName: string) => Effect.succeed({
-    generateText: (params: GenerateTextOptions): Effect.Effect<AiResponse, AiError> => 
+    generateText: (params: GenerateTextOptions): Effect.Effect<AiResponse, AIProviderError> => 
       Effect.succeed({ text: "Not implemented" } as AiResponse),
-    streamText: (params: StreamTextOptions): Stream.Stream<AiTextChunk, AiError> => 
+    streamText: (params: StreamTextOptions): Stream.Stream<AiTextChunk, AIProviderError> => 
       Stream.succeed({ text: "Not implemented" } as AiTextChunk),
-    generateStructured: (params: GenerateStructuredOptions): Effect.Effect<AiResponse, AiError> => 
+    generateStructured: (params: GenerateStructuredOptions): Effect.Effect<AiResponse, AIProviderError> => 
       Effect.succeed({ text: "Not implemented" } as AiResponse)
   })
 };

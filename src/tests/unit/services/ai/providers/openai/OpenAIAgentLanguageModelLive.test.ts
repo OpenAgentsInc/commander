@@ -31,12 +31,28 @@ const MockTelemetryService: TelemetryService = {
   setEnabled: vi.fn(() => Effect.succeed(void 0))
 };
 
-// Create a mock LLM provider result for testing
-const mockModelProvider = {
-  generateText: vi.fn(),
-  streamText: vi.fn(),
-  generateStructured: vi.fn()
-};
+// Mock the OpenAiLanguageModel from the OpenAIAgentLanguageModelLive file
+vi.mock('@/services/ai/providers/openai/OpenAIAgentLanguageModelLive', async () => {
+  const actual = await vi.importActual('@/services/ai/providers/openai/OpenAIAgentLanguageModelLive');
+  
+  // Create a mock provider with methods
+  const mockModelProvider = {
+    generateText: vi.fn(),
+    streamText: vi.fn(),
+    generateStructured: vi.fn()
+  };
+  
+  // Create a mock OpenAiLanguageModel with model function that returns our mockModelProvider
+  const OpenAiLanguageModel = {
+    model: vi.fn().mockReturnValue(Effect.succeed(mockModelProvider))
+  };
+  
+  return {
+    ...actual,
+    OpenAiLanguageModel,
+    mockModelProvider // Export for test access
+  };
+});
 
 describe('OpenAIAgentLanguageModelLive', () => {
   let openAIClientLayer: Layer.Layer<any>;

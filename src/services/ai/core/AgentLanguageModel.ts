@@ -1,9 +1,11 @@
 // src/services/ai/core/AgentLanguageModel.ts
 import { Context, Effect, Stream } from "effect";
 
-// Import from @effect/ai package
-import type { AiError } from "@effect/ai/AiError";
+// Import from @effect/ai package, but not AiError since we're using our own error types
 import type { AiResponse } from "@effect/ai/AiResponse"; 
+
+// Import our custom error type
+import type { AIProviderError } from "./AIError";
 
 // Define the types we need based on Effect AI's interface
 export type AiTextChunk = {
@@ -46,7 +48,7 @@ export interface AgentLanguageModel {
    */
   generateText(
     params: GenerateTextOptions
-  ): Effect.Effect<AiResponse, AiError>;
+  ): Effect.Effect<AiResponse, AIProviderError>;
 
   /**
    * Streams text completion chunks as they're generated
@@ -55,7 +57,7 @@ export interface AgentLanguageModel {
    */
   streamText(
     params: StreamTextOptions
-  ): Stream.Stream<AiTextChunk, AiError>;
+  ): Stream.Stream<AiTextChunk, AIProviderError>;
 
   /**
    * Generates structured output (for future tool use)
@@ -64,7 +66,7 @@ export interface AgentLanguageModel {
    */
   generateStructured(
     params: GenerateStructuredOptions
-  ): Effect.Effect<AiResponse, AiError>;
+  ): Effect.Effect<AiResponse, AIProviderError>;
 }
 
 /**
