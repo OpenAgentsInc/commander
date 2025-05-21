@@ -28,12 +28,17 @@ const AgentChatPane: React.FC = () => {
 
   useEffect(() => {
     // Track pane open event
+    const telemetryService = runtime.context.unsafeGet(TelemetryService);
     Effect.runFork(
-      Effect.flatMap(TelemetryService, ts => ts.trackEvent({
-        category: 'ui:pane',
-        action: 'open_agent_chat_pane',
-        label: AGENT_CHAT_PANE_TITLE
-      })).pipe(Effect.provide(runtime))
+      Effect.provideService(
+        Effect.flatMap(TelemetryService, ts => ts.trackEvent({
+          category: 'ui:pane',
+          action: 'open_agent_chat_pane',
+          label: AGENT_CHAT_PANE_TITLE
+        })),
+        TelemetryService,
+        telemetryService
+      )
     );
   }, [runtime]);
 
@@ -55,7 +60,7 @@ const AgentChatPane: React.FC = () => {
           <AlertTitle>AI Error</AlertTitle>
           <AlertDescription className="text-xs">
             {error.message || "An unknown AI error occurred."}
-            {error.cause && <div className="mt-1 text-xs opacity-70">Cause: {String(error.cause)}</div>}
+            {error.cause && <div className="mt-1 text-xs opacity-70">Cause: {error.cause.toString()}</div>}
           </AlertDescription>
         </Alert>
       )}
@@ -65,10 +70,10 @@ const AgentChatPane: React.FC = () => {
           className="!border-0 !shadow-none !bg-transparent !p-0" // Adjusted for pane context
           messages={messages.map((m: UIAgentChatMessage) => ({ // Map UIAgentChatMessage to ChatMessageProps
             id: m.id,
-            role: m.role,
+            role: m.role === 'tool' ? 'system' : m.role, // Convert 'tool' to 'system' as it's not in MessageRole
             content: m.content || "",
             isStreaming: m.isStreaming,
-            author: m.role === 'user' ? 'You' : (m.role === 'assistant' ? 'Agent' : 'System'),
+            author: m.role === 'user' ? 'You' : (m.role === 'assistant' ? 'Agent' : (m.role === 'tool' ? 'Tool' : 'System')),
             timestamp: m.timestamp, 
           }))}
           userInput={currentInput}

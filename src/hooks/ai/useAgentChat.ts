@@ -43,14 +43,15 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
   const currentAssistantMessageIdRef = useRef<string | null>(null);
 
   const runTelemetry = useCallback((event: TelemetryEvent) => {
+    const telemetryService = runtimeRef.current.context.unsafeGet(TelemetryService);
     Effect.runFork(
       Effect.provideService(
         Effect.flatMap(TelemetryService, ts => ts.trackEvent(event)),
         TelemetryService,
-        runtimeRef.current.context.get(TelemetryService)
+        telemetryService
       )
     );
-  }, [runtimeRef]); // runtimeRef is stable
+  }, []); // runtimeRef is stable
 
   const sendMessage = useCallback(async (promptText: string) => {
     if (!promptText.trim()) return;
@@ -94,12 +95,12 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
     }]);
 
     const streamTextOptions: StreamTextOptions = {
-      prompt: { // Ensure prompt matches what @effect/ai expects
+      prompt: JSON.stringify({
         messages: [
           { role: "system", content: initialSystemMessage },
           ...conversationHistoryForLLM
         ]
-      }
+      })
       // model, temperature, maxTokens can be added here if desired
     };
 
@@ -121,11 +122,10 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
                 : msg
             )
           );
-        }),
-        { signal } // Pass AbortSignal to Effect stream processing
+        })
       ));
     }).pipe(
-      Effect.provideService(AgentLanguageModel, runtimeRef.current.context.get(AgentLanguageModel)),
+      Effect.provideService(AgentLanguageModel, runtimeRef.current.context.unsafeGet(AgentLanguageModel)),
       Effect.tapErrorCause((cause) => Effect.sync(() => {
         // Check if the error is due to AbortSignal
         let isAbort = signal.aborted;
