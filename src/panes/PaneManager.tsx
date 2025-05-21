@@ -101,8 +101,8 @@ export const PaneManager = () => {
           {pane.type === 'second_page_content' && (
             <SecondPage />
           )}
-          {pane.type === 'wallet_setup_content' && (
-            <WalletSetupPage paneId={pane.id} />
+          {pane.type === 'wallet_setup_content' && pane.id && (
+            <WalletSetupPage paneId={pane.id} key={pane.id} />
           )}
           {pane.type === 'seed_phrase_backup_content' && pane.content?.seedPhrase && (
             <SeedPhraseBackupPage seedPhrase={pane.content.seedPhrase} paneId={pane.id} />

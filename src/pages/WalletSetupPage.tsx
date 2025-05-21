@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
 import { usePaneStore } from '@/stores/pane';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -29,7 +29,8 @@ const WalletSetupPage: React.FC<WalletSetupPageProps> = ({ paneId }) => {
   
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const handleCreateNewWallet = async () => {
+  // Memoize handlers to prevent unnecessary re-renders
+  const handleCreateNewWallet = useCallback(async () => {
     setIsGenerating(true);
     clearError();
     try {
@@ -42,14 +43,14 @@ const WalletSetupPage: React.FC<WalletSetupPageProps> = ({ paneId }) => {
     } finally {
       setIsGenerating(false);
     }
-  };
+  }, [clearError, generateNewWallet, openSeedPhraseBackupPane, paneId, removePane]);
 
-  const handleRestoreWallet = () => {
+  const handleRestoreWallet = useCallback(() => {
     clearError();
     // Open restore wallet pane
     openRestoreWalletPane();
     removePane(paneId); // Close this pane
-  };
+  }, [clearError, openRestoreWalletPane, paneId, removePane]);
 
   return (
     <div className="container flex items-center justify-center min-h-full p-4">
@@ -100,4 +101,5 @@ const WalletSetupPage: React.FC<WalletSetupPageProps> = ({ paneId }) => {
   );
 };
 
-export default WalletSetupPage;
+// Use React.memo to prevent unnecessary re-renders
+export default React.memo(WalletSetupPage);
