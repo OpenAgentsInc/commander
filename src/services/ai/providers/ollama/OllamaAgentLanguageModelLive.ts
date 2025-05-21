@@ -31,7 +31,7 @@ const OpenAiLanguageModel = {
             imageUrl: "",
             content: [],
             role: "assistant",
-            parts: [{ _tag: "text", content: "Not implemented in mock" }],
+            parts: [{ _tag: "text", content: "Not implemented in mock" } as const],
             withToolCallsJson: () =>
               ({
                 text: "",
