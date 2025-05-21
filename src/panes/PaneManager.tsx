@@ -4,6 +4,8 @@ import { Pane as PaneComponent } from '@/panes/Pane';
 import { Pane as PaneType } from '@/types/pane';
 import { Nip28ChannelChat } from '@/components/nip28';
 import { Nip90Dashboard } from '@/components/nip90';
+import { SellComputePane } from '@/components/sell-compute';
+import { DvmJobHistoryPane } from '@/components/dvm';
 
 // Placeholder Content Components
 const PlaceholderChatComponent = ({ threadId }: { threadId?: string }) => <div className="p-2">Chat Pane Content {threadId && `for ${threadId}`}</div>;
@@ -68,6 +70,12 @@ export const PaneManager = () => {
           {pane.type === 'nip90_dashboard' && (
             <Nip90Dashboard />
           )}
+          {pane.type === 'sell_compute' && (
+            <SellComputePane />
+          )}
+          {pane.type === 'dvm_job_history' && (
+            <DvmJobHistoryPane />
+          )}
           {pane.type === 'default' && <PlaceholderDefaultComponent type={pane.type} />}
           {/* Add other pane types here, or a more generic fallback */}
           {!(
@@ -78,6 +86,8 @@ export const PaneManager = () => {
             pane.type === 'diff' ||
             pane.type === 'nip28_channel' ||
             pane.type === 'nip90_dashboard' ||
+            pane.type === 'sell_compute' ||
+            pane.type === 'dvm_job_history' ||
             pane.type === 'default'
           ) && <PlaceholderDefaultComponent type={pane.type} />}
         </PaneComponent>

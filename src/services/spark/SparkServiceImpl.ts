@@ -687,7 +687,201 @@ export const SparkServiceLive = Layer.scoped(
               errorContext: (err as SparkError).context
             })
           }))
-        )
+        ),
+        
+      /**
+       * Checks if the wallet is initialized and connected by attempting a lightweight operation
+       */
+      checkWalletStatus: () => Effect.gen(function* (_) {
+        yield* _(telemetry.trackEvent({
+          category: 'spark:status',
+          action: 'check_wallet_status_start',
+        }).pipe(Effect.ignoreLogged));
+
+        try {
+          // Attempting getBalance is a reasonable way to check if wallet is operational
+          const balanceInfoSDK = yield* _(
+            Effect.tryPromise({
+              try: () => wallet.getBalance(),
+              catch: (e) => new SparkBalanceError({ message: "getBalance failed during status check", cause: e }),
+            })
+          );
+          
+          // If getBalance succeeds, consider wallet connected and ready
+          yield* _(telemetry.trackEvent({
+            category: 'spark:status',
+            action: 'check_wallet_status_success',
+            label: `Wallet ready, balance: ${balanceInfoSDK.balance}`,
+          }).pipe(Effect.ignoreLogged));
+          
+          return true;
+        } catch (error) {
+          const sparkError = error as SparkError;
+          
+          if (sparkError instanceof SparkConfigError || 
+              (sparkError.message && sparkError.message.toLowerCase().includes("initialize"))) {
+            yield* _(telemetry.trackEvent({
+              category: 'spark:status',
+              action: 'check_wallet_status_failure_not_initialized',
+              label: sparkError.message,
+            }).pipe(Effect.ignoreLogged));
+            return false;
+          }
+          
+          yield* _(telemetry.trackEvent({
+            category: 'spark:status',
+            action: 'check_wallet_status_failure_other',
+            label: sparkError.message,
+          }).pipe(Effect.ignoreLogged));
+          
+          return false;
+        }
+      }),
+
+      /**
+       * Checks the status of a Lightning invoice by its BOLT11 string
+       */
+      checkInvoiceStatus: (invoiceBolt11: string) =>
+        Effect.gen(function* (_) {
+          yield* _(telemetry.trackEvent({
+            category: 'spark:lightning',
+            action: 'check_invoice_status_start',
+            label: `Checking invoice: ${invoiceBolt11.substring(0, 20)}...`
+          }));
+
+          // Validation
+          if (!invoiceBolt11 || invoiceBolt11.trim().length === 0) {
+            return yield* _(Effect.fail(new SparkValidationError({
+              message: "Invalid invoice: BOLT11 string cannot be empty",
+              context: { invoiceBolt11 }
+            })));
+          }
+
+          const sdkResult = yield* _(Effect.tryPromise({
+            try: async () => {
+              // SDK MOCK - In a real implementation, we would call the actual SDK method
+              // This would likely be something like:
+              // return await wallet.getInvoiceStatus({ encodedInvoice: invoiceBolt11 });
+              // or 
+              // return await wallet.lookupInvoice({ paymentHash: extractedPaymentHash });
+
+              // For now, use a simple mock based on the invoiceBolt11 string
+              if (invoiceBolt11.includes("paid_invoice_stub")) {
+                return { status: "PAID", amountPaidMsat: 100000, payment_hash: "hash_for_paid" };
+              } else if (invoiceBolt11.includes("expired_invoice_stub")) {
+                return { status: "EXPIRED", payment_hash: "hash_for_expired" };
+              } else if (invoiceBolt11.includes("error_invoice_stub")) {
+                throw new Error("SDK error checking invoice"); // Mock error
+              }
+              return { status: "PENDING", payment_hash: "hash_for_pending" }; // Default to pending
+            },
+            catch: (e) => {
+              // Map errors to appropriate types
+              const errorContext = { invoice: invoiceBolt11.substring(0, 20) + '...' };
+              
+              if (e instanceof ValidationError) {
+                return new SparkValidationError({
+                  message: 'Invalid Lightning invoice format',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              if (e instanceof NetworkError) {
+                return new SparkConnectionError({
+                  message: 'Network error during invoice status check',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              if (e instanceof RPCError) {
+                return new SparkRPCError({
+                  message: 'RPC error during invoice status check',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              if (e instanceof AuthenticationError) {
+                return new SparkAuthenticationError({
+                  message: 'Authentication error during invoice status check',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              if (e instanceof NotImplementedError) {
+                return new SparkNotImplementedError({
+                  message: 'Invoice status check not implemented in this environment',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              if (e instanceof ConfigurationError) {
+                return new SparkConfigError({
+                  message: 'Configuration error during invoice status check',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              if (e instanceof SparkSDKError) {
+                return new SparkLightningError({
+                  message: 'SDK error during invoice status check',
+                  cause: e,
+                  context: errorContext
+                });
+              }
+              
+              // Default fallback for unknown errors
+              return new SparkLightningError({
+                message: 'Failed to check invoice status via SparkSDK',
+                cause: e,
+                context: errorContext
+              });
+            }
+          }));
+
+          let status: 'pending' | 'paid' | 'expired' | 'error' = 'pending';
+          let amountPaidMsats: number | undefined = undefined;
+
+          // Map SDK status to our defined status
+          switch (sdkResult.status?.toUpperCase()) {
+            case 'PAID':
+            case 'COMPLETED':
+              status = 'paid';
+              amountPaidMsats = sdkResult.amountPaidMsat;
+              break;
+            case 'EXPIRED':
+              status = 'expired';
+              break;
+            case 'PENDING':
+            case 'UNPAID':
+              status = 'pending';
+              break;
+            default:
+              status = 'error';
+              yield* _(telemetry.trackEvent({
+                category: 'spark:lightning',
+                action: 'check_invoice_status_unknown_sdk_status',
+                label: `Unknown SDK status: ${sdkResult.status}`,
+                value: invoiceBolt11
+              }).pipe(Effect.ignoreLogged));
+              break;
+          }
+
+          yield* _(telemetry.trackEvent({
+            category: 'spark:lightning',
+            action: 'check_invoice_status_success',
+            label: `Invoice status: ${status}`,
+            value: JSON.stringify({ invoice: invoiceBolt11.substring(0,20)+'...', amountPaidMsats })
+          }));
+
+          return { status, amountPaidMsats };
+        }).pipe(
+          Effect.tapError(err => telemetry.trackEvent({
+            category: 'spark:lightning',
+            action: 'check_invoice_status_failure',
+            label: err.message,
+            value: JSON.stringify({ invoice: invoiceBolt11.substring(0,20)+'...' })
+          }))
+        ),
     };
   })
 );

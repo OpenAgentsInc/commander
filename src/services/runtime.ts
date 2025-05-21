@@ -20,6 +20,7 @@ import { BrowserHttpClient } from "@effect/platform-browser";
 import { HttpClient } from '@effect/platform';
 import { SparkService, SparkServiceLive, DefaultSparkServiceConfigLayer } from '@/services/spark';
 import { NIP90Service, NIP90ServiceLive } from '@/services/nip90';
+import { Kind5050DVMService, Kind5050DVMServiceLive, DefaultKind5050DVMServiceConfigLayer } from '@/services/dvm';
 
 // Define the full context type for the runtime
 export type FullAppContext =
@@ -33,6 +34,7 @@ export type FullAppContext =
   OllamaService |
   SparkService |
   NIP90Service |
+  Kind5050DVMService |
   HttpClient.HttpClient;
 
 // Runtime instance - will be initialized asynchronously
@@ -55,6 +57,17 @@ const nip90Layer = NIP90ServiceLive.pipe(
   layerProvide(layerMergeAll(nostrLayer, nip04Layer, telemetryLayer))
 );
 
+const kind5050DVMLayer = Kind5050DVMServiceLive.pipe(
+  layerProvide(layerMergeAll(
+    DefaultKind5050DVMServiceConfigLayer,
+    nostrLayer,
+    ollamaLayer,
+    sparkLayer,
+    nip04Layer,
+    telemetryLayer
+  ))
+);
+
 // Full application layer
 const FullAppLayer = layerMergeAll(
   nostrLayer,
@@ -66,7 +79,8 @@ const FullAppLayer = layerMergeAll(
   nip28Layer,
   ollamaLayer,
   sparkLayer,
-  nip90Layer
+  nip90Layer,
+  kind5050DVMLayer
 );
 
 // Asynchronous function to initialize the runtime

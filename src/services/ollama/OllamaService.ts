@@ -144,6 +144,12 @@ export interface OllamaService {
   generateChatCompletionStream(
     request: OllamaChatCompletionRequest
   ): Stream.Stream<OllamaOpenAIChatStreamChunk, OllamaHttpError | OllamaParseError, never>;
+  
+  /**
+   * Checks if the Ollama service is available and responding.
+   * Returns true if Ollama is reachable, false otherwise.
+   */
+  checkOllamaStatus(): Effect.Effect<boolean, OllamaHttpError | OllamaParseError, never>;
 }
 
 // Define a Tag for the service that can be used in dependency injection

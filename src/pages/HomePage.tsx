@@ -1,13 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { PaneManager } from "@/panes/PaneManager";
 import { SimpleGrid } from "@/components/home/SimpleGrid";
-import ResetHUDButton from "@/components/ResetHUDButton";
-import HandTrackingToggleButton from "@/components/hands/HandTrackingToggleButton";
-import NewChannelButton from "@/components/hud/NewChannelButton";
-import Nip90DashboardButton from "@/components/hud/Nip90DashboardButton";
 import { HandTracking, HandPose } from "@/components/hands";
 import { type PinchCoordinates, type HandLandmarks } from "@/components/hands/handPoseTypes";
 import { usePaneStore } from "@/stores/pane";
+import { Hotbar } from "@/components/hud/Hotbar";
 
 interface HandDataContext {
   activeHandPose: HandPose;
@@ -27,7 +24,7 @@ export default function HomePage() {
   const initialPinchPositionRef = useRef<{ x: number; y: number } | null>(null);
   const paneStartPosRef = useRef<{ x: number; y: number } | null>(null);
 
-  const { panes, bringPaneToFront, updatePanePosition, activePaneId: currentActivePaneId } = usePaneStore();
+  const { panes, bringPaneToFront, updatePanePosition, activePaneId: currentActivePaneId, openSellComputePane, openDvmJobHistoryPane } = usePaneStore();
 
   const toggleHandTracking = () => {
     const newState = !isHandTrackingActive;
@@ -123,20 +120,18 @@ export default function HomePage() {
       <SimpleGrid />
       <PaneManager />
 
-      {/* Hand Tracking Component */}
       <HandTracking
         showHandTracking={isHandTrackingActive}
         setShowHandTracking={setIsHandTrackingActive}
         onHandDataUpdate={handleHandDataUpdate}
       />
 
-      <ResetHUDButton />
-      <HandTrackingToggleButton
+      <Hotbar
         isHandTrackingActive={isHandTrackingActive}
-        onToggle={toggleHandTracking}
+        onToggleHandTracking={toggleHandTracking}
+        onOpenSellComputePane={openSellComputePane}
+        onOpenDvmJobHistoryPane={openDvmJobHistoryPane}
       />
-      <NewChannelButton />
-      <Nip90DashboardButton />
     </div>
   );
 }

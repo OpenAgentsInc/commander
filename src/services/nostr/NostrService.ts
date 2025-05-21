@@ -88,12 +88,14 @@ export interface NostrService {
    * Subscribe to events matching the given filters
    * @param filters The filters to subscribe to
    * @param onEvent Callback for each event received
+   * @param relays Optional list of relay URLs to use for this subscription (overrides default relays)
    * @param onEOSE Optional callback for when end of stored events is reached
    * @returns A subscription that can be used to unsubscribe
    */
   subscribeToEvents(
     filters: NostrFilter[],
     onEvent: (event: NostrEvent) => void,
+    relays?: readonly string[],
     onEOSE?: () => void
   ): Effect.Effect<Subscription, NostrRequestError, never>;
 }

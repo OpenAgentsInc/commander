@@ -178,6 +178,26 @@ describe('SparkService', () => {
     getSingleUseDepositAddress: () => {
       // Return a mock address
       return Effect.succeed('bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh');
+    },
+    
+    checkWalletStatus: () => {
+      // Return wallet status
+      return Effect.succeed(true);
+    },
+    
+    checkInvoiceStatus: (invoiceBolt11: string) => {
+      // Simple mock implementation for testing
+      if (invoiceBolt11.includes('paid')) {
+        return Effect.succeed({ status: 'paid' as const, amountPaidMsats: 100000 });
+      } else if (invoiceBolt11.includes('expired')) {
+        return Effect.succeed({ status: 'expired' as const });
+      } else if (invoiceBolt11.includes('error')) {
+        return Effect.fail(new SparkLightningError({
+          message: "Error checking invoice status",
+          context: { invoiceBolt11 }
+        }));
+      }
+      return Effect.succeed({ status: 'pending' as const });
     }
   });
 

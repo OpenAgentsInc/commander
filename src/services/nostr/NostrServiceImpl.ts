@@ -353,7 +353,7 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
       }),
 
     // Subscribe to events
-    subscribeToEvents: (filters, onEvent, onEOSE) => 
+    subscribeToEvents: (filters, onEvent, customRelays, onEOSE) => 
       Effect.gen(function* (_) {
         const pool = yield* _(
           getPoolEffect,
@@ -363,9 +363,19 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
           }))
         );
         
+        // Determine which relays to use
+        const relaysToUse = (customRelays && customRelays.length > 0) ? customRelays : config.relays;
+        
+        // Check if we have any relays to use
+        if (relaysToUse.length === 0) {
+          return yield* _(Effect.fail(new NostrRequestError({
+            message: "No relays specified for subscription and no default relays configured."
+          })));
+        }
+        
         try {
           // Create a subscription to the relays
-          console.log(`[NostrServiceImpl] Subscribing to filters:`, filters, "on relays:", config.relays);
+          console.log(`[NostrServiceImpl] Subscribing to filters:`, filters, "on relays:", relaysToUse);
           
           // Create subscription parameters with event handlers
           const subParams = {
@@ -383,14 +393,14 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
           // Convert array of filters to a single filter object with the proper type signature 
           // including the `#${string}` index signature
           const filter: NostrFilter = filters[0];
-          const subCloser = pool.subscribe(config.relays as string[], filter, subParams);
+          const subCloser = pool.subscribe(relaysToUse as string[], filter, subParams);
           
           // Create a telemetry event for subscription creation
           const subTelemetryEvent: TelemetryEvent = {
             category: "log:info",
             action: "nostr_sub_created",
             label: "[Nostr] Created subscription",
-            value: JSON.stringify({ filters, relays: config.relays })
+            value: JSON.stringify({ filters, relays: relaysToUse })
           };
           
           // Fire-and-forget telemetry
