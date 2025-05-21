@@ -102,7 +102,15 @@ const Nip90DvmTestPane: React.FC = () => {
       setTestJobResult(exit.value);
     } else {
       const error = Cause.squash(exit.cause);
-      setTestJobError(error.message || "Unknown error processing test job.");
+      if (error instanceof Error) {
+        setTestJobError(error.message || "Unknown error processing test job.");
+      } else if (typeof error === 'string') {
+        setTestJobError(error || "Unknown error processing test job.");
+      } else if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+        setTestJobError(error.message || "Unknown error processing test job.");
+      } else {
+        setTestJobError("An unknown error occurred processing the test job.");
+      }
       console.error("Test job error:", error);
     }
     setIsTestJobRunning(false);

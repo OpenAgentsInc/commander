@@ -1,15 +1,26 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { usePaneStore } from '@/stores/pane';
 import { NIP90_DVM_TEST_PANE_ID, NIP90_CONSUMER_CHAT_PANE_ID } from '@/stores/panes/constants';
+import { type Pane } from '@/types/pane';
 
 // Mock external libraries that might cause problems
-vi.mock('@buildonspark/lrc20-sdk', () => ({}), { virtual: true });
-vi.mock('bitcoinjs-lib', () => ({}), { virtual: true });
-vi.mock('nostr-tools', () => ({}), { virtual: true });
+vi.mock('@buildonspark/lrc20-sdk', () => ({}));
+vi.mock('bitcoinjs-lib', () => ({}));
+vi.mock('nostr-tools', () => ({}));
+
+// Define type for the mock store
+interface MockStoreType {
+  panes: Pane[];
+  activePaneId: string | null;
+  lastPanePosition: { x: number; y: number; width: number; height: number } | null;
+  resetHUDState: ReturnType<typeof vi.fn>;
+  openNip90DvmTestPane: ReturnType<typeof vi.fn>;
+  openNip90ConsumerChatPane: ReturnType<typeof vi.fn>;
+}
 
 // Create mock store with necessary methods
 // This avoids the real implementation which might depend on crypto libraries
-const mockStore = {
+const mockStore: MockStoreType = {
   panes: [],
   activePaneId: null,
   lastPanePosition: null,
@@ -37,7 +48,8 @@ const mockStore = {
       width: 400,
       height: 300,
       isActive: true,
-      dismissable: true
+      dismissable: true,
+      content: {} // Add empty content object to satisfy type
     });
     mockStore.activePaneId = NIP90_DVM_TEST_PANE_ID;
   }),
@@ -60,7 +72,8 @@ const mockStore = {
       width: 500,
       height: 450,
       isActive: true,
-      dismissable: true
+      dismissable: true,
+      content: {} // Add empty content object to satisfy type
     });
     mockStore.activePaneId = NIP90_CONSUMER_CHAT_PANE_ID;
   })
