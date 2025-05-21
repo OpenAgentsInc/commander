@@ -4,7 +4,8 @@ import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { finalizeEvent, type EventTemplate } from 'nostr-tools/pure';
 import { TelemetryService, TrackEventError } from '@/services/telemetry';
 import { NostrService, type NostrEvent, type NostrFilter, type Subscription, NostrPublishError, NostrRequestError } from '@/services/nostr';
-import { OllamaService, type OllamaChatCompletionRequest, OllamaError } from '@/services/ollama';
+import { AgentLanguageModel, type GenerateTextOptions } from '@/services/ai/core';
+import { AIProviderError } from '@/services/ai/core/AIError';
 import { SparkService, type CreateLightningInvoiceParams, SparkError, LightningInvoice } from '@/services/spark';
 import { NIP04Service, NIP04DecryptError, NIP04EncryptError } from '@/services/nip04';
 import { useDVMSettingsStore } from '@/stores/dvmSettingsStore';
@@ -128,7 +129,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
     const config = yield* _(Kind5050DVMServiceConfigTag); // For default fallbacks
     const telemetry = yield* _(TelemetryService);
     const nostr = yield* _(NostrService);
-    const ollama = yield* _(OllamaService);
+    const agentLanguageModel = yield* _(AgentLanguageModel.Tag);
     const spark = yield* _(SparkService);
     const nip04 = yield* _(NIP04Service);
     
@@ -483,20 +484,21 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         const processingFeedback = createNip90FeedbackEvent(dvmPrivateKeyHex, jobRequestEvent, "processing");
         yield* _(publishFeedback(processingFeedback));
 
-        const ollamaModel = paramsMap.get("model") || textGenConfig.model;
-        const ollamaRequest: OllamaChatCompletionRequest = {
-          model: ollamaModel,
-          messages: [{ role: "user", content: prompt }],
-          stream: false
+        const aiModel = paramsMap.get("model") || textGenConfig.model;
+        const generateOptions: GenerateTextOptions = {
+          prompt: prompt,
+          model: aiModel,
+          temperature: textGenConfig.temperature,
+          maxTokens: textGenConfig.max_tokens
         };
 
         yield* _(telemetry.trackEvent({
           category: "dvm:job",
-          action: "ollama_params_intended",
+          action: "ai_params_intended",
           label: `Job ID: ${jobRequestEvent.id}`,
           value: JSON.stringify({
             requestParams: Object.fromEntries(paramsMap),
-            ollamaModelUsed: ollamaRequest.model,
+            aiModelUsed: generateOptions.model,
             defaultJobConfigParams: {
               max_tokens: textGenConfig.max_tokens,
               temperature: textGenConfig.temperature,
@@ -507,15 +509,19 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           })
         }).pipe(Effect.ignoreLogged));
 
-        const ollamaResult = yield* _(ollama.generateChatCompletion(ollamaRequest).pipe(
-          Effect.mapError(e => new DVMJobProcessingError({ message: "Ollama inference failed", cause: e }))
+        const aiResponse = yield* _(agentLanguageModel.generateText(generateOptions).pipe(
+          Effect.mapError(e => new DVMJobProcessingError({ 
+            message: `AI inference failed: ${e.message || "Unknown error"}`, 
+            cause: e 
+          }))
         ));
 
-        const ollamaOutput = ollamaResult.choices[0]?.message.content || "";
-        const usage = ollamaResult.usage || {
+        const aiOutput = aiResponse.text || "";
+        // Estimate token usage since we don't get it directly from AgentLanguageModel
+        const usage = {
           prompt_tokens: Math.ceil(prompt.length / 4),
-          completion_tokens: Math.ceil(ollamaOutput.length / 4),
-          total_tokens: Math.ceil((prompt.length + ollamaOutput.length) / 4)
+          completion_tokens: Math.ceil(aiOutput.length / 4),
+          total_tokens: Math.ceil((prompt.length + aiOutput.length) / 4)
         };
         const totalTokens = usage.total_tokens;
 
@@ -534,13 +540,13 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         ));
         const bolt11Invoice = invoiceResult.invoice.encodedInvoice;
 
-        let finalOutputContent = ollamaOutput;
+        let finalOutputContent = aiOutput;
         if (isRequestEncrypted) {
           const dvmSkBytes = hexToBytes(dvmPrivateKeyHex);
           finalOutputContent = yield* _(nip04.encrypt(
             dvmSkBytes,
             jobRequestEvent.pubkey,
-            ollamaOutput
+            aiOutput
           ).pipe(
             Effect.mapError(e => new DVMJobProcessingError({
               message: "Failed to encrypt NIP-90 job result",
@@ -565,7 +571,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           value: JSON.stringify({
             totalTokens,
             priceSats,
-            outputLength: ollamaOutput.length,
+            outputLength: aiOutput.length,
             encrypted: isRequestEncrypted
           })
         }).pipe(Effect.ignoreLogged));
@@ -800,7 +806,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
     const processLocalTestJob = (
       prompt: string,
       requesterPkOverride?: string
-    ): Effect.Effect<string, DVMError | OllamaError | SparkError | NIP04EncryptError | NIP04DecryptError, never> =>
+    ): Effect.Effect<string, DVMError | AIProviderError | SparkError | NIP04EncryptError | NIP04DecryptError, never> =>
       Effect.gen(function* (_) {
         const effectiveConfig = useDVMSettingsStore.getState().getEffectiveConfig();
         const dvmPrivateKeyHex = effectiveConfig.dvmPrivateKeyHex;
@@ -835,22 +841,27 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         };
 
         // Process the job using existing logic
-        const ollamaModel = textGenConfig.model;
-        const ollamaRequest: OllamaChatCompletionRequest = {
-          model: ollamaModel,
-          messages: [{ role: "user", content: prompt }],
-          stream: false
+        const aiModel = textGenConfig.model;
+        const generateOptions: GenerateTextOptions = {
+          prompt: prompt,
+          model: aiModel,
+          temperature: textGenConfig.temperature,
+          maxTokens: textGenConfig.max_tokens
         };
 
-        const ollamaResult = yield* _(ollama.generateChatCompletion(ollamaRequest).pipe(
-          Effect.mapError(e => new DVMJobProcessingError({ message: "Ollama inference failed", cause: e }))
+        const aiResponse = yield* _(agentLanguageModel.generateText(generateOptions).pipe(
+          Effect.mapError(e => new DVMJobProcessingError({ 
+            message: `AI inference failed: ${e.message || "Unknown error"}`, 
+            cause: e 
+          }))
         ));
 
-        const ollamaOutput = ollamaResult.choices[0]?.message.content || "";
-        const usage = ollamaResult.usage || {
+        const aiOutput = aiResponse.text || "";
+        // Estimate token usage
+        const usage = {
           prompt_tokens: Math.ceil(prompt.length / 4),
-          completion_tokens: Math.ceil(ollamaOutput.length / 4),
-          total_tokens: Math.ceil((prompt.length + ollamaOutput.length) / 4)
+          completion_tokens: Math.ceil(aiOutput.length / 4),
+          total_tokens: Math.ceil((prompt.length + aiOutput.length) / 4)
         };
         const totalTokens = usage.total_tokens;
 
@@ -875,12 +886,12 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           value: JSON.stringify({
             totalTokens,
             priceSats,
-            outputLength: ollamaOutput.length
+            outputLength: aiOutput.length
           })
         }).pipe(Effect.ignoreLogged));
 
         // Return the output directly for local test job
-        return `${ollamaOutput}\n\n---\nTokens: ${totalTokens} | Price: ${priceSats} sats | Invoice: ${bolt11Invoice.substring(0, 20)}...`;
+        return `${aiOutput}\n\n---\nTokens: ${totalTokens} | Price: ${priceSats} sats | Invoice: ${bolt11Invoice.substring(0, 20)}...`;
       });
 
     /**

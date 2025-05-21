@@ -12,6 +12,8 @@ import {
 } from "@/services/ollama/OllamaService";
 import { OllamaServiceLive } from "@/services/ollama/OllamaServiceImpl";
 import type { OllamaService as IOllamaService } from "@/services/ollama/OllamaService"; // For type annotation
+import { TelemetryService } from "@/services/telemetry";
+import { TelemetryServiceLive } from "@/services/telemetry/TelemetryServiceImpl";
 
 // Track active streams for cancellation
 const activeStreams = new Map<string, () => void>();
@@ -84,9 +86,14 @@ export function addOllamaEventListeners() {
   // MOVED INSIDE the function to ensure it's created at the right time in Electron's lifecycle
   let ollamaServiceLayer: Layer.Layer<IOllamaService, never, never>;
   try {
+    // Add telemetry to the layer for better observability
     ollamaServiceLayer = Layer.provide(
       OllamaServiceLive,
-      Layer.merge(UiOllamaConfigLive, NodeHttpClient.layer)
+      Layer.merge(
+        UiOllamaConfigLive, 
+        NodeHttpClient.layer,
+        TelemetryServiceLive
+      )
     );
     console.log("[IPC Setup] Ollama service layer defined successfully inside addOllamaEventListeners.");
   } catch (e) {
@@ -154,7 +161,7 @@ export function addOllamaEventListeners() {
     // Non-streaming handler (invoke/return)
     console.log(`[IPC Setup] Registering handler for ${OLLAMA_CHAT_COMPLETION_CHANNEL}...`);
     ipcMain.handle(OLLAMA_CHAT_COMPLETION_CHANNEL, async (_, request) => {
-      console.log("[IPC Handler] Received request for chat completion");
+      console.log("[IPC Handler] Received request for chat completion with model:", request?.model || "unspecified");
       
       // The ollamaServiceLayer should be defined at this point
       if (!ollamaServiceLayer) {
@@ -164,9 +171,32 @@ export function addOllamaEventListeners() {
 
       const program = Effect.gen(function*(_) {
         const ollamaService = yield* _(OllamaService);
-        return yield* _(ollamaService.generateChatCompletion(request));
+        const telemetry = yield* _(TelemetryService);
+
+        // Track request for observability
+        yield* _(telemetry.trackEvent({
+          category: "ollama:ipc",
+          action: "chat_completion_request",
+          label: request?.model || "unknown_model"
+        }));
+
+        // Use OllamaService to call the actual Ollama API
+        const result = yield* _(ollamaService.generateChatCompletion(request));
+
+        // Track successful response
+        yield* _(telemetry.trackEvent({
+          category: "ollama:ipc",
+          action: "chat_completion_success",
+          label: request?.model || "unknown_model"
+        }));
+
+        return result;
       }).pipe(
-        Effect.provide(ollamaServiceLayer)
+        Effect.provide(ollamaServiceLayer),
+        Effect.tapError(error => Effect.sync(() => {
+          console.error("[IPC Handler] Error in chat completion program:", 
+            error instanceof Error ? error.message : String(error));
+        }))
       );
 
       try {
@@ -184,7 +214,7 @@ export function addOllamaEventListeners() {
     // Streaming handler (send/on)
     console.log(`[IPC Setup] Registering listener for ${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL}...`);
     ipcMain.on(OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL, async (event, requestId, request) => {
-      console.log(`[IPC Listener] Received streaming request ${requestId}`);
+      console.log(`[IPC Listener] Received streaming request ${requestId} for model: ${request?.model || 'unspecified'}`);
       
       // The ollamaServiceLayer should be defined at this point
       if (!ollamaServiceLayer) {
@@ -206,14 +236,33 @@ export function addOllamaEventListeners() {
       
       const program = Effect.gen(function*(_) {
         const ollamaService = yield* _(OllamaService);
+        const telemetry = yield* _(TelemetryService);
+        
+        // Track the stream request for observability
+        yield* _(telemetry.trackEvent({
+          category: "ollama:ipc:stream",
+          action: "stream_request_start",
+          label: streamingRequest.model || "unknown_model",
+          value: requestId
+        }));
+        
         console.log(`[IPC Listener] About to call ollamaService.generateChatCompletionStream for ${requestId}`);
+        
         // Return the stream from the generator
         return ollamaService.generateChatCompletionStream(streamingRequest);
       }).pipe(
         Effect.provide(ollamaServiceLayer),
-        Effect.tapError(err => Effect.sync(() => {
+        Effect.tapError(err => Effect.gen(function*(_) {
+          const telemetry = yield* _(TelemetryService);
+          yield* _(telemetry.trackEvent({
+            category: "ollama:ipc:stream",
+            action: "stream_setup_error",
+            label: streamingRequest.model || "unknown_model",
+            value: requestId
+          }).pipe(Effect.ignoreLogged));
+          
           console.error(`[IPC Listener] Error in stream program for ${requestId}:`, err);
-        }))
+        }).pipe(Effect.provide(ollamaServiceLayer), Effect.ignore))
       );
 
       // Abort controller for cancellation
@@ -278,17 +327,67 @@ export function addOllamaEventListeners() {
         if (Exit.isSuccess(finalExit)) {
           if (!signal.aborted) {
             console.log(`[IPC Listener] Stream ${requestId} completed successfully with ${chunkCounter[requestId]} chunks.`);
+            
+            // Track successful completion
+            Effect.runPromise(Effect.gen(function*(_) {
+              const telemetry = yield* _(TelemetryService);
+              yield* _(telemetry.trackEvent({
+                category: "ollama:ipc:stream",
+                action: "stream_complete_success",
+                label: streamingRequest.model || "unknown_model",
+                value: requestId,
+                context: { chunks: chunkCounter[requestId] }
+              }));
+            }).pipe(Effect.provide(ollamaServiceLayer), Effect.ignoreLogged));
+            
             event.sender.send(`${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL}:done`, requestId);
           } else {
             console.log(`[IPC Listener] Stream ${requestId} was aborted before completion.`);
+            
+            // Track aborted stream
+            Effect.runPromise(Effect.gen(function*(_) {
+              const telemetry = yield* _(TelemetryService);
+              yield* _(telemetry.trackEvent({
+                category: "ollama:ipc:stream",
+                action: "stream_aborted",
+                label: streamingRequest.model || "unknown_model",
+                value: requestId,
+                context: { chunks: chunkCounter[requestId] }
+              }));
+            }).pipe(Effect.provide(ollamaServiceLayer), Effect.ignoreLogged));
           }
         } else { // Stream processing failed
           if (!signal.aborted) {
             console.error(`[IPC Listener] Ollama stream processing error for ${requestId}:`, Cause.pretty(finalExit.cause));
             const errorForIPC = extractErrorForIPC(Cause.squash(finalExit.cause));
+            
+            // Track stream error
+            Effect.runPromise(Effect.gen(function*(_) {
+              const telemetry = yield* _(TelemetryService);
+              yield* _(telemetry.trackEvent({
+                category: "ollama:ipc:stream",
+                action: "stream_processing_error",
+                label: streamingRequest.model || "unknown_model",
+                value: requestId,
+                context: { chunks: chunkCounter[requestId], error: errorForIPC.message }
+              }));
+            }).pipe(Effect.provide(ollamaServiceLayer), Effect.ignoreLogged));
+            
             event.sender.send(`${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL}:error`, requestId, errorForIPC);
           } else {
             console.log(`[IPC Listener] Stream ${requestId} processing aborted, error not sent:`, Cause.pretty(finalExit.cause));
+            
+            // Track aborted stream with error
+            Effect.runPromise(Effect.gen(function*(_) {
+              const telemetry = yield* _(TelemetryService);
+              yield* _(telemetry.trackEvent({
+                category: "ollama:ipc:stream",
+                action: "stream_aborted_with_error",
+                label: streamingRequest.model || "unknown_model",
+                value: requestId,
+                context: { chunks: chunkCounter[requestId] }
+              }));
+            }).pipe(Effect.provide(ollamaServiceLayer), Effect.ignoreLogged));
           }
         }
       } catch (initialProgramError) { // Catch synchronous errors from runPromiseExit or other setup

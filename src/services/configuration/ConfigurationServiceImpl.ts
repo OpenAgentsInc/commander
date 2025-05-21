@@ -105,6 +105,10 @@ export const DefaultDevConfigLayer = Layer.effect(
     yield* _(configService.set("OPENAI_MODEL_NAME", "gpt-4o"));
     yield* _(configService.set("OPENAI_BASE_URL", "https://api.openai.com/v1"));
     
+    // For Ollama provider
+    yield* _(configService.set("OLLAMA_MODEL_NAME", "gemma3:1b"));
+    yield* _(configService.set("OLLAMA_ENABLED", "true"));
+    
     // Add a dummy API key for development/testing (but print a warning)
     // In a real app, API keys should be added securely at runtime by the user
     // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
