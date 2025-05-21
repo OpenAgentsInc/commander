@@ -36,27 +36,29 @@ export const Hotbar: React.FC<HotbarProps> = ({
       <HotbarItem slotNumber={1} onClick={onOpenSellComputePane} title="Sell Compute" isActive={activePaneId === SELL_COMPUTE_PANE_ID}>
         <Store className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
-      <HotbarItem slotNumber={2} onClick={onOpenDvmJobHistoryPane} title="DVM Job History" isActive={activePaneId === DVM_JOB_HISTORY_PANE_ID}>
-        <History className="w-5 h-5 text-muted-foreground" />
+      <HotbarItem slotNumber={2} onClick={openWalletPane} title="Wallet" isActive={activePaneId === WALLET_PANE_ID}>
+        <Wallet className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
       {/* Commented out hand tracking button
       <HotbarItem slotNumber={3} onClick={onToggleHandTracking} title={isHandTrackingActive ? "Disable Hand Tracking" : "Enable Hand Tracking"} isActive={isHandTrackingActive}>
         <Hand className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
       */}
-      <HotbarItem slotNumber={4} onClick={resetHUDState} title="Reset HUD Layout">
-        <RefreshCw className="w-5 h-5 text-muted-foreground" />
-      </HotbarItem>
-      <HotbarItem slotNumber={5} onClick={openWalletPane} title="Wallet" isActive={activePaneId === WALLET_PANE_ID}>
-        <Wallet className="w-5 h-5 text-muted-foreground" />
+      <HotbarItem slotNumber={3} onClick={onOpenDvmJobHistoryPane} title="DVM Job History" isActive={activePaneId === DVM_JOB_HISTORY_PANE_ID}>
+        <History className="w-5 h-5 text-muted-foreground" />
       </HotbarItem>
       
-      {/* Fill the remaining 4 slots with empty HotbarItems */}
-      {Array.from({ length: 4 }).map((_, i) => (
-        <HotbarItem key={`empty-slot-${i}`} slotNumber={i + 6} isGhost>
+      {/* Fill the middle slots with empty HotbarItems */}
+      {Array.from({ length: 5 }).map((_, i) => (
+        <HotbarItem key={`empty-slot-${i}`} slotNumber={i + 4} isGhost>
           <span className="w-5 h-5" />
         </HotbarItem>
       ))}
+      
+      {/* Reset HUD button in slot 9 */}
+      <HotbarItem slotNumber={9} onClick={resetHUDState} title="Reset HUD Layout">
+        <RefreshCw className="w-5 h-5 text-muted-foreground" />
+      </HotbarItem>
     </div>
   );
 };

@@ -118,23 +118,30 @@ describe("AgentLanguageModel Service", () => {
       const testLayer = Layer.succeed(AgentLanguageModel, mockService);
       const params: StreamTextOptions = { prompt: "Test prompt" };
 
+      // Create a simple stream with chunks directly
+      const mockStream = Stream.fromIterable([
+        { text: "Mock " },
+        { text: "stream " },
+        { text: "response" }
+      ] as AiTextChunk[]);
+      
+      // Override the mock to return our predefined stream
+      mockService.streamText.mockReturnValue(mockStream);
+
       const program = Effect.flatMap(
         AgentLanguageModel,
-        (service) => Effect.succeed(service.streamText(params))
+        (service) => service.streamText(params)
       );
 
-      const streamProvider = await Effect.runPromise(
-        program.pipe(Effect.provide(testLayer))
-      );
+      // Collect the stream chunks directly from the program
+      const chunks: AiTextChunk[] = [];
+      await Stream.runCollect(program.pipe(Effect.provide(testLayer)))
+        .pipe(Effect.map(collected => {
+          collected.forEach(chunk => chunks.push(chunk));
+        }))
+        .pipe(Effect.runPromise);
       
       expect(mockService.streamText).toHaveBeenCalledWith(params);
-      
-      // Test the stream chunking
-      const chunks: AiTextChunk[] = [];
-      await Stream.runForEach(
-        (chunk) => Effect.sync(() => chunks.push(chunk))
-      )(streamProvider);
-      
       expect(chunks).toEqual([
         { text: "Mock " },
         { text: "stream " },
