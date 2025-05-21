@@ -11,3 +11,13 @@ export const CHANGELOG_PANE_ID = 'changelog';
 export const DEFAULT_NIP28_CHANNEL_ID = 'ee7352c54c85004d3d994a48d87c488905795f956f88842394eb3c6edc615978';
 export const DEFAULT_NIP28_PANE_ID = `nip28-${DEFAULT_NIP28_CHANNEL_ID}`;
 export const DEFAULT_NIP28_CHANNEL_TITLE = 'Welcome Chat';
+export const WELCOME_CHAT_INITIAL_WIDTH = 350;
+export const WELCOME_CHAT_INITIAL_HEIGHT = 250;
+
+// Constants for "Sell Compute" pane
+export const SELL_COMPUTE_PANE_ID_CONST = 'sell_compute';
+export const SELL_COMPUTE_INITIAL_WIDTH = 550;
+export const SELL_COMPUTE_INITIAL_HEIGHT = 420;
+
+// Approximate height of the Hotbar for positioning calculations
+export const HOTBAR_APPROX_HEIGHT = 60; // pixels
