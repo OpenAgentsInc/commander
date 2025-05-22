@@ -1,66 +1,94 @@
 // src/services/ai/core/AIError.ts
+import { Data } from "effect";
+
 /**
- * Base error class for AI-related errors
- * Provides common fields for all AI errors
+ * Base error type for AI-related operations
  */
-export class AIGenericError extends Error {
-  _tag: string;
+export class AiError extends Data.TaggedError("AiError")<{
+  message: string;
   cause?: unknown;
-  context?: Record<string, any>;
-
-  constructor(options: {
-    message: string;
-    cause?: unknown;
-    context?: Record<string, any>;
-  }) {
-    super(options.message);
-    this.name = "AIGenericError";
-    this._tag = "AIGenericError";
-    this.cause = options.cause;
-    this.context = options.context;
-  }
-}
+}> { }
 
 /**
- * Error for issues specific to an LLM provider
- * Used for API errors, rate limits, etc. from specific providers
+ * Maps any error to an AiError
  */
-export class AIProviderError extends AIGenericError {
-  readonly provider: string;
-  readonly isRetryable?: boolean;
+export const mapErrorToAiError = (error: unknown): AiError => {
+  if (error instanceof AiError) return error;
 
-  constructor(options: {
-    message: string;
-    provider: string;
-    cause?: unknown;
-    context?: Record<string, any>;
-    isRetryable?: boolean;
-  }) {
-    super({
-      message: options.message,
-      cause: options.cause,
-      context: options.context,
+  if (error instanceof Error) {
+    return new AiError({
+      message: error.message,
+      cause: error
     });
-    this.name = "AIProviderError";
-    this._tag = "AIProviderError";
-    this.provider = options.provider;
-    this.isRetryable = options.isRetryable;
   }
-}
+
+  return new AiError({
+    message: String(error)
+  });
+};
+
+/**
+ * Provider-specific error type
+ */
+export class AIProviderError extends Data.TaggedError("AIProviderError")<{
+  message: string;
+  cause?: unknown;
+  isRetryable: boolean;
+}> { }
+
+/**
+ * Configuration-related error type
+ */
+export class AIConfigurationError extends Data.TaggedError("AIConfigurationError")<{
+  message: string;
+  cause?: unknown;
+}> { }
+
+/**
+ * Maps an error to a provider-specific error
+ */
+export const mapToAIProviderError = (
+  error: unknown,
+  contextAction: string,
+  modelName: string,
+  isRetryable = false
+): AIProviderError => {
+  let messageContent = "Unknown provider error";
+  let causeContent: unknown = error;
+
+  if (typeof error === 'object' && error !== null) {
+    if ('_tag' in error && (error as any)._tag === "ResponseError") {
+      const responseError = error as any;
+      messageContent = `HTTP error ${responseError.response?.status}: ${responseError.response?.body || responseError.message || String(error)}`;
+      causeContent = responseError.cause || error;
+    } else if (error instanceof Error) {
+      messageContent = error.message;
+      causeContent = error.cause || error;
+    } else {
+      messageContent = String(error);
+    }
+  } else {
+    messageContent = String(error);
+  }
+
+  return new AIProviderError({
+    message: `Provider ${contextAction} error for model ${modelName}: ${messageContent}`,
+    cause: causeContent,
+    isRetryable
+  });
+};
 
 /**
  * Error for issues with AI service or provider configuration
  * Used for missing API keys, invalid URLs, etc.
  */
-export class AIConfigurationError extends AIGenericError {
+export class AIConfigurationError extends AiError {
   constructor(options: {
     message: string;
     cause?: unknown;
-    context?: Record<string, any>;
   }) {
     super(options);
     this.name = "AIConfigurationError";
-    this._tag = "AIConfigurationError";
   }
 }
 
@@ -68,22 +96,16 @@ export class AIConfigurationError extends AIGenericError {
  * Error for issues during tool execution
  * Used when an AI-invoked tool fails
  */
-export class AIToolExecutionError extends AIGenericError {
+export class AIToolExecutionError extends AiError {
   readonly toolName: string;
 
   constructor(options: {
     message: string;
     toolName: string;
     cause?: unknown;
-    context?: Record<string, any>;
   }) {
-    super({
-      message: options.message,
-      cause: options.cause,
-      context: options.context,
-    });
+    super(options);
     this.name = "AIToolExecutionError";
-    this._tag = "AIToolExecutionError";
     this.toolName = options.toolName;
   }
 }
@@ -92,7 +114,7 @@ export class AIToolExecutionError extends AIGenericError {
  * Error for issues related to context window limits
  * Used when a prompt or conversation exceeds token limits
  */
-export class AIContextWindowError extends AIGenericError {
+export class AIContextWindowError extends AiError {
   readonly limit?: number;
   readonly current?: number;
 
@@ -101,15 +123,9 @@ export class AIContextWindowError extends AIGenericError {
     limit?: number;
     current?: number;
     cause?: unknown;
-    context?: Record<string, any>;
   }) {
-    super({
-      message: options.message,
-      cause: options.cause,
-      context: options.context,
-    });
+    super(options);
     this.name = "AIContextWindowError";
-    this._tag = "AIContextWindowError";
     this.limit = options.limit;
     this.current = options.current;
   }
@@ -119,7 +135,7 @@ export class AIContextWindowError extends AIGenericError {
  * Error for content policy violations
  * Used when AI content is flagged or rejected by provider
  */
-export class AIContentPolicyError extends AIGenericError {
+export class AIContentPolicyError extends AiError {
   readonly provider: string;
   readonly flaggedContent?: string;
 
@@ -128,42 +144,10 @@ export class AIContentPolicyError extends AIGenericError {
     provider: string;
     flaggedContent?: string;
     cause?: unknown;
-    context?: Record<string, any>;
   }) {
-    super({
-      message: options.message,
-      cause: options.cause,
-      context: options.context,
-    });
+    super(options);
     this.name = "AIContentPolicyError";
-    this._tag = "AIContentPolicyError";
     this.provider = options.provider;
     this.flaggedContent = options.flaggedContent;
   }
-}
-
-/**
- * Create a more specific AIProviderError from a generic error
- * Useful for converting provider-specific errors to our error type
- */
-export function fromProviderError(
-  error: unknown,
-  provider: string,
-  isRetryable = false,
-): AIProviderError {
-  if (error instanceof Error) {
-    return new AIProviderError({
-      message: error.message,
-      provider,
-      cause: error,
-      isRetryable,
-    });
-  }
-
-  return new AIProviderError({
-    message: String(error),
-    provider,
-    cause: error,
-    isRetryable,
-  });
 }
