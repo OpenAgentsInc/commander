@@ -1,24 +1,66 @@
-import { Effect } from "effect";
+import { Data } from "effect";
 
-export interface AiResponse {
-  readonly text: string;
-  readonly imageUrl: null;
-  readonly withToolCallsJson: () => Effect.Effect<AiResponse, never>;
-  readonly withToolCallsUnknown: () => Effect.Effect<AiResponse, never>;
-  readonly withFunctionCallJson: () => Effect.Effect<AiResponse, never>;
-  readonly withFunctionCallUnknown: () => Effect.Effect<AiResponse, never>;
-  readonly withJsonMode: () => Effect.Effect<AiResponse, never>;
-}
-
-export function createAiResponse(text: string): AiResponse {
-  const response: AiResponse = {
-    text,
-    imageUrl: null,
-    withToolCallsJson: () => Effect.succeed(response),
-    withToolCallsUnknown: () => Effect.succeed(response),
-    withFunctionCallJson: () => Effect.succeed(response),
-    withFunctionCallUnknown: () => Effect.succeed(response),
-    withJsonMode: () => Effect.succeed(response),
+/**
+ * Base response type for AI-related operations
+ */
+export class AiResponse extends Data.TaggedClass("AiResponse")<{
+  text: string;
+  toolCalls?: Array<{
+    id: string;
+    name: string;
+    arguments: Record<string, unknown>;
+  }>;
+  metadata?: {
+    usage?: {
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+    };
   };
-  return response;
-}
+}> { }
+
+/**
+ * Response type for streaming text chunks
+ */
+export class AiTextChunk extends Data.TaggedClass("AiTextChunk")<{
+  text: string;
+}> { }
+
+/**
+ * Maps a provider response to our AiResponse type
+ */
+export const mapProviderResponseToAiResponse = (
+  response: {
+    choices?: Array<{
+      message?: {
+        content?: string;
+        tool_calls?: Array<{
+          id: string;
+          function: {
+            name: string;
+            arguments: string;
+          };
+        }>;
+      };
+    }>;
+    usage?: {
+      prompt_tokens: number;
+      completion_tokens: number;
+      total_tokens: number;
+    };
+  }
+): AiResponse => new AiResponse({
+  text: response.choices?.[0]?.message?.content || "",
+  toolCalls: response.choices?.[0]?.message?.tool_calls?.map(call => ({
+    id: call.id,
+    name: call.function.name,
+    arguments: JSON.parse(call.function.arguments)
+  })),
+  metadata: {
+    usage: response.usage && {
+      promptTokens: response.usage.prompt_tokens,
+      completionTokens: response.usage.completion_tokens,
+      totalTokens: response.usage.total_tokens
+    }
+  }
+});
