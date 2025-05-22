@@ -8,7 +8,7 @@ import {
   AiTextChunk,
 } from "@/services/ai/core";
 import { OpenAiClient } from "@effect/ai-openai";
-import { ConfigurationService } from "@/services/configuration";
+import { ConfigurationService, type ConfigError } from "@/services/configuration";
 import {
   AIProviderError,
   AIConfigurationError,
@@ -17,8 +17,8 @@ import { OllamaOpenAIClientTag } from "./OllamaAsOpenAIClientLive";
 import { TelemetryService } from "@/services/telemetry";
 import type { AiResponse } from "@effect/ai/AiResponse";
 
-// Mock implementation for OpenAiLanguageModel - we need this because it's not directly 
-// importable from @effect/ai-openai
+// Mock implementation for OpenAiLanguageModel - we need this because it's not correctly
+// importable from @effect/ai-openai as seen in other parts of the codebase
 const OpenAiLanguageModel = {
   model: (modelName: string) =>
     Effect.succeed({
@@ -109,7 +109,7 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
       generateText: (
         params: GenerateTextOptions,
       ): Effect.Effect<AiResponse, AIProviderError> =>
-        (provider as any).generateText(params).pipe(
+        provider.generateText(params).pipe(
           Effect.mapError((err) => {
             // Safely check for Error type
             const errMessage =
@@ -137,7 +137,7 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
       streamText: (
         params: StreamTextOptions,
       ): Stream.Stream<AiTextChunk, AIProviderError> =>
-        (provider as any).streamText(params).pipe(
+        provider.streamText(params).pipe(
           Stream.mapError((err) => {
             // Safely check for Error type
             const errMessage =
@@ -165,7 +165,7 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
       generateStructured: (
         params: GenerateStructuredOptions,
       ): Effect.Effect<AiResponse, AIProviderError> =>
-        (provider as any).generateStructured(params).pipe(
+        provider.generateStructured(params).pipe(
           Effect.mapError((err) => {
             // Safely check for Error type
             const errMessage =
