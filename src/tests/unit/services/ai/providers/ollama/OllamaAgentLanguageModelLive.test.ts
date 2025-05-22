@@ -412,9 +412,9 @@ const MockConfigurationService = Layer.succeed(ConfigurationService, {
 });
 
 // Fix for Effect.runPromise TypeScript errors
-// This wraps the Effect in an unsafeRunPromise to avoid the 'never' type constraint issue
+// This wraps the Effect in a type assertion to avoid the 'never' type constraint issue
 const runTestEffect = <A, E>(effect: Effect.Effect<A, E, any>): Promise<A> => {
-  return Effect.unsafeRunPromise(effect as Effect.Effect<A, E, never>);
+  return Effect.runPromise(effect as Effect.Effect<A, E, never>);
 };
 
 describe("OllamaAgentLanguageModelLive", () => {
