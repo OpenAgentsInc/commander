@@ -13,7 +13,7 @@ import type {
 
 // Types from OpenAiClient.d.ts (Effect AI wrapper)
 import type { StreamCompletionRequest } from "@effect/ai-openai/OpenAiClient";
-import { AiResponse } from "@effect/ai";
+import { AiResponse } from "@/services/ai/core/AiResponse";
 
 import * as HttpClientError from "@effect/platform/HttpClientError";
 import { isHttpClientError } from "@effect/platform/HttpClientError";
@@ -381,7 +381,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
 
         console.log(`[OllamaAsOpenAIClientLive] Starting stream for ${params.model} with params:`, JSON.stringify(streamingParams, null, 2));
 
-        return Stream.async<AiResponse.AiResponse, HttpClientError.HttpClientError>(
+        return Stream.async<AiResponse, HttpClientError.HttpClientError>(
           (emit) => {
             Effect.runFork(
               telemetry.trackEvent({
@@ -409,13 +409,8 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                     // Convert chunk to an AiResponse for compatibility
                     const content = chunk.choices?.[0]?.delta?.content || "";
                     const finishReason = chunk.choices?.[0]?.finish_reason;
-                    const aiResponse = AiResponse.make({
+                    const aiResponse = new AiResponse({
                       text: content,
-                      finishReason: finishReason as AiResponse.FinishReason || "unknown",
-                      parts: content ? [{
-                        _tag: "TextPart" as const,
-                        text: content
-                      }] : []
                     });
                     console.log(`[OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for ${params.model}:`, JSON.stringify(aiResponse));
                     emit.single(aiResponse);

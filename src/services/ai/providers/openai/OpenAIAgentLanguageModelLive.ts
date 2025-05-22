@@ -10,6 +10,9 @@ import {
 import { AiProviderError, mapToAiProviderError } from "@/services/ai/core/AiError";
 import { AiResponse, AiTextChunk, mapProviderResponseToAiResponse } from "@/services/ai/core/AiResponse";
 import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
+import type { Provider } from "@effect/ai/AiPlan";
+import { AiLanguageModel } from "@effect/ai/AiLanguageModel";
+import { Tokenizer } from "@effect/ai/Tokenizer";
 import { ConfigurationService } from "@/services/configuration";
 import { TelemetryService } from "@/services/telemetry";
 
@@ -51,8 +54,14 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
   // Step 3: Get the AiModel instance
   const aiModel = yield* _(configuredAiModelEffect);
 
-  // Step 4: Build the provider from the AiModel
-  const provider = yield* _(aiModel);
+  // Step 4: Build the provider with type cast to help TypeScript inference
+  const provider = yield* _(
+    (aiModel as unknown) as Effect.Effect<
+      Provider<AiLanguageModel | Tokenizer>,
+      never,
+      never
+    >
+  );
 
   // Log successful model creation
   yield* _(
