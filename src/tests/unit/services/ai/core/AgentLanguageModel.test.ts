@@ -38,7 +38,7 @@ class MockAgentLanguageModel implements AgentLanguageModel {
           },
         },
       })),
-  );
+  ) as any;
 
   streamText = vi.fn((_params: StreamTextOptions) =>
     Stream.fromIterable([
@@ -46,7 +46,7 @@ class MockAgentLanguageModel implements AgentLanguageModel {
       CoreAiResponse.fromSimple({ text: "stream " }),
       CoreAiResponse.fromSimple({ text: "response" }),
     ]),
-  );
+  ) as any;
 
   generateStructured = vi.fn(
     (_params: GenerateStructuredOptions) =>
@@ -60,7 +60,7 @@ class MockAgentLanguageModel implements AgentLanguageModel {
           },
         },
       })),
-  );
+  ) as any;
 }
 
 describe("AgentLanguageModel Service", () => {
