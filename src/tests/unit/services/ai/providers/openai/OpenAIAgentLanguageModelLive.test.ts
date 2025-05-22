@@ -73,6 +73,7 @@ describe("OpenAIAgentLanguageModelLive", () => {
 
   // Create a mock AgentLanguageModel directly instead of going through OpenAI implementation
   const mockAgentLanguageModel: AgentLanguageModel = {
+    _tag: "AgentLanguageModel",
     generateText: vi.fn(({ prompt }) =>
       Effect.succeed(AiResponse.fromSimple({
         text: "Generated text",
@@ -92,6 +93,18 @@ describe("OpenAIAgentLanguageModelLive", () => {
           metadata: { usage: { totalTokens: 50, promptTokens: 10, completionTokens: 40 } }
         })
       ])
+    ),
+    generateStructured: vi.fn(({ prompt }) =>
+      Effect.succeed(AiResponse.fromSimple({
+        text: "Structured response",
+        metadata: {
+          usage: {
+            totalTokens: 50,
+            promptTokens: 15,
+            completionTokens: 35
+          }
+        }
+      }))
     )
   };
 

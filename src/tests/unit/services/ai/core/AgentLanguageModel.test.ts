@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { Effect, Layer, Context, Stream, Chunk } from "effect";
 import type { AiError as EffectAiError } from "@effect/ai/AiError";
-import type { AiResponse } from "@effect/ai/AiResponse";
 import {
   AgentLanguageModel,
   type GenerateTextOptions,
@@ -9,7 +8,7 @@ import {
   type GenerateStructuredOptions,
 } from "@/services/ai/core/AgentLanguageModel";
 import { AiError, AiProviderError } from "@/services/ai/core/AiError";
-import { AiResponse as CoreAiResponse, AiResponse } from "@/services/ai/core/AiResponse";
+import { AiResponse } from "@/services/ai/core/AiResponse";
 
 // Create a mock error for testing using the proper Data.TaggedError pattern
 class MockAiError extends AiProviderError {
@@ -28,7 +27,7 @@ class MockAgentLanguageModel implements AgentLanguageModel {
 
   generateText = vi.fn(
     (_params: GenerateTextOptions) =>
-      Effect.succeed(CoreAiResponse.fromSimple({
+      Effect.succeed(AiResponse.fromSimple({
         text: "Mock generated text response",
         metadata: {
           usage: {
@@ -42,15 +41,15 @@ class MockAgentLanguageModel implements AgentLanguageModel {
 
   streamText = vi.fn((_params: StreamTextOptions) =>
     Stream.fromIterable([
-      CoreAiResponse.fromSimple({ text: "Mock " }),
-      CoreAiResponse.fromSimple({ text: "stream " }),
-      CoreAiResponse.fromSimple({ text: "response" }),
+      AiResponse.fromSimple({ text: "Mock " }),
+      AiResponse.fromSimple({ text: "stream " }),
+      AiResponse.fromSimple({ text: "response" }),
     ]),
   ) as any;
 
   generateStructured = vi.fn(
     (_params: GenerateStructuredOptions) =>
-      Effect.succeed(CoreAiResponse.fromSimple({
+      Effect.succeed(AiResponse.fromSimple({
         text: "Mock structured response",
         metadata: {
           usage: {
@@ -132,9 +131,9 @@ describe("AgentLanguageModel Service", () => {
 
       // Create test data using proper AiResponse instances
       const testChunks = [
-        CoreAiResponse.fromSimple({ text: "Mock " }),
-        CoreAiResponse.fromSimple({ text: "stream " }),
-        CoreAiResponse.fromSimple({ text: "response" }),
+        AiResponse.fromSimple({ text: "Mock " }),
+        AiResponse.fromSimple({ text: "stream " }),
+        AiResponse.fromSimple({ text: "response" }),
       ];
 
       // Use a simpler approach - directly mock the implementation
