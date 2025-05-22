@@ -409,11 +409,15 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                     // Convert chunk to an AiResponse for compatibility
                     const content = chunk.choices?.[0]?.delta?.content || "";
                     const finishReason = chunk.choices?.[0]?.finish_reason;
+                    const parts: any[] = [];
+                    if (content) {
+                      parts.push(new AiResponse.TextPart({
+                        text: content,
+                        annotations: []
+                      }));
+                    }
                     const aiResponse = new AiResponse.AiResponse({
-                      parts: content ? [{
-                        _tag: "TextPart" as const,
-                        text: content
-                      }] : []
+                      parts
                     });
                     console.log(`[OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for ${params.model}:`, JSON.stringify(aiResponse));
                     emit.single(aiResponse);

@@ -1,148 +1,122 @@
-import { Data, Effect, Option, Context } from "effect";
-import { AiError } from "./AiError";
+import { Data, Option, Context, Schema } from "effect";
+import { AiResponse as EffectAiResponse, TypeId as EffectAiResponseTypeId, PartTypeId, TextPart, FinishPart, Usage, FinishReason } from "@effect/ai/AiResponse";
 
 /**
- * TypeId for AiResponse
+ * Our application's AiResponse class that extends @effect/ai's AiResponse
+ * to maintain compatibility while adding our own convenience properties
  */
-export const TypeId: unique symbol = Symbol.for("@commander/AiResponse");
-export type TypeId = typeof TypeId;
+export class AiResponse extends EffectAiResponse {
+  /**
+   * TypeId for compatibility with @effect/ai
+   */
+  readonly [EffectAiResponseTypeId]: typeof EffectAiResponseTypeId = EffectAiResponseTypeId;
 
-/**
- * Represents the reason why a model finished generation of a response.
- */
-export type FinishReason = "stop" | "length" | "content-filter" | "tool-calls" | "error" | "other" | "unknown";
+  /**
+   * Convenience property for accessing text content
+   */
+  get text(): string {
+    // Extract text from all TextPart elements in parts
+    return this.parts
+      .filter((part): part is typeof TextPart.Type => part._tag === "TextPart")
+      .map(part => part.text)
+      .join("");
+  }
 
-/**
- * Base response type for AI-related operations
- */
-export class AiResponse extends Data.TaggedClass("AiResponse")<{
-  text: string;
-  toolCalls?: Array<{
+  /**
+   * Convenience property for tool calls
+   */
+  get toolCalls(): Array<{
     id: string;
     name: string;
     arguments: Record<string, unknown>;
-  }>;
-  metadata?: {
+  }> {
+    return this.parts
+      .filter((part): part is typeof import("@effect/ai/AiResponse").ToolCallPart.Type => part._tag === "ToolCallPart")
+      .map(part => ({
+        id: part.id,
+        name: part.name,
+        arguments: part.params as Record<string, unknown>
+      }));
+  }
+
+  /**
+   * Convenience property for usage metadata
+   */
+  get metadata(): {
     usage?: {
       promptTokens: number;
       completionTokens: number;
       totalTokens: number;
     };
-  };
-}> {
-  /**
-   * TypeId for AiResponse
-   */
-  readonly [TypeId]: TypeId = TypeId;
-
-  /**
-   * Returns the finish reason for the response, or "unknown" if not provided
-   */
-  get finishReason(): FinishReason {
-    return "unknown";
-  }
-
-  /**
-   * Attempts to retrieve provider-specific response metadata
-   */
-  getProviderMetadata<I, S>(tag: Context.Tag<I, S>): Option.Option<S> {
-    return Option.none();
-  }
-
-  /**
-   * Get the parts of the response (compatibility with @effect/ai)
-   */
-  get parts(): ReadonlyArray<any> {
-    return [{
-      _tag: "TextPart",
-      text: this.text
-    }, {
-      _tag: "FinishPart",
-      reason: this.finishReason,
+  } | undefined {
+    const finishPart = this.parts.find((part): part is typeof FinishPart.Type => part._tag === "FinishPart");
+    if (!finishPart) return undefined;
+    
+    return {
       usage: {
-        inputTokens: this.metadata?.usage?.promptTokens || 0,
-        outputTokens: this.metadata?.usage?.completionTokens || 0,
-        totalTokens: this.metadata?.usage?.totalTokens || 0,
+        promptTokens: finishPart.usage.inputTokens,
+        completionTokens: finishPart.usage.outputTokens,
+        totalTokens: finishPart.usage.totalTokens
+      }
+    };
+  }
+
+  /**
+   * Create an AiResponse from simple properties
+   */
+  static fromSimple(props: {
+    text: string;
+    toolCalls?: Array<{
+      id: string;
+      name: string;
+      arguments: Record<string, unknown>;
+    }>;
+    metadata?: {
+      usage?: {
+        promptTokens: number;
+        completionTokens: number;
+        totalTokens: number;
+      };
+    };
+  }): AiResponse {
+    const parts: any[] = [];
+    
+    // Add text part if text exists
+    if (props.text) {
+      parts.push(new TextPart({
+        text: props.text,
+        annotations: []
+      }));
+    }
+    
+    // Add tool call parts if they exist
+    if (props.toolCalls) {
+      for (const toolCall of props.toolCalls) {
+        parts.push({
+          _tag: "ToolCallPart" as const,
+          [PartTypeId]: PartTypeId,
+          id: toolCall.id,
+          name: toolCall.name,
+          params: toolCall.arguments
+        });
+      }
+    }
+    
+    // Add finish part with usage information
+    parts.push(new FinishPart({
+      reason: "unknown" as FinishReason,
+      usage: new Usage({
+        inputTokens: props.metadata?.usage?.promptTokens || 0,
+        outputTokens: props.metadata?.usage?.completionTokens || 0,
+        totalTokens: props.metadata?.usage?.totalTokens || 0,
         reasoningTokens: 0,
         cacheReadInputTokens: 0,
         cacheWriteInputTokens: 0
-      }
-    }];
-  }
-
-  /**
-   * Adds tool calls to the response
-   */
-  withToolCallsJson(toolCalls: Iterable<{
-    readonly id: string;
-    readonly name: string;
-    readonly params: string;
-  }>): Effect.Effect<AiResponse, AiError> {
-    try {
-      const toolCallsArray = Array.from(toolCalls).map(call => ({
-        id: call.id,
-        name: call.name,
-        arguments: JSON.parse(call.params)
-      }));
-      
-      return Effect.succeed(new AiResponse({
-        ...this,
-        toolCalls: [...(this.toolCalls || []), ...toolCallsArray]
-      }));
-    } catch (error) {
-      return Effect.fail(new AiError({
-        message: `Failed to parse tool call arguments: ${error instanceof Error ? error.message : String(error)}`,
-        cause: error
-      }));
-    }
-  }
-
-  /**
-   * Adds tool calls with already parsed arguments to the response
-   */
-  withToolCallsUnknown(toolCalls: Iterable<{
-    readonly id: string;
-    readonly name: string;
-    readonly params: unknown;
-  }>): Effect.Effect<AiResponse, AiError> {
-    try {
-      const toolCallsArray = Array.from(toolCalls).map(call => ({
-        id: call.id,
-        name: call.name,
-        arguments: call.params as Record<string, unknown>
-      }));
-      
-      return Effect.succeed(new AiResponse({
-        ...this,
-        toolCalls: [...(this.toolCalls || []), ...toolCallsArray]
-      }));
-    } catch (error) {
-      return Effect.fail(new AiError({
-        message: `Failed to add tool calls: ${error instanceof Error ? error.message : String(error)}`,
-        cause: error
-      }));
-    }
-  }
-
-  /**
-   * Adds function call to the response (compatibility with @effect/ai)
-   */
-  withFunctionCallJson(): Effect.Effect<AiResponse> {
-    return Effect.succeed(this);
-  }
-
-  /**
-   * Adds function call to the response (compatibility with @effect/ai)
-   */
-  withFunctionCallUnknown(): Effect.Effect<AiResponse> {
-    return Effect.succeed(this);
-  }
-
-  /**
-   * Enables JSON mode (compatibility with @effect/ai)
-   */
-  withJsonMode(): Effect.Effect<AiResponse> {
-    return Effect.succeed(this);
+      }),
+      providerMetadata: {}
+    }));
+    
+    return new AiResponse({ parts });
   }
 }
 
