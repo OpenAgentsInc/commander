@@ -82,7 +82,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
     };
 
     // Implement the OpenAiClient interface
-    return OllamaOpenAIClientTag.of({
+    return {
       // client property that adapts to the OpenAI client interface
       client: {
         createChatCompletion: (
@@ -243,6 +243,12 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
             },
           });
         },
+
+        // Chat Completion CRUD methods (missing from original implementation)
+        listChatCompletions: (_options: any) => stubMethod("listChatCompletions"),
+        getChatCompletion: (_chatCompletionId: string) => stubMethod("getChatCompletion"), 
+        updateChatCompletion: (_chatCompletionId: string, _options: any) => stubMethod("updateChatCompletion"),
+        deleteChatCompletion: (_chatCompletionId: string) => stubMethod("deleteChatCompletion"),
 
         // Core methods
         createEmbedding: (_options: typeof CreateEmbeddingRequest.Encoded) => stubMethod("createEmbedding"),
@@ -566,6 +572,6 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
           })
         ) as Stream.Stream<A, HttpClientError.HttpClientError>;
       },
-    });
+    };
   }),
 );

@@ -40,8 +40,8 @@ export const ChatOrchestratorServiceLive = Layer.effect(
 
     const runTelemetry = (event: any) => Effect.runFork(telemetry.trackEvent(event).pipe(Effect.ignoreLogged));
 
-    return ChatOrchestratorService.of({
-      _tag: "ChatOrchestratorService",
+    return {
+      _tag: "ChatOrchestratorService" as const,
       streamConversation: ({ messages, preferredProvider, options }) => {
         runTelemetry({ category: "orchestrator", action: "stream_conversation_start", label: preferredProvider.key });
 
@@ -66,7 +66,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
           Stream.tapError((err) => runTelemetry({
             category: "orchestrator",
             action: "stream_error",
-            label: (err as Error).message
+            label: err instanceof Error ? err.message : String(err)
           }))
         );
       },
@@ -95,10 +95,10 @@ export const ChatOrchestratorServiceLive = Layer.effect(
           Effect.tapError((err) => runTelemetry({
             category: "orchestrator",
             action: "generate_conversation_error",
-            label: (err as Error).message
+            label: err instanceof Error ? err.message : String(err)
           }))
         );
       },
-    });
+    };
   })
 );

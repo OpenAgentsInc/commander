@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Effect, Layer, Stream } from "effect";
 import { TelemetryService } from "@/services/telemetry";
 import { ConfigurationService } from "@/services/configuration";
-import { AgentLanguageModel, AiTextChunk } from "@/services/ai/core";
+import { AgentLanguageModel, AiResponse } from "@/services/ai/core";
 import { AiProviderError } from "@/services/ai/core/AiError";
 import { OllamaAgentLanguageModelLive } from "@/services/ai/providers/ollama/OllamaAgentLanguageModelLive";
 import { OllamaOpenAIClientTag } from "@/services/ai/providers/ollama/OllamaAsOpenAIClientLive";
