@@ -59,8 +59,8 @@ export const ChatOrchestratorServiceLive = Layer.effect(
               Schedule.recurs(preferredProvider.key === "ollama" ? 2 : 0),
               Schedule.exponential("100 millis")
             ).pipe(
-              Schedule.whileInput((err: AIProviderError | AIConfigurationError) =>
-                err._tag === "AIProviderError" && err.isRetryable === true
+              Schedule.whileInput((err: AiProviderError | AiConfigurationError) =>
+                err._tag === "AiProviderError" && err.isRetryable === true
               )
             )
           ).pipe(
@@ -89,8 +89,8 @@ export const ChatOrchestratorServiceLive = Layer.effect(
             Schedule.recurs(preferredProvider.key === "ollama" ? 2 : 0),
             Schedule.exponential("100 millis")
           ).pipe(
-            Schedule.whileInput((err: AIProviderError | AIConfigurationError) =>
-              err._tag === "AIProviderError" && err.isRetryable === true
+            Schedule.whileInput((err: AiProviderError | AiConfigurationError) =>
+              err._tag === "AiProviderError" && err.isRetryable === true
             )
           )
         ).pipe(
