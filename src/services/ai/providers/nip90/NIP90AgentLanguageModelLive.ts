@@ -140,6 +140,7 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
           if (!result) {
             return yield* _(Effect.fail(new AiProviderError({
               message: "NIP-90 job result not found",
+              provider: "NIP90",
               isRetryable: true
             })));
           }
@@ -148,6 +149,7 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
         }).pipe(
           Effect.mapError(err => new AiProviderError({
             message: `NIP-90 generateText error: ${err instanceof Error ? err.message : String(err)}`,
+            provider: "NIP90",
             isRetryable: true,
             cause: err
           }))
@@ -216,6 +218,7 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
                       emit.fail(
                         new AiProviderError({
                           message: `NIP-90 DVM error: ${feedbackEvent.content || "Unknown error"}`,
+                          provider: "NIP90",
                           isRetryable: true,
                           cause: feedbackEvent
                         })
@@ -232,6 +235,7 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
               if (err instanceof AiProviderError) return err;
               return new AiProviderError({
                 message: `NIP-90 stream setup error: ${err instanceof Error ? err.message : String(err)}`,
+                provider: "NIP90",
                 isRetryable: true,
                 cause: err
               });
@@ -246,6 +250,7 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
         return Effect.fail(
           new AiProviderError({
             message: "generateStructured not supported by NIP-90 provider",
+            provider: "NIP90",
             isRetryable: false
           })
         );
