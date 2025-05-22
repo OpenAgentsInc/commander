@@ -21,6 +21,16 @@ export interface UIAgentChatMessage extends AgentChatMessage {
   _updateId?: number; // Force re-render for streaming updates
   isStreaming?: boolean; // Indicates if the message is currently being streamed
   timestamp: number; // Client-side timestamp for ordering and display
+  providerInfo?: {
+    name: string;
+    type: "local" | "network";
+    model?: string;
+  };
+  nip90EventData?: {
+    request?: any;
+    result?: any;
+    feedback?: any[];
+  };
 }
 
 export function useAgentChat(options: UseAgentChatOptions = {}) {

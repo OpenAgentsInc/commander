@@ -1,6 +1,6 @@
-import { generatePrivateKey, getPublicKey } from "nostr-tools/pure";
-import type { NIP90JobResult, NIP90JobFeedback } from "@/services/nip90";
 import { EventEmitter } from "events";
+import { generateSecretKey, getPublicKey } from "@/utils/nostr";
+import type { NIP90JobResult, NIP90JobFeedback } from "@/services/nip90";
 
 export interface MockDVMConfig {
   streamingDelay?: number;
@@ -10,22 +10,24 @@ export interface MockDVMConfig {
 }
 
 export class MockDVM extends EventEmitter {
-  private readonly privateKey: string;
+  private readonly privateKey: Uint8Array;
   public readonly publicKey: string;
   private readonly config: Required<MockDVMConfig>;
   private activeJobs: Map<string, NodeJS.Timeout>;
 
   constructor(config: MockDVMConfig = {}) {
     super();
-    this.privateKey = generatePrivateKey();
+    this.privateKey = generateSecretKey();
     this.publicKey = getPublicKey(this.privateKey);
+    this.activeJobs = new Map();
+
+    // Set default config values
     this.config = {
       streamingDelay: config.streamingDelay ?? 100,
       chunkSize: config.chunkSize ?? 10,
       errorRate: config.errorRate ?? 0,
-      defaultResponse: config.defaultResponse ?? "This is a mock DVM response.",
+      defaultResponse: config.defaultResponse ?? "This is a test response from the mock DVM.",
     };
-    this.activeJobs = new Map();
   }
 
   public async handleJobRequest(
@@ -35,25 +37,21 @@ export class MockDVM extends EventEmitter {
   ): Promise<void> {
     // Simulate random errors based on errorRate
     if (Math.random() < this.config.errorRate) {
-      this.emitError(jobId, "Random DVM error occurred");
+      this.emitError(jobId, "Random error occurred");
       return;
     }
 
-    if (isEncrypted) {
-      console.log(`[MockDVM] Received encrypted job ${jobId}`);
-      // In a real implementation, we would decrypt the input here
-    }
-
-    // For testing, we'll generate a response based on the input
+    // Generate response
     const response = this.generateResponse(input);
 
-    if (this.config.streamingDelay > 0) {
-      // Simulate streaming response
-      await this.streamResponse(jobId, response);
-    } else {
-      // Send immediate response
+    // If not streaming, emit result directly
+    if (this.config.streamingDelay <= 0) {
       this.emitResult(jobId, response);
+      return;
     }
+
+    // Stream response in chunks
+    await this.streamResponse(jobId, response);
   }
 
   public cancelJob(jobId: string): void {
@@ -61,22 +59,18 @@ export class MockDVM extends EventEmitter {
     if (timeout) {
       clearTimeout(timeout);
       this.activeJobs.delete(jobId);
-      this.emitFeedback(jobId, "cancelled", "Job cancelled by client");
+      this.emitFeedback(jobId, "error", "Job cancelled");
     }
   }
 
   private generateResponse(input: string): string {
-    // Simple response generation - in reality, this would be more sophisticated
+    // Simple response generation logic
     if (input.toLowerCase().includes("error")) {
-      throw new Error("Requested error simulation");
+      throw new Error("Requested error");
     }
 
-    if (input.toLowerCase().includes("hello")) {
-      return "Hello! I am a mock DVM. How can I help you today?";
-    }
-
-    if (input.toLowerCase().includes("test")) {
-      return "This is a test response from the mock DVM.";
+    if (input.toLowerCase().includes("long")) {
+      return "This is a longer response that will be streamed in multiple chunks. ".repeat(5);
     }
 
     return this.config.defaultResponse;
@@ -113,17 +107,26 @@ export class MockDVM extends EventEmitter {
   private emitResult(jobId: string, content: string) {
     const result: NIP90JobResult = {
       id: jobId,
-      kind: 5050,
+      kind: 6050,
       content,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [],
+      pubkey: this.publicKey,
+      sig: "mock-sig",
     };
     this.emit("result", result);
   }
 
-  private emitFeedback(jobId: string, status: string, content: string) {
+  private emitFeedback(jobId: string, status: "partial" | "error" | "success" | "processing" | "payment-required", content: string) {
     const feedback: NIP90JobFeedback = {
       id: jobId,
-      status,
+      kind: 7000,
       content,
+      status,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [],
+      pubkey: this.publicKey,
+      sig: "mock-sig",
     };
     this.emit("feedback", feedback);
   }
@@ -133,7 +136,6 @@ export class MockDVM extends EventEmitter {
   }
 }
 
-// Helper to create a configured mock DVM instance
 export function createMockDVM(config?: MockDVMConfig): MockDVM {
   return new MockDVM(config);
 }

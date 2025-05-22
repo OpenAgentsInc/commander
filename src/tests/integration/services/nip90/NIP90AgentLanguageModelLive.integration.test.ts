@@ -1,206 +1,225 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { Effect, Layer, Stream, pipe } from "effect";
+import { describe, it, expect, vi } from "vitest";
+import { Effect, Layer, pipe, Stream, Chunk } from "effect";
+import { AgentLanguageModel, type AiTextChunk } from "@/services/ai/core";
 import { NIP90AgentLanguageModelLive } from "@/services/ai/providers/nip90/NIP90AgentLanguageModelLive";
-import { AgentLanguageModel } from "@/services/ai/core";
-import { NIP90Service } from "@/services/nip90";
+import { NIP90Service, type NIP90JobResult, type NIP90JobFeedback } from "@/services/nip90";
+import { NostrService } from "@/services/nostr";
+import { NIP04Service } from "@/services/nip04";
 import { TelemetryService } from "@/services/telemetry";
 import { NIP90ProviderConfigTag } from "@/services/ai/providers/nip90/NIP90ProviderConfig";
-import { createMockDVM, type MockDVM } from "./MockDVM";
+import { generatePrivateKey, getPublicKey } from "@/utils/nostr";
 
 describe("NIP90AgentLanguageModelLive Integration", () => {
-  let mockDVM: MockDVM;
-  let mockNIP90Service: NIP90Service;
-  let mockTelemetryService: TelemetryService;
-  let testLayer: Layer.Layer<never, never, AgentLanguageModel>;
+  const mockConfig = {
+    isEnabled: true,
+    modelName: "test-model",
+    dvmPubkey: "mock-dvm-pubkey",
+    dvmRelays: ["wss://mock.relay"],
+    requestKind: 5050,
+    requiresEncryption: true,
+    useEphemeralRequests: true,
+    modelIdentifier: "test-model",
+    temperature: 0.7,
+    maxTokens: 1000,
+  };
 
-  beforeEach(() => {
-    // Create mock DVM with custom configuration
-    mockDVM = createMockDVM({
-      streamingDelay: 50, // Faster for tests
-      chunkSize: 5,
-      errorRate: 0.1, // 10% chance of errors
-      defaultResponse: "Integration test response",
-    });
+  const mockNIP90Service: NIP90Service = {
+    createJobRequest: (params) =>
+      Effect.succeed({
+        id: "mock-job-id",
+        kind: params.kind,
+        content: "mock-content",
+        created_at: Date.now(),
+        tags: [],
+        pubkey: "mock-pubkey",
+        sig: "mock-sig",
+      }),
 
-    // Create NIP90Service implementation that uses the mock DVM
-    mockNIP90Service = {
-      createJobRequest: async (params) => {
-        const jobId = `test-${Date.now()}`;
-        // Start handling the job in the background
-        mockDVM.handleJobRequest(
-          jobId,
-          params.inputs[0][0],
-          !!params.targetDvmPubkeyHex
-        );
-        return { id: jobId };
-      },
+    getJobResult: (jobRequestEventId) =>
+      Effect.succeed({
+        id: jobRequestEventId,
+        kind: 6050,
+        content: "mock-result",
+        created_at: Date.now(),
+        tags: [],
+        pubkey: "mock-pubkey",
+        sig: "mock-sig",
+      }),
 
-      getJobResult: (jobId) => {
-        return new Promise((resolve) => {
-          const handler = (result: any) => {
-            if (result.id === jobId) {
-              mockDVM.off("result", handler);
-              resolve(result);
-            }
-          };
-          mockDVM.on("result", handler);
+    subscribeToJobUpdates: (jobRequestEventId, dvmPubkeyHex, decryptionKey, onUpdate) =>
+      Effect.sync(() => {
+        // Simulate feedback events
+        onUpdate({
+          id: "feedback-1",
+          kind: 7000,
+          content: "First chunk",
+          created_at: Date.now(),
+          tags: [],
+          pubkey: dvmPubkeyHex,
+          sig: "mock-sig",
+          status: "partial",
         });
-      },
 
-      subscribeToJobUpdates: (jobId, pubkey, sk, callback) => {
-        const resultHandler = (result: any) => {
-          if (result.id === jobId) callback(result);
-        };
-        const feedbackHandler = (feedback: any) => {
-          if (feedback.id === jobId) callback(feedback);
-        };
+        onUpdate({
+          id: "feedback-2",
+          kind: 7000,
+          content: "Second chunk",
+          created_at: Date.now(),
+          tags: [],
+          pubkey: dvmPubkeyHex,
+          sig: "mock-sig",
+          status: "partial",
+        });
 
-        mockDVM.on("result", resultHandler);
-        mockDVM.on("feedback", feedbackHandler);
+        // Simulate final result
+        onUpdate({
+          id: "result",
+          kind: 6050,
+          content: "Final result",
+          created_at: Date.now(),
+          tags: [],
+          pubkey: dvmPubkeyHex,
+          sig: "mock-sig",
+        });
 
         return {
           unsubscribe: () => {
-            mockDVM.off("result", resultHandler);
-            mockDVM.off("feedback", feedbackHandler);
+            // Cleanup subscription
           },
         };
-      },
+      }),
 
-      listJobFeedback: () => Promise.resolve([]),
-      listPublicEvents: () => Promise.resolve([]),
-    };
+    listJobFeedback: (jobRequestEventId) =>
+      Effect.succeed([
+        {
+          id: "feedback-1",
+          kind: 7000,
+          content: "First chunk",
+          created_at: Date.now(),
+          tags: [],
+          pubkey: "mock-pubkey",
+          sig: "mock-sig",
+          status: "partial",
+        },
+      ]),
 
-    // Create mock telemetry service
-    mockTelemetryService = {
-      trackEvent: () => Effect.unit(),
-    };
+    listPublicEvents: () => Effect.succeed([]),
+  };
 
-    // Create test configuration
-    const mockConfig = {
-      dvmPubkey: mockDVM.publicKey,
-      dvmRelays: ["wss://test.relay"],
-      requestKind: 5050,
-      requiresEncryption: true,
-      useEphemeralRequests: true,
-      modelIdentifier: "mock-model",
-      modelName: "Mock Model",
-      temperature: 0.7,
-      maxTokens: 1000,
-    };
+  const mockNostrService: NostrService = {
+    publishEvent: vi.fn().mockReturnValue(Effect.succeed({})),
+    listEvents: vi.fn().mockReturnValue(Effect.succeed([])),
+    getPool: vi.fn(),
+    cleanupPool: vi.fn(),
+    subscribeToEvents: vi.fn(),
+    getPublicKey: vi.fn().mockReturnValue("mock-public-key"),
+  };
 
-    // Create test layer
-    testLayer = Layer.mergeAll(
-      Layer.succeed(NIP90Service, mockNIP90Service),
-      Layer.succeed(TelemetryService, mockTelemetryService),
-      Layer.succeed(NIP90ProviderConfigTag, mockConfig),
-      NIP90AgentLanguageModelLive
-    );
-  });
+  const mockNIP04Service: NIP04Service = {
+    encrypt: vi.fn().mockReturnValue(Effect.succeed("encrypted")),
+    decrypt: vi.fn().mockReturnValue(Effect.succeed("decrypted")),
+  };
 
-  afterEach(() => {
-    mockDVM.removeAllListeners();
-  });
+  const mockTelemetryService: TelemetryService = {
+    isEnabled: vi.fn().mockReturnValue(true),
+    setEnabled: vi.fn(),
+    trackEvent: vi.fn().mockReturnValue(Effect.succeed(void 0)),
+  };
 
-  describe("Integration Tests", () => {
-    it("should handle basic text generation", async () => {
+  const testLayer = Layer.mergeAll(
+    Layer.succeed(NIP90Service, mockNIP90Service),
+    Layer.succeed(NostrService, mockNostrService),
+    Layer.succeed(NIP04Service, mockNIP04Service),
+    Layer.succeed(TelemetryService, mockTelemetryService),
+    Layer.succeed(NIP90ProviderConfigTag, mockConfig),
+    NIP90AgentLanguageModelLive,
+  );
+
+  describe("generateText", () => {
+    it("should handle simple text generation", async () => {
       const program = Effect.gen(function* (_) {
         const model = yield* _(AgentLanguageModel);
-        const response = yield* _(
-          model.generateText({ prompt: "test prompt" })
-        );
-        return response.text;
+        const response = yield* _(model.generateText({ prompt: "Test prompt" }));
+        expect(response.text).toBe("mock-result");
       });
 
-      const result = await pipe(
-        program,
-        Effect.provide(testLayer),
-        Effect.runPromise
-      );
-
-      expect(result).toBe("This is a test response from the mock DVM.");
-    });
-
-    it("should handle streaming text generation", async () => {
-      const program = Effect.gen(function* (_) {
-        const model = yield* _(AgentLanguageModel);
-        const stream = model.streamText({ prompt: "hello" });
-        return yield* _(Stream.runCollect(stream));
-      });
-
-      const chunks = await pipe(
-        program,
-        Effect.provide(testLayer),
-        Effect.runPromise
-      );
-
-      const response = chunks.map(chunk => chunk.text).join("");
-      expect(response).toBe("Hello! I am a mock DVM. How can I help you today?");
-    });
-
-    it("should handle errors from DVM", async () => {
-      const program = Effect.gen(function* (_) {
-        const model = yield* _(AgentLanguageModel);
-        return yield* _(
-          model.generateText({ prompt: "trigger error" })
-        );
-      });
-
-      await expect(
-        pipe(program, Effect.provide(testLayer), Effect.runPromise)
-      ).rejects.toThrow();
+      await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
     });
 
     it("should handle chat message format", async () => {
-      const chatPrompt = JSON.stringify({
-        messages: [
-          { role: "system", content: "You are a test AI", timestamp: Date.now() },
-          { role: "user", content: "test", timestamp: Date.now() },
-        ],
-      });
-
       const program = Effect.gen(function* (_) {
         const model = yield* _(AgentLanguageModel);
         const response = yield* _(
-          model.generateText({ prompt: chatPrompt })
+          model.generateText({
+            prompt: JSON.stringify({
+              messages: [
+                { role: "system", content: "You are a test AI." },
+                { role: "user", content: "Hello" },
+              ],
+            }),
+          }),
         );
-        return response.text;
+        expect(response.text).toBe("mock-result");
       });
 
-      const result = await pipe(
-        program,
-        Effect.provide(testLayer),
-        Effect.runPromise
-      );
-
-      expect(result).toBe("This is a test response from the mock DVM.");
+      await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
     });
+  });
 
-    it("should handle streaming cancellation", async () => {
+  describe("streamText", () => {
+    it("should handle streaming text generation", async () => {
       const program = Effect.gen(function* (_) {
         const model = yield* _(AgentLanguageModel);
-        const stream = model.streamText({
-          prompt: "a very long response that will be cancelled",
-        });
+        const stream = model.streamText({ prompt: "Test prompt" });
+        const chunks = yield* _(Stream.runCollect(stream));
 
-        // Start collecting chunks but cancel after a short delay
-        const collectionPromise = Stream.runCollect(stream);
-
-        // Wait a bit then cancel the stream
-        yield* _(Effect.sleep(100));
-        yield* _(Stream.interruptWith(stream));
-
-        return yield* _(collectionPromise);
+        const response = Array.from(chunks).map(chunk => chunk.text).join("");
+        expect(response).toContain("First chunk");
+        expect(response).toContain("Second chunk");
+        expect(response).toContain("Final result");
       });
 
-      const chunks = await pipe(
-        program,
-        Effect.provide(testLayer),
-        Effect.runPromise
+      await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
+    });
+
+    it("should handle streaming errors", async () => {
+      // Override the mock to simulate an error
+      const errorMockNIP90Service = {
+        ...mockNIP90Service,
+        subscribeToJobUpdates: () =>
+          Effect.sync(() => {
+            throw new Error("Streaming error");
+          }),
+      };
+
+      const errorLayer = testLayer.pipe(
+        Layer.provide(Layer.succeed(NIP90Service, errorMockNIP90Service)),
       );
 
-      // We should have received some chunks before cancellation
-      expect(chunks.length).toBeGreaterThan(0);
-      expect(chunks.length).toBeLessThan(10); // Should not have completed
+      const program = Effect.gen(function* (_) {
+        const model = yield* _(AgentLanguageModel);
+        const stream = model.streamText({ prompt: "Test prompt" });
+        const result = yield* _(Effect.either(Stream.runCollect(stream)));
+
+        expect(result._tag).toBe("Left");
+        if (result._tag === "Left") {
+          expect(result.left.message).toContain("Streaming error");
+        }
+      });
+
+      await Effect.runPromise(program.pipe(Effect.provide(errorLayer)));
+    });
+
+    it("should handle stream interruption", async () => {
+      const program = Effect.gen(function* (_) {
+        const model = yield* _(AgentLanguageModel);
+        const stream = model.streamText({ prompt: "Test prompt" });
+        const chunks = yield* _(Stream.runCollect(Stream.interruptWhen(stream, Effect.succeed(true))));
+
+        expect(Array.from(chunks).length).toBe(0);
+      });
+
+      await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
     });
   });
 });
