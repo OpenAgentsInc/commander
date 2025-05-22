@@ -115,18 +115,14 @@ export const DefaultDevConfigLayer = Layer.effect(
     yield* _(configService.set("OLLAMA_ENABLED", "true"));
 
     // For Devstral NIP-90 DVM provider
-    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_PUBKEY", "84dee6e676e5bb67b4ad4e042cf70cbd8681155614094f88a198d6f790605a67")); // Example pubkey
-    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_RELAYS", JSON.stringify([
-      "wss://relay.damus.io",
-      "wss://relay.nostr.band",
-      "wss://nos.lol"
-    ])));
+    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_DVM_PUBKEY", "84dee6e676e5bb67b4ad4e042cf70cbd8681155db535942fcc6a0533858a7240")); // Example DVM pubkey
+    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_RELAYS", JSON.stringify(["wss://relay.damus.io", "wss://relay.nostr.band"])));
     yield* _(configService.set("AI_PROVIDER_DEVSTRAL_REQUEST_KIND", "5050")); // Text-to-text kind
     yield* _(configService.set("AI_PROVIDER_DEVSTRAL_REQUIRES_ENCRYPTION", "true")); // Enable encryption for privacy
-    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_USE_EPHEMERAL_REQUESTS", "true")); // Use ephemeral keys for safety
+    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_USE_EPHEMERAL_REQUESTS", "true")); // Use ephemeral keys for each request
     yield* _(configService.set("AI_PROVIDER_DEVSTRAL_MODEL_IDENTIFIER", "devstral")); // Model identifier for the DVM
     yield* _(configService.set("AI_PROVIDER_DEVSTRAL_MODEL_NAME", "Devstral (NIP-90)")); // User-facing name
-    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_ENABLED", "true"));
+    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_ENABLED", "true")); // Enable the provider
 
     // Add a dummy API key for development/testing (but print a warning)
     // In a real app, API keys should be added securely at runtime by the user
