@@ -86,8 +86,14 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
         )
         .concat([{ role: "user", content: userMessage.content }]); // Add current user message
 
+      const assistantMsgId = `assistant-${Date.now()}`;
+
       // Abort previous stream if any
       if (streamAbortControllerRef.current) {
+        console.log("[useAgentChat] Aborting previous stream. Current controller state:", {
+          aborted: streamAbortControllerRef.current.signal.aborted,
+          currentMessageId: currentAssistantMessageIdRef.current
+        });
         streamAbortControllerRef.current.abort();
         runTelemetry({
           category: "agent_chat",
@@ -97,8 +103,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
       }
       streamAbortControllerRef.current = new AbortController();
       const signal = streamAbortControllerRef.current.signal;
+      console.log("[useAgentChat] Created new AbortController for message:", assistantMsgId);
 
-      const assistantMsgId = `assistant-${Date.now()}`;
       currentAssistantMessageIdRef.current = assistantMsgId;
 
       // Add a placeholder for the assistant's response
@@ -125,13 +131,19 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
 
       const program = Effect.gen(function* (_) {
         const agentLM = yield* _(AgentLanguageModel);
+        console.log("[useAgentChat] Starting stream for message:", assistantMsgId, "Current signal state:", {
+          aborted: signal.aborted,
+          controller: streamAbortControllerRef.current ? "present" : "null"
+        });
         const textStream = agentLM.streamText(streamTextOptions);
 
         yield* _(
           Stream.runForEach(textStream, (chunk: AiTextChunk) =>
             Effect.sync(() => {
+              console.log("[useAgentChat runForEach] Processing chunk:", JSON.stringify(chunk), "Abort signal status:", signal.aborted);
               if (signal.aborted) {
                 // Check if this specific stream was aborted
+                console.log("[useAgentChat] Skipping chunk processing - stream was aborted for message:", assistantMsgId);
                 runTelemetry({
                   category: "agent_chat",
                   action: "stream_aborted_client_chunk_processing",
@@ -143,13 +155,14 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
                 prevMsgs.map((msg) =>
                   msg.id === assistantMsgId
                     ? {
-                        ...msg,
-                        content: (msg.content || "") + chunk.text,
-                        _updateId: Date.now(),
-                      }
+                      ...msg,
+                      content: (msg.content || "") + chunk.text,
+                      _updateId: Date.now(),
+                    }
                     : msg,
                 ),
               );
+              console.log("[useAgentChat] Updated message content for:", assistantMsgId, "Chunk length:", chunk.text.length);
             }),
           ),
         );
@@ -166,6 +179,14 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
               }
             }
 
+            console.log("[useAgentChat] Stream error state:", {
+              isAbort,
+              messageId: assistantMsgId,
+              signalAborted: signal.aborted,
+              causeType: cause._tag,
+              defectType: Cause.isDieType(cause) ? (cause.defect as any)?.name : "N/A"
+            });
+
             if (isAbort || Cause.isInterruptedOnly(cause)) {
               runTelemetry({
                 category: "agent_chat",
@@ -173,10 +194,16 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
                 label: assistantMsgId,
               });
               console.log(
-                `Agent chat stream (${assistantMsgId}) was interrupted or aborted.`,
+                `[useAgentChat] Stream (${assistantMsgId}) was interrupted or aborted.`,
+                { isAbort, isInterrupted: Cause.isInterruptedOnly(cause) }
               );
             } else {
-              const squashedError = Cause.squash(cause) as AIProviderError; // Cast to our error type
+              const squashedError = Cause.squash(cause) as AIProviderError;
+              console.error("[useAgentChat] Stream error:", {
+                messageId: assistantMsgId,
+                error: squashedError,
+                cause: Cause.pretty(cause)
+              });
               setError(squashedError);
               runTelemetry({
                 category: "agent_chat",
@@ -189,6 +216,12 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
         ),
         Effect.ensuring(
           Effect.sync(() => {
+            console.log("[useAgentChat] Ensuring block entered.", {
+              messageId: assistantMsgId,
+              abortController: streamAbortControllerRef.current ? "present" : "null",
+              signalAborted: signal.aborted,
+              isLoading
+            });
             setMessages((prevMsgs) =>
               prevMsgs.map((msg) =>
                 msg.id === assistantMsgId
@@ -199,9 +232,11 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
             setIsLoading(false);
             // Only clear the controller if it's the one for the completed/failed stream
             if (streamAbortControllerRef.current?.signal === signal) {
+              console.log("[useAgentChat] Clearing abort controller for message:", assistantMsgId);
               streamAbortControllerRef.current = null;
             }
             if (currentAssistantMessageIdRef.current === assistantMsgId) {
+              console.log("[useAgentChat] Clearing current assistant message ID:", assistantMsgId);
               currentAssistantMessageIdRef.current = null;
             }
           }),
@@ -211,12 +246,16 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
       Effect.runFork(program);
     },
     [messages, initialSystemMessage, runTelemetry],
-  ); // Dependencies for sendMessage
+  );
 
   // Cleanup stream on unmount
   useEffect(() => {
     return () => {
       if (streamAbortControllerRef.current) {
+        console.log("[useAgentChat] Unmounting - aborting current stream.", {
+          messageId: currentAssistantMessageIdRef.current,
+          signalAborted: streamAbortControllerRef.current.signal.aborted
+        });
         streamAbortControllerRef.current.abort();
         runTelemetry({
           category: "agent_chat",
@@ -225,7 +264,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
         });
       }
     };
-  }, [runTelemetry]); // runTelemetry is memoized
+  }, [runTelemetry]);
 
   return {
     messages,
