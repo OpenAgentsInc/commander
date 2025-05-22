@@ -2,8 +2,8 @@ import { Context, Effect, Stream, Layer, Schedule } from "effect";
 import {
   AgentChatMessage,
   AiTextChunk,
-  AIProviderError,
-  AIConfigurationError,
+  AiProviderError,
+  AiConfigurationError,
   AgentLanguageModel,
   GenerateTextOptions,
   StreamTextOptions,
@@ -22,12 +22,12 @@ export interface ChatOrchestratorService {
     messages: AgentChatMessage[];
     preferredProvider: PreferredProviderConfig;
     options?: Partial<Omit<StreamTextOptions, "prompt">>;
-  }): Stream.Stream<AiTextChunk, AIProviderError | AIConfigurationError>;
+  }): Stream.Stream<AiTextChunk, AiProviderError | AiConfigurationError>;
   generateConversationResponse(params: {
     messages: AgentChatMessage[];
     preferredProvider: PreferredProviderConfig;
     options?: Partial<Omit<GenerateTextOptions, "prompt">>;
-  }): Effect.Effect<string, AIProviderError | AIConfigurationError>;
+  }): Effect.Effect<string, AiProviderError | AiConfigurationError>;
 }
 
 export const ChatOrchestratorService = Context.GenericTag<ChatOrchestratorService>("ChatOrchestratorService");
@@ -36,7 +36,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
   ChatOrchestratorService,
   Effect.gen(function* (_) {
     const telemetry = yield* _(TelemetryService);
-    const activeAgentLM = yield* _(AgentLanguageModel);
+    const activeAgentLM = yield* _(AgentLanguageModel.Tag);
 
     const runTelemetry = (event: any) => Effect.runFork(telemetry.trackEvent(event).pipe(Effect.ignoreLogged));
 
