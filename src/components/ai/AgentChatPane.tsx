@@ -7,10 +7,9 @@ import { Effect } from "effect";
 import { TelemetryService } from "@/services/telemetry";
 import { getMainRuntime } from "@/services/runtime";
 import { AGENT_CHAT_PANE_TITLE } from "@/stores/panes/constants";
-
-// TODO: In the future, these would be dynamically selected or retrieved from configuration
-const currentProviderName = "Default Provider";
-const currentModelName = "Default Model";
+import { useAgentChatStore } from "@/stores/ai/agentChatStore";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ConfigurationService } from "@/services/configuration";
 
 const AgentChatPane: React.FC = () => {
   const {
@@ -26,6 +25,12 @@ const AgentChatPane: React.FC = () => {
   });
 
   const runtime = getMainRuntime();
+  const { selectedProviderKey, availableProviders, setSelectedProviderKey, loadAvailableProviders } = useAgentChatStore();
+
+  // Get the current provider info
+  const currentProvider = availableProviders.find(p => p.key === selectedProviderKey);
+  const currentProviderName = currentProvider?.name || "Loading...";
+  const currentModelName = currentProvider?.modelName || "Default";
 
   useEffect(() => {
     // Track pane open event
@@ -38,7 +43,27 @@ const AgentChatPane: React.FC = () => {
         }),
       ).pipe(Effect.provide(runtime)),
     );
-  }, [runtime]);
+
+    // Load available providers
+    Effect.runFork(
+      Effect.flatMap(ConfigurationService, (cs) =>
+        loadAvailableProviders(cs)
+      ).pipe(Effect.provide(runtime)),
+    );
+  }, [runtime, loadAvailableProviders]);
+
+  const handleProviderChange = (value: string) => {
+    setSelectedProviderKey(value);
+    Effect.runFork(
+      Effect.flatMap(TelemetryService, (ts) =>
+        ts.trackEvent({
+          category: "ui:agent_chat",
+          action: "change_provider",
+          label: value,
+        }),
+      ).pipe(Effect.provide(runtime)),
+    );
+  };
 
   const handleSend = () => {
     if (currentInput.trim()) {
@@ -48,8 +73,23 @@ const AgentChatPane: React.FC = () => {
 
   return (
     <div className="flex h-full flex-col p-1">
-      <div className="text-muted-foreground border-border mb-1 flex-shrink-0 border-b p-1 text-center text-xs">
-        Provider: {currentProviderName} | Model: {currentModelName}
+      <div className="text-muted-foreground border-border mb-1 flex-shrink-0 border-b p-1 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs">
+          <span>Provider:</span>
+          <Select value={selectedProviderKey} onValueChange={handleProviderChange}>
+            <SelectTrigger className="h-7 w-[180px]">
+              <SelectValue placeholder="Select Provider" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableProviders.map((provider) => (
+                <SelectItem key={provider.key} value={provider.key}>
+                  {provider.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span className="ml-2">Model: {currentModelName}</span>
+        </div>
       </div>
 
       {error && (
@@ -90,6 +130,7 @@ const AgentChatPane: React.FC = () => {
                     ? "Tool"
                     : "System",
             timestamp: m.timestamp,
+            providerInfo: m.providerInfo,
           }))}
           userInput={currentInput}
           onUserInputChange={setCurrentInput}

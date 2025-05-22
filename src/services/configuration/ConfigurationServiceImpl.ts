@@ -105,46 +105,20 @@ export const DefaultDevConfigLayer = Layer.effect(
   Effect.gen(function* (_) {
     const configService = yield* _(ConfigurationService);
 
-    // Add development defaults
-    // For OpenAI provider
-    yield* _(configService.set("OPENAI_MODEL_NAME", "gpt-4o"));
-    yield* _(configService.set("OPENAI_BASE_URL", "https://api.openai.com/v1"));
-
-    // For Ollama provider
+    // Set default values for development
     yield* _(configService.set("OLLAMA_MODEL_NAME", "gemma3:1b"));
-    yield* _(configService.set("OLLAMA_ENABLED", "true"));
+    yield* _(configService.set("OLLAMA_MODEL_ENABLED", "true"));
 
-    // For Devstral NIP-90 DVM provider
-    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_DVM_PUBKEY", "84dee6e676e5bb67b4ad4e042cf70cbd8681155db535942fcc6a0533858a7240")); // Example DVM pubkey
+    // NIP-90 Devstral DVM configuration
+    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_DVM_PUBKEY", "YOUR_DEVSTRAL_DVM_PUBKEY_HEX")); // Replace with actual DVM pubkey
     yield* _(configService.set("AI_PROVIDER_DEVSTRAL_RELAYS", JSON.stringify(["wss://relay.damus.io", "wss://relay.nostr.band"])));
     yield* _(configService.set("AI_PROVIDER_DEVSTRAL_REQUEST_KIND", "5050")); // Text-to-text kind
     yield* _(configService.set("AI_PROVIDER_DEVSTRAL_REQUIRES_ENCRYPTION", "true")); // Enable encryption for privacy
-    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_USE_EPHEMERAL_REQUESTS", "true")); // Use ephemeral keys for each request
+    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_USE_EPHEMERAL_REQUESTS", "true")); // Use ephemeral keys
     yield* _(configService.set("AI_PROVIDER_DEVSTRAL_MODEL_IDENTIFIER", "devstral")); // Model identifier for the DVM
     yield* _(configService.set("AI_PROVIDER_DEVSTRAL_MODEL_NAME", "Devstral (NIP-90)")); // User-facing name
     yield* _(configService.set("AI_PROVIDER_DEVSTRAL_ENABLED", "true")); // Enable the provider
 
-    // Add a dummy API key for development/testing (but print a warning)
-    // In a real app, API keys should be added securely at runtime by the user
-    // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-    console.warn(
-      "[ConfigurationService] Using dummy API keys for development. Real keys should be added securely.",
-    );
-
-    // Mock the getSecret calls to return test keys
-    const origGetSecret = configService.getSecret;
-    const mockedService = {
-      ...configService,
-      getSecret: (
-        key: string,
-      ): Effect.Effect<string, SecretNotFoundError | ConfigError> => {
-        if (key === "OPENAI_API_KEY") {
-          return Effect.succeed("sk-test-dummy-key-for-development-only");
-        }
-        return origGetSecret(key);
-      },
-    };
-
-    return mockedService;
-  }),
+    return configService;
+  })
 );

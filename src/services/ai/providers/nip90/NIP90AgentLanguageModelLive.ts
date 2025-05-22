@@ -1,6 +1,5 @@
 // src/services/ai/providers/nip90/NIP90AgentLanguageModelLive.ts
 import { Layer, Effect, Stream, Option } from "effect";
-import { generatePrivateKey, getPublicKey } from "nostr-tools/pure";
 import {
   AgentLanguageModel,
   type GenerateTextOptions,
@@ -10,27 +9,27 @@ import {
   type AgentChatMessage,
 } from "@/services/ai/core";
 import type { AiResponse } from "@effect/ai/AiResponse";
+import { AIProviderError } from "@/services/ai/core/AIError";
 import { NIP90Service } from "@/services/nip90";
 import { NostrService } from "@/services/nostr";
 import { NIP04Service } from "@/services/nip04";
-import { ConfigurationService } from "@/services/configuration";
-import { AIProviderError } from "@/services/ai/core/AIError";
 import { TelemetryService } from "@/services/telemetry";
 import { NIP90ProviderConfigTag } from "./NIP90ProviderConfig";
+import { generateSecretKey } from "nostr-tools/pure";
 
+// Log when this module is loaded
 console.log("Loading NIP90AgentLanguageModelLive module");
 
 export const NIP90AgentLanguageModelLive = Layer.effect(
   AgentLanguageModel,
   Effect.gen(function* (_) {
+    // Get required services
     const nip90Service = yield* _(NIP90Service);
     const nostrService = yield* _(NostrService);
     const nip04Service = yield* _(NIP04Service);
-    const configService = yield* _(ConfigurationService);
     const telemetry = yield* _(TelemetryService);
     const dvmConfig = yield* _(NIP90ProviderConfigTag);
 
-    // Helper function to parse prompt messages
     const parsePromptMessages = (promptString: string): AgentChatMessage[] => {
       try {
         const parsed = JSON.parse(promptString);
@@ -38,25 +37,32 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
           return parsed.messages as AgentChatMessage[];
         }
       } catch (e) {
-        console.warn("[NIP90AgentLanguageModelLive] Failed to parse prompt as JSON messages:", e);
+        // Not a JSON string of messages, or malformed
       }
       // Fallback: treat the prompt string as a single user message
       return [{ role: "user", content: promptString, timestamp: Date.now() }];
     };
 
-    // Helper function to format messages for DVM
     const formatPromptForDVM = (messages: AgentChatMessage[]): string => {
+      // For now, a simple concatenation. This can be made more sophisticated based on DVM requirements
       return messages
         .map(msg => {
-          if (msg.role === "system") return `Instructions: ${msg.content}\n\n`;
-          if (msg.role === "user") return `User: ${msg.content}\n`;
-          if (msg.role === "assistant") return `Assistant: ${msg.content}\n`;
-          return "";
+          switch (msg.role) {
+            case "system":
+              return `Instructions: ${msg.content}\n\n`;
+            case "assistant":
+              return `Assistant: ${msg.content}\n`;
+            case "user":
+              return `User: ${msg.content}\n`;
+            case "tool":
+              return `Tool (${msg.tool_call_id}): ${msg.content}\n`;
+            default:
+              return `${msg.content}\n`;
+          }
         })
         .join("");
     };
 
-    // Helper function to create AiResponse
     const createAiResponse = (text: string): AiResponse => {
       type RecursiveAiResponse = {
         text: string;
@@ -81,10 +87,9 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
       return response as unknown as AiResponse;
     };
 
-    // Helper function to generate ephemeral keypair
     const generateEphemeralKeyPair = () => {
-      const sk = generatePrivateKey();
-      const pk = getPublicKey(sk);
+      const sk = generateSecretKey();
+      const pk = nostrService.getPublicKey(sk);
       return { sk, pk };
     };
 
@@ -121,8 +126,8 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
             })
           );
 
-          // Get job result
-          const jobResult = yield* _(
+          // Wait for result
+          const result = yield* _(
             nip90Service.getJobResult({
               jobRequestEventId: jobRequest.id,
               decryptionKey: requestSk,
@@ -132,25 +137,18 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
             })
           );
 
-          return createAiResponse(jobResult.content);
+          return createAiResponse(result.content || "");
         }).pipe(
-          Effect.tapError((err) =>
-            Effect.sync(() => console.error("[NIP90AgentLanguageModelLive] generateText error:", err))
-          ),
-          Effect.mapError((err) => {
-            if (err instanceof AIProviderError) return err;
-            return new AIProviderError({
-              message: `NIP-90 generateText error: ${err instanceof Error ? err.message : String(err)}`,
-              provider: "NIP90",
-              cause: err,
-              context: { model: dvmConfig.modelIdentifier, params },
-            });
-          })
+          Effect.mapError(err => new AIProviderError({
+            message: `NIP-90 generateText error: ${err instanceof Error ? err.message : String(err)}`,
+            provider: "NIP90",
+            cause: err,
+          }))
         );
       },
 
       streamText: (params: StreamTextOptions): Stream.Stream<AiTextChunk, AIProviderError> => {
-        return Stream.asyncInterrupt<AiTextChunk, AIProviderError>((emit) => {
+        return Stream.asyncScoped<AiTextChunk, AIProviderError>((emit) => {
           const program = Effect.gen(function* (_) {
             const messagesPayload = parsePromptMessages(params.prompt);
             const formattedPrompt = formatPromptForDVM(messagesPayload);
@@ -223,11 +221,7 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
             return unsubscribe;
           });
 
-          // Run the program and return cleanup function
-          const fiber = Effect.runFork(program);
-          return Effect.sync(() => {
-            fiber.interrupt();
-          });
+          return program;
         });
       },
 

@@ -1,4 +1,7 @@
 import { Context } from "effect";
+import { Schema } from "@effect/schema";
+
+// Import the NIP90ProviderConfig type from core
 import type { NIP90ProviderConfig } from "@/services/ai/core/ProviderConfig";
 
 /**
@@ -7,5 +10,5 @@ import type { NIP90ProviderConfig } from "@/services/ai/core/ProviderConfig";
  */
 export const NIP90ProviderConfigTag = Context.GenericTag<NIP90ProviderConfig>("NIP90ProviderConfig");
 
-// Re-export the NIP90ProviderConfig type for convenience
-export type { NIP90ProviderConfig } from "@/services/ai/core/ProviderConfig";
+// Re-export the type for convenience
+export type { NIP90ProviderConfig };

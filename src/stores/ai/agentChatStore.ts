@@ -21,28 +21,39 @@ interface AgentChatState {
 export const useAgentChatStore = create<AgentChatState>()(
   persist(
     (set) => ({
-      selectedProviderKey: "nip90_devstral", // Default to NIP-90 provider
-      availableProviders: [
-        {
-          key: "nip90_devstral",
-          name: "Devstral DVM",
-          type: "nip90",
-          configKey: "AI_PROVIDER_DEVSTRAL",
-        },
-        {
-          key: "ollama_gemma3_1b",
-          name: "Ollama Gemma 3 1B",
-          type: "ollama",
-          modelName: "gemma3:1b",
-        },
-      ],
+      selectedProviderKey: "ollama_gemma3_1b", // Default to Ollama
+      availableProviders: [],
       setSelectedProviderKey: (key: string) => set({ selectedProviderKey: key }),
       loadAvailableProviders: (configService: ConfigurationService) =>
         Effect.gen(function* (_) {
-          // Load provider configurations from ConfigurationService
-          // For now, we'll just use the hardcoded providers
-          // In the future, this could dynamically load from config
-          return;
+          const providers: AIProvider[] = [];
+
+          // Check Ollama provider
+          const ollamaEnabled = yield* _(configService.get("OLLAMA_MODEL_ENABLED"));
+          if (ollamaEnabled === "true") {
+            const ollamaModelName = yield* _(configService.get("OLLAMA_MODEL_NAME"));
+            providers.push({
+              key: "ollama_gemma3_1b",
+              name: "Ollama (Local)",
+              type: "ollama",
+              modelName: ollamaModelName || "gemma3:1b",
+            });
+          }
+
+          // Check NIP-90 Devstral provider
+          const devstralEnabled = yield* _(configService.get("AI_PROVIDER_DEVSTRAL_ENABLED"));
+          if (devstralEnabled === "true") {
+            const devstralModelName = yield* _(configService.get("AI_PROVIDER_DEVSTRAL_MODEL_NAME"));
+            providers.push({
+              key: "nip90_devstral",
+              name: devstralModelName || "Devstral (NIP-90)",
+              type: "nip90",
+              configKey: "AI_PROVIDER_DEVSTRAL",
+              modelName: yield* _(configService.get("AI_PROVIDER_DEVSTRAL_MODEL_IDENTIFIER")),
+            });
+          }
+
+          set({ availableProviders: providers });
         }),
     }),
     {
