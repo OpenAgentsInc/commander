@@ -7,7 +7,7 @@ import {
   type StreamTextOptions,
   type GenerateStructuredOptions,
 } from "@/services/ai/core";
-import { AiProviderError, mapToAiProviderError } from "@/services/ai/core/AiError";
+import { AiProviderError, mapToAiProviderError } from "@/services/ai/core/AIError";
 import { AiResponse, mapProviderResponseToAiResponse } from "@/services/ai/core/AiResponse";
 import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
 import type { Provider } from "@effect/ai/AiPlan";

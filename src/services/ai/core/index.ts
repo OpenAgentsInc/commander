@@ -23,4 +23,4 @@ export * from "./ProviderConfig";
 export * from "./AiResponse";
 
 // Error handling
-export * from "./AiError";
+export * from "./AIError";

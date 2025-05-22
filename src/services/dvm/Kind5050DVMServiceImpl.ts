@@ -23,7 +23,7 @@ import {
   AgentLanguageModel,
   type GenerateTextOptions,
 } from "@/services/ai/core";
-import { AiProviderError } from "@/services/ai/core/AiError";
+import { AiProviderError } from "@/services/ai/core/AIError";
 import {
   SparkService,
   type CreateLightningInvoiceParams,

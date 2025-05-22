@@ -1,7 +1,7 @@
 import { Effect, Layer, Stream, Either } from "effect";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { AgentLanguageModel } from "@/services/ai/core";
-import { AiProviderError } from "@/services/ai/core/AiError";
+import { AiProviderError } from "@/services/ai/core/AIError";
 import { NIP90Service } from "@/services/nip90";
 import { NostrService } from "@/services/nostr";
 import { NIP04Service } from "@/services/nip04";

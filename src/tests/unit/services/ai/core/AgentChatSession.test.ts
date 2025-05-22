@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { Effect, Layer, Context } from "effect";
 import { AgentChatSession } from "@/services/ai/core/AgentChatSession";
-import { AiContextWindowError } from "@/services/ai/core/AiError";
+import { AiContextWindowError } from "@/services/ai/core/AIError";
 import type { AgentChatMessage } from "@/services/ai/core/AgentChatMessage";
 
 // Mock chat message for testing

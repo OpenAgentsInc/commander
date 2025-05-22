@@ -1,7 +1,7 @@
 // src/services/ai/core/AgentLanguageModel.ts
 import { Context, Effect, Stream } from "effect";
 import { AiLanguageModel } from "@effect/ai";
-import { AiError, AiProviderError } from "./AiError";
+import { AiError, AiProviderError } from "./AIError";
 import { AiResponse } from "./AiResponse";
 
 // Import from @effect/ai package

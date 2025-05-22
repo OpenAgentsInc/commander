@@ -6,7 +6,7 @@ import {
   type ConfigError,
 } from "@/services/configuration"; // Adjust path and ensure ConfigError is a typed error
 import * as HttpClient from "@effect/platform/HttpClient"; // Import everything from HttpClient
-import { AiConfigurationError } from "@/services/ai/core/AiError";
+import { AiConfigurationError } from "@/services/ai/core/AIError";
 import { TelemetryService } from "@/services/telemetry";
 
 export const OpenAIClientLive = Layer.effect(

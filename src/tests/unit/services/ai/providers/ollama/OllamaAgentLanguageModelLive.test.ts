@@ -3,7 +3,7 @@ import { Effect, Layer, Stream } from "effect";
 import { TelemetryService } from "@/services/telemetry";
 import { ConfigurationService } from "@/services/configuration";
 import { AgentLanguageModel, AiResponse as CoreAiResponse } from "@/services/ai/core";
-import { AiProviderError } from "@/services/ai/core/AiError";
+import { AiProviderError } from "@/services/ai/core/AIError";
 import { OllamaAgentLanguageModelLiveLayer } from "@/services/ai/providers/ollama/OllamaAgentLanguageModelLive";
 import { OllamaOpenAIClientTag } from "@/services/ai/providers/ollama/OllamaAsOpenAIClientLive";
 import { HttpClient } from "@effect/platform/HttpClient";

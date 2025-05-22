@@ -7,7 +7,7 @@ import {
   type StreamTextOptions,
   type GenerateStructuredOptions,
 } from "@/services/ai/core/AgentLanguageModel";
-import { AiError, AiProviderError } from "@/services/ai/core/AiError";
+import { AiError, AiProviderError } from "@/services/ai/core/AIError";
 import { AiResponse } from "@/services/ai/core/AiResponse";
 
 // Create a mock error for testing using the proper Data.TaggedError pattern

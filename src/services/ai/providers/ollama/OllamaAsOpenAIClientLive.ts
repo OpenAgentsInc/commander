@@ -19,7 +19,7 @@ import * as HttpClientError from "@effect/platform/HttpClientError";
 import { isHttpClientError } from "@effect/platform/HttpClientError";
 import * as HttpClientRequest from "@effect/platform/HttpClientRequest";
 import * as HttpClientResponse from "@effect/platform/HttpClientResponse";
-import { AiProviderError } from "@/services/ai/core/AiError";
+import { AiProviderError } from "@/services/ai/core/AIError";
 import { TelemetryService } from "@/services/telemetry";
 // ParseError may be needed if you do complex parsing that can fail
 import type { ParseError } from "effect/ParseResult";

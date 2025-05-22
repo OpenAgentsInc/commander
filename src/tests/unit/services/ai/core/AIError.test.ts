@@ -9,7 +9,7 @@ import {
   AiContentPolicyError,
   mapToAiProviderError,
   mapErrorToAiError,
-} from "@/services/ai/core/AiError";
+} from "@/services/ai/core/AIError";
 
 describe("AI Error Types", () => {
   describe("AiError", () => {

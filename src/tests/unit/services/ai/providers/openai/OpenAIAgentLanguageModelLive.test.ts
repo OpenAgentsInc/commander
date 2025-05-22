@@ -3,7 +3,7 @@ import { Effect, Stream, Layer, Either } from "effect";
 import { describe, it, expect, vi } from "vitest";
 import { OpenAIAgentLanguageModelLiveLayer } from "@/services/ai/providers/openai/OpenAIAgentLanguageModelLive";
 import { AgentLanguageModel } from "@/services/ai/core";
-import { AiProviderError } from "@/services/ai/core/AiError";
+import { AiProviderError } from "@/services/ai/core/AIError";
 import { AiResponse } from "@/services/ai/core/AiResponse";
 import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
 import { ConfigurationService } from "@/services/configuration";

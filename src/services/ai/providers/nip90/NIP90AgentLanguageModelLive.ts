@@ -9,7 +9,7 @@ import {
   type AgentChatMessage,
 } from "@/services/ai/core";
 import { AiResponse } from "@/services/ai/core/AiResponse";
-import { AiProviderError } from "@/services/ai/core/AiError";
+import { AiProviderError } from "@/services/ai/core/AIError";
 import { NIP90Service, type NIP90JobFeedback, type NIP90JobFeedbackStatus } from "@/services/nip90";
 import { NostrService } from "@/services/nostr";
 import { NIP04Service } from "@/services/nip04";
