@@ -4,7 +4,6 @@ import type { AiError } from "@effect/ai/AiError";
 import type { AiResponse } from "@effect/ai/AiResponse";
 import {
   AgentLanguageModel,
-  type AiTextChunk,
   type GenerateTextOptions,
   type StreamTextOptions,
   type GenerateStructuredOptions,
@@ -131,7 +130,7 @@ describe("AgentLanguageModel Service", () => {
         { text: "Mock " },
         { text: "stream " },
         { text: "response" },
-      ] as AiTextChunk[];
+      ] as AiResponse[];
 
       // Use a simpler approach - directly mock the implementation
       mockService.streamText.mockImplementation(() => {

@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from "vitest";
 import { OpenAIAgentLanguageModelLive } from "@/services/ai/providers/openai/OpenAIAgentLanguageModelLive";
 import { AgentLanguageModel } from "@/services/ai/core";
 import { AiProviderError } from "@/services/ai/core/AiError";
-import { AiResponse, AiTextChunk } from "@/services/ai/core/AiResponse";
+import { AiResponse } from "@/services/ai/core/AiResponse";
 import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
 import { ConfigurationService } from "@/services/configuration";
 import { TelemetryService } from "@/services/telemetry";
@@ -125,7 +125,7 @@ describe("OpenAIAgentLanguageModelLive", () => {
     it("should stream text chunks successfully", async () => {
       const program = Effect.gen(function* (_) {
         const model = yield* _(AgentLanguageModel.Tag);
-        const chunks: AiTextChunk[] = [];
+        const chunks: AiResponse[] = [];
 
         yield* _(
           model
@@ -148,7 +148,7 @@ describe("OpenAIAgentLanguageModelLive", () => {
       );
 
       expect(result).toHaveLength(2);
-      expect(result[0]).toBeInstanceOf(AiTextChunk);
+      expect(result[0]).toBeInstanceOf(AiResponse);
       expect(result[0].text).toBe("Chunk 1");
       expect(result[1].text).toBe("Chunk 2");
     });
