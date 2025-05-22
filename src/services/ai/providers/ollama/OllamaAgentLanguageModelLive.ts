@@ -10,6 +10,9 @@ import { TelemetryService } from "@/services/telemetry";
 // Import necessary types but use any for now to fix TypeScript errors
 import type * as AiResponse from "@effect/ai/AiResponse";
 
+// Log when this module is loaded
+console.log("Loading OllamaAgentLanguageModelLive module");
+
 export const OllamaAgentLanguageModelLive = Layer.effect(
   AgentLanguageModel,
   Effect.gen(function* (_) {
