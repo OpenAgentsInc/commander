@@ -94,12 +94,34 @@ export type AnthropicProviderConfig = Schema.Schema.Type<
 >;
 
 /**
+ * Config for NIP-90 DVM provider
+ */
+export const NIP90ProviderConfigSchema = Schema.extend(
+  BaseProviderConfigSchema,
+  Schema.Struct({
+    dvmPubkey: Schema.String, // Hex public key of the DVM
+    dvmRelays: Schema.array(Schema.String), // Relays to publish job requests and listen for results
+    requestKind: Schema.NumberFromString, // Filtered to be between 5000-5999
+    requiresEncryption: Schema.Boolean, // If NIP-04 encryption is needed for job inputs
+    useEphemeralRequests: Schema.Boolean, // If true, generate a new ephemeral keypair for each NIP-90 job request
+    modelIdentifier: Schema.optional(Schema.String), // String the DVM uses to identify the model/job type
+    temperature: Schema.optional(Schema.Number), // To be passed as a param tag
+    maxTokens: Schema.optional(Schema.Number), // To be passed as a param tag
+  }),
+);
+
+export type NIP90ProviderConfig = Schema.Schema.Type<
+  typeof NIP90ProviderConfigSchema
+>;
+
+/**
  * Union type of all supported provider configurations
  */
 export const ProviderConfigSchema = Schema.Union(
   OpenAICompatibleProviderConfigSchema,
   OllamaProviderConfigSchema,
   AnthropicProviderConfigSchema,
+  NIP90ProviderConfigSchema,
 );
 
 export type ProviderConfig = Schema.Schema.Type<typeof ProviderConfigSchema>;
@@ -120,6 +142,10 @@ export const TypedProviderConfigSchema = Schema.Union(
   Schema.Struct({
     type: Schema.Literal("anthropic"),
     config: AnthropicProviderConfigSchema,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("nip90"),
+    config: NIP90ProviderConfigSchema,
   }),
 );
 
