@@ -38,6 +38,11 @@ As we work with Effect's sophisticated type system, we encounter various TypeScr
 **Solution**: Replace all `Effect.provideLayer` with `Effect.provide`  
 **Affects**: All test files and application bootstrap code (high-impact batch fix)
 
+### 006 - [Error Constructor Migration](./006-error-constructor-migration.md)
+**Problem**: Adding required properties to Data.TaggedError breaks all existing constructor calls  
+**Solution**: Systematic search-and-replace of all constructor calls with new required properties  
+**Affects**: All error handling code when error interfaces change (critical compilation fix)
+
 ## Fix Documentation Template
 
 When adding new fixes, please follow this structure:
@@ -115,7 +120,7 @@ Common patterns that often need fixes:
 ### High-Impact Fixes (Batch Applicable)
 - **Service Tag Access**: `yield* _(ServiceName)` → `yield* _(ServiceName.Tag)` 
 - **Effect API Migration**: `Effect.provideLayer(layer)` → `Effect.provide(layer)`
-- **Error Constructors**: Missing required properties in error constructors
+- **Error Constructors**: Missing required properties in error constructors ([006](./006-error-constructor-migration.md))
 
 ## Resources
 
