@@ -18,6 +18,26 @@ As we work with Effect's sophisticated type system, we encounter various TypeScr
 **Solution**: Explicit type cast to help TypeScript understand the inheritance chain  
 **Affects**: All AI provider implementations using `@effect/ai-openai`
 
+### 002 - [Provider Service Access Pattern](./002-provider-service-access-pattern.md)
+**Problem**: Cannot call methods directly on `Provider<AiLanguageModel>` instances  
+**Solution**: Use `provider.use(Effect.gen(...))` to access the wrapped service  
+**Affects**: All AI providers that wrap @effect/ai services
+
+### 003 - [Service Tag Access Patterns](./003-service-tag-access-patterns.md)  
+**Problem**: Using service classes directly in Effect generators instead of `.Tag` property  
+**Solution**: Always use `ServiceName.Tag` when yielding services  
+**Affects**: All Effect service access throughout the application (high-impact batch fix)
+
+### 004 - [AiResponse Type Conflicts](./004-airesponse-type-conflicts.md)
+**Problem**: Type conflicts between custom AiResponse and @effect/ai's AiResponse  
+**Solution**: Use appropriate AiResponse type per context and namespace imports  
+**Affects**: Client adapters vs application services that handle AI responses
+
+### 005 - [Effect.provideLayer Migration](./005-effect-providelayer-migration.md)
+**Problem**: `Effect.provideLayer` deprecated in newer Effect versions  
+**Solution**: Replace all `Effect.provideLayer` with `Effect.provide`  
+**Affects**: All test files and application bootstrap code (high-impact batch fix)
+
 ## Fix Documentation Template
 
 When adding new fixes, please follow this structure:
@@ -64,25 +84,38 @@ When you solve a tricky TypeScript issue with Effect:
 
 ### Type Inference Issues
 - [001 - AiModel to Provider Type Inference](./001-aimodel-provider-type-inference.md)
+- [004 - AiResponse Type Conflicts](./004-airesponse-type-conflicts.md)
 
-### Effect API Changes
-- (Future fixes for Effect API migrations)
+### Effect API Changes & Patterns
+- [002 - Provider Service Access Pattern](./002-provider-service-access-pattern.md)
+- [003 - Service Tag Access Patterns](./003-service-tag-access-patterns.md)
+- [005 - Effect.provideLayer Migration](./005-effect-providelayer-migration.md)
 
-### Layer Composition
-- (Future fixes for Layer-related type issues)
+### High-Impact Batch Fixes
+- [003 - Service Tag Access Patterns](./003-service-tag-access-patterns.md) (48+ errors eliminated)
+- [005 - Effect.provideLayer Migration](./005-effect-providelayer-migration.md) (10+ errors eliminated)
 
-### Stream vs Effect
-- (Future fixes for Stream/Effect confusion)
+### AI/Provider Integration
+- [001 - AiModel to Provider Type Inference](./001-aimodel-provider-type-inference.md)
+- [002 - Provider Service Access Pattern](./002-provider-service-access-pattern.md)
+- [004 - AiResponse Type Conflicts](./004-airesponse-type-conflicts.md)
 
 ## Quick Reference
 
 Common patterns that often need fixes:
 
-1. **Deep Generic Inheritance**: When TypeScript can't infer through multiple levels of generic types
-2. **Union Type Inference**: When union types break inference in Effect compositions  
-3. **Variance Issues**: When `in`/`out`/`in out` variance annotations cause strict type matching
-4. **Context/Layer Composition**: When providing layers in complex dependency graphs
-5. **Generator Syntax**: When `yield* _()` doesn't infer as expected
+1. **Deep Generic Inheritance**: When TypeScript can't infer through multiple levels of generic types ([001](./001-aimodel-provider-type-inference.md))
+2. **Service Access**: Using service classes directly instead of `.Tag` property ([003](./003-service-tag-access-patterns.md))
+3. **Provider Methods**: Calling methods directly on Provider instead of using `.use()` ([002](./002-provider-service-access-pattern.md))
+4. **Type Conflicts**: Mixing different library types with same names ([004](./004-airesponse-type-conflicts.md))
+5. **API Migrations**: Deprecated methods in newer library versions ([005](./005-effect-providelayer-migration.md))
+6. **Generator Syntax**: When `yield* _()` doesn't infer as expected
+7. **Stream vs Effect**: Using Effect retry patterns on Streams instead of Stream retry
+
+### High-Impact Fixes (Batch Applicable)
+- **Service Tag Access**: `yield* _(ServiceName)` → `yield* _(ServiceName.Tag)` 
+- **Effect API Migration**: `Effect.provideLayer(layer)` → `Effect.provide(layer)`
+- **Error Constructors**: Missing required properties in error constructors
 
 ## Resources
 
