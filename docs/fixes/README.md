@@ -53,6 +53,16 @@ As we work with Effect's sophisticated type system, we encounter various TypeScr
 **Solution**: Eliminate custom chunk types and unify on the standard library type for all operations  
 **Affects**: All streaming operations, provider implementations, and consumer interfaces (high-impact batch fix)
 
+### 009 - [Test Type Import Conflicts](./009-test-type-import-conflicts.md)
+**Problem**: Duplicate identifier conflicts when importing both library types and custom types with same names in tests  
+**Solution**: Use import aliasing to separate library types from custom implementation types  
+**Affects**: All test files that extend or mirror library types with custom implementations
+
+### 010 - [Generated.Client Interface Completion](./010-generated-client-interface-completion.md)
+**Problem**: Incomplete Generated.Client implementation when building OpenAI adapters causes missing property errors  
+**Solution**: Systematic stubbing pattern for all 96+ Generated.Client methods with meaningful error responses  
+**Affects**: All custom OpenAI client adapters (Ollama, Anthropic, etc.)
+
 ## Fix Documentation Template
 
 When adding new fixes, please follow this structure:
@@ -117,6 +127,10 @@ When you solve a tricky TypeScript issue with Effect:
 - [004 - AiResponse Type Conflicts](./004-airesponse-type-conflicts.md)
 - [007 - Response Type Mapping Pattern](./007-response-type-mapping-pattern.md)
 - [008 - Streaming Type Unification Pattern](./008-streaming-type-unification.md)
+- [010 - Generated.Client Interface Completion](./010-generated-client-interface-completion.md)
+
+### Testing Patterns
+- [009 - Test Type Import Conflicts](./009-test-type-import-conflicts.md)
 
 ## Quick Reference
 
@@ -136,6 +150,8 @@ Common patterns that often need fixes:
 - **Effect API Migration**: `Effect.provideLayer(layer)` → `Effect.provide(layer)`
 - **Streaming Type Unification**: Remove custom chunk types, unify on library response type
 - **Error Constructors**: Missing required properties in error constructors ([006](./006-error-constructor-migration.md))
+- **Generated.Client Completion**: Systematic stubbing of all OpenAI client interface methods ([010](./010-generated-client-interface-completion.md))
+- **Test Import Conflicts**: Alias library types to avoid duplicate identifiers in tests ([009](./009-test-type-import-conflicts.md))
 
 ## Resources
 
