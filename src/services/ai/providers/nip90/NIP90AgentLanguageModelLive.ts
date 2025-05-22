@@ -10,15 +10,20 @@ import {
 } from "@/services/ai/core";
 import type { AiResponse } from "@effect/ai/AiResponse";
 import { AIProviderError } from "@/services/ai/core/AIError";
-import { NIP90Service } from "@/services/nip90";
+import { NIP90Service, type NIP90JobFeedback, type NIP90JobFeedbackStatus } from "@/services/nip90";
 import { NostrService } from "@/services/nostr";
 import { NIP04Service } from "@/services/nip04";
 import { TelemetryService } from "@/services/telemetry";
 import { NIP90ProviderConfigTag } from "./NIP90ProviderConfig";
-import { generateSecretKey, getPublicKey as getPublicKeyNostrTools } from "nostr-tools/pure";
 
 // Log when this module is loaded
 console.log("Loading NIP90AgentLanguageModelLive module");
+
+// Dynamic import for ESM module
+const nostrToolsImport = async () => {
+  const { generateSecretKey, getPublicKey } = await import("nostr-tools/pure");
+  return { generateSecretKey, getPublicKey };
+};
 
 export const NIP90AgentLanguageModelLive = Layer.effect(
   AgentLanguageModel,
@@ -29,6 +34,9 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
     const nip04Service = yield* _(NIP04Service);
     const telemetry = yield* _(TelemetryService);
     const dvmConfig = yield* _(NIP90ProviderConfigTag);
+
+    // Load nostr-tools functions
+    const { generateSecretKey, getPublicKey: getPublicKeyNostrTools } = yield* _(Effect.promise(() => nostrToolsImport()));
 
     const parsePromptMessages = (promptString: string): AgentChatMessage[] => {
       try {
@@ -166,72 +174,82 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
             const formattedPrompt = formatPromptForDVM(messagesPayload);
 
             // Generate ephemeral keypair if configured
-            const { sk: requestSk, pk: requestPk } = dvmConfig.useEphemeralRequests
+            const { sk: requestSkBytes, pk: requestPkHex } = dvmConfig.useEphemeralRequests
               ? generateEphemeralKeyPair()
-              : { sk: "", pk: "" }; // TODO: Get from wallet if not using ephemeral
+              : { sk: new Uint8Array(), pk: "" };
 
             // Prepare NIP-90 inputs and params
-            const inputs = [["text", formattedPrompt]];
-            const additionalParams = [
-              ["param", "model", dvmConfig.modelIdentifier || "default"],
-              ...(params.temperature ? [["param", "temperature", params.temperature.toString()]] : []),
-              ...(params.maxTokens ? [["param", "max_tokens", params.maxTokens.toString()]] : []),
+            const inputsForNip90: ReadonlyArray<readonly [string, "text" | "url" | "event" | "job", string?, string?]> =
+              [[formattedPrompt, "text"]];
+
+            const paramsForNip90: Array<readonly ["param", string, string]> = [
+              ["param", "model", dvmConfig.modelIdentifier || "default"]
             ];
+
+            if (params.temperature) {
+              paramsForNip90.push(["param", "temperature", params.temperature.toString()]);
+            }
+            if (params.maxTokens) {
+              paramsForNip90.push(["param", "max_tokens", params.maxTokens.toString()]);
+            }
 
             // Create job request
             const jobRequest = yield* _(
               nip90Service.createJobRequest({
+                kind: dvmConfig.requestKind,
+                inputs: inputsForNip90,
+                outputMimeType: "text/plain",
+                additionalParams: paramsForNip90,
                 targetDvmPubkeyHex: dvmConfig.dvmPubkey,
-                requestKind: dvmConfig.requestKind,
-                inputs,
-                params: additionalParams,
-                requesterSk: requestSk,
-                requiresEncryption: dvmConfig.requiresEncryption,
+                requesterSk: requestSkBytes as Uint8Array<ArrayBuffer>,
+                relays: dvmConfig.dvmRelays,
               })
             );
 
             // Subscribe to job updates
             const unsubscribe = yield* _(
-              nip90Service.subscribeToJobUpdates({
-                jobRequestEventId: jobRequest.id,
-                decryptionKey: requestSk,
-                targetDvmPubkeyHex: dvmConfig.dvmPubkey,
-                resultKind: dvmConfig.requestKind + 1000,
-                relays: dvmConfig.dvmRelays,
-                onFeedback: (feedback) => {
-                  if (feedback.status === "partial" && feedback.content) {
-                    emit.single({ text: feedback.content });
-                  } else if (feedback.status === "error") {
-                    emit.fail(
-                      new AIProviderError({
-                        message: `NIP-90 DVM error: ${feedback.content || "Unknown error"}`,
-                        provider: "NIP90",
-                        context: { jobId: jobRequest.id, status: feedback.status },
-                      })
-                    );
+              nip90Service.subscribeToJobUpdates(
+                jobRequest.id,
+                dvmConfig.dvmPubkey,
+                requestSkBytes as Uint8Array<ArrayBuffer>,
+                (eventUpdate) => {
+                  if (eventUpdate.kind >= 6000 && eventUpdate.kind < 7000) { // Job Result
+                    if (eventUpdate.content) {
+                      emit.single({ text: eventUpdate.content });
+                    }
+                    emit.end();
+                  } else if (eventUpdate.kind === 7000) { // Job Feedback
+                    const feedbackEvent = eventUpdate as NIP90JobFeedback;
+                    const statusTag = feedbackEvent.tags.find(t => t[0] === "status");
+                    const status = statusTag?.[1] as NIP90JobFeedbackStatus | undefined;
+
+                    if (status === "partial" && feedbackEvent.content) {
+                      emit.single({ text: feedbackEvent.content });
+                    } else if (status === "error") {
+                      emit.fail(
+                        new AIProviderError({
+                          message: `NIP-90 DVM error: ${feedbackEvent.content || "Unknown error"}`,
+                          provider: "NIP90",
+                          context: { jobId: jobRequest.id, status },
+                        })
+                      );
+                    }
                   }
-                },
-                onResult: (result) => {
-                  if (result.content) {
-                    emit.single({ text: result.content });
-                  }
-                  emit.end();
-                },
-                onError: (error) => {
-                  emit.fail(
-                    new AIProviderError({
-                      message: `NIP-90 subscription error: ${error instanceof Error ? error.message : String(error)}`,
-                      provider: "NIP90",
-                      cause: error,
-                      context: { jobId: jobRequest.id },
-                    })
-                  );
-                },
-              })
+                }
+              )
             );
 
             return unsubscribe;
-          });
+          }).pipe(
+            Effect.mapError(err => {
+              if (err instanceof AIProviderError) return err;
+              return new AIProviderError({
+                message: `NIP-90 stream setup error: ${err instanceof Error ? err.message : String(err)}`,
+                provider: "NIP90",
+                cause: err
+              });
+            })
+          );
 
           return program;
         });
