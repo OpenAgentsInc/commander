@@ -9,43 +9,140 @@ The Effect AI upgrade from v0.2.0 to v0.16.5 has made significant progress. The 
 - ✅ Service access patterns updated
 - ✅ Provider implementations modernized
 - ✅ Runtime layer composition fixed
-- ⚠️ ~152 TypeScript errors remaining (down from 150+)
-- ⚠️ 4 critical type inference issues identified
+- ⚠️ **167 TypeScript errors** (increased due to Ollama provider changes)
+- ⚠️ **4 test files failing** (20 failed tests out of 238)
+- ⚠️ Critical issues in Ollama provider using wrong AiLanguageModel.make pattern
 
 ## Priority Tasks
 
-### Task 1: Fix Ollama Provider Type Inference (HIGH PRIORITY)
+### Task 1: Revert Ollama Provider to Working Implementation (CRITICAL PRIORITY)
 
-**Location**: `src/services/ai/providers/ollama/OllamaAgentLanguageModelLive.ts:57`
+**Location**: `src/services/ai/providers/ollama/OllamaAgentLanguageModelLive.ts`
 
-**Problem**: 
-```typescript
-const provider = yield* _(aiModel); // TypeScript infers 'unknown'
+**Problem**: A previous coding agent changed the Ollama provider to use `AiLanguageModel.make()` directly, which broke the established @effect/ai patterns and introduced multiple type errors:
+- Using wrong API (`createChatCompletion` doesn't exist on the client)
+- AiResponse type mismatch (our AiResponse vs @effect/ai AiResponse)  
+- Wrong options interface (`AiLanguageModelOptions` vs our options)
+- Increased TypeScript errors from 152 to 167
+
+**Current Errors**:
+```
+Property 'createChatCompletion' does not exist on type 'Service'
+Property '[TypeId]' is missing in type 'AiResponse' but required in type 'AiResponse'
+Property 'model' does not exist on type 'AiLanguageModelOptions'
 ```
 
-**Solution**: Apply the fix documented in `docs/fixes/001-aimodel-provider-type-inference.md`
+**Solution**: **REVERT** the recent changes and restore the working pattern that matches the OpenAI provider
+
+**Critical Note**: The OpenAI provider uses the correct @effect/ai pattern. We need to use the same pattern for Ollama, not bypass it with direct `AiLanguageModel.make()` calls.
 
 **Steps**:
-1. Add import at top of file:
+1. Replace the entire `OllamaAgentLanguageModelLive` implementation with the proven pattern:
    ```typescript
+   export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
+     const ollamaClient = yield* _(OllamaOpenAIClientTag);
+     const configService = yield* _(ConfigurationService);
+     const telemetry = yield* _(TelemetryService);
+
+     const modelName = yield* _(
+       configService.get("OLLAMA_MODEL_NAME").pipe(
+         Effect.orElseSucceed(() => "gemma3:1b"),
+         Effect.tap((name) =>
+           telemetry.trackEvent({
+             category: "ai:config",
+             action: "ollama_model_name_resolved",
+             value: name,
+           })
+         )
+       )
+     );
+
+     // Step 1: Get the AiModel definition Effect
+     const aiModelEffectDefinition = OpenAiLanguageModel.model(modelName);
+
+     // Step 2: Provide the client dependency
+     const configuredAiModelEffect = Effect.provideService(
+       aiModelEffectDefinition,
+       OpenAiClient.OpenAiClient,
+       ollamaClient
+     );
+
+     // Step 3: Get the AiModel instance
+     const aiModel = yield* _(configuredAiModelEffect);
+
+     // Step 4: Build the provider with type cast
+     const provider = yield* _(
+       aiModel as Effect.Effect<
+         Provider<AiLanguageModel.AiLanguageModel>,
+         never,
+         never
+       >
+     );
+
+     yield* _(
+       telemetry.trackEvent({
+         category: "ai:config",
+         action: "ollama_language_model_created",
+         value: modelName,
+       })
+     );
+
+     return makeAgentLanguageModel({
+       generateText: (options: GenerateTextOptions) =>
+         provider.generateText({
+           prompt: options.prompt,
+           model: options.model,
+           temperature: options.temperature,
+           maxTokens: options.maxTokens,
+           stopSequences: options.stopSequences
+         }).pipe(
+           Effect.mapError((error) =>
+             new AiProviderError({
+               message: `Ollama generateText error: ${error instanceof Error ? error.message : String(error)}`,
+               isRetryable: true,
+               cause: error
+             })
+           )
+         ),
+
+       streamText: (options: StreamTextOptions) =>
+         provider.streamText({
+           prompt: options.prompt,
+           model: options.model,
+           temperature: options.temperature,
+           maxTokens: options.maxTokens,
+           signal: options.signal
+         }).pipe(
+           Stream.mapError((error) =>
+             new AiProviderError({
+               message: `Ollama streamText error: ${error instanceof Error ? error.message : String(error)}`,
+               isRetryable: true,
+               cause: error
+             })
+           )
+         ),
+
+       generateStructured: (options: GenerateStructuredOptions) =>
+         Effect.fail(
+           new AiProviderError({
+             message: "generateStructured not supported by Ollama provider",
+             isRetryable: false
+           })
+         )
+     });
+   });
+   ```
+
+2. Add necessary imports:
+   ```typescript
+   import { OpenAiLanguageModel } from "@effect/ai-openai";
    import type { Provider } from "@effect/ai/AiPlan";
    import type { AiLanguageModel } from "@effect/ai";
    ```
 
-2. Replace line 57 with:
-   ```typescript
-   const provider = yield* _(
-     aiModel as Effect.Effect<
-       Provider<AiLanguageModel.AiLanguageModel>,
-       never,
-       never
-     >
-   );
-   ```
+3. Verify the fix: `pnpm run t 2>&1 | grep -A5 -B5 "OllamaAgentLanguageModelLive"`
 
-3. Verify the fix by running: `pnpm run t 2>&1 | grep -B2 -A2 "OllamaAgentLanguageModelLive"`
-
-**Expected Result**: The `'provider' is of type 'unknown'` errors should disappear.
+**Expected Result**: Should reduce TypeScript errors significantly (~15-20 errors eliminated)
 
 ### Task 2: Fix ChatOrchestratorService Stream/Effect Mixing (HIGH PRIORITY)
 
@@ -193,10 +290,11 @@ After each task, run these checks:
 
 ## Success Criteria
 
-1. **TypeScript Errors**: Reduced to <50 errors (from current ~152)
-2. **Core Functionality**: No errors in main provider files
-3. **Test Suite**: Modern Effect patterns used throughout
-4. **Documentation**: All fixes documented in `docs/fixes/`
+1. **TypeScript Errors**: Reduced to <50 errors (from current 167)
+2. **Core Functionality**: No errors in main provider files (especially Ollama)
+3. **Test Suite**: All tests passing (currently 20 failing tests)
+4. **Modern Effect patterns**: Used throughout the codebase
+5. **Documentation**: All fixes documented in `docs/fixes/`
 
 ## Common Pitfalls to Avoid
 
@@ -215,13 +313,24 @@ After each task, run these checks:
 
 ## Estimated Time
 
-- **Task 1**: 15 minutes (critical fix)
-- **Task 2**: 30 minutes (architectural change)
-- **Task 3**: 10 minutes (simple rename)
-- **Task 4**: 1-2 hours (create utilities + batch updates)
-- **Task 5**: 30 minutes (cleanup)
+- **Task 1**: 30 minutes (critical Ollama provider fix)
+- **Task 2**: 30 minutes (ChatOrchestratorService architectural change)
+- **Task 3**: 10 minutes (NIP90 naming collision)
+- **Task 4**: 1-2 hours (create utilities + batch test updates)
+- **Task 5**: 30 minutes (cleanup remaining issues)
 
-**Total**: 2.5-3 hours to complete the refactor
+**Total**: 3-3.5 hours to complete the refactor
+
+## Critical Notes for Task 1
+
+The Ollama provider was recently changed to use `AiLanguageModel.make()` directly, but this bypasses the established @effect/ai patterns and creates type mismatches. The proven working pattern is:
+
+1. Use `OpenAiLanguageModel.model()` to create an AiModel
+2. Provide dependencies with `Effect.provideService()`
+3. Yield the AiModel to get a Provider
+4. Use the Provider to implement our AgentLanguageModel interface
+
+This pattern works in the OpenAI provider and should be used consistently across all providers.
 
 ## Final Notes
 
