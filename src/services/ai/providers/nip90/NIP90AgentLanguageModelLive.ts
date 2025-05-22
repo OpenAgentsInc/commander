@@ -8,7 +8,7 @@ import {
   type GenerateStructuredOptions,
   type AgentChatMessage,
 } from "@/services/ai/core";
-import { AiResponse, AiTextChunk } from "@/services/ai/core/AiResponse";
+import { AiResponse } from "@/services/ai/core/AiResponse";
 import { AiProviderError } from "@/services/ai/core/AiError";
 import { NIP90Service, type NIP90JobFeedback, type NIP90JobFeedbackStatus } from "@/services/nip90";
 import { NostrService } from "@/services/nostr";
@@ -156,8 +156,8 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
         );
       },
 
-      streamText: (params: StreamTextOptions): Stream.Stream<AiTextChunk, AiProviderError> => {
-        return Stream.asyncScoped<AiTextChunk, AiProviderError>((emit) => {
+      streamText: (params: StreamTextOptions): Stream.Stream<AiResponse, AiProviderError> => {
+        return Stream.asyncScoped<AiResponse, AiProviderError>((emit) => {
           const program = Effect.gen(function* (_) {
             const messagesPayload = parsePromptMessages(params.prompt);
             const formattedPrompt = formatPromptForDVM(messagesPayload);
@@ -204,7 +204,7 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
                 (eventUpdate) => {
                   if (eventUpdate.kind >= 6000 && eventUpdate.kind < 7000) { // Job Result
                     if (eventUpdate.content) {
-                      emit.single(new AiTextChunk({ text: eventUpdate.content }));
+                      emit.single(createAiResponse(eventUpdate.content));
                     }
                     emit.end();
                   } else if (eventUpdate.kind === 7000) { // Job Feedback
@@ -213,7 +213,7 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
                     const status = statusTag?.[1] as NIP90JobFeedbackStatus | undefined;
 
                     if (status === "partial" && feedbackEvent.content) {
-                      emit.single(new AiTextChunk({ text: feedbackEvent.content }));
+                      emit.single(createAiResponse(feedbackEvent.content));
                     } else if (status === "error") {
                       emit.fail(
                         new AiProviderError({

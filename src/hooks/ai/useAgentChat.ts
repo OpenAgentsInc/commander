@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { Effect, Stream, Cause } from "effect";
 import {
   AgentLanguageModel,
-  type AiTextChunk,
+  type AiResponse,
   type AgentChatMessage,
   type AiProviderError,
   type StreamTextOptions,
@@ -148,7 +148,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
         const textStream = agentLM.streamText(streamTextOptions);
 
         yield* _(
-          Stream.runForEach(textStream, (chunk: AiTextChunk) =>
+          Stream.runForEach(textStream, (chunk: AiResponse) =>
             Effect.sync(() => {
               console.log("[useAgentChat runForEach] Processing chunk:", JSON.stringify(chunk), "Abort signal status:", signal.aborted);
               if (signal.aborted) {

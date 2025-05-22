@@ -1,7 +1,7 @@
 import { Context, Effect, Stream, Layer, Schedule } from "effect";
 import {
   AgentChatMessage,
-  AiTextChunk,
+  AiResponse,
   AiProviderError,
   AiConfigurationError,
   AgentLanguageModel,
@@ -22,7 +22,7 @@ export interface ChatOrchestratorService {
     messages: AgentChatMessage[];
     preferredProvider: PreferredProviderConfig;
     options?: Partial<Omit<StreamTextOptions, "prompt">>;
-  }): Stream.Stream<AiTextChunk, AiProviderError | AiConfigurationError>;
+  }): Stream.Stream<AiResponse, AiProviderError | AiConfigurationError>;
   generateConversationResponse(params: {
     messages: AgentChatMessage[];
     preferredProvider: PreferredProviderConfig;

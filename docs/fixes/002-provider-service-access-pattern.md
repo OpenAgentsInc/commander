@@ -164,8 +164,49 @@ Apply this pattern when:
 3. Implementing AgentLanguageModel wrappers around @effect/ai providers
 4. Converting between different response types (AiResponse → AiTextChunk)
 
+## Critical Response Mapping Pattern
+
+**Important**: When using provider.use() with @effect/ai, you must map the library's AiResponse to your application's AiResponse:
+
+```typescript
+generateText: (options: GenerateTextOptions) =>
+  provider.use(
+    Effect.gen(function* (_) {
+      const languageModel = yield* _(AiLanguageModel);
+      const effectAiResponse = yield* _(languageModel.generateText(options));
+      
+      // CRITICAL: Map @effect/ai AiResponse to your custom AiResponse
+      return AiResponse.fromSimple({
+        text: effectAiResponse.text,
+        toolCalls: effectAiResponse.toolCalls?.map(tc => ({
+          id: tc.id,
+          name: tc.name,
+          arguments: tc.params as Record<string, unknown>
+        })),
+        metadata: {
+          usage: {
+            promptTokens: 0,
+            completionTokens: effectAiResponse.text.length,
+            totalTokens: effectAiResponse.text.length
+          }
+        }
+      });
+    })
+  ).pipe(
+    Effect.mapError((error) => new AiProviderError({
+      message: `Provider error: ${error instanceof Error ? error.message : String(error)}`,
+      provider: "ProviderName",
+      isRetryable: true,
+      cause: error
+    }))
+  )
+```
+
+Without this mapping, you'll get type errors because @effect/ai returns its own AiResponse type, not your application's AiResponse type.
+
 ## Related Issues
 
 - Affects all providers using @effect/ai (OpenAI, Ollama, etc.)
 - Common when wrapping @effect/ai providers with custom interfaces
 - Related to [001-aimodel-provider-type-inference.md](./001-aimodel-provider-type-inference.md) for getting the Provider instance
+- Related to [007-response-type-mapping-pattern.md](./007-response-type-mapping-pattern.md) for proper response type conversion

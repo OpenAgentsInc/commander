@@ -43,6 +43,11 @@ As we work with Effect's sophisticated type system, we encounter various TypeScr
 **Solution**: Systematic search-and-replace of all constructor calls with new required properties  
 **Affects**: All error handling code when error interfaces change (critical compilation fix)
 
+### 007 - [Response Type Mapping Pattern](./007-response-type-mapping-pattern.md)
+**Problem**: @effect/ai AiResponse constructor changes break custom response creation and type mapping  
+**Solution**: Extend @effect/ai's AiResponse with factory methods and proper provider response mapping  
+**Affects**: All AI providers and response handling when upgrading @effect/ai versions
+
 ## Fix Documentation Template
 
 When adding new fixes, please follow this structure:
@@ -104,6 +109,7 @@ When you solve a tricky TypeScript issue with Effect:
 - [001 - AiModel to Provider Type Inference](./001-aimodel-provider-type-inference.md)
 - [002 - Provider Service Access Pattern](./002-provider-service-access-pattern.md)
 - [004 - AiResponse Type Conflicts](./004-airesponse-type-conflicts.md)
+- [007 - Response Type Mapping Pattern](./007-response-type-mapping-pattern.md)
 
 ## Quick Reference
 

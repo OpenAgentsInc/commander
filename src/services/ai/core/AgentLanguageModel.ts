@@ -2,7 +2,7 @@
 import { Context, Effect, Stream } from "effect";
 import { AiLanguageModel } from "@effect/ai";
 import { AiError, AiProviderError } from "./AiError";
-import { AiResponse, AiTextChunk } from "./AiResponse";
+import { AiResponse } from "./AiResponse";
 
 // Import from @effect/ai package
 import type { AiResponse as AiResponseEffect } from "@effect/ai/AiResponse";

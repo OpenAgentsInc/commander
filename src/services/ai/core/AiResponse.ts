@@ -120,12 +120,6 @@ export class AiResponse extends EffectAiResponse {
   }
 }
 
-/**
- * Response type for streaming text chunks
- */
-export class AiTextChunk extends Data.TaggedClass("AiTextChunk")<{
-  text: string;
-}> { }
 
 /**
  * Maps a provider response to our AiResponse type
@@ -179,4 +173,3 @@ export const isAiResponse = (value: unknown): value is AiResponse => {
 };
 
 export type { AiResponse as AiResponseType };
-export type { AiTextChunk as AiTextChunkType };
