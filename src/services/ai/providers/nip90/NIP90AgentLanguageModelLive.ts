@@ -25,9 +25,7 @@ const nostrToolsImport = async () => {
   return { generateSecretKey, getPublicKey };
 };
 
-export const NIP90AgentLanguageModelLive = Layer.effect(
-  AgentLanguageModel.Tag,
-  Effect.gen(function* (_) {
+const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
     // Get required services
     const nip90Service = yield* _(NIP90Service);
     const nostrService = yield* _(NostrService);
@@ -253,10 +251,9 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
         );
       },
     });
-  })
-);
+  });
 
-export const NIP90AgentLanguageModelLiveLayer = Layer.effect(
+export const NIP90AgentLanguageModelLive = Layer.effect(
   AgentLanguageModel.Tag,
-  NIP90AgentLanguageModelLive
+  nip90AgentLanguageModelEffect
 );
