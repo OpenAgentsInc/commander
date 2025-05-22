@@ -9,7 +9,7 @@ import {
   type StreamTextOptions,
   type GenerateStructuredOptions,
 } from "@/services/ai/core/AgentLanguageModel";
-import { AIGenericError } from "@/services/ai/core/AIError";
+import { AiGenericError } from "@/services/ai/core/AiError";
 
 // Create a type that mimics AiResponse but has only what we need for testing
 interface MockAiResponse {
@@ -17,7 +17,7 @@ interface MockAiResponse {
 }
 
 // Create a mock error for testing without trying to implement the full AiError interface
-class MockAiError extends AIGenericError {
+class MockAiError extends AiGenericError {
   name: string;
   provider: string;
 

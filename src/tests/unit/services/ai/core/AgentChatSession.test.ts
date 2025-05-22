@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { Effect, Layer, Context } from "effect";
 import { AgentChatSession } from "@/services/ai/core/AgentChatSession";
-import { AIContextWindowError } from "@/services/ai/core/AIError";
+import { AiContextWindowError } from "@/services/ai/core/AiError";
 import type { AgentChatMessage } from "@/services/ai/core/AgentChatMessage";
 
 // Mock chat message for testing
@@ -32,7 +32,7 @@ class MockAgentChatSession implements AgentChatSession {
     // For testing token limit errors
     if (message.content && message.content.includes("TOKEN_LIMIT_TEST")) {
       return Effect.fail(
-        new AIContextWindowError({
+        new AiContextWindowError({
           message: "Context window exceeded",
           limit: 4000,
           current: 4100,
@@ -68,7 +68,7 @@ class MockAgentChatSession implements AgentChatSession {
       // For testing token limit errors
       if (options?.maxTokens === 1) {
         return Effect.fail(
-          new AIContextWindowError({
+          new AiContextWindowError({
             message: "Cannot prepare messages: token limit too small",
             limit: options.maxTokens,
             current: this.messages.length * 10, // Simplified token estimation

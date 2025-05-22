@@ -8,7 +8,7 @@ import { AiResponse, AiTextChunk } from "./AiResponse";
 import type { AiResponse as AiResponseEffect } from "@effect/ai/AiResponse";
 
 // Import our custom error type
-import type { AIProviderError } from "./AIError";
+import type { AiProviderError } from "./AiError";
 
 /**
  * Options for generating text
@@ -28,13 +28,12 @@ export interface StreamTextOptions extends GenerateTextOptions {
   signal?: AbortSignal;
 }
 
-export type GenerateStructuredOptions = {
-  prompt: string;
-  model?: string;
-  temperature?: number;
-  maxTokens?: number;
+/**
+ * Options for generating structured output
+ */
+export interface GenerateStructuredOptions extends GenerateTextOptions {
   schema?: unknown;
-};
+}
 
 /**
  * Our AgentLanguageModel interface that extends AiLanguageModel
@@ -45,6 +44,7 @@ export interface AgentLanguageModel extends AiLanguageModel.Service<never> {
   // Legacy methods for backward compatibility
   streamText(options: StreamTextOptions): Stream.Stream<AiTextChunk, AiProviderError>;
   generateText(options: GenerateTextOptions): Effect.Effect<AiResponse, AiProviderError>;
+  generateStructured(options: GenerateStructuredOptions): Effect.Effect<AiResponse, AiProviderError>;
 }
 
 /**
@@ -59,6 +59,7 @@ export const makeAgentLanguageModel = (
   impl: {
     streamText: (options: StreamTextOptions) => Stream.Stream<AiTextChunk, AiProviderError>;
     generateText: (options: GenerateTextOptions) => Effect.Effect<AiResponse, AiProviderError>;
+    generateStructured: (options: GenerateStructuredOptions) => Effect.Effect<AiResponse, AiProviderError>;
   }
 ): Effect.Effect<AgentLanguageModel> =>
   Effect.gen(function* (_) {
@@ -89,6 +90,7 @@ export const makeAgentLanguageModel = (
       _tag: "AgentLanguageModel",
       ...base,
       streamText: impl.streamText,
-      generateText: impl.generateText
+      generateText: impl.generateText,
+      generateStructured: impl.generateStructured
     };
   });

@@ -6,7 +6,7 @@ import {
   type ConfigError,
 } from "@/services/configuration"; // Adjust path and ensure ConfigError is a typed error
 import * as HttpClient from "@effect/platform/HttpClient"; // Import everything from HttpClient
-import { AIConfigurationError } from "@/services/ai/core/AIError";
+import { AiConfigurationError } from "@/services/ai/core/AiError";
 import { TelemetryService } from "@/services/telemetry";
 
 export const OpenAIClientLive = Layer.effect(
@@ -28,7 +28,7 @@ export const OpenAIClientLive = Layer.effect(
       ),
       Effect.mapError(
         (e) =>
-          new AIConfigurationError({
+          new AiConfigurationError({
             message: "OpenAI API Key not found or configuration error.",
             cause: e,
             context: { keyName: "OPENAI_API_KEY" },
@@ -37,7 +37,7 @@ export const OpenAIClientLive = Layer.effect(
       Effect.filterOrFail(
         (key): key is string => typeof key === "string" && key.trim() !== "",
         () =>
-          new AIConfigurationError({
+          new AiConfigurationError({
             message: "OpenAI API Key cannot be empty.",
           }),
       ),
@@ -62,7 +62,7 @@ export const OpenAIClientLive = Layer.effect(
           return Effect.succeed(Option.none<string>());
         }
         return Effect.fail(
-          new AIConfigurationError({
+          new AiConfigurationError({
             message: "Error fetching OpenAI Base URL configuration.",
             cause: e,
             context: { keyName: "OPENAI_BASE_URL" },

@@ -1,7 +1,7 @@
 // src/services/ai/core/AgentChatSession.ts
 import { Context, Effect } from "effect";
 import type { AgentChatMessage } from "./AgentChatMessage";
-import { AIContextWindowError } from "./AIError";
+import { AiContextWindowError } from "./AiError";
 
 /**
  * Interface for managing conversation history and context

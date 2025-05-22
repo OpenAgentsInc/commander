@@ -13,7 +13,7 @@ import {
 describe("AI Error Types", () => {
   describe("AiError", () => {
     it("should construct with message only", () => {
-      const error = AiError.of({
+      const error = new AiError({
         message: "Generic AI error",
       });
 
@@ -28,7 +28,7 @@ describe("AI Error Types", () => {
     it("should construct with message, cause, and context", () => {
       const cause = new Error("Underlying error");
       const context = { operation: "test", metadata: { test: true } };
-      const error = AiError.of({
+      const error = new AiError({
         message: "AI error with details",
         cause,
         context,
@@ -45,7 +45,7 @@ describe("AI Error Types", () => {
 
   describe("AiProviderError", () => {
     it("should construct with required fields", () => {
-      const error = AiProviderError.of({
+      const error = new AiProviderError({
         message: "Provider API error",
         provider: "OpenAI",
       });
@@ -62,7 +62,7 @@ describe("AI Error Types", () => {
     it("should construct with all fields", () => {
       const cause = new Error("API rate limit exceeded");
       const context = { request: { endpoint: "/v1/chat/completions" } };
-      const error = AiProviderError.of({
+      const error = new AiProviderError({
         message: "Provider API error with details",
         provider: "OpenAI",
         cause,
@@ -86,7 +86,7 @@ describe("AI Error Types", () => {
     it("should construct properly", () => {
       const cause = new Error("Missing configuration file");
       const context = { config: { path: "/config.json" } };
-      const error = AiConfigurationError.of({
+      const error = new AiConfigurationError({
         message: "Configuration error",
         cause,
         context,
@@ -104,7 +104,7 @@ describe("AI Error Types", () => {
 
   describe("AiToolExecutionError", () => {
     it("should construct with required fields", () => {
-      const error = AiToolExecutionError.of({
+      const error = new AiToolExecutionError({
         message: "Tool execution failed",
         toolName: "calculator",
       });
@@ -120,7 +120,7 @@ describe("AI Error Types", () => {
     it("should construct with all fields", () => {
       const cause = new Error("Division by zero");
       const context = { args: { expression: "1/0" } };
-      const error = AiToolExecutionError.of({
+      const error = new AiToolExecutionError({
         message: "Tool execution failed with details",
         toolName: "calculator",
         cause,
@@ -140,7 +140,7 @@ describe("AI Error Types", () => {
 
   describe("AiContextWindowError", () => {
     it("should construct with message only", () => {
-      const error = AiContextWindowError.of({
+      const error = new AiContextWindowError({
         message: "Context window exceeded",
       });
 
@@ -156,7 +156,7 @@ describe("AI Error Types", () => {
     it("should construct with all fields", () => {
       const cause = new Error("Token limit exceeded");
       const context = { conversation: { id: "chat123" } };
-      const error = AiContextWindowError.of({
+      const error = new AiContextWindowError({
         message: "Context window exceeded with details",
         limit: 4096,
         current: 4200,
@@ -178,7 +178,7 @@ describe("AI Error Types", () => {
 
   describe("AiContentPolicyError", () => {
     it("should construct with required fields", () => {
-      const error = AiContentPolicyError.of({
+      const error = new AiContentPolicyError({
         message: "Content policy violation",
         provider: "OpenAI",
       });
@@ -196,7 +196,7 @@ describe("AI Error Types", () => {
       const cause = new Error("Content moderation flagged");
       const context = { request: { id: "req123" } };
       const flaggedContent = "Inappropriate content";
-      const error = AiContentPolicyError.of({
+      const error = new AiContentPolicyError({
         message: "Content policy violation with details",
         provider: "OpenAI",
         flaggedContent,

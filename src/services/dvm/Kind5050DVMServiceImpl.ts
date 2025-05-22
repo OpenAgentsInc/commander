@@ -23,7 +23,7 @@ import {
   AgentLanguageModel,
   type GenerateTextOptions,
 } from "@/services/ai/core";
-import { AIProviderError } from "@/services/ai/core/AIError";
+import { AiProviderError } from "@/services/ai/core/AiError";
 import {
   SparkService,
   type CreateLightningInvoiceParams,
@@ -92,9 +92,9 @@ function createNip90FeedbackEvent(
     // Only include substantial content if it's a partial result or a long error message
     content:
       status === "partial" ||
-      (status === "error" &&
-        contentOrExtraInfo &&
-        contentOrExtraInfo.length > 256)
+        (status === "error" &&
+          contentOrExtraInfo &&
+          contentOrExtraInfo.length > 256)
         ? contentOrExtraInfo || ""
         : "",
   };

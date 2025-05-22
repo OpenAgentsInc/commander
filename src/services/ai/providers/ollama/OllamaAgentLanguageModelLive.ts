@@ -14,9 +14,11 @@ import type { CreateChatCompletionResponse } from "@effect/ai-openai/Generated";
 import type { StreamCompletionRequest } from "@effect/ai-openai/OpenAiClient";
 
 import { ConfigurationService } from "@/services/configuration";
-import { AIProviderError } from "@/services/ai/core/AIError";
+import { AiProviderError } from "@/services/ai/core/AiError";
 import { OllamaOpenAIClientTag } from "./OllamaAsOpenAIClientLive";
 import { TelemetryService } from "@/services/telemetry";
+import { OllamaClient } from "./OllamaClient";
+import { OllamaConfig } from "./OllamaConfig";
 
 type OpenAISystemMessage = {
   readonly role: "system";
@@ -104,7 +106,7 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
         .pipe(Effect.ignoreLogged),
     );
 
-    const mapErrorToAIProviderError = (err: unknown, contextAction: string, params: any): AIProviderError => {
+    const mapErrorToAiProviderError = (err: unknown, contextAction: string, params: any): AiProviderError => {
       let messageContent = "Unknown provider error";
       let causeContent: unknown = err;
 
@@ -124,16 +126,10 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
       }
 
       const finalMessage = `Ollama ${contextAction} error for model ${modelName}: ${messageContent}`;
-      return new AIProviderError({
+      return new AiProviderError({
         message: finalMessage,
         cause: causeContent,
-        provider: "Ollama",
-        context: {
-          model: modelName,
-          params,
-          originalErrorTag: (err as any)?._tag,
-          originalErrorMessage: typeof err === 'object' && err !== null ? (err as any)?.message : undefined
-        }
+        isRetryable: true
       });
     };
 
@@ -205,12 +201,25 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
       return response as unknown as AiResponse;
     };
 
-    const mapResponseToAiResponse = (
-      response: CreateChatCompletionResponse,
-    ): AiResponse => {
-      const firstChoice = response.choices[0];
-      const content = firstChoice?.message?.content || "";
-      return createAiResponse(content);
+    const mapResponseToAiResponse = (response: any): AiResponse => {
+      const content = response.choices?.[0]?.message?.content || response.response || "";
+      return new AiResponse({
+        text: content,
+        metadata: {
+          usage: response.usage && {
+            promptTokens: response.usage.prompt_tokens || 0,
+            completionTokens: response.usage.completion_tokens || 0,
+            totalTokens: response.usage.total_tokens || 0
+          }
+        }
+      });
+    };
+
+    const mapStreamChunkToAiTextChunk = (chunk: any): AiTextChunk => {
+      const text = chunk.text ?
+        (typeof chunk.text === 'string' ? chunk.text : chunk.text.getOrElse(() => "")) :
+        chunk.response || "";
+      return new AiTextChunk({ text });
     };
 
     return AgentLanguageModel.of({
@@ -249,7 +258,7 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
                 ),
               ),
               Effect.mapError((err) =>
-                mapErrorToAIProviderError(err, "generateText", params),
+                mapErrorToAiProviderError(err, "generateText", params),
               ),
             ),
           );
@@ -298,7 +307,7 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
             })
           ),
           Stream.mapError((err) =>
-            mapErrorToAIProviderError(err, "streamText", params),
+            mapErrorToAiProviderError(err, "streamText", params),
           ),
           Stream.tap(chunk => Effect.sync(() =>
             console.log("[OllamaAgentLanguageModelLive streamText] Yielding chunk:", JSON.stringify(chunk))
@@ -342,7 +351,7 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
                 ),
               ),
               Effect.mapError((err) =>
-                mapErrorToAIProviderError(err, "generateStructured", params),
+                mapErrorToAiProviderError(err, "generateStructured", params),
               ),
             ),
           );
@@ -352,4 +361,9 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
       },
     });
   }),
+);
+
+export const OllamaAgentLanguageModelLiveLayer = Layer.succeed(
+  AgentLanguageModel,
+  OllamaAgentLanguageModelLive
 );

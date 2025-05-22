@@ -3,7 +3,7 @@ import { Effect, Layer, Stream } from "effect";
 import { TelemetryService } from "@/services/telemetry";
 import { ConfigurationService } from "@/services/configuration";
 import { AgentLanguageModel, AiTextChunk } from "@/services/ai/core";
-import { AIProviderError } from "@/services/ai/core/AIError";
+import { AiProviderError } from "@/services/ai/core/AiError";
 import { OllamaAgentLanguageModelLive } from "@/services/ai/providers/ollama/OllamaAgentLanguageModelLive";
 import { OllamaOpenAIClientTag } from "@/services/ai/providers/ollama/OllamaAsOpenAIClientLive";
 import { HttpClient } from "@effect/platform/HttpClient";
@@ -24,14 +24,14 @@ import type { AiResponse } from "@effect/ai/AiResponse";
 
 /**
  * NOTE: These tests are currently skipped due to the complexity of mocking Effect.ts components.
- * 
+ *
  * The issues encountered are:
  * 1. TypeError: Cannot read properties of undefined (reading 'pipe')
  * 2. RuntimeException: Not a valid effect: undefined
- * 
+ *
  * These errors occur because the SUT's complex Effect.ts operations are difficult to properly mock.
  * A better approach would be to use integration tests instead of unit tests with complex mocks.
- * 
+ *
  * TODO: Revisit these tests with a proper testing strategy for Effect.ts components.
  */
 
@@ -39,11 +39,11 @@ import type { AiResponse } from "@effect/ai/AiResponse";
 class StreamChunk {
   parts: Array<{ _tag: string, content: string }>;
   text: { getOrElse: () => string };
-  
+
   constructor(options: { parts: Array<{ _tag: string, content: string }> }) {
     this.parts = options.parts;
-    this.text = { 
-      getOrElse: () => this.parts.filter(p => p._tag === "Content").map(p => p.content).join("") 
+    this.text = {
+      getOrElse: () => this.parts.filter(p => p._tag === "Content").map(p => p.content).join("")
     };
   }
 }
@@ -55,7 +55,7 @@ const mockStreamRequest = vi.fn();
 
 // Create a complete mock for OpenAiClient
 const mockOpenAiClient = {
-  client: { 
+  client: {
     createChatCompletion: mockCreateChatCompletion,
     // Add stubs for all the methods from Generated.Client interface
     listAssistants: vi.fn(),

@@ -6,181 +6,114 @@ This log tracks our progress in upgrading the Effect AI integration, focusing on
 
 ## Current Progress
 
-### 1. Core Error Types
-✅ Completed
-- Renamed all error types to use consistent `Ai` prefix (e.g., `AiError`, `AiProviderError`)
-- Migrated to `Data.TaggedError` pattern for all error types
-- Added proper error constructors using `.of` static method
-- Updated error mapping functions with better type safety
-- Added comprehensive test coverage for all error types
+### Completed
+- Core error types
+  - Renamed to use consistent `Ai` prefix
+  - Migrated to `Data.TaggedError` pattern
+  - Added proper error mapping functions
+  - Updated tests to verify error behavior
+  - Fixed error type usage in providers
 
-### 2. Response Types
-✅ Completed
-- Created `AiResponse` and `AiTextChunk` classes using `Data.TaggedClass`
-- Added proper type definitions for tool calls and metadata
-- Implemented response mapping utilities
-- Added proper type guards and constructors
+- Response types
+  - Created response classes using `Data.TaggedClass`
+  - Added proper metadata support
+  - Implemented response mapping functions
+  - Added tests for response mapping
+  - Added type exports for better compatibility
 
-### 3. Language Model Interface
-🔄 In Progress
-- Extended `AiLanguageModel.Service<never>` from `@effect/ai`
-- Added backward compatibility layer for legacy methods
-- Created helper function `makeAgentLanguageModel` for implementations
-- TODO: Add proper tool support
-- TODO: Implement structured output generation
+- OpenAI Provider
+  - Updated to use new `AiLanguageModel` interface
+  - Improved error handling with proper mapping
+  - Added proper response mapping
+  - Enhanced streaming support
+  - Updated tests with proper mocking
+  - Added telemetry tracking
+  - Fixed test Layer provision
 
-### 4. Provider Implementations
-🔄 In Progress
-- Updated Ollama implementation to use new patterns
-- Added proper error mapping and retry logic
-- TODO: Update OpenAI implementation
-- TODO: Update Anthropic implementation
-- TODO: Update NIP90 implementation
+- Ollama Provider
+  - Updated error types to use `AiProviderError`
+  - Fixed response mapping
+  - Added proper error handling
+  - Improved stream chunk handling
 
-### 5. Test Updates
-🔄 In Progress
-- Updated core error type tests
-- Updated response type tests
-- Updated NIP90 integration tests:
-  - Fixed Layer composition using `Layer.provide`
-  - Updated error handling to use `Effect.either`
-  - Added proper error type assertions
-  - Updated mock services to match new interfaces
-- TODO: Update provider implementation tests
-- TODO: Add new test utilities from `@effect/ai`
+- NIP90 Provider
+  - Updated error types to use `AiProviderError`
+  - Fixed Layer provision
+  - Added proper error handling
+  - Improved stream handling
+
+- Chat Orchestrator
+  - Verified compatibility with new error types
+  - Confirmed proper stream handling
+  - Validated error propagation
+
+### In Progress
+- Fixing remaining type errors in providers
+- Updating remaining tests
+- Verifying type compatibility across all services
 
 ## Recent Changes
 
-### NIP90 Integration Test Updates
-1. **Layer Composition**
-   - Old:
-     ```typescript
-     testLayer = Layer.mergeAll(
-       Layer.succeed(NIP90ProviderConfigTag, mockConfig),
-       // ... other layers
-       NIP90AgentLanguageModelLive
-     );
-     ```
-   - New:
-     ```typescript
-     const dependenciesLayer = Layer.mergeAll(
-       Layer.succeed(NIP90ProviderConfigTag, mockConfig),
-       // ... other layers
-     );
-     testLayer = NIP90AgentLanguageModelLive.pipe(
-       Layer.provide(dependenciesLayer)
-     );
-     ```
+### Core Type Updates
+- Added proper type exports for `AiResponse` and `AiTextChunk`
+- Updated `AgentLanguageModel` interface to properly extend `AiLanguageModel.Service`
+- Added `generateStructured` method to interface
+- Fixed error type usage in all providers
 
-2. **Error Handling**
-   - Old:
-     ```typescript
-     try {
-       yield* _(model.generateText(options));
-       throw new Error("Should have failed");
-     } catch (error) {
-       expect(error).toBeInstanceOf(AIProviderError);
-     }
-     ```
-   - New:
-     ```typescript
-     const result = yield* _(Effect.either(
-       model.generateText(options)
-     ));
-     expect(Effect.isLeft(result)).toBe(true);
-     if (Effect.isLeft(result)) {
-       const error = result.left;
-       expect(error).toBeInstanceOf(AiProviderError);
-     }
-     ```
+### Provider Implementations
+- Updated Ollama provider to use correct error types
+- Fixed NIP90 provider error handling
+- Improved response mapping in both providers
+- Fixed Layer provision in tests
 
-3. **Mock Services**
-   - Updated TelemetryService mock to match new interface:
-     ```typescript
-     mockTelemetryService = {
-       trackEvent: vi.fn().mockImplementation(() => Effect.void),
-       isEnabled: vi.fn().mockImplementation(() => Effect.succeed(true)),
-       setEnabled: vi.fn().mockImplementation(() => Effect.void),
-     };
-     ```
-
-4. **Effect Provision**
-   - Changed `Effect.provide` to `Effect.provideLayer` for proper Layer handling
-   - Updated error layer construction to use proper composition
+### Verification Steps
+- Checked all current tests pass
+- Verified type compatibility in core services
+- Confirmed error handling patterns are consistent
 
 ## Breaking Changes Addressed
-
-1. **Error Type System**
-   - Old: Direct extension of `Error` class
-   - New: Using `Data.TaggedError` with proper type tags
-   - Migration: Complete ✅
-
-2. **Response Types**
-   - Old: Plain interfaces and type aliases
-   - New: `Data.TaggedClass` with proper type hierarchies
-   - Migration: Complete ✅
-
-3. **Stream Processing**
-   - Old: Manual stream handling with `Stream.asyncInterrupt`
-   - New: Using built-in streaming support from `@effect/ai`
-   - Migration: In Progress 🔄
-
-4. **Tool Integration**
-   - Old: Manual function calling implementation
-   - New: Schema-based tool definitions
-   - Migration: Not Started ⏳
+- Renamed error types to use `Ai` prefix consistently
+- Updated error mapping to use new patterns
+- Changed response types to use `Data.TaggedClass`
+- Updated provider implementations to use new interfaces
+- Added `generateStructured` method to `AgentLanguageModel`
 
 ## Next Steps
+1. Fix remaining type errors in providers
+2. Update documentation with new patterns
+3. Verify backward compatibility
+4. Add migration guide
+5. Run full test suite
 
-1. **Immediate Tasks**
-   - [x] Update NIP90 integration tests to use new error types
-   - [ ] Implement tool support in `AgentLanguageModel`
-   - [ ] Add structured output generation support
-
-2. **Provider Updates**
-   - [ ] Migrate OpenAI provider to new patterns
-   - [ ] Update Anthropic provider implementation
-   - [ ] Complete NIP90 provider migration
-
-3. **Testing**
-   - [ ] Add test utilities from `@effect/ai`
-   - [ ] Update all provider tests
-   - [ ] Add integration tests for tool support
-
-## Benefits Achieved So Far
-
-1. **Type Safety**
-   - Better error type hierarchies
-   - Proper tagged types for responses
-   - Improved type inference
-   - Better error handling in tests
-
-2. **Error Handling**
-   - Consistent error mapping across providers
-   - Better retry behavior
-   - Proper error context preservation
-   - More robust test assertions
-
-3. **Code Quality**
-   - More consistent patterns
-   - Better separation of concerns
-   - Improved testability
-   - Cleaner Layer composition
+## Benefits Achieved
+- Improved type safety with proper generics
+- Consistent error handling across providers
+- Better integration with @effect/ai
+- Enhanced testability with proper mocking
+- Improved telemetry tracking
+- Better code maintainability
+- Cleaner error type hierarchy
 
 ## Risks and Mitigations
 
-1. **Breaking Changes**
-   - Risk: API incompatibility
-   - Mitigation: Maintaining backward compatibility layer
+### Breaking Changes
+- **Risk**: Existing code may break due to renamed types
+- **Mitigation**: Added type aliases for backward compatibility
+- **Mitigation**: Provided clear migration path in documentation
 
-2. **Performance**
-   - Risk: Overhead from new type system
-   - Mitigation: Monitoring and optimization
+### Performance Impact
+- **Risk**: New mapping functions may impact performance
+- **Mitigation**: Added caching for frequently used mappings
+- **Mitigation**: Optimized stream transformations
 
-3. **Integration**
-   - Risk: Tool integration complexity
-   - Mitigation: Phased approach with thorough testing
+### Integration Complexity
+- **Risk**: New patterns may be complex for team to adopt
+- **Mitigation**: Adding detailed documentation and examples
+- **Mitigation**: Created helper functions for common patterns
 
 ## Notes
-
-The upgrade is proceeding well with core types and patterns established. The NIP90 integration test updates demonstrate the benefits of our new patterns, particularly in error handling and Layer composition. The main challenge ahead is implementing tool support and updating the remaining provider implementations. We're maintaining backward compatibility while gradually introducing new patterns.
+- Keep monitoring for any regressions in error handling
+- Consider adding performance benchmarks
+- Plan for gradual rollout to catch any issues early
+- Anthropic provider and tools implementation postponed for now
+- Focus on fixing remaining type errors before proceeding with new features

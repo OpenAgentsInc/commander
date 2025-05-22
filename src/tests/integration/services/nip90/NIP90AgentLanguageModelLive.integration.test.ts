@@ -1,4 +1,4 @@
-import { Effect, Layer, Stream } from "effect";
+import { Effect, Layer, Stream, Either } from "effect";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { AgentLanguageModel } from "@/services/ai/core";
 import { AiProviderError } from "@/services/ai/core/AiError";
@@ -172,8 +172,8 @@ describe("NIP90AgentLanguageModelLive", () => {
         )
       );
 
-      expect(Effect.isLeft(result)).toBe(true);
-      if (Effect.isLeft(result)) {
+      expect(Either.isLeft(result)).toBe(true);
+      if (Either.isLeft(result)) {
         const error = result.left;
         expect(error).toBeInstanceOf(AiProviderError);
         expect(error.message).toBe("Mock error");

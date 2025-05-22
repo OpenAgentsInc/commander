@@ -64,3 +64,6 @@ export const mapProviderResponseToAiResponse = (
     }
   }
 });
+
+export type { AiResponse as AiResponseType };
+export type { AiTextChunk as AiTextChunkType };

@@ -9,7 +9,7 @@ import {
   type AgentChatMessage,
 } from "@/services/ai/core";
 import type { AiResponse } from "@effect/ai/AiResponse";
-import { AIProviderError } from "@/services/ai/core/AIError";
+import { AiProviderError } from "@/services/ai/core/AiError";
 import { NIP90Service, type NIP90JobFeedback, type NIP90JobFeedbackStatus } from "@/services/nip90";
 import { NostrService } from "@/services/nostr";
 import { NIP04Service } from "@/services/nip04";
@@ -104,7 +104,7 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
     return AgentLanguageModel.of({
       _tag: "AgentLanguageModel",
 
-      generateText: (params: GenerateTextOptions): Effect.Effect<AiResponse, AIProviderError> => {
+      generateText: (params: GenerateTextOptions): Effect.Effect<AiResponse, AiProviderError> => {
         return Effect.gen(function* (_) {
           const messagesPayload = parsePromptMessages(params.prompt);
           const formattedPrompt = formatPromptForDVM(messagesPayload);
@@ -152,24 +152,24 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
           );
 
           if (!result) {
-            return yield* _(Effect.fail(new AIProviderError({
+            return yield* _(Effect.fail(new AiProviderError({
               message: "NIP-90 job result not found",
-              provider: "NIP90"
+              isRetryable: true
             })));
           }
 
           return createAiResponse(result.content || "");
         }).pipe(
-          Effect.mapError(err => new AIProviderError({
+          Effect.mapError(err => new AiProviderError({
             message: `NIP-90 generateText error: ${err instanceof Error ? err.message : String(err)}`,
-            provider: "NIP90",
-            cause: err,
+            isRetryable: true,
+            cause: err
           }))
         );
       },
 
-      streamText: (params: StreamTextOptions): Stream.Stream<AiTextChunk, AIProviderError> => {
-        return Stream.asyncScoped<AiTextChunk, AIProviderError>((emit) => {
+      streamText: (params: StreamTextOptions): Stream.Stream<AiTextChunk, AiProviderError> => {
+        return Stream.asyncScoped<AiTextChunk, AiProviderError>((emit) => {
           const program = Effect.gen(function* (_) {
             const messagesPayload = parsePromptMessages(params.prompt);
             const formattedPrompt = formatPromptForDVM(messagesPayload);
@@ -228,10 +228,10 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
                       emit.single({ text: feedbackEvent.content });
                     } else if (status === "error") {
                       emit.fail(
-                        new AIProviderError({
+                        new AiProviderError({
                           message: `NIP-90 DVM error: ${feedbackEvent.content || "Unknown error"}`,
-                          provider: "NIP90",
-                          context: { jobId: jobRequest.id, status },
+                          isRetryable: true,
+                          cause: feedbackEvent
                         })
                       );
                     }
@@ -243,10 +243,10 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
             return unsubscribe;
           }).pipe(
             Effect.mapError(err => {
-              if (err instanceof AIProviderError) return err;
-              return new AIProviderError({
+              if (err instanceof AiProviderError) return err;
+              return new AiProviderError({
                 message: `NIP-90 stream setup error: ${err instanceof Error ? err.message : String(err)}`,
-                provider: "NIP90",
+                isRetryable: true,
                 cause: err
               });
             })
@@ -256,14 +256,19 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
         });
       },
 
-      generateStructured: (params: GenerateStructuredOptions): Effect.Effect<AiResponse, AIProviderError> => {
+      generateStructured: (params: GenerateStructuredOptions): Effect.Effect<AiResponse, AiProviderError> => {
         return Effect.fail(
-          new AIProviderError({
+          new AiProviderError({
             message: "generateStructured not supported by NIP-90 provider",
-            provider: "NIP90",
+            isRetryable: false
           })
         );
       },
     });
   })
+);
+
+export const NIP90AgentLanguageModelLiveLayer = Layer.succeed(
+  AgentLanguageModel,
+  NIP90AgentLanguageModelLive
 );

@@ -1,4 +1,4 @@
-import { Effect, Stream, pipe } from "effect";
+import { Effect, Stream, pipe, Layer } from "effect";
 import { Context } from "effect/Context";
 import { AgentLanguageModel } from "../ai/core/AgentLanguageModel";
 import { AiProviderError } from "../ai/core/AiError";
@@ -114,7 +114,7 @@ export const ChatOrchestratorServiceLive = Effect.gen(function* (_) {
   };
 });
 
-export const ChatOrchestratorServiceLiveLayer = Effect.layer({
-  id: ChatOrchestratorService,
-  build: ChatOrchestratorServiceLive
-});
+export const ChatOrchestratorServiceLiveLayer = Layer.succeed(
+  ChatOrchestratorService,
+  ChatOrchestratorServiceLive
+);
