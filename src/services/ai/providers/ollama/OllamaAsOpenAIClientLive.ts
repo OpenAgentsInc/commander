@@ -249,6 +249,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
         getChatCompletion: (_chatCompletionId: string) => stubMethod("getChatCompletion"), 
         updateChatCompletion: (_chatCompletionId: string, _options: any) => stubMethod("updateChatCompletion"),
         deleteChatCompletion: (_chatCompletionId: string) => stubMethod("deleteChatCompletion"),
+        getChatCompletionMessages: (_completionId: string, _options: any) => stubMethod("getChatCompletionMessages"),
 
         // Core methods
         createEmbedding: (_options: typeof CreateEmbeddingRequest.Encoded) => stubMethod("createEmbedding"),
@@ -289,6 +290,9 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
         cancelFineTuningJob: (_fineTuningJobId: string) => stubMethod("cancelFineTuningJob"),
         listFineTuningJobCheckpoints: (_fineTuningJobId: string, _options: any) => stubMethod("listFineTuningJobCheckpoints"),
         listFineTuningEvents: (_fineTuningJobId: string, _options: any) => stubMethod("listFineTuningEvents"),
+        listFineTuningCheckpointPermissions: (_permissionId: string, _options: any) => stubMethod("listFineTuningCheckpointPermissions"),
+        createFineTuningCheckpointPermission: (_permissionId: string, _options: any) => stubMethod("createFineTuningCheckpointPermission"),
+        deleteFineTuningCheckpointPermission: (_permissionId: string) => stubMethod("deleteFineTuningCheckpointPermission"),
 
         // Image methods
         createImageEdit: (_options: any) => stubMethod("createImageEdit"),
@@ -302,8 +306,17 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
         // Moderation methods
         createModeration: (_options: any) => stubMethod("createModeration"),
 
+        // Admin API key methods  
+        adminApiKeysList: (_options: any) => stubMethod("adminApiKeysList"),
+        adminApiKeysCreate: (_options: any) => stubMethod("adminApiKeysCreate"),
+        adminApiKeysGet: (_keyId: string) => stubMethod("adminApiKeysGet"),
+        adminApiKeysDelete: (_keyId: string) => stubMethod("adminApiKeysDelete"),
+
         // Audit logs methods
         listAuditLogs: (_options: any) => stubMethod("listAuditLogs"),
+
+        // Usage cost methods
+        usageCosts: (_options: any) => stubMethod("usageCosts"),
 
         // Invite methods
         listInvites: (_options: any) => stubMethod("listInvites"),
@@ -320,6 +333,8 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
         retrieveProjectApiKey: (_projectId: string, _keyId: string) => stubMethod("retrieveProjectApiKey"),
         deleteProjectApiKey: (_projectId: string, _keyId: string) => stubMethod("deleteProjectApiKey"),
         archiveProject: (_projectId: string) => stubMethod("archiveProject"),
+        listProjectRateLimits: (_projectId: string, _options: any) => stubMethod("listProjectRateLimits"),
+        updateProjectRateLimits: (_projectId: string, _rateLimitId: string, _options: any) => stubMethod("updateProjectRateLimits"),
         listProjectServiceAccounts: (_projectId: string, _options: any) => stubMethod("listProjectServiceAccounts"),
         createProjectServiceAccount: (_projectId: string, _options: any) => stubMethod("createProjectServiceAccount"),
         retrieveProjectServiceAccount: (_projectId: string, _serviceAccountId: string) => stubMethod("retrieveProjectServiceAccount"),
@@ -337,6 +352,26 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
         retrieveUser: (_userId: string) => stubMethod("retrieveUser"),
         modifyUser: (_userId: string, _options: any) => stubMethod("modifyUser"),
         deleteUser: (_userId: string) => stubMethod("deleteUser"),
+
+        // Usage tracking methods
+        usageAudioSpeeches: (_options: any) => stubMethod("usageAudioSpeeches"),
+        usageAudioTranscriptions: (_options: any) => stubMethod("usageAudioTranscriptions"),
+        usageCodeInterpreterSessions: (_options: any) => stubMethod("usageCodeInterpreterSessions"),
+        usageCompletions: (_options: any) => stubMethod("usageCompletions"),
+        usageEmbeddings: (_options: any) => stubMethod("usageEmbeddings"),
+        usageImages: (_options: any) => stubMethod("usageImages"),
+        usageModerations: (_options: any) => stubMethod("usageModerations"),
+        usageVectorStores: (_options: any) => stubMethod("usageVectorStores"),
+
+        // Realtime session methods
+        createRealtimeSession: (_options: any) => stubMethod("createRealtimeSession"),
+        createRealtimeTranscriptionSession: (_options: any) => stubMethod("createRealtimeTranscriptionSession"),
+
+        // Response methods
+        createResponse: (_options: any) => stubMethod("createResponse"),
+        getResponse: (_responseId: string, _options: any) => stubMethod("getResponse"),
+        deleteResponse: (_responseId: string) => stubMethod("deleteResponse"),
+        listInputItems: (_responseId: string, _options: any) => stubMethod("listInputItems"),
 
         // Thread methods
         createThread: (_options: any) => stubMethod("createThread"),
@@ -382,6 +417,9 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
         getVectorStoreFileBatch: (_vectorStoreId: string, _batchId: string) => stubMethod("getVectorStoreFileBatch"),
         cancelVectorStoreFileBatch: (_vectorStoreId: string, _batchId: string) => stubMethod("cancelVectorStoreFileBatch"),
         listFilesInVectorStoreBatch: (_vectorStoreId: string, _batchId: string, _options: any) => stubMethod("listFilesInVectorStoreBatch"),
+        updateVectorStoreFileAttributes: (_vectorStoreId: string, _fileId: string, _options: any) => stubMethod("updateVectorStoreFileAttributes"),
+        retrieveVectorStoreFileContent: (_vectorStoreId: string, _fileId: string) => stubMethod("retrieveVectorStoreFileContent"),
+        searchVectorStore: (_vectorStoreId: string, _options: any) => stubMethod("searchVectorStore"),
       },
 
       // Top-level stream method for streaming chat completions
