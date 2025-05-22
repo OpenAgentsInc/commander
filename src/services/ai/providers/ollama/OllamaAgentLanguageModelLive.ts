@@ -5,23 +5,22 @@ import {
   type GenerateTextOptions,
   type StreamTextOptions,
   type GenerateStructuredOptions,
-  type AiTextChunk, // From your @/services/ai/core
+  type AiTextChunk,
 } from "@/services/ai/core";
 import * as OpenAiClient from "@effect/ai-openai/OpenAiClient";
 import * as OpenAiCompletions from "@effect/ai-openai/OpenAiCompletions";
-import type { ConfigError } from "effect/ConfigError";
 import { ConfigurationService } from "@/services/configuration";
 import { AIProviderError } from "@/services/ai/core/AIError";
 import { OllamaOpenAIClientTag } from "./OllamaAsOpenAIClientLive";
 import { TelemetryService } from "@/services/telemetry";
 
 // Log when this module is loaded
-console.log("Loading OllamaAgentLanguageModelLive module");
+console.log("Loading OllamaAgentLanguageModelLive module (Effect-based implementation)");
 
 export const OllamaAgentLanguageModelLive = Layer.effect(
   AgentLanguageModel,
   Effect.gen(function* (_) {
-    const ollamaAdaptedClient = yield* _(OllamaOpenAIClientTag);
+    const ollamaAdaptedClient = yield* _(OllamaOpenAIClientTag); // This is an instance of OpenAiClient.Service
     const configService = yield* _(ConfigurationService);
     const telemetry = yield* _(TelemetryService);
 
@@ -49,58 +48,50 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
       }).pipe(Effect.ignoreLogged)
     );
 
-    // --- APPROACH USING A SIMPLIFIED PROVIDER ---
-    // Log available functions in OpenAiCompletions
-    console.log("OpenAiCompletions available exports:", Object.keys(OpenAiCompletions));
-    
     try {
-      // Check if layerCompletions exists and log it
-      if (typeof OpenAiCompletions.layerCompletions === 'function') {
-        console.log("Found OpenAiCompletions.layerCompletions function");
+      // Get and use the OpenAI Language Model layer factory
+      // This provides an AiLanguageModel service that we can wrap
+      console.log("Using OpenAiCompletions.layerCompletions to create AiLanguageModel layer");
+      
+      const aiModelLayer = OpenAiCompletions.layerCompletions({
+        model: modelName,
+        temperature: 0.7,
+        maxTokens: 1000
+      });
+      
+      console.log("Created aiModelLayer with model:", modelName);
+      
+      // Provide the Ollama adapter client to the layer
+      const aiModelLayerWithClient = aiModelLayer.pipe(
+        Layer.provide(Layer.succeed(OpenAiClient.OpenAiClient, ollamaAdaptedClient))
+      );
+      
+      console.log("Provided ollamaAdaptedClient to aiModelLayer");
+      
+      // Build a context with our AiLanguageModel implementation
+      // This temporarily creates a runtime with the layer
+      const runtime = yield* _(Effect.runtime<never>());
+      const context = yield* _(Layer.buildWithRuntime(aiModelLayerWithClient, runtime));
+      
+      console.log("Built context with aiModelLayerWithClient");
+      
+      // Get the AiLanguageModel service from the context
+      // The service tag isn't directly exposed, so we access it via Effect.contextWith
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const aiLanguageModelTag = (OpenAiCompletions as any).AiLanguageModel ?? 
+                               (OpenAiCompletions as any).OpenAiCompletions ??
+                               (OpenAiCompletions as any).OpenAiLanguageModel;
+      
+      if (!aiLanguageModelTag) {
+        console.error("Could not find AiLanguageModel tag in OpenAiCompletions");
+        throw new Error("Could not find AiLanguageModel tag in OpenAiCompletions");
       }
       
-      // Create a basic provider that satisfies the interface
-      const provider: any = {
-        generateText: (params: any) => {
-          console.log(`Ollama generateText called with model: ${modelName}`, params);
-          return Effect.succeed({
-            text: `Response from Ollama model ${modelName}`,
-            concat: (other: any) => ({ text: `Response concatenated` }),
-            role: { _tag: "Assistant" },
-            imageUrl: null,
-            withToolCallsJson: () => Effect.succeed({}),
-            withToolCallsUnknown: () => Effect.succeed({}),
-            withJson: () => Effect.succeed({}),
-            parts: [],
-            usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }
-          });
-        },
-        
-        streamText: (params: any) => {
-          console.log(`Ollama streamText called with model: ${modelName}`, params);
-          return Stream.succeed({
-            text: `Stream response from Ollama model ${modelName}`,
-            index: 0,
-            isLast: true
-          });
-        },
-        
-        generateStructured: (params: any) => {
-          console.log(`Ollama generateStructured called with model: ${modelName}`, params);
-          return Effect.succeed({
-            text: `Structured response from Ollama model ${modelName}`,
-            structured: params.responseStructure || {},
-            concat: (other: any) => ({ text: `Structured response concatenated`, structured: {} }),
-            role: { _tag: "Assistant" },
-            imageUrl: null,
-            withToolCallsJson: () => Effect.succeed({}),
-            withToolCallsUnknown: () => Effect.succeed({}),
-            withJson: () => Effect.succeed({}),
-            parts: [],
-            usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }
-          });
-        }
-      };
+      // Get the provider from the context
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const provider = Context.get(context, aiLanguageModelTag as any);
+      
+      console.log("Got provider from context");
 
       yield* _(
         telemetry.trackEvent({
@@ -110,53 +101,37 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
         }).pipe(Effect.ignoreLogged)
       );
 
-      // Map errors from provider error to AIProviderError
+      // Map errors from library error to AIProviderError
       const mapErrorToAIProviderError = (err: any, contextAction: string, params: any) => {
         const detail = err.error || err; // Often errors have an 'error' field for the underlying cause
         return new AIProviderError({
           message: `Ollama ${contextAction} error for model ${modelName}: ${detail?.message || String(detail) || "Unknown provider error"}`,
           cause: detail?.cause || detail,
           provider: "Ollama",
-          context: { model: modelName, params, originalErrorTag: detail?._tag, originalErrorMessage: detail?.message }
+          context: { 
+            model: modelName, 
+            params, 
+            originalErrorTag: detail?._tag, 
+            originalErrorMessage: detail?.message 
+          }
         });
       };
 
-      // Use type assertions to bypass TypeScript checks
+      // Return the implementation of our AgentLanguageModel interface
       const serviceImplementation: AgentLanguageModel = {
-        _tag: "AgentLanguageModel",
-        generateText: (params) => {
-          try {
-            // Use type assertion to bypass TypeScript checks
-            return provider.generateText(params).pipe(
-              Effect.mapError(err => mapErrorToAIProviderError(err, "generateText", params))
-            ) as any;
-          } catch (err) {
-            console.error("Exception in generateText:", err);
-            return Effect.fail(mapErrorToAIProviderError(err, "generateText", params));
-          }
-        },
-        streamText: (params) => {
-          try {
-            // Use type assertion to bypass TypeScript checks
-            return provider.streamText(params).pipe(
-              Stream.mapError(err => mapErrorToAIProviderError(err, "streamText", params))
-            ) as any;
-          } catch (err) {
-            console.error("Exception in streamText:", err);
-            return Stream.fail(mapErrorToAIProviderError(err, "streamText", params));
-          }
-        },
-        generateStructured: (params) => {
-          try {
-            // Use type assertion to bypass TypeScript checks
-            return provider.generateStructured(params).pipe(
-              Effect.mapError(err => mapErrorToAIProviderError(err, "generateStructured", params))
-            ) as any;
-          } catch (err) {
-            console.error("Exception in generateStructured:", err);
-            return Effect.fail(mapErrorToAIProviderError(err, "generateStructured", params));
-          }
-        }
+        _tag: "AgentLanguageModel" as const,
+        generateText: (params: GenerateTextOptions) => 
+          provider.generateText(params).pipe(
+            Effect.mapError(err => mapErrorToAIProviderError(err, "generateText", params))
+          ),
+        streamText: (params: StreamTextOptions) => 
+          provider.streamText(params).pipe(
+            Stream.mapError(err => mapErrorToAIProviderError(err, "streamText", params))
+          ),
+        generateStructured: (params: GenerateStructuredOptions) => 
+          provider.generateStructured(params).pipe(
+            Effect.mapError(err => mapErrorToAIProviderError(err, "generateStructured", params))
+          )
       };
       
       return serviceImplementation;
@@ -164,5 +139,5 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
       console.error("Critical error in OllamaAgentLanguageModelLive:", error);
       throw error;
     }
-  }),
+  })
 );
