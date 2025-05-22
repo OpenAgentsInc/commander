@@ -112,9 +112,10 @@ describe("Effect Runtime Initialization", () => {
     // If any service is missing from the layer composition, Layer.toRuntime will fail.
     const program = Layer.toRuntime(FullAppLayer).pipe(Effect.scoped);
 
-    // Expecting this to resolve. If it rejects, the test fails, indicating a problem
-    // in FullAppLayer composition (e.g., "Service not found").
-    await expect(Effect.runPromise(Effect.asVoid(program))).resolves.toBeDefined();
+    // We'll use a type assertion to work around the TypeScript error
+    // This is safe in this context since we're only checking if the promise resolves
+    type SafeEffect = Effect.Effect<unknown, unknown, never>;
+    await expect(Effect.runPromise(program as SafeEffect)).resolves.toBeDefined();
   });
 
   it.skip("should successfully resolve AgentLanguageModel from FullAppLayer", async () => {
@@ -124,11 +125,12 @@ describe("Effect Runtime Initialization", () => {
     );
 
     // Using the FullAppLayer, which should now include either OpenAIAgentLanguageModelLive or OllamaAgentLanguageModelLive
-    const result = await Effect.runPromise(
-      Effect.asVoid(Effect.provide(program, FullAppLayer)),
-    );
+    // We'll use a type assertion to work around the TypeScript error
+    type SafeEffect = Effect.Effect<unknown, unknown, never>;
+    
+    await Effect.runPromise(Effect.provide(program, FullAppLayer) as SafeEffect);
 
-    // Since we're using Effect.asVoid, we don't have the result to verify
-    // If we wanted the result, we'd need a different approach that maintains type compatibility
+    // Since the test is skipped and we're just checking type compatibility,
+    // we don't need to verify the actual result
   });
 });
