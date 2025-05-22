@@ -2,13 +2,13 @@
 import { Layer, Effect, Stream, Option } from "effect";
 import {
   AgentLanguageModel,
+  makeAgentLanguageModel,
   type GenerateTextOptions,
   type StreamTextOptions,
   type GenerateStructuredOptions,
-  type AiTextChunk,
   type AgentChatMessage,
 } from "@/services/ai/core";
-import type { AiResponse } from "@effect/ai/AiResponse";
+import { AiResponse, AiTextChunk } from "@/services/ai/core/AiResponse";
 import { AiProviderError } from "@/services/ai/core/AiError";
 import { NIP90Service, type NIP90JobFeedback, type NIP90JobFeedbackStatus } from "@/services/nip90";
 import { NostrService } from "@/services/nostr";
@@ -72,27 +72,16 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
     };
 
     const createAiResponse = (text: string): AiResponse => {
-      type RecursiveAiResponse = {
-        text: string;
-        imageUrl: Option.Option<never>;
-        withToolCallsJson: () => Effect.Effect<RecursiveAiResponse>;
-        withToolCallsUnknown: () => Effect.Effect<RecursiveAiResponse>;
-        withFunctionCallJson: () => Effect.Effect<RecursiveAiResponse>;
-        withFunctionCallUnknown: () => Effect.Effect<RecursiveAiResponse>;
-        withJsonMode: () => Effect.Effect<RecursiveAiResponse>;
-      };
-
-      const response: RecursiveAiResponse = {
+      return new AiResponse({
         text,
-        imageUrl: Option.none(),
-        withToolCallsJson: () => Effect.succeed(response),
-        withToolCallsUnknown: () => Effect.succeed(response),
-        withFunctionCallJson: () => Effect.succeed(response),
-        withFunctionCallUnknown: () => Effect.succeed(response),
-        withJsonMode: () => Effect.succeed(response),
-      };
-
-      return response as unknown as AiResponse;
+        metadata: {
+          usage: {
+            promptTokens: 0,
+            completionTokens: text.length,
+            totalTokens: text.length
+          }
+        }
+      });
     };
 
     const generateEphemeralKeyPair = (): { sk: Uint8Array; pk: string } => {
@@ -101,8 +90,7 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
       return { sk: skBytes, pk: pkHex };
     };
 
-    return AgentLanguageModel.Tag.of({
-      _tag: "AgentLanguageModel",
+    return makeAgentLanguageModel({
 
       generateText: (params: GenerateTextOptions): Effect.Effect<AiResponse, AiProviderError> => {
         return Effect.gen(function* (_) {
@@ -216,7 +204,7 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
                 (eventUpdate) => {
                   if (eventUpdate.kind >= 6000 && eventUpdate.kind < 7000) { // Job Result
                     if (eventUpdate.content) {
-                      emit.single({ text: eventUpdate.content });
+                      emit.single(new AiTextChunk({ text: eventUpdate.content }));
                     }
                     emit.end();
                   } else if (eventUpdate.kind === 7000) { // Job Feedback
@@ -225,7 +213,7 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
                     const status = statusTag?.[1] as NIP90JobFeedbackStatus | undefined;
 
                     if (status === "partial" && feedbackEvent.content) {
-                      emit.single({ text: feedbackEvent.content });
+                      emit.single(new AiTextChunk({ text: feedbackEvent.content }));
                     } else if (status === "error") {
                       emit.fail(
                         new AiProviderError({
@@ -268,7 +256,7 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
   })
 );
 
-export const NIP90AgentLanguageModelLiveLayer = Layer.succeed(
+export const NIP90AgentLanguageModelLiveLayer = Layer.effect(
   AgentLanguageModel.Tag,
   NIP90AgentLanguageModelLive
 );

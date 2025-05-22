@@ -165,7 +165,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
     const config = yield* _(Kind5050DVMServiceConfigTag); // For default fallbacks
     const telemetry = yield* _(TelemetryService);
     const nostr = yield* _(NostrService);
-    const agentLanguageModel = yield* _(AgentLanguageModel);
+    const agentLanguageModel = yield* _(AgentLanguageModel.Tag);
     const spark = yield* _(SparkService);
     const nip04 = yield* _(NIP04Service);
 
@@ -1165,7 +1165,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
     ): Effect.Effect<
       string,
       | DVMError
-      | AIProviderError
+      | AiProviderError
       | SparkError
       | NIP04EncryptError
       | NIP04DecryptError,

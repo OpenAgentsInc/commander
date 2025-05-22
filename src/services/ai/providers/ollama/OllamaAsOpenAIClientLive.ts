@@ -13,7 +13,7 @@ import type {
 
 // Types from OpenAiClient.d.ts (Effect AI wrapper)
 import type { StreamCompletionRequest } from "@effect/ai-openai/OpenAiClient";
-import { StreamChunk } from "@effect/ai-openai/OpenAiClient"; // Import the class directly
+import { AiResponse } from "@effect/ai";
 
 import * as HttpClientError from "@effect/platform/HttpClientError";
 import { isHttpClientError } from "@effect/platform/HttpClientError";
@@ -53,7 +53,6 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
         Effect.die(
           new AiProviderError({
             message: errorMsg,
-            provider: "OllamaAdapterSetup",
           }),
         ),
       );
@@ -72,7 +71,6 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
           reason: "StatusCode",
           cause: new AiProviderError({
             message: `Not implemented in Ollama adapter: ${methodName}`,
-            provider: "OllamaAdapter"
           }),
           description: `OllamaAdapter: ${methodName} not implemented`,
         })
@@ -154,9 +152,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                 if (response.__error) {
                   const providerError = new AiProviderError({
                     message: `Ollama IPC error: ${response.message || "Unknown error"}`,
-                    provider: "OllamaAdapter(IPC-NonStream)",
                     cause: response,
-                    context: { model: options.model, originalError: response },
                   });
 
                   await Effect.runPromise(
@@ -213,9 +209,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                   ? error
                   : new AiProviderError({
                     message: `Ollama IPC non-stream request failed: ${error instanceof Error ? error.message : String(error)}`,
-                    provider: "OllamaAdapter(IPC-NonStream)",
                     cause: error,
-                    context: { model: options.model },
                   });
 
               // Log telemetry only if it wasn't an AiProviderError initially (to avoid double logging if it was already logged)
@@ -383,7 +377,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
 
         console.log(`[OllamaAsOpenAIClientLive] Starting stream for ${params.model} with params:`, JSON.stringify(streamingParams, null, 2));
 
-        return Stream.async<StreamChunk, HttpClientError.HttpClientError>(
+        return Stream.async<AiResponse.AiResponse, HttpClientError.HttpClientError>(
           (emit) => {
             Effect.runFork(
               telemetry.trackEvent({
@@ -408,25 +402,24 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                     typeof chunk === "object" &&
                     "choices" in chunk
                   ) {
-                    // Convert chunk to a StreamChunk for compatibility
+                    // Convert chunk to an AiResponse for compatibility
                     const content = chunk.choices?.[0]?.delta?.content || "";
-                    const streamChunk = new StreamChunk({
-                      parts: [
-                        {
-                          _tag: "Content",
-                          content,
-                        },
-                      ],
+                    const finishReason = chunk.choices?.[0]?.finish_reason;
+                    const aiResponse = AiResponse.make({
+                      text: content,
+                      finishReason: finishReason as AiResponse.FinishReason || "unknown",
+                      parts: content ? [{
+                        _tag: "TextPart" as const,
+                        text: content
+                      }] : []
                     });
-                    console.log(`[OllamaAsOpenAIClientLive] Emitting StreamChunk to effect stream for ${params.model}:`, JSON.stringify(streamChunk));
-                    emit.single(streamChunk);
+                    console.log(`[OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for ${params.model}:`, JSON.stringify(aiResponse));
+                    emit.single(aiResponse);
                   } else {
                     console.error(`[OllamaAsOpenAIClientLive] Invalid chunk format for ${params.model}:`, chunk);
                     const err = new AiProviderError({
                       message:
                         "Ollama IPC stream received unexpected chunk format",
-                      provider: "OllamaAdapter(IPC-Stream)",
-                      context: { chunk },
                     });
 
                     const request = HttpClientRequest.post("ollama-ipc-stream-chunk-error");
@@ -473,9 +466,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
 
                   const providerError = new AiProviderError({
                     message: `Ollama IPC stream error: ${ipcError.message || "Unknown error"}`,
-                    provider: "OllamaAdapter(IPC-Stream)",
                     cause: error,
-                    context: { model: params.model },
                   });
 
                   const request = HttpClientRequest.post("ollama-ipc-stream-error");
@@ -506,7 +497,6 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
 
               const setupError = new AiProviderError({
                 message: errorMsg,
-                provider: "OllamaAdapterSetup(IPC-Stream)",
                 cause: e,
               });
 
@@ -553,7 +543,6 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
             reason: "StatusCode",
             cause: new AiProviderError({
               message: "OllamaAdapter: streamRequest not implemented directly",
-              provider: "OllamaAdapter",
             }),
             description: "OllamaAdapter: streamRequest not implemented directly",
           })

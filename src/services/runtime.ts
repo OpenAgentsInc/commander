@@ -116,7 +116,7 @@ const baseLayer = Layer.mergeAll(
 );
 
 // Create the language model layer with its dependencies
-const ollamaLanguageModelLayer = OllamaProvider.OllamaAgentLanguageModelLive.pipe(
+const ollamaLanguageModelLayer = OllamaProvider.OllamaAgentLanguageModelLiveLayer.pipe(
   Layer.provide(baseLayer),
 );
 

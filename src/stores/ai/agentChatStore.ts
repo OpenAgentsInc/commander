@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { Effect } from "effect";
 import { ConfigurationService } from "@/services/configuration";
 
@@ -66,7 +66,7 @@ export const useAgentChatStore = create<AgentChatState>()(
     }),
     {
       name: "agent-chat-store",
-      storage: typeof window !== "undefined" ? window.localStorage : undefined,
+      storage: typeof window !== "undefined" ? createJSONStorage(() => window.localStorage) : undefined,
     },
   ),
 );
