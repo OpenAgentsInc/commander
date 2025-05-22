@@ -1,12 +1,33 @@
-import { Effect, Stream, pipe, Layer } from "effect";
-import { Context } from "effect/Context";
+import { Effect, Stream, pipe, Layer, Context } from "effect";
 import { AgentLanguageModel } from "../ai/core/AgentLanguageModel";
 import { AiProviderError } from "../ai/core/AiError";
-import { AiResponse, AiTextChunk } from "../ai/core/AiResponse";
-import { ChatMessage } from "./ChatMessage";
-import { ChatSession } from "./ChatSession";
-import { ChatSessionService } from "./ChatSessionService";
-import { PromptService } from "./PromptService";
+import { AiResponse } from "../ai/core/AiResponse";
+
+// Temporary stubs for missing chat modules
+interface ChatMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+}
+
+interface ChatSession {
+  id: string;
+  messages: ChatMessage[];
+}
+
+interface ChatSessionService {
+  readonly _tag: "ChatSessionService";
+  getSession(id: string): Effect.Effect<ChatSession, Error>;
+  updateSession(id: string, messages: ChatMessage[]): Effect.Effect<void, Error>;
+}
+
+interface PromptService {
+  readonly _tag: "PromptService";
+  buildPrompt(messages: ChatMessage[]): Effect.Effect<string, Error>;
+}
+
+// Context tags for the stubbed services
+const ChatSessionService = Context.GenericTag<ChatSessionService>("ChatSessionService");
+const PromptService = Context.GenericTag<PromptService>("PromptService");
 
 /**
  * Service for orchestrating chat interactions
@@ -21,7 +42,7 @@ export interface ChatOrchestratorService {
     sessionId: string,
     message: string,
     signal?: AbortSignal
-  ): Stream.Stream<AiTextChunk, AiProviderError>;
+  ): Stream.Stream<AiResponse, AiProviderError>;
 
   /**
    * Generate a chat response
@@ -35,9 +56,9 @@ export interface ChatOrchestratorService {
 /**
  * Context tag for ChatOrchestratorService
  */
-export const ChatOrchestratorService = Context.GenericTag<ChatOrchestratorService>(
-  "ChatOrchestratorService"
-);
+export const ChatOrchestratorService = {
+  Tag: Context.GenericTag<ChatOrchestratorService>("ChatOrchestratorService")
+};
 
 /**
  * Live implementation of ChatOrchestratorService

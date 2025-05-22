@@ -7,6 +7,7 @@ import { Data } from "effect";
 export class AiError extends Data.TaggedError("AiError")<{
   message: string;
   cause?: unknown;
+  context?: Record<string, any>;
 }> { }
 
 /**
@@ -34,6 +35,8 @@ export class AiProviderError extends Data.TaggedError("AiProviderError")<{
   message: string;
   cause?: unknown;
   isRetryable: boolean;
+  provider: string;
+  context?: Record<string, any>;
 }> { }
 
 /**
@@ -42,6 +45,7 @@ export class AiProviderError extends Data.TaggedError("AiProviderError")<{
 export class AiConfigurationError extends Data.TaggedError("AiConfigurationError")<{
   message: string;
   cause?: unknown;
+  context?: Record<string, any>;
 }> { }
 
 /**
