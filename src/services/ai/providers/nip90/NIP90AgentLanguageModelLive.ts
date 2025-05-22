@@ -15,7 +15,7 @@ import { NostrService } from "@/services/nostr";
 import { NIP04Service } from "@/services/nip04";
 import { TelemetryService } from "@/services/telemetry";
 import { NIP90ProviderConfigTag } from "./NIP90ProviderConfig";
-import { generateSecretKey } from "nostr-tools/pure";
+import { generateSecretKey, getPublicKey as getPublicKeyNostrTools } from "nostr-tools/pure";
 
 // Log when this module is loaded
 console.log("Loading NIP90AgentLanguageModelLive module");
@@ -87,10 +87,10 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
       return response as unknown as AiResponse;
     };
 
-    const generateEphemeralKeyPair = () => {
-      const sk = generateSecretKey();
-      const pk = nostrService.getPublicKey(sk);
-      return { sk, pk };
+    const generateEphemeralKeyPair = (): { sk: Uint8Array; pk: string } => {
+      const skBytes = generateSecretKey(); // Returns Uint8Array
+      const pkHex = getPublicKeyNostrTools(skBytes); // Takes Uint8Array, returns hex string
+      return { sk: skBytes, pk: pkHex };
     };
 
     return AgentLanguageModel.of({
@@ -102,40 +102,52 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
           const formattedPrompt = formatPromptForDVM(messagesPayload);
 
           // Generate ephemeral keypair if configured
-          const { sk: requestSk, pk: requestPk } = dvmConfig.useEphemeralRequests
+          const { sk: requestSkBytes, pk: requestPkHex } = dvmConfig.useEphemeralRequests
             ? generateEphemeralKeyPair()
-            : { sk: "", pk: "" }; // TODO: Get from wallet if not using ephemeral
+            : { sk: new Uint8Array(), pk: "" }; // Empty key for now, should be handled properly in future
 
           // Prepare NIP-90 inputs and params
-          const inputs = [["text", formattedPrompt]];
-          const additionalParams = [
-            ["param", "model", dvmConfig.modelIdentifier || "default"],
-            ...(params.temperature ? [["param", "temperature", params.temperature.toString()]] : []),
-            ...(params.maxTokens ? [["param", "max_tokens", params.maxTokens.toString()]] : []),
+          const inputsForNip90: ReadonlyArray<readonly [string, "text" | "url" | "event" | "job", string?, string?]> =
+            [[formattedPrompt, "text"]];
+
+          const paramsForNip90: Array<readonly ["param", string, string]> = [
+            ["param", "model", dvmConfig.modelIdentifier || "default"]
           ];
+
+          if (params.temperature) {
+            paramsForNip90.push(["param", "temperature", params.temperature.toString()]);
+          }
+          if (params.maxTokens) {
+            paramsForNip90.push(["param", "max_tokens", params.maxTokens.toString()]);
+          }
 
           // Create job request
           const jobRequest = yield* _(
             nip90Service.createJobRequest({
+              kind: dvmConfig.requestKind,
+              inputs: inputsForNip90,
+              params: paramsForNip90,
               targetDvmPubkeyHex: dvmConfig.dvmPubkey,
-              requestKind: dvmConfig.requestKind,
-              inputs,
-              params: additionalParams,
-              requesterSk: requestSk,
+              requesterSk: requestSkBytes as Uint8Array<ArrayBuffer>,
               requiresEncryption: dvmConfig.requiresEncryption,
             })
           );
 
           // Wait for result
           const result = yield* _(
-            nip90Service.getJobResult({
-              jobRequestEventId: jobRequest.id,
-              decryptionKey: requestSk,
-              targetDvmPubkeyHex: dvmConfig.dvmPubkey,
-              resultKind: dvmConfig.requestKind + 1000,
-              relays: dvmConfig.dvmRelays,
-            })
+            nip90Service.getJobResult(
+              jobRequest.id,
+              dvmConfig.dvmPubkey,
+              requestSkBytes
+            )
           );
+
+          if (!result) {
+            return yield* _(Effect.fail(new AIProviderError({
+              message: "NIP-90 job result not found",
+              provider: "NIP90"
+            })));
+          }
 
           return createAiResponse(result.content || "");
         }).pipe(
