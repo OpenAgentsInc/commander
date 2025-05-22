@@ -67,8 +67,6 @@ export type FullAppContext =
 // Runtime instance - will be initialized asynchronously
 let mainRuntimeInstance: Runtime.Runtime<FullAppContext>;
 
-// We're directly using the browser HTTP client layer
-
 // Compose individual services with their direct dependencies
 const telemetryLayer = TelemetryServiceLive.pipe(
   Layer.provide(DefaultTelemetryConfigLayer),
@@ -80,27 +78,49 @@ const devConfigLayer = DefaultDevConfigLayer.pipe(Layer.provide(configLayer));
 
 const nostrLayer = NostrServiceLive.pipe(
   Layer.provide(DefaultNostrServiceConfigLayer),
-  Layer.provide(telemetryLayer), // NostrService gets Telemetry
+  Layer.provide(telemetryLayer),
 );
+
 const ollamaLayer = OllamaServiceLive.pipe(
   Layer.provide(
     Layer.merge(UiOllamaConfigLive, BrowserHttpClient.layerXMLHttpRequest),
   ),
-  Layer.provide(telemetryLayer), // OllamaService might also use telemetry
+  Layer.provide(telemetryLayer),
 );
+
 const nip04Layer = NIP04ServiceLive;
 const nip28Layer = NIP28ServiceLive.pipe(
   Layer.provide(Layer.mergeAll(nostrLayer, nip04Layer, telemetryLayer)),
 );
+
 const sparkLayer = SparkServiceLive.pipe(
   Layer.provide(Layer.merge(DefaultSparkServiceConfigLayer, telemetryLayer)),
 );
+
 const nip90Layer = NIP90ServiceLive.pipe(
   Layer.provide(Layer.mergeAll(nostrLayer, nip04Layer, telemetryLayer)),
 );
 
-// Must be updated to use AgentLanguageModel instead of OllamaService
-// This layer setup depends on an AgentLanguageModel provider being available
+// AI service layers - Ollama provider
+const ollamaAdapterLayer = OllamaProvider.OllamaAsOpenAIClientLive.pipe(
+  Layer.provide(Layer.mergeAll(ollamaLayer, telemetryLayer)),
+);
+
+// Create a base layer with all common dependencies
+const baseLayer = Layer.mergeAll(
+  telemetryLayer,
+  devConfigLayer,
+  BrowserHttpClient.layerXMLHttpRequest,
+  ollamaLayer,
+  ollamaAdapterLayer,
+);
+
+// Create the language model layer with its dependencies
+const ollamaLanguageModelLayer = OllamaProvider.OllamaAgentLanguageModelLive.pipe(
+  Layer.provide(baseLayer),
+);
+
+// Create the DVM layer with its dependencies, including the language model
 const kind5050DVMLayer = Kind5050DVMServiceLive.pipe(
   Layer.provide(
     Layer.mergeAll(
@@ -109,62 +129,23 @@ const kind5050DVMLayer = Kind5050DVMServiceLive.pipe(
       sparkLayer,
       nip04Layer,
       telemetryLayer,
-      // Note: No longer depends directly on ollamaLayer
-      // Instead will use whichever AgentLanguageModel.Tag is provided
+      ollamaLanguageModelLayer, // Explicitly provide the language model layer
     ),
   ),
 );
 
-// AI service layers - OpenAI provider
-const openAIClientLayer = OpenAIProvider.OpenAIClientLive.pipe(
-  Layer.provide(
-    Layer.mergeAll(
-      devConfigLayer,
-      telemetryLayer,
-      BrowserHttpClient.layerXMLHttpRequest,
-    ),
-  ),
-);
-
-const openAILanguageModelLayer =
-  OpenAIProvider.OpenAIAgentLanguageModelLive.pipe(
-    Layer.provide(
-      Layer.mergeAll(openAIClientLayer, devConfigLayer, telemetryLayer),
-    ),
-  );
-
-// AI service layers - Ollama provider
-const ollamaAdapterLayer = OllamaProvider.OllamaAsOpenAIClientLive.pipe(
-  Layer.provide(telemetryLayer),
-);
-
-const ollamaLanguageModelLayer =
-  OllamaProvider.OllamaAgentLanguageModelLive.pipe(
-    Layer.provide(
-      Layer.mergeAll(ollamaAdapterLayer, devConfigLayer, telemetryLayer),
-    ),
-  );
-
-// Full application layer - compose services incrementally using mergeAll
+// Full application layer - compose services incrementally
 export const FullAppLayer = Layer.mergeAll(
-  telemetryLayer, // Provides TelemetryService
-  devConfigLayer, // Provides ConfigurationService with development defaults
-  nostrLayer, // Provides NostrService (its Telemetry dep is met)
+  baseLayer,
+  nostrLayer,
   nip04Layer,
   NIP19ServiceLive,
   BIP39ServiceLive,
   BIP32ServiceLive,
   nip28Layer,
-  ollamaLayer,
   sparkLayer,
   nip90Layer,
-  BrowserHttpClient.layerXMLHttpRequest, // Provides HttpClient
-
-  // Choose which AI provider to use (comment out one):
-  // openAILanguageModelLayer,  // Provides AgentLanguageModel through OpenAI
-  ollamaLanguageModelLayer, // Provides AgentLanguageModel through Ollama
-
-  // Update Kind5050DVMService (which now uses AgentLanguageModel) after setting up AI provider
+  ollamaLanguageModelLayer,
   kind5050DVMLayer,
 );
 

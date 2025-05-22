@@ -84,7 +84,7 @@ export default function HomePage() {
       data.activeHandPose !== prevHandDataRef.current.activeHandPose ||
       data.trackedHandsCount !== prevHandDataRef.current.trackedHandsCount ||
       JSON.stringify(data.pinchMidpoint) !==
-        JSON.stringify(prevHandDataRef.current.pinchMidpoint)
+      JSON.stringify(prevHandDataRef.current.pinchMidpoint)
     ) {
       prevHandDataRef.current = data;
       setHandData(data);
