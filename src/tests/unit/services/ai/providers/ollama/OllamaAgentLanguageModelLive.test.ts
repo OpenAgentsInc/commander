@@ -13,6 +13,9 @@ import * as HttpClientError from "@effect/platform/HttpClientError";
 import type {
   CreateChatCompletionRequest,
   CreateChatCompletionResponse,
+  ChatCompletionResponseMessage,
+  ChatCompletionMessageToolCalls,
+  CompletionUsage,
   CreateEmbeddingRequest,
   CreateEmbeddingResponse,
   ListModelsResponse
@@ -222,29 +225,42 @@ const mockHttpClient = {
 const MockHttpClient = Layer.succeed(HttpClient, mockHttpClient as HttpClient);
 
 // Mock the chat completions create to return test data
-mockCreateChatCompletion.mockImplementation(() =>
-  Effect.succeed({
+mockCreateChatCompletion.mockImplementation(() => {
+  const mockResponseData = {
     id: "test-id",
-    object: "chat.completion",
+    object: "chat.completion" as const,
     created: Date.now(),
     model: "gemma3:1b",
     choices: [
       {
         index: 0,
-        message: { role: "assistant", content: "Test response" },
-        finish_reason: "stop",
-        logprobs: null, // Required by the type
-      },
+        message: {
+          role: "assistant" as const,
+          content: "Test response",
+          refusal: null, // Required by ChatCompletionResponseMessage
+          tool_calls: undefined,
+          function_call: undefined,
+          audio: undefined
+        },
+        finish_reason: "stop" as const,
+        logprobs: null
+      }
     ],
     usage: {
       prompt_tokens: 10,
       completion_tokens: 5,
       total_tokens: 15,
+      completion_tokens_details: undefined,
+      prompt_tokens_details: undefined,
     },
-  } as typeof CreateChatCompletionResponse.Type),
-);
+    system_fingerprint: undefined,
+    service_tier: undefined,
+  };
+  // Explicitly cast to the library's response type
+  return Effect.succeed(mockResponseData as typeof CreateChatCompletionResponse.Type);
+});
 
-// Mock the stream to return a Stream of chunks
+// Mock the stream to return a Stream of chunks with proper format
 mockStream.mockImplementation(() =>
   Stream.fromIterable([
     {
@@ -293,25 +309,38 @@ describe("OllamaAgentLanguageModelLive", () => {
     // Mock successful response from Ollama
     mockCreateChatCompletion.mockImplementation((params) => {
       // Return an Effect for non-streaming requests
-      return Effect.succeed({
+      const mockResponseData = {
         id: "test-id",
-        object: "chat.completion",
+        object: "chat.completion" as const,
         created: Date.now(),
         model: params.model,
         choices: [
           {
             index: 0,
-            message: { role: "assistant", content: "Test response" },
-            finish_reason: "stop",
-            logprobs: null, // Required by the type
-          },
+            message: {
+              role: "assistant" as const,
+              content: "Test response",
+              refusal: null, // Required by ChatCompletionResponseMessage
+              tool_calls: undefined,
+              function_call: undefined,
+              audio: undefined
+            },
+            finish_reason: "stop" as const,
+            logprobs: null
+          }
         ],
         usage: {
           prompt_tokens: 10,
           completion_tokens: 5,
           total_tokens: 15,
+          completion_tokens_details: undefined,
+          prompt_tokens_details: undefined,
         },
-      } as typeof CreateChatCompletionResponse.Type);
+        system_fingerprint: undefined,
+        service_tier: undefined,
+      };
+      // Explicitly cast to the library's response type
+      return Effect.succeed(mockResponseData as typeof CreateChatCompletionResponse.Type);
     });
   });
 
