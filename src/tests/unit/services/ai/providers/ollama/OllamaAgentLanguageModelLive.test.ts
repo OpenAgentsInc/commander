@@ -18,7 +18,8 @@ import type {
   CompletionUsage,
   CreateEmbeddingRequest,
   CreateEmbeddingResponse,
-  ListModelsResponse
+  ListModelsResponse,
+  CreateCompletionRequest,
 } from "@effect/ai-openai/Generated";
 import type { AiResponse } from "@effect/ai/AiResponse";
 
@@ -324,7 +325,7 @@ mockCreateChatCompletion.mockImplementation((params: typeof CreateChatCompletion
 });
 
 // Mock the stream to return a Stream of chunks with proper format and error channel
-mockStream.mockImplementation((params: any) => {
+mockStream.mockImplementation((params: typeof CreateCompletionRequest.Encoded) => {
   // Create proper StreamChunk instances
   const chunks: StreamChunk[] = [
     new StreamChunk({ 
@@ -410,6 +411,12 @@ const MockConfigurationService = Layer.succeed(ConfigurationService, {
   }),
 });
 
+// Fix for Effect.runPromise TypeScript errors
+// This wraps the Effect in an unsafeRunPromise to avoid the 'never' type constraint issue
+const runTestEffect = <A, E>(effect: Effect.Effect<A, E, any>): Promise<A> => {
+  return Effect.unsafeRunPromise(effect as Effect.Effect<A, E, never>);
+};
+
 describe("OllamaAgentLanguageModelLive", () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -447,13 +454,11 @@ describe("OllamaAgentLanguageModelLive", () => {
         system_fingerprint: undefined,
         service_tier: undefined,
       };
-      // Create an Effect with the pipe method
-      const effect = Effect.succeed(mockResponseData as typeof CreateChatCompletionResponse.Type);
-      // Add pipe method to the effect
-      effect.pipe = function(...ops: any[]) {
-        return effect;
-      };
-      return effect;
+      // Create an Effect with explicit error channel
+      return Effect.succeed(mockResponseData as typeof CreateChatCompletionResponse.Type) as Effect.Effect<
+        typeof CreateChatCompletionResponse.Type,
+        HttpClientError.HttpClientError
+      >;
     });
   });
 
@@ -472,7 +477,7 @@ describe("OllamaAgentLanguageModelLive", () => {
       return true;
     });
 
-    const result = await Effect.runPromise(
+    const result = await runTestEffect(
       program.pipe(
         Effect.provide(
           OllamaAgentLanguageModelLive.pipe(
@@ -481,7 +486,7 @@ describe("OllamaAgentLanguageModelLive", () => {
                 MockOllamaOpenAIClient,
                 MockConfigurationService,
                 MockTelemetryService,
-                MockHttpClient,
+                MockHttpClient, // CRUCIAL: Provides HttpClient.HttpClient
               ),
             ),
           ),
@@ -506,7 +511,7 @@ describe("OllamaAgentLanguageModelLive", () => {
       return result;
     });
 
-    await Effect.runPromise(
+    await runTestEffect(
       program.pipe(
         Effect.provide(
           OllamaAgentLanguageModelLive.pipe(
@@ -515,7 +520,7 @@ describe("OllamaAgentLanguageModelLive", () => {
                 MockOllamaOpenAIClient,
                 MockConfigurationService,
                 MockTelemetryService,
-                MockHttpClient,
+                MockHttpClient, // CRUCIAL: Provides HttpClient.HttpClient
               ),
             ),
           ),
@@ -544,7 +549,7 @@ describe("OllamaAgentLanguageModelLive", () => {
       return result;
     });
 
-    await Effect.runPromise(
+    await runTestEffect(
       program.pipe(
         Effect.provide(
           OllamaAgentLanguageModelLive.pipe(
@@ -553,7 +558,7 @@ describe("OllamaAgentLanguageModelLive", () => {
                 MockOllamaOpenAIClient,
                 MockConfigurationService,
                 MockTelemetryService,
-                MockHttpClient,
+                MockHttpClient, // CRUCIAL: Provides HttpClient.HttpClient
               ),
             ),
           ),
@@ -582,7 +587,7 @@ describe("OllamaAgentLanguageModelLive", () => {
     mockCreateChatCompletion.mockImplementation(() => {
       const request = HttpClientRequest.post("test-model-error");
       const webResponse = new Response("Mocked Client Error", { status: 500 });
-      const effect = Effect.fail(
+      return Effect.fail(
         new HttpClientError.ResponseError({
           request,
           response: HttpClientResponse.fromWeb(request, webResponse),
@@ -593,41 +598,6 @@ describe("OllamaAgentLanguageModelLive", () => {
         typeof CreateChatCompletionResponse.Type,
         HttpClientError.HttpClientError
       >;
-      
-      // Add pipe method to the effect
-      effect.pipe = function(...ops: any[]) {
-        // This is an important change - for the error test, we need to handle 
-        // the mapError operation by returning a new failed Effect with AIProviderError
-        if (ops.length > 0 && ops[0].name === 'mapError') {
-          const mapErrorFn = ops[0];
-          const originalError = new HttpClientError.ResponseError({
-            request,
-            response: HttpClientResponse.fromWeb(request, webResponse),
-            reason: "StatusCode",
-            description: "Simulated client error for testing error mapping in SUT",
-          });
-          
-          // Create an AIProviderError to be returned
-          const mappedError = new AIProviderError({
-            message: `Ollama generateText error for model test-model: ${originalError.message}`,
-            cause: originalError,
-            provider: "Ollama",
-            context: {
-              model: "test-model",
-              params: { prompt: "Test prompt" },
-              originalErrorTag: "ResponseError"
-            },
-          });
-          
-          // Return a new Effect that fails with AIProviderError
-          return Effect.fail(mappedError);
-        }
-        
-        // For other operations, just return the original effect
-        return effect;
-      };
-      
-      return effect;
     });
 
     const program = Effect.gen(function* (_) {
@@ -640,7 +610,7 @@ describe("OllamaAgentLanguageModelLive", () => {
     });
 
     await expect(
-      Effect.runPromise(
+      runTestEffect(
         program.pipe(
           Effect.provide(
             OllamaAgentLanguageModelLive.pipe(
@@ -649,7 +619,7 @@ describe("OllamaAgentLanguageModelLive", () => {
                   MockOllamaOpenAIClient,
                   MockConfigurationService,
                   MockTelemetryService,
-                  MockHttpClient,
+                  MockHttpClient, // CRUCIAL: Provides HttpClient.HttpClient
                 ),
               ),
             ),
@@ -658,9 +628,4 @@ describe("OllamaAgentLanguageModelLive", () => {
       ),
     ).rejects.toBeInstanceOf(AIProviderError);
   });
-
-  // Additional tests would include:
-  // - Testing streamText method
-  // - Testing generateStructured method
-  // - Testing error handling for each method
 });
