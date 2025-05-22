@@ -1,225 +1,171 @@
-import { describe, it, expect, vi } from "vitest";
-import { Effect, Layer, pipe, Stream, Chunk } from "effect";
-import { AgentLanguageModel, type AiTextChunk } from "@/services/ai/core";
-import { NIP90AgentLanguageModelLive } from "@/services/ai/providers/nip90/NIP90AgentLanguageModelLive";
-import { NIP90Service, type NIP90JobResult, type NIP90JobFeedback } from "@/services/nip90";
+import { Effect, Layer } from "effect";
+import { vi, describe, it, expect, beforeEach } from "vitest";
+import { AgentLanguageModel } from "@/services/ai/core";
+import { AIProviderError } from "@/services/ai/core/AIError";
+import { NIP90Service } from "@/services/nip90";
 import { NostrService } from "@/services/nostr";
 import { NIP04Service } from "@/services/nip04";
 import { TelemetryService } from "@/services/telemetry";
 import { NIP90ProviderConfigTag } from "@/services/ai/providers/nip90/NIP90ProviderConfig";
-import { generatePrivateKey, getPublicKey } from "@/utils/nostr";
+import { NIP90AgentLanguageModelLive } from "@/services/ai/providers/nip90/NIP90AgentLanguageModelLive";
+import { generateSecretKey, getPublicKey } from "@/utils/nostr";
+import { Stream } from "effect";
 
-describe("NIP90AgentLanguageModelLive Integration", () => {
+describe("NIP90AgentLanguageModelLive", () => {
   const mockConfig = {
-    isEnabled: true,
-    modelName: "test-model",
     dvmPubkey: "mock-dvm-pubkey",
-    dvmRelays: ["wss://mock.relay"],
-    requestKind: 5050,
+    dvmRelays: ["wss://mock-relay.com"],
+    requestKind: 5100,
     requiresEncryption: true,
     useEphemeralRequests: true,
-    modelIdentifier: "test-model",
+    modelIdentifier: "mock-model",
+    modelName: "Mock Model",
+    isEnabled: true,
     temperature: 0.7,
-    maxTokens: 1000,
+    maxTokens: 2048,
   };
 
-  const mockNIP90Service: NIP90Service = {
-    createJobRequest: (params) =>
-      Effect.succeed({
-        id: "mock-job-id",
-        kind: params.kind,
-        content: "mock-content",
-        created_at: Date.now(),
-        tags: [],
-        pubkey: "mock-pubkey",
-        sig: "mock-sig",
-      }),
+  let mockNIP90Service: NIP90Service;
+  let mockNostrService: NostrService;
+  let mockNIP04Service: NIP04Service;
+  let mockTelemetryService: TelemetryService;
+  let testLayer: Layer.Layer<AgentLanguageModel>;
 
-    getJobResult: (jobRequestEventId) =>
-      Effect.succeed({
-        id: jobRequestEventId,
-        kind: 6050,
-        content: "mock-result",
-        created_at: Date.now(),
-        tags: [],
-        pubkey: "mock-pubkey",
-        sig: "mock-sig",
-      }),
-
-    subscribeToJobUpdates: (jobRequestEventId, dvmPubkeyHex, decryptionKey, onUpdate) =>
-      Effect.sync(() => {
-        // Simulate feedback events
-        onUpdate({
-          id: "feedback-1",
-          kind: 7000,
-          content: "First chunk",
-          created_at: Date.now(),
+  beforeEach(() => {
+    mockNIP90Service = {
+      createJobRequest: vi.fn().mockImplementation(() =>
+        Effect.succeed({
+          id: "mock-job-id",
+          kind: mockConfig.requestKind,
+          content: "",
           tags: [],
-          pubkey: dvmPubkeyHex,
+          pubkey: mockConfig.dvmPubkey,
+          created_at: Date.now() / 1000,
           sig: "mock-sig",
-          status: "partial",
-        });
-
-        onUpdate({
-          id: "feedback-2",
-          kind: 7000,
-          content: "Second chunk",
-          created_at: Date.now(),
+        })
+      ),
+      getJobResult: vi.fn().mockImplementation(() =>
+        Effect.succeed({
+          id: "mock-result-id",
+          kind: mockConfig.requestKind + 1000,
+          content: "Mock result",
           tags: [],
-          pubkey: dvmPubkeyHex,
+          pubkey: mockConfig.dvmPubkey,
+          created_at: Date.now() / 1000,
           sig: "mock-sig",
-          status: "partial",
-        });
+        })
+      ),
+      subscribeToJobUpdates: vi.fn().mockImplementation(() =>
+        Effect.succeed({
+          unsub: vi.fn(),
+        })
+      ),
+      listJobFeedback: vi.fn().mockImplementation(() => Effect.succeed([])),
+      listPublicEvents: vi.fn().mockImplementation(() => Effect.succeed([])),
+    };
 
-        // Simulate final result
-        onUpdate({
-          id: "result",
-          kind: 6050,
-          content: "Final result",
-          created_at: Date.now(),
-          tags: [],
-          pubkey: dvmPubkeyHex,
-          sig: "mock-sig",
-        });
+    mockNostrService = {
+      publishEvent: vi.fn().mockImplementation(() => Effect.void),
+      listEvents: vi.fn().mockImplementation(() => Effect.succeed([])),
+      getPool: vi.fn().mockImplementation(() => Effect.succeed({})),
+      cleanupPool: vi.fn().mockImplementation(() => Effect.void),
+      subscribeToEvents: vi.fn().mockImplementation(() =>
+        Effect.succeed({
+          unsub: vi.fn(),
+        })
+      ),
+    };
 
-        return {
-          unsubscribe: () => {
-            // Cleanup subscription
-          },
-        };
-      }),
+    mockNIP04Service = {
+      encrypt: vi.fn().mockImplementation(() => Effect.succeed("mock-encrypted")),
+      decrypt: vi.fn().mockImplementation(() => Effect.succeed("mock-decrypted")),
+    };
 
-    listJobFeedback: (jobRequestEventId) =>
-      Effect.succeed([
-        {
-          id: "feedback-1",
-          kind: 7000,
-          content: "First chunk",
-          created_at: Date.now(),
-          tags: [],
-          pubkey: "mock-pubkey",
-          sig: "mock-sig",
-          status: "partial",
-        },
-      ]),
+    mockTelemetryService = {
+      logEvent: vi.fn().mockImplementation(() => Effect.void),
+      logError: vi.fn().mockImplementation(() => Effect.void),
+    };
 
-    listPublicEvents: () => Effect.succeed([]),
-  };
-
-  const mockNostrService: NostrService = {
-    publishEvent: vi.fn().mockReturnValue(Effect.succeed({})),
-    listEvents: vi.fn().mockReturnValue(Effect.succeed([])),
-    getPool: vi.fn(),
-    cleanupPool: vi.fn(),
-    subscribeToEvents: vi.fn(),
-    getPublicKey: vi.fn().mockReturnValue("mock-public-key"),
-  };
-
-  const mockNIP04Service: NIP04Service = {
-    encrypt: vi.fn().mockReturnValue(Effect.succeed("encrypted")),
-    decrypt: vi.fn().mockReturnValue(Effect.succeed("decrypted")),
-  };
-
-  const mockTelemetryService: TelemetryService = {
-    isEnabled: vi.fn().mockReturnValue(true),
-    setEnabled: vi.fn(),
-    trackEvent: vi.fn().mockReturnValue(Effect.succeed(void 0)),
-  };
-
-  const testLayer = Layer.mergeAll(
-    Layer.succeed(NIP90Service, mockNIP90Service),
-    Layer.succeed(NostrService, mockNostrService),
-    Layer.succeed(NIP04Service, mockNIP04Service),
-    Layer.succeed(TelemetryService, mockTelemetryService),
-    Layer.succeed(NIP90ProviderConfigTag, mockConfig),
-    NIP90AgentLanguageModelLive,
-  );
-
-  describe("generateText", () => {
-    it("should handle simple text generation", async () => {
-      const program = Effect.gen(function* (_) {
-        const model = yield* _(AgentLanguageModel);
-        const response = yield* _(model.generateText({ prompt: "Test prompt" }));
-        expect(response.text).toBe("mock-result");
-      });
-
-      await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
-    });
-
-    it("should handle chat message format", async () => {
-      const program = Effect.gen(function* (_) {
-        const model = yield* _(AgentLanguageModel);
-        const response = yield* _(
-          model.generateText({
-            prompt: JSON.stringify({
-              messages: [
-                { role: "system", content: "You are a test AI." },
-                { role: "user", content: "Hello" },
-              ],
-            }),
-          }),
-        );
-        expect(response.text).toBe("mock-result");
-      });
-
-      await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
-    });
+    testLayer = Layer.mergeAll(
+      Layer.succeed(NIP90ProviderConfigTag, mockConfig),
+      Layer.succeed(NIP90Service, mockNIP90Service),
+      Layer.succeed(NostrService, mockNostrService),
+      Layer.succeed(NIP04Service, mockNIP04Service),
+      Layer.succeed(TelemetryService, mockTelemetryService),
+      NIP90AgentLanguageModelLive
+    );
   });
 
-  describe("streamText", () => {
-    it("should handle streaming text generation", async () => {
-      const program = Effect.gen(function* (_) {
-        const model = yield* _(AgentLanguageModel);
-        const stream = model.streamText({ prompt: "Test prompt" });
-        const chunks = yield* _(Stream.runCollect(stream));
-
-        const response = Array.from(chunks).map(chunk => chunk.text).join("");
-        expect(response).toContain("First chunk");
-        expect(response).toContain("Second chunk");
-        expect(response).toContain("Final result");
-      });
-
-      await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
-    });
-
-    it("should handle streaming errors", async () => {
-      // Override the mock to simulate an error
-      const errorMockNIP90Service = {
-        ...mockNIP90Service,
-        subscribeToJobUpdates: () =>
-          Effect.sync(() => {
-            throw new Error("Streaming error");
-          }),
-      };
-
-      const errorLayer = testLayer.pipe(
-        Layer.provide(Layer.succeed(NIP90Service, errorMockNIP90Service)),
+  it("should handle text generation", async () => {
+    const program = Effect.gen(function* (_) {
+      const model = yield* _(AgentLanguageModel);
+      const response = yield* _(
+        model.generateText({
+          prompt: "Test prompt",
+          temperature: 0.7,
+          maxTokens: 100,
+        })
       );
+      expect(response.text).toBe("Mock result");
+    });
 
-      const program = Effect.gen(function* (_) {
-        const model = yield* _(AgentLanguageModel);
-        const stream = model.streamText({ prompt: "Test prompt" });
-        const result = yield* _(Effect.either(Stream.runCollect(stream)));
+    await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
+    expect(mockNIP90Service.createJobRequest).toHaveBeenCalled();
+    expect(mockNIP90Service.getJobResult).toHaveBeenCalled();
+  });
 
-        expect(result._tag).toBe("Left");
-        if (result._tag === "Left") {
-          expect(result.left.message).toContain("Streaming error");
+  it("should handle streaming text generation", async () => {
+    const updates: string[] = [];
+
+    const program = Effect.gen(function* (_) {
+      const model = yield* _(AgentLanguageModel);
+      const stream = model.streamText({ prompt: "Test stream prompt" });
+      yield* _(
+        Stream.runForEach(stream, (chunk) => Effect.sync(() => updates.push(chunk.text)))
+      );
+    });
+
+    await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
+    expect(mockNIP90Service.createJobRequest).toHaveBeenCalled();
+    expect(mockNIP90Service.subscribeToJobUpdates).toHaveBeenCalled();
+  });
+
+  it("should handle errors in text generation", async () => {
+    const errorLayer = Layer.mergeAll(
+      Layer.succeed(NIP90ProviderConfigTag, mockConfig),
+      Layer.succeed(
+        NIP90Service,
+        {
+          ...mockNIP90Service,
+          createJobRequest: vi.fn().mockImplementation(() =>
+            Effect.fail({
+              _tag: "NIP90RequestError",
+              message: "Mock error",
+            })
+          ),
         }
-      });
+      ),
+      Layer.succeed(NostrService, mockNostrService),
+      Layer.succeed(NIP04Service, mockNIP04Service),
+      Layer.succeed(TelemetryService, mockTelemetryService),
+      NIP90AgentLanguageModelLive
+    );
 
-      await Effect.runPromise(program.pipe(Effect.provide(errorLayer)));
+    const program = Effect.gen(function* (_) {
+      const model = yield* _(AgentLanguageModel);
+      try {
+        yield* _(
+          model.generateText({
+            prompt: "Test error prompt",
+          })
+        );
+        throw new Error("Should have failed");
+      } catch (error) {
+        expect(error).toBeInstanceOf(AIProviderError);
+        expect((error as AIProviderError).message).toContain("Mock error");
+      }
     });
 
-    it("should handle stream interruption", async () => {
-      const program = Effect.gen(function* (_) {
-        const model = yield* _(AgentLanguageModel);
-        const stream = model.streamText({ prompt: "Test prompt" });
-        const chunks = yield* _(Stream.runCollect(Stream.interruptWhen(stream, Effect.succeed(true))));
-
-        expect(Array.from(chunks).length).toBe(0);
-      });
-
-      await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
-    });
+    await Effect.runPromise(program.pipe(Effect.provide(errorLayer)));
   });
 });

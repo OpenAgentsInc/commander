@@ -1,20 +1,9 @@
-import { Schema } from "@effect/schema";
+import { Schema } from "effect";
 import { Context } from "effect";
-import { BaseProviderConfigSchema } from "@/services/ai/core/ProviderConfig";
+import { BaseProviderConfigSchema, NIP90ProviderConfig as CoreNIP90ProviderConfig } from "@/services/ai/core/ProviderConfig";
 
-export const NIP90ProviderConfigSchema = Schema.struct({
-  ...BaseProviderConfigSchema.fields,
-  dvmPubkey: Schema.string,
-  dvmRelays: Schema.array(Schema.string),
-  requestKind: Schema.number,
-  requiresEncryption: Schema.boolean,
-  useEphemeralRequests: Schema.boolean,
-  modelIdentifier: Schema.optional(Schema.string),
-  temperature: Schema.optional(Schema.number),
-  maxTokens: Schema.optional(Schema.number),
-});
-
-export type NIP90ProviderConfig = Schema.Schema.Type<typeof NIP90ProviderConfigSchema>;
+// Re-export the core NIP90ProviderConfig type
+export type NIP90ProviderConfig = CoreNIP90ProviderConfig;
 
 /**
  * Context Tag for NIP90ProviderConfig

@@ -1,4 +1,4 @@
-import { Schema } from "@effect/schema";
+import { Schema } from "effect";
 import { Context, Layer } from "effect";
 
 export const NostrServiceConfigSchema = Schema.struct({

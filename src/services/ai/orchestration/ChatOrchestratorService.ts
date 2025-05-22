@@ -77,38 +77,31 @@ export const createAiModelLayer = (
         const nip90Config: NIP90ProviderConfig = {
           dvmPubkey,
           dvmRelays,
-          requestKind: 5050, // Default kind for text generation
+          requestKind: 5050, // Default to Text Generation
           requiresEncryption: true,
           useEphemeralRequests: true,
           modelIdentifier: modelName,
           modelName: modelName,
+          isEnabled: devstralEnabledStr === "true",
           temperature: 0.7,
           maxTokens: 2048,
         };
 
-        // Create the NIP90ProviderConfigLayer
+        // Create the NIP90ProviderConfig layer
         const nip90ConfigLayer = Layer.succeed(NIP90ProviderConfigTag, nip90Config);
 
-        // The NIP90AgentLanguageModelLive layer needs NIP90Service, NostrService, etc.
-        clientContext = Layer.mergeAll(
-          nip90ConfigLayer,
-          NIP90ServiceLive,
-          NostrServiceLive,
-          NIP04ServiceLive,
-        ).pipe(
-          Layer.provide(Layer.succeed(TelemetryService, telemetry)),
-          Layer.provide(Layer.succeed(ConfigurationService, configService)),
+        // Create the AgentLanguageModel layer
+        const agentLMLayer = Layer.provide(
+          NIP90AgentLanguageModelLive,
+          Layer.mergeAll(
+            nip90ConfigLayer,
+            NostrServiceLive,
+            NIP04ServiceLive,
+            TelemetryServiceLive
+          )
         );
 
-        // Get the NIP90AgentLanguageModelLive layer
-        const { NIP90AgentLanguageModelLive } = yield* _(
-          Effect.promise(() =>
-            import("@/services/ai/providers/nip90/NIP90AgentLanguageModelLive"),
-          ),
-        );
-
-        specificAiModelEffect = NIP90AgentLanguageModelLive;
-        break;
+        return agentLMLayer;
       }
 
       // Add other provider cases here

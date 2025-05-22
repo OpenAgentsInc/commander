@@ -1,12 +1,14 @@
-import { generatePrivateKey, getPublicKey as getNostrPublicKey } from "nostr-tools/pure";
+import { generateSecretKey, getPublicKey as getNostrPublicKey } from "nostr-tools/pure";
+import { hexToBytes } from "@noble/hashes/utils";
 
-export function generateSecretKey(): Uint8Array {
-  const privateKeyHex = generatePrivateKey();
-  return hexToBytes(privateKeyHex);
+export function generatePrivateKey(): Uint8Array {
+  return generateSecretKey();
 }
 
-export function getPublicKey(privateKey: Uint8Array): string {
-  const privateKeyHex = bytesToHex(privateKey);
+export function getPublicKey(privateKeyHex: string | Uint8Array): string {
+  if (typeof privateKeyHex === "string") {
+    return getNostrPublicKey(hexToBytes(privateKeyHex));
+  }
   return getNostrPublicKey(privateKeyHex);
 }
 

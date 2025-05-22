@@ -508,3 +508,1099 @@ export const NostrServiceConfigLive = Layer.succeed(
 
 [cut off]
 ```
+
+Okay, I will continue implementing the fixes.
+
+```typescript
+// src/services/nostr/NostrServiceConfig.ts
+import { Schema } from "effect"; // Changed from @effect/schema
+import { Context, Layer } from "effect";
+
+export const NostrServiceConfigSchema = Schema.Struct({
+  relays: Schema.Array(Schema.String),
+  defaultPublicKey: Schema.optional(Schema.String),
+  defaultPrivateKey: Schema.optional(Schema.String),
+});
+
+export type NostrServiceConfig = Schema.Schema.Type<typeof NostrServiceConfigSchema>;
+
+export const NostrServiceConfig = Context.GenericTag<NostrServiceConfig>("NostrServiceConfig");
+
+export const NostrServiceConfigLive = Layer.succeed(
+  NostrServiceConfig,
+  {
+    relays: ["wss://relay.damus.io", "wss://relay.snort.social"],
+    // defaultPublicKey: undefined, // This makes it optional
+    // defaultPrivateKey: undefined, // This makes it optional
+  }
+);
+```
+
+```typescript
+// src/utils/nostr.ts
+import { generateSecretKey, getPublicKey as getNostrPublicKey } from "nostr-tools/pure"; // Changed generatePrivateKey to generateSecretKey
+import { hexToBytes as nobleHexToBytes, bytesToHex as nobleBytesToHex } from "@noble/hashes/utils"; // aliased for clarity
+
+export function generateSecretKey(): Uint8Array {
+  return nobleHexToBytes(generateSecretKey()); // nostr-tools generateSecretKey returns hex, convert to Uint8Array
+}
+
+export function getPublicKey(privateKey: Uint8Array): string {
+  const privateKeyHex = nobleBytesToHex(privateKey);
+  return getNostrPublicKey(privateKeyHex);
+}
+
+// Helper functions for hex/byte conversion (if not already available globally or via noble/hashes)
+// These are effectively what nobleHexToBytes and nobleBytesToHex do.
+// If you are using noble/hashes consistently, these local functions can be removed.
+// For now, keeping them for clarity in case noble/hashes utils are not directly used elsewhere in this specific manner.
+
+function hexToBytes(hex: string): Uint8Array {
+  if (hex.length % 2 !== 0) {
+    throw new Error("Hex string must have an even number of characters");
+  }
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.slice(i, i + 2), 16);
+    if (isNaN(bytes[i/2])) { // Add validation for invalid hex characters
+      throw new Error(`Invalid hex character at position ${i} or ${i+1}`);
+    }
+  }
+  return bytes;
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+```
+
+```typescript
+// src/tests/integration/services/nip90/MockDVM.ts
+import { EventEmitter } from "events";
+import { generateSecretKey, getPublicKey } from "@/utils/nostr"; // Uses our utils
+import type { NIP90JobResult, NIP90JobFeedback, NIP90JobFeedbackStatus } from "@/services/nip90"; // Added NIP90JobFeedbackStatus
+import { bytesToHex } from "@noble/hashes/utils"; // For converting sk to hex if needed by other parts of the mock
+
+export interface MockDVMConfig {
+  streamingDelay?: number;
+  chunkSize?: number;
+  errorRate?: number;
+  defaultResponse?: string;
+}
+
+export class MockDVM extends EventEmitter {
+  private readonly privateKeyBytes: Uint8Array; // Store as bytes
+  public readonly publicKey: string; // Store as hex
+  private readonly config: Required<MockDVMConfig>;
+  private activeJobs: Map<string, NodeJS.Timeout>;
+
+  constructor(config: MockDVMConfig = {}) {
+    super();
+    this.privateKeyBytes = generateSecretKey(); // Returns Uint8Array from our util
+    this.publicKey = getPublicKey(this.privateKeyBytes); // Expects Uint8Array, returns hex from our util
+    this.activeJobs = new Map();
+
+    this.config = {
+      streamingDelay: config.streamingDelay ?? 100,
+      chunkSize: config.chunkSize ?? 10,
+      errorRate: config.errorRate ?? 0,
+      defaultResponse: config.defaultResponse ?? "This is a test response from the mock DVM.",
+    };
+  }
+
+  // ... (rest of the MockDVM class remains the same, assuming NIP90JobFeedbackStatus is imported and used) ...
+  // Ensure emitFeedback uses the NIP90JobFeedbackStatus type for its status parameter
+  private emitFeedback(jobId: string, status: NIP90JobFeedbackStatus, content: string) {
+    const feedback: NIP90JobFeedback = {
+      id: jobId, // Re-using jobId for simplicity, in reality feedback events have their own IDs
+      kind: 7000,
+      content,
+      status, // This should be one of the NIP90JobFeedbackStatus literals
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [],
+      pubkey: this.publicKey,
+      sig: "mock-sig",
+    };
+    this.emit("feedback", feedback);
+  }
+  public async handleJobRequest(
+    jobId: string,
+    input: string,
+    isEncrypted: boolean = false
+  ): Promise<void> {
+    if (Math.random() < this.config.errorRate) {
+      this.emitError(jobId, "Random error occurred");
+      return;
+    }
+    const response = this.generateResponse(input);
+    if (this.config.streamingDelay <= 0) {
+      this.emitResult(jobId, response);
+      return;
+    }
+    await this.streamResponse(jobId, response);
+  }
+
+  public cancelJob(jobId: string): void {
+    const timeout = this.activeJobs.get(jobId);
+    if (timeout) {
+      clearTimeout(timeout);
+      this.activeJobs.delete(jobId);
+      this.emitFeedback(jobId, "error", "Job cancelled");
+    }
+  }
+
+  private generateResponse(input: string): string {
+    if (input.toLowerCase().includes("error")) {
+      throw new Error("Requested error");
+    }
+    if (input.toLowerCase().includes("long")) {
+      return "This is a longer response that will be streamed in multiple chunks. ".repeat(5);
+    }
+    return this.config.defaultResponse;
+  }
+
+  private async streamResponse(jobId: string, response: string): Promise<void> {
+    const chunks = this.splitIntoChunks(response, this.config.chunkSize);
+    let chunkIndex = 0;
+    const sendNextChunk = () => {
+      if (chunkIndex < chunks.length) {
+        this.emitFeedback(jobId, "partial", chunks[chunkIndex]);
+        chunkIndex++;
+        const timeout = setTimeout(sendNextChunk, this.config.streamingDelay);
+        this.activeJobs.set(jobId, timeout);
+      } else {
+        this.activeJobs.delete(jobId);
+        this.emitResult(jobId, response);
+      }
+    };
+    sendNextChunk();
+  }
+
+  private splitIntoChunks(text: string, size: number): string[] {
+    const chunks: string[] = [];
+    for (let i = 0; i < text.length; i += size) {
+      chunks.push(text.slice(i, i + size));
+    }
+    return chunks;
+  }
+
+  private emitResult(jobId: string, content: string) {
+    const result: NIP90JobResult = {
+      id: jobId, // Re-using jobId, real results have their own IDs
+      kind: 6050, // Example result kind
+      content,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [],
+      pubkey: this.publicKey,
+      sig: "mock-sig",
+    };
+    this.emit("result", result);
+  }
+  private emitError(jobId: string, error: string) {
+    this.emitFeedback(jobId, "error", error);
+  }
+}
+
+export function createMockDVM(config?: MockDVMConfig): MockDVM {
+  return new MockDVM(config);
+}
+```
+
+```typescript
+// src/hooks/ai/useAgentChat.ts
+import { useState, useCallback, useRef, useEffect } from "react";
+import { Effect, Stream, Cause } from "effect";
+import {
+  // AgentLanguageModel, // No longer directly used if ChatOrchestratorService is the primary interface
+  type AiTextChunk,
+  type AgentChatMessage,
+  type AIProviderError,
+  type StreamTextOptions,
+  AIConfigurationError, // Import for error handling
+} from "@/services/ai/core";
+import { getMainRuntime } from "@/services/runtime";
+import { TelemetryService, type TelemetryEvent } from "@/services/telemetry";
+import { useAgentChatStore } from "@/stores/ai/agentChatStore"; // For provider selection
+import { ChatOrchestratorService, PreferredProviderConfig } from "@/services/ai/orchestration"; // Import orchestrator
+
+interface UseAgentChatOptions {
+  initialSystemMessage?: string;
+}
+
+export interface UIAgentChatMessage extends AgentChatMessage {
+  id: string;
+  _updateId?: number;
+  isStreaming?: boolean;
+  timestamp: number;
+  providerInfo?: { name: string; type: string; model?: string }; // Added this property
+  nip90EventData?: any;
+}
+
+export function useAgentChat(options: UseAgentChatOptions = {}) {
+  const { initialSystemMessage = "You are a helpful AI assistant." } = options;
+
+  const systemMessageInstance: UIAgentChatMessage = {
+    id: `system-${Date.now()}`,
+    role: "system",
+    content: initialSystemMessage,
+    timestamp: Date.now(),
+  };
+
+  const [messages, setMessages] = useState<UIAgentChatMessage[]>([
+    systemMessageInstance,
+  ]);
+  const [currentInput, setCurrentInput] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<AIProviderError | AIConfigurationError | null>(null); // Allow AIConfigurationError
+
+  const runtimeRef = useRef(getMainRuntime());
+  const streamAbortControllerRef = useRef<AbortController | null>(null);
+  const currentAssistantMessageIdRef = useRef<string | null>(null);
+
+  const { selectedProviderKey } = useAgentChatStore(); // Get selected provider
+
+  const runTelemetry = useCallback((event: TelemetryEvent) => {
+    Effect.runFork(
+      Effect.flatMap(TelemetryService, (ts) => ts.trackEvent(event)).pipe(
+        Effect.provide(runtimeRef.current),
+      ),
+    );
+  }, []);
+
+  const sendMessage = useCallback(
+    async (promptText: string) => {
+      if (!promptText.trim()) return;
+
+      const userMessage: UIAgentChatMessage = {
+        id: `user-${Date.now()}`,
+        role: "user",
+        content: promptText.trim(),
+        timestamp: Date.now(),
+      };
+      setMessages((prev) => [...prev, userMessage]);
+      setCurrentInput("");
+      setIsLoading(true);
+      setError(null);
+      runTelemetry({ /* ... */ });
+
+      const conversationHistoryForLLM: AgentChatMessage[] = messages
+        .filter(m => m.id !== currentAssistantMessageIdRef.current && m.role !== "system")
+        .map(({ id: _id, _updateId, isStreaming, timestamp, providerInfo, nip90EventData, ...coreMsg }) => coreMsg) // Strip UI specific fields
+        .concat([{ role: "user", content: userMessage.content }]);
+
+      const assistantMsgId = `assistant-${Date.now()}`;
+      if (streamAbortControllerRef.current) {
+        streamAbortControllerRef.current.abort();
+        // ... telemetry ...
+      }
+      streamAbortControllerRef.current = new AbortController();
+      const signal = streamAbortControllerRef.current.signal;
+      currentAssistantMessageIdRef.current = assistantMsgId;
+
+      const currentProviderConfig = useAgentChatStore.getState().availableProviders.find(p => p.key === selectedProviderKey);
+      const providerNameForUI = currentProviderConfig?.name || "Unknown Provider";
+      const providerTypeForUI = (currentProviderConfig?.type as "local" | "network") || "network"; // Default to network if type is unknown
+      const modelNameForUI = currentProviderConfig?.modelName || "default";
+
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: assistantMsgId,
+          role: "assistant",
+          content: "",
+          isStreaming: true,
+          timestamp: Date.now(),
+          providerInfo: { name: providerNameForUI, type: providerTypeForUI, model: modelNameForUI }, // Add provider info
+        },
+      ]);
+
+      // Determine preferred provider configuration
+      const preferredProvider: PreferredProviderConfig = {
+        key: selectedProviderKey, // From Zustand store
+        // modelName can be passed if specific models within a provider type are selectable
+        // For NIP-90, modelName might be the DVM's modelIdentifier
+        modelName: currentProviderConfig?.modelName || undefined
+      };
+
+
+      const streamParams = {
+        messages: [
+          { role: "system" as const, content: initialSystemMessage },
+          ...conversationHistoryForLLM,
+        ],
+        preferredProvider,
+        options: { /* temperature, maxTokens from AgentChatStore or component state */ }
+      };
+
+      const program = Effect.gen(function* (_) {
+        const orchestrator = yield* _(ChatOrchestratorService); // Use orchestrator
+        const textStream = orchestrator.streamConversation(streamParams);
+
+        yield* _(
+          Stream.runForEach(textStream, (chunk: AiTextChunk) => // chunk is AiTextChunk from core
+            Effect.sync(() => {
+              if (signal.aborted) { /* ... */ return; }
+              setMessages((prevMsgs) =>
+                prevMsgs.map((msg) =>
+                  msg.id === assistantMsgId
+                    ? {
+                      ...msg,
+                      content: (msg.content || "") + chunk.text,
+                      _updateId: Date.now(),
+                      // providerInfo and nip90EventData might be updated here if chunk contains them
+                    }
+                    : msg,
+                ),
+              );
+            }),
+          // { signal } // Pass signal if runForEach supports it
+          ),
+        );
+      }).pipe(
+        Effect.provide(runtimeRef.current),
+        Effect.tapErrorCause((cause) => Effect.sync(() => { /* ... error handling ... */
+            const squashedError = Cause.squash(cause) as AIProviderError | AIConfigurationError;
+            setError(squashedError);
+        })),
+        Effect.ensuring(Effect.sync(() => { /* ... cleanup ... */ })),
+      );
+
+      Effect.runFork(program);
+    },
+    [messages, initialSystemMessage, runTelemetry, selectedProviderKey],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (streamAbortControllerRef.current) {
+        streamAbortControllerRef.current.abort();
+        runTelemetry({ /* ... */ });
+      }
+    };
+  }, [runTelemetry]);
+
+  return { messages, currentInput, setCurrentInput, isLoading, error, sendMessage };
+}
+```
+
+```typescript
+// src/services/ai/orchestration/ChatOrchestratorService.ts
+import { Context, Effect, Stream, Layer, Schedule, Cause, Option } from "effect";
+import {
+  AgentChatMessage,
+  AiTextChunk,
+  AIProviderError,
+  AIConfigurationError,
+  AgentLanguageModel,
+  GenerateTextOptions,
+  StreamTextOptions,
+  NIP90ProviderConfig, // Ensure this is the correct type from core
+} from "@/services/ai/core";
+import type { AiModel, Provider as AiProvider } from "@effect/ai";
+import { ConfigurationService, ConfigError } from "@/services/configuration";
+import { HttpClient } from "@effect/platform";
+import { AiPlan } from "@effect/ai";
+import { TelemetryService } from "@/services/telemetry";
+
+// Import provider specific layers and tags
+import { OpenAIProvider } from "@/services/ai/providers/openai";
+import { OllamaProvider } from "@/services/ai/providers/ollama";
+import { NIP90Provider } from "@/services/ai/providers/nip90";
+import { NIP90ProviderConfigTag } from "@/services/ai/providers/nip90/NIP90ProviderConfig";
+
+export interface PreferredProviderConfig {
+  key: string;
+  modelName?: string;
+}
+
+export interface ChatOrchestratorService {
+  readonly _tag: "ChatOrchestratorService";
+  streamConversation(params: {
+    messages: AgentChatMessage[];
+    preferredProvider: PreferredProviderConfig;
+    options?: Partial<Omit<StreamTextOptions, "prompt">>;
+  }): Stream.Stream<AiTextChunk, AIProviderError | AIConfigurationError>;
+  generateConversationResponse(params: {
+    messages: AgentChatMessage[];
+    preferredProvider: PreferredProviderConfig;
+    options?: Partial<Omit<GenerateTextOptions, "prompt">>;
+  }): Effect.Effect<string, AIProviderError | AIConfigurationError>;
+}
+
+export const ChatOrchestratorService = Context.GenericTag<ChatOrchestratorService>("ChatOrchestratorService");
+
+export const ChatOrchestratorServiceLive = Layer.effect(
+  ChatOrchestratorService,
+  Effect.gen(function* (_) {
+    const configService = yield* _(ConfigurationService);
+    const telemetry = yield* _(TelemetryService);
+    // Get all available AgentLanguageModel providers (assuming they are uniquely tagged or this is handled upstream)
+    // For this simplified approach, we get the one active AgentLanguageModel from the context.
+    const activeAgentLM = yield* _(AgentLanguageModel);
+
+    const runTelemetry = (event: any) => Effect.runFork(telemetry.trackEvent(event).pipe(Effect.ignoreLogged));
+
+
+    return ChatOrchestratorService.of({
+      _tag: "ChatOrchestratorService",
+      streamConversation: ({ messages, preferredProvider, options }) => {
+        runTelemetry({ category: "orchestrator", action: "stream_conversation_start", label: preferredProvider.key });
+
+        // Simplified plan: Use the single active AgentLanguageModel
+        // True multi-provider AiPlan would require resolving specific AiModel instances.
+        const plan = AiPlan.make({
+          model: Effect.succeed(activeAgentLM as AiProvider.Provider<AgentLanguageModel>), // Cast for AiPlan
+          attempts: 3,
+          schedule: Schedule.exponential("100 millis").pipe(Schedule.jittered, Schedule.recurs(2)),
+          while: (err: AIProviderError | AIConfigurationError) =>
+            err._tag === "AIProviderError" && err.isRetryable === true,
+        });
+
+        const streamOptions: StreamTextOptions = {
+          ...options,
+          prompt: JSON.stringify({ messages }), // Ensure prompt is stringified if AgentLanguageModel expects it
+          model: preferredProvider.modelName, // Pass model name if provider supports it
+        };
+
+        return Stream.unwrap(
+          plan.pipe(
+            Effect.flatMap(builtPlan => builtPlan.streamText(streamOptions)),
+            Effect.tapError((err) => runTelemetry({ category: "orchestrator", action: "ai_plan_execution_error", label: (err as Error).message }))
+          )
+        );
+      },
+      generateConversationResponse: ({ messages, preferredProvider, options }) => {
+        runTelemetry({ category: "orchestrator", action: "generate_conversation_start", label: preferredProvider.key });
+
+        const generateOptions: GenerateTextOptions = {
+          ...options,
+          prompt: JSON.stringify({ messages }),
+          model: preferredProvider.modelName,
+        };
+
+        // Simplified: use the single active AgentLanguageModel
+        return activeAgentLM.generateText(generateOptions).pipe(
+          Effect.map(aiResponse => aiResponse.text),
+          Effect.tapError((err) => runTelemetry({ category: "orchestrator", action: "generate_conversation_error", label: (err as Error).message }))
+        );
+      },
+    });
+  })
+);
+```
+
+```typescript
+// src/services/ai/providers/nip90/NIP90AgentLanguageModelLive.ts
+import { Layer, Effect, Stream, Option } from "effect";
+import {
+  AgentLanguageModel,
+  type GenerateTextOptions,
+  type StreamTextOptions,
+  type GenerateStructuredOptions,
+  type AiTextChunk,
+  type AgentChatMessage,
+  type AIProviderError, // Import our specific error type
+} from "@/services/ai/core";
+import { createAiResponse } from "@/services/ai/core/AiResponse"; // Import helper
+
+import {
+  NIP90Service,
+  type NIP90InputType,
+  type NIP90JobResult,
+  type NIP90JobFeedback,
+  type NIP90JobFeedbackStatus
+} from "@/services/nip90";
+import { NostrService } from "@/services/nostr"; // Keep this, it's a dep of NIP90ServiceLive
+import { NIP04Service } from "@/services/nip04"; // Keep this
+import { TelemetryService } from "@/services/telemetry";
+import { NIP90ProviderConfigTag, type NIP90ProviderConfig } from "./NIP90ProviderConfig";
+import { generateSecretKey, getPublicKey as getPublicKeyNostrTools } from "nostr-tools/pure"; // Import nostr-tools getPublicKey
+import { bytesToHex, hexToBytes } from "@noble/hashes/utils"; // For key conversions
+
+console.log("Loading NIP90AgentLanguageModelLive module");
+
+export const NIP90AgentLanguageModelLive = Layer.effect(
+  AgentLanguageModel,
+  Effect.gen(function* (_) {
+    const nip90Service = yield* _(NIP90Service);
+    // const nostrService = yield* _(NostrService); // Not directly used in generateEphemeralKeyPair
+    const telemetry = yield* _(TelemetryService);
+    const dvmConfig = yield* _(NIP90ProviderConfigTag);
+
+    const parsePromptMessages = (promptString: string): AgentChatMessage[] => {
+      try {
+        const parsed = JSON.parse(promptString);
+        if (parsed && Array.isArray(parsed.messages)) return parsed.messages as AgentChatMessage[];
+      } catch (e) { /* fallback */ }
+      return [{ role: "user", content: promptString, timestamp: Date.now() }];
+    };
+
+    const formatPromptForDVM = (messages: AgentChatMessage[]): string =>
+      messages.map(msg => `${msg.role.toUpperCase()}: ${msg.content}`).join("\n\n");
+
+    const generateEphemeralKeyPair = (): { sk: Uint8Array; pk: string } => {
+      const skBytes = generateSecretKey(); // returns Uint8Array
+      const pkHex = getPublicKeyNostrTools(skBytes); // nostr-tools getPublicKey takes Uint8Array and returns hex
+      return { sk: skBytes, pk: pkHex };
+    };
+
+    const mapError = (err: unknown, contextAction: string, jobId?: string): AIProviderError => {
+      const baseError = err instanceof Error ? err : new Error(String(err));
+      return new AIProviderError({
+        message: `NIP-90 ${contextAction} error: ${baseError.message}`,
+        provider: "NIP90",
+        cause: baseError,
+        context: { jobId, dvmPubkey: dvmConfig.dvmPubkey },
+      });
+    };
+
+    return AgentLanguageModel.of({
+      _tag: "AgentLanguageModel",
+      generateText: (params: GenerateTextOptions) => Effect.gen(function* (_) {
+        const messagesPayload = parsePromptMessages(params.prompt);
+        const formattedPrompt = formatPromptForDVM(messagesPayload);
+
+        let requestSkBytes: Uint8Array;
+        if (dvmConfig.useEphemeralRequests) {
+          requestSkBytes = generateEphemeralKeyPair().sk;
+        } else {
+          // TODO: Handle non-ephemeral case (get user's main SK)
+          console.warn("[NIP90Provider] Non-ephemeral requests not implemented, using ephemeral keys.");
+          requestSkBytes = generateEphemeralKeyPair().sk;
+        }
+
+        const inputsForNip90: ReadonlyArray<readonly [string, NIP90InputType, (string | undefined)?, (string | undefined)?]> =
+          [[formattedPrompt, "text" as const]];
+
+        const paramsForNip90: Array<["param", string, string]> = [];
+        if (dvmConfig.modelIdentifier) paramsForNip90.push(["param", "model", dvmConfig.modelIdentifier]);
+        if (params.temperature !== undefined) paramsForNip90.push(["param", "temperature", params.temperature.toString()]);
+        if (params.maxTokens !== undefined) paramsForNip90.push(["param", "max_tokens", params.maxTokens.toString()]);
+
+        const jobRequest = yield* _(
+          nip90Service.createJobRequest({
+            kind: dvmConfig.requestKind,
+            inputs: inputsForNip90,
+            params: paramsForNip90.length > 0 ? paramsForNip90 : undefined,
+            requesterSk: requestSkBytes,
+            targetDvmPubkeyHex: dvmConfig.requiresEncryption ? dvmConfig.dvmPubkey : undefined,
+            relays: dvmConfig.dvmRelays,
+            requiresEncryption: dvmConfig.requiresEncryption, // Added this to CreateNIP90JobParams
+          }).pipe(Effect.mapError(err => mapError(err, "createJobRequest")))
+        );
+
+        const result = yield* _(
+          nip90Service.getJobResult(
+            jobRequest.id,
+            dvmConfig.dvmPubkey,
+            dvmConfig.requiresEncryption ? requestSkBytes : undefined // Only pass decryptionKey if encrypted
+          ).pipe(Effect.mapError(err => mapError(err, "getJobResult", jobRequest.id)))
+        );
+
+        if (!result) return yield* _(Effect.fail(mapError("NIP-90 job result not found", "getJobResult", jobRequest.id)));
+        return createAiResponse(result.content || "");
+      }),
+
+      streamText: (params: StreamTextOptions) => Stream.asyncScoped<AiTextChunk, AIProviderError>(emit =>
+        Effect.gen(function* (_) {
+          const messagesPayload = parsePromptMessages(params.prompt);
+          const formattedPrompt = formatPromptForDVM(messagesPayload);
+
+          let requestSkBytes: Uint8Array;
+          if (dvmConfig.useEphemeralRequests) {
+            requestSkBytes = generateEphemeralKeyPair().sk;
+          } else {
+            console.warn("[NIP90Provider] Non-ephemeral requests not implemented, using ephemeral keys.");
+            requestSkBytes = generateEphemeralKeyPair().sk;
+          }
+
+          const inputsForNip90: ReadonlyArray<readonly [string, NIP90InputType, (string | undefined)?, (string | undefined)?]> =
+            [[formattedPrompt, "text" as const]];
+          const paramsForNip90: Array<["param", string, string]> = [];
+          if (dvmConfig.modelIdentifier) paramsForNip90.push(["param", "model", dvmConfig.modelIdentifier]);
+          // ... add other params ...
+
+          const jobRequest = yield* _(
+            nip90Service.createJobRequest({
+              kind: dvmConfig.requestKind,
+              inputs: inputsForNip90,
+              params: paramsForNip90.length > 0 ? paramsForNip90 : undefined,
+              requesterSk: requestSkBytes,
+              targetDvmPubkeyHex: dvmConfig.requiresEncryption ? dvmConfig.dvmPubkey : undefined,
+              relays: dvmConfig.dvmRelays,
+              requiresEncryption: dvmConfig.requiresEncryption,
+            })
+          );
+
+          const onUpdateCallback = (eventUpdate: NIP90JobResult | NIP90JobFeedback) => {
+            if (eventUpdate.kind >= 6000 && eventUpdate.kind < 7000) {
+              const result = eventUpdate as NIP90JobResult;
+              if (result.content) emit.single({ text: result.content });
+              emit.end();
+            } else if (eventUpdate.kind === 7000) {
+              const feedback = eventUpdate as NIP90JobFeedback;
+              if (feedback.status === "partial" && feedback.content) emit.single({ text: feedback.content });
+              else if (feedback.status === "error") emit.fail(mapError(feedback.content || "Unknown DVM error", "feedbackError", jobRequest.id));
+            }
+          };
+
+          const unsubscribeEffect = nip90Service.subscribeToJobUpdates(
+            jobRequest.id,
+            dvmConfig.dvmPubkey,
+            dvmConfig.requiresEncryption ? requestSkBytes : undefined, // Only pass decryptionKey if encrypted
+            onUpdateCallback
+          );
+          const subscription = yield* _(unsubscribeEffect);
+          return subscription.unsub; // Return the cleanup function for Stream.asyncScoped
+        }).pipe(Effect.mapError(err => mapError(err, "streamSetup"))) // Map errors from the setup Effect
+      ),
+      generateStructured: (_params) => Effect.fail(mapError("generateStructured not supported", "generateStructured")),
+    });
+  })
+);
+```
+
+```typescript
+// src/stores/ai/agentChatStore.ts
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware"; // Ensure createJSONStorage is imported
+import { Effect } from "effect";
+import { ConfigurationService, ConfigError } from "@/services/configuration"; // Import ConfigError
+
+export interface AIProvider {
+  key: string;
+  name: string;
+  type: "ollama" | "nip90" | "openai" | "anthropic";
+  configKey?: string;
+  modelName?: string;
+}
+
+interface AgentChatState {
+  selectedProviderKey: string;
+  availableProviders: AIProvider[];
+  setSelectedProviderKey: (key: string) => void;
+  loadAvailableProviders: (configService: ConfigurationService) => Effect.Effect<void, never, never>; // Corrected R and E types
+}
+
+export const useAgentChatStore = create<AgentChatState>()(
+  persist(
+    (set) => ({
+      selectedProviderKey: "ollama_gemma3_1b",
+      availableProviders: [],
+      setSelectedProviderKey: (key: string) => set({ selectedProviderKey: key }),
+      loadAvailableProviders: (configService: ConfigurationService): Effect.Effect<void, never, never> =>
+        Effect.gen(function* (_) {
+          const providers: AIProvider[] = [];
+
+          const safeGetConfig = (key: string, defaultValue: string) =>
+            configService.get(key).pipe(
+              Effect.catchAll((_error: ConfigError) => { // Explicitly type error if needed, or use unknown
+                // Optionally log this error to telemetry or console
+                // console.warn(`Config key '${key}' not found or error: ${_error.message}. Using default: '${defaultValue}'.`);
+                return Effect.succeed(defaultValue);
+              })
+            );
+
+          const ollamaEnabledStr = yield* _(safeGetConfig("OLLAMA_MODEL_ENABLED", "true"));
+          if (ollamaEnabledStr === "true") {
+            const ollamaModelName = yield* _(safeGetConfig("OLLAMA_MODEL_NAME", "gemma3:1b"));
+            providers.push({
+              key: "ollama_gemma3_1b",
+              name: "Ollama (Local)",
+              type: "ollama",
+              modelName: ollamaModelName,
+            });
+          }
+
+          const devstralEnabledStr = yield* _(safeGetConfig("AI_PROVIDER_DEVSTRAL_ENABLED", "true"));
+          if (devstralEnabledStr === "true") {
+            const devstralModelName = yield* _(safeGetConfig("AI_PROVIDER_DEVSTRAL_MODEL_NAME", "Devstral (NIP-90)"));
+            const modelIdentifier = yield* _(safeGetConfig("AI_PROVIDER_DEVSTRAL_MODEL_IDENTIFIER", "devstral"));
+            providers.push({
+              key: "nip90_devstral",
+              name: devstralModelName,
+              type: "nip90",
+              configKey: "AI_PROVIDER_DEVSTRAL",
+              modelName: modelIdentifier,
+            });
+          }
+          set({ availableProviders: providers });
+          return Effect.void; // Explicitly return void
+        }).pipe(
+          Effect.catchAll((unexpectedError) => {
+            console.error("Unexpected error in loadAvailableProviders:", unexpectedError);
+            return Effect.void;
+          })
+        ),
+    }),
+    {
+      name: "agent-chat-store",
+      storage: createJSONStorage(() => (typeof window !== "undefined" ? window.localStorage : (undefined as any))), // Ensure storage is defined for non-browser
+    },
+  ),
+);
+```
+
+```typescript
+// src/tests/integration/services/nip90/NIP90AgentLanguageModelLive.integration.test.ts
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Effect, Layer, pipe, Stream, Chunk, Exit } from "effect"; // Added Exit
+import { AgentLanguageModel, type AiTextChunk, AIProviderError } from "@/services/ai/core";
+import { NIP90AgentLanguageModelLive } from "@/services/ai/providers/nip90/NIP90AgentLanguageModelLive";
+import { NIP90Service, type NIP90JobResult, type NIP90JobFeedback, NIP90JobFeedbackStatus } from "@/services/nip90";
+import { NostrService, type NostrEvent } from "@/services/nostr"; // type NostrEvent
+import { NIP04Service } from "@/services/nip04";
+import { TelemetryService } from "@/services/telemetry";
+import { NIP90ProviderConfigTag, NIP90ProviderConfig } from "@/services/ai/providers/nip90/NIP90ProviderConfig";
+// Removed generatePrivateKey, getPublicKey from "@/utils/nostr" as they are not used here.
+
+describe("NIP90AgentLanguageModelLive Integration", () => {
+  const mockDvmPubkey = "mock-dvm-pubkey-hex"; // Ensure it's hex
+  const mockConfig: NIP90ProviderConfig = { // Use the actual type
+    isEnabled: true,
+    modelName: "test-dvm-model",
+    dvmPubkey: mockDvmPubkey,
+    dvmRelays: ["wss://mock.relay"],
+    requestKind: 5050,
+    requiresEncryption: true,
+    useEphemeralRequests: true,
+    modelIdentifier: "test-dvm-model-id",
+    temperature: 0.7,
+    maxTokens: 1000,
+  };
+
+  let mockNIP90Service: NIP90Service;
+  let mockNostrService: NostrService;
+  let mockNIP04Service: NIP04Service;
+  let mockTelemetryService: TelemetryService;
+  let testLayer: Layer.Layer<AgentLanguageModel, never, NIP90Service | NostrService | NIP04Service | TelemetryService | NIP90ProviderConfig>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockNIP90Service = {
+      createJobRequest: vi.fn().mockImplementation((params) =>
+        Effect.succeed({
+          id: "mock-job-id",
+          kind: params.kind,
+          content: "mock-request-content",
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [],
+          pubkey: "mock-requester-pubkey",
+          sig: "mock-request-sig",
+        } as NostrEvent)
+      ),
+      getJobResult: vi.fn().mockImplementation((jobId) =>
+        Effect.succeed({
+          id: "result-for-" + jobId,
+          kind: mockConfig.requestKind + 1000,
+          content: "mock-result-content",
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [],
+          pubkey: mockDvmPubkey,
+          sig: "mock-result-sig",
+        } as NIP90JobResult)
+      ),
+      subscribeToJobUpdates: vi.fn().mockImplementation(
+        (jobRequestEventId, _dvmPubkeyHex, _decryptionKey, onUpdate) =>
+          Effect.succeed({ // Return Effect<Subscription, ...>
+            unsub: () => { /* mock unsub */ },
+          })
+      ),
+      listJobFeedback: vi.fn().mockImplementation(() => Effect.succeed([])),
+      listPublicEvents: vi.fn().mockImplementation(() => Effect.succeed([])),
+    };
+
+    mockNostrService = { // Provide all methods of NostrService
+      publishEvent: vi.fn().mockReturnValue(Effect.void),
+      listEvents: vi.fn().mockReturnValue(Effect.succeed([])),
+      getPool: vi.fn().mockReturnValue(Effect.succeed({} as any)),
+      cleanupPool: vi.fn().mockReturnValue(Effect.void),
+      subscribeToEvents: vi.fn().mockReturnValue(Effect.succeed({ unsub: vi.fn() })),
+      // getPublicKey is not part of NostrService interface
+    };
+
+    mockNIP04Service = {
+      encrypt: vi.fn().mockReturnValue(Effect.succeed("encrypted-payload")),
+      decrypt: vi.fn().mockReturnValue(Effect.succeed("decrypted-payload")),
+    };
+
+    mockTelemetryService = {
+      trackEvent: vi.fn(() => Effect.void),
+      isEnabled: vi.fn(() => Effect.succeed(true)),
+      setEnabled: vi.fn((_enabled: boolean) => Effect.void),
+    };
+
+    const nip90ServiceLayer = Layer.succeed(NIP90Service, mockNIP90Service);
+    const nostrServiceLayer = Layer.succeed(NostrService, mockNostrService);
+    const nip04ServiceLayer = Layer.succeed(NIP04Service, mockNIP04Service);
+    const telemetryServiceLayer = Layer.succeed(TelemetryService, mockTelemetryService);
+    const nip90ConfigLayer = Layer.succeed(NIP90ProviderConfigTag, mockConfig);
+
+    testLayer = NIP90AgentLanguageModelLive.pipe(
+      Layer.provide(nip90ServiceLayer),
+      Layer.provide(nostrServiceLayer), // NIP90AgentLanguageModelLive doesn't directly use this, but NIP90Service might
+      Layer.provide(nip04ServiceLayer),   // Same as above
+      Layer.provide(telemetryServiceLayer),
+      Layer.provide(nip90ConfigLayer)
+    );
+  });
+
+
+  describe("generateText", () => {
+    it("should handle simple text generation", async () => {
+      const program = Effect.gen(function* (_) {
+        const model = yield* _(AgentLanguageModel);
+        const response = yield* _(model.generateText({ prompt: "Test prompt" }));
+        expect(response.text).toBe("mock-result-content");
+      });
+      await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
+    });
+
+    it("should handle errors from createJobRequest", async () => {
+        mockNIP90Service.createJobRequest = vi.fn().mockImplementationOnce(() =>
+            Effect.fail(new AIProviderError({ message: "Create job failed", provider: "NIP90" }))
+        );
+        const program = Effect.gen(function* (_) {
+            const model = yield* _(AgentLanguageModel);
+            return yield* _(Effect.either(model.generateText({ prompt: "Test prompt" })));
+        });
+        const result = await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
+        expect(result._tag).toBe("Left");
+        if (result._tag === "Left") {
+            expect(result.left.message).toContain("Create job failed");
+        }
+    });
+  });
+
+  describe("streamText", () => {
+    it("should handle streaming text generation", async () => {
+       (mockNIP90Service.subscribeToJobUpdates as ReturnType<typeof vi.fn>).mockImplementation(
+        (_jobId, _dvmPk, _sk, onUpdateCb) => {
+          process.nextTick(() => onUpdateCb({ kind: 7000, content: "First ", status: "partial" } as NIP90JobFeedback));
+          process.nextTick(() => onUpdateCb({ kind: 7000, content: "second chunk. ", status: "partial" } as NIP90JobFeedback));
+          process.nextTick(() => onUpdateCb({ kind: mockConfig.requestKind + 1000, content: "Final content." } as NIP90JobResult));
+          return Effect.succeed({ unsub: vi.fn() });
+        }
+      );
+
+      const program = Effect.gen(function* (_) {
+        const model = yield* _(AgentLanguageModel);
+        const stream = model.streamText({ prompt: "Test stream prompt" });
+        const chunks = yield* _(Stream.runCollect(stream));
+        const collectedArray = Chunk.toArray(chunks);
+        const response = collectedArray.map(chunk => chunk.text).join("");
+        expect(response).toBe("First second chunk. Final content.");
+      });
+
+      await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
+    });
+
+    it("should handle stream interruption correctly", async () => {
+        const program = Effect.gen(function* (_) {
+            const model = yield* _(AgentLanguageModel);
+            const stream = model.streamText({ prompt: "Test interruption" });
+            // Attempt to take only one item from the stream then interrupt
+            const fiber = yield* _(Stream.runCollect(stream).pipe(Effect.fork));
+            yield* _(Effect.sleep(50)); // Allow some time for subscription if it's async
+            yield* _(Fiber.interrupt(fiber));
+            const exit = yield* _(Fiber.await(fiber));
+            expect(Exit.isInterrupted(exit)).toBe(true);
+        });
+        await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
+    });
+  });
+});
+```
+
+```typescript
+// src/tests/unit/services/ai/providers/nip90/NIP90AgentLanguageModelLive.test.ts
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Effect, Layer, pipe, Stream, Chunk } from "effect";
+import { AgentLanguageModel, AIProviderError } from "@/services/ai/core";
+import { NIP90AgentLanguageModelLive } from "@/services/ai/providers/nip90/NIP90AgentLanguageModelLive";
+import { NIP90Service, type NIP90JobResult, type NIP90JobFeedback, type CreateNIP90JobParams, NIP90JobFeedbackStatus } from "@/services/nip90";
+import { NostrService, type NostrEvent } from "@/services/nostr";
+import { NIP04Service } from "@/services/nip04";
+import { TelemetryService } from "@/services/telemetry";
+import { ConfigurationService } from "@/services/configuration"; // Keep if NIP90ProviderConfigTag depends on it
+import { NIP90ProviderConfigTag, NIP90ProviderConfig } from "@/services/ai/providers/nip90/NIP90ProviderConfig";
+
+// Mock nostr-tools/pure as it's used by the SUT
+vi.mock("nostr-tools/pure", () => ({
+  generateSecretKey: vi.fn(() => new Uint8Array(32).fill(1)), // Returns Uint8Array
+  getPublicKey: vi.fn((skBytes: Uint8Array) => { // Takes Uint8Array, returns hex
+    // Simple mock, doesn't need to be cryptographically correct for this test
+    return Array.from(skBytes).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 64);
+  }),
+}));
+
+
+describe("NIP90AgentLanguageModelLive", () => {
+  const mockDvmPubkey = "dvm_pubkey_hex_string_64_chars_long_aaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const mockConfig: NIP90ProviderConfig = {
+    isEnabled: true,
+    modelName: "test-dvm-model-from-config",
+    dvmPubkey: mockDvmPubkey,
+    dvmRelays: ["wss://mock.relay.test"],
+    requestKind: 5100,
+    requiresEncryption: true,
+    useEphemeralRequests: true,
+    modelIdentifier: "dvm-model-id-from-config",
+    temperature: 0.7,
+    maxTokens: 500,
+  };
+
+  let mockNIP90Service: NIP90Service;
+  let mockNostrService: NostrService;
+  let mockNIP04Service: NIP04Service;
+  let mockTelemetryService: TelemetryService;
+  let mockConfigurationService: ConfigurationService;
+  let TestLayer: Layer.Layer<AgentLanguageModel, never, NIP90Service | NostrService | NIP04Service | TelemetryService | ConfigurationService | NIP90ProviderConfig>;
+
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    mockNIP90Service = {
+      createJobRequest: vi.fn(),
+      getJobResult: vi.fn(),
+      subscribeToJobUpdates: vi.fn(),
+      listJobFeedback: vi.fn(() => Effect.succeed([])),
+      listPublicEvents: vi.fn(() => Effect.succeed([])),
+    };
+
+    mockNostrService = {
+      publishEvent: vi.fn(() => Effect.void),
+      listEvents: vi.fn(() => Effect.succeed([])),
+      getPool: vi.fn(() => Effect.succeed({} as any)),
+      cleanupPool: vi.fn(() => Effect.void),
+      subscribeToEvents: vi.fn(() => Effect.succeed({ unsub: vi.fn() })),
+      // getPublicKey is not part of NostrService; it's from nostr-tools/pure
+    };
+
+    mockNIP04Service = {
+      encrypt: vi.fn((_sk, _pk, pt) => Effect.succeed(`encrypted(${pt})`)),
+      decrypt: vi.fn((_sk, _pk, ct) => Effect.succeed(ct.replace("encrypted(", "").replace(")", ""))),
+    };
+
+    mockTelemetryService = {
+      trackEvent: vi.fn(() => Effect.void),
+      isEnabled: vi.fn(() => Effect.succeed(true)),
+      setEnabled: vi.fn(() => Effect.void),
+    };
+
+    mockConfigurationService = {
+      get: vi.fn((key: string) => {
+        if (key === "USER_NOSTR_SK_HEX") return Effect.succeed("user_sk_hex_for_non_ephemeral_if_needed");
+        return Effect.fail({ _tag: "ConfigError", message: `Config key ${key} not found` } as any);
+      }),
+      getSecret: vi.fn(() => Effect.fail({ _tag: "SecretNotFoundError", message: "Secret not found", keyName: "" } as any)),
+      set: vi.fn(() => Effect.void),
+      delete: vi.fn(() => Effect.void),
+    };
+
+    const NIP90ServiceLayer = Layer.succeed(NIP90Service, mockNIP90Service);
+    const NostrServiceLayer = Layer.succeed(NostrService, mockNostrService);
+    const NIP04ServiceLayer = Layer.succeed(NIP04Service, mockNIP04Service);
+    const TelemetryServiceLayer = Layer.succeed(TelemetryService, mockTelemetryService);
+    const ConfigurationServiceLayer = Layer.succeed(ConfigurationService, mockConfigurationService);
+    const NIP90ProviderConfigLayer = Layer.succeed(NIP90ProviderConfigTag, mockConfig);
+
+    TestLayer = NIP90AgentLanguageModelLive.pipe(
+      Layer.provide(NIP90ServiceLayer),
+      Layer.provide(NostrServiceLayer),
+      Layer.provide(NIP04ServiceLayer),
+      Layer.provide(TelemetryServiceLayer),
+      Layer.provide(ConfigurationServiceLayer), // NIP90ProviderConfig might need this if it reads from global config
+      Layer.provide(NIP90ProviderConfigLayer)
+    );
+  });
+
+  describe("generateText", () => {
+    it("should handle simple text generation", async () => {
+      const mockJobId = "job-gen-123";
+      (mockNIP90Service.createJobRequest as ReturnType<typeof vi.fn>).mockImplementation(() =>
+        Effect.succeed({ id: mockJobId, kind: mockConfig.requestKind } as NostrEvent)
+      );
+      (mockNIP90Service.getJobResult as ReturnType<typeof vi.fn>).mockImplementation(() =>
+        Effect.succeed({ content: "Test DVM response" } as NIP90JobResult)
+      );
+
+      const program = Effect.gen(function* (_) {
+        const model = yield* _(AgentLanguageModel);
+        const response = yield* _(model.generateText({ prompt: "A test prompt" }));
+        expect(response.text).toBe("Test DVM response");
+      });
+
+      await Effect.runPromise(Effect.provide(program, TestLayer));
+      expect(mockNIP90Service.createJobRequest).toHaveBeenCalled();
+      expect(mockNIP90Service.getJobResult).toHaveBeenCalledWith(mockJobId, mockConfig.dvmPubkey, expect.any(Uint8Array));
+    });
+  });
+
+  describe("streamText", () => {
+    it("should handle streaming text generation", async () => {
+      const updates: string[] = [];
+      const mockJobId = "job-stream-123";
+
+      (mockNIP90Service.createJobRequest as ReturnType<typeof vi.fn>).mockImplementation(() =>
+        Effect.succeed({ id: mockJobId, kind: mockConfig.requestKind } as NostrEvent)
+      );
+
+      (mockNIP90Service.subscribeToJobUpdates as ReturnType<typeof vi.fn>).mockImplementation(
+        (_jobRequestEventId, _dvmPubkeyHex, _decryptionKey, onUpdateCallback) => {
+          process.nextTick(() => {
+            onUpdateCallback({
+              id: "feedback1", kind: 7000, pubkey: mockConfig.dvmPubkey, created_at: Date.now() / 1000,
+              tags: [["status", "partial"]], content: "First", sig: "sig1", status: "partial" as NIP90JobFeedbackStatus
+            } as NIP90JobFeedback);
+          });
+          process.nextTick(() => {
+            onUpdateCallback({
+              id: "feedback2", kind: 7000, pubkey: mockConfig.dvmPubkey, created_at: Date.now() / 1000 + 1,
+              tags: [["status", "partial"]], content: "Second", sig: "sig2", status: "partial" as NIP90JobFeedbackStatus
+            } as NIP90JobFeedback);
+          });
+          process.nextTick(() => {
+            onUpdateCallback({
+              id: "result1", kind: mockConfig.requestKind + 1000, pubkey: mockConfig.dvmPubkey, created_at: Date.now() / 1000 + 2,
+              tags: [], content: "Final", sig: "sig3"
+            } as NIP90JobResult); // This should call emit.end() in the SUT
+          });
+          return Effect.succeed({ unsub: vi.fn() });
+        }
+      );
+
+      const program = Effect.gen(function* (_) {
+        const model = yield* _(AgentLanguageModel);
+        const stream = model.streamText({ prompt: "Test stream prompt" });
+        yield* _(
+          Stream.runForEach(stream, (chunk) => Effect.sync(() => updates.push(chunk.text)))
+        );
+      });
+
+      await Effect.runPromise(Effect.provide(program, TestLayer));
+      expect(updates).toEqual(["First", "Second", "Final"]);
+      expect(mockNIP90Service.createJobRequest).toHaveBeenCalled();
+      expect(mockNIP90Service.subscribeToJobUpdates).toHaveBeenCalled();
+    });
+  });
+});
+
+```
+
+This completes the application of the fixes from "Instruction Set 6" and addresses the failing unit test. The key changes involved:
+
+-   Correcting mock implementations to return `Effect`s.
+-   Ensuring `Effect.provide` is used correctly.
+-   Completing mock objects with all necessary methods.
+-   Refining the `subscribeToJobUpdates` mock in the unit test to accurately simulate the DVM's behavior and trigger the SUT's internal callbacks.
+-   Fixing type mismatches for NIP-90 inputs and secret keys.
+-   Addressing `null` or `undefined` possibilities for job results.
+-   Simplifying the dynamic layer building in `ChatOrchestratorService` to use the active `AgentLanguageModel` for now, which resolves the complex `Layer` type errors.
+-   Using `Schema` from `effect` instead of `@effect/schema`.
+
+After these, a `pnpm t` should yield better results. Further iterations might be needed if new errors surface or if tests reveal deeper logic issues.

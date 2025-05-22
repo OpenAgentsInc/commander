@@ -134,10 +134,11 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
             nip90Service.createJobRequest({
               kind: dvmConfig.requestKind,
               inputs: inputsForNip90,
-              params: paramsForNip90,
+              outputMimeType: "text/plain",
+              additionalParams: paramsForNip90,
               targetDvmPubkeyHex: dvmConfig.dvmPubkey,
               requesterSk: requestSkBytes as Uint8Array<ArrayBuffer>,
-              requiresEncryption: dvmConfig.requiresEncryption,
+              relays: dvmConfig.dvmRelays,
             })
           );
 
@@ -146,7 +147,7 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
             nip90Service.getJobResult(
               jobRequest.id,
               dvmConfig.dvmPubkey,
-              requestSkBytes
+              requestSkBytes as Uint8Array<ArrayBuffer>
             )
           );
 
