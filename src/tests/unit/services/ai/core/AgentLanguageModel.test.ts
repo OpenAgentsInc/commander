@@ -9,24 +9,7 @@ import {
   type GenerateStructuredOptions,
 } from "@/services/ai/core/AgentLanguageModel";
 import { AiError, AiProviderError } from "@/services/ai/core/AiError";
-
-// Create a type that mimics AiResponse with all required properties
-interface MockAiResponse {
-  text: string;
-  toolCalls?: Array<{
-    id: string;
-    name: string;
-    arguments: Record<string, unknown>;
-  }>;
-  metadata?: {
-    usage?: {
-      promptTokens: number;
-      completionTokens: number;
-      totalTokens: number;
-    };
-    finishReason?: string;
-  };
-}
+import { AiResponse as CoreAiResponse } from "@/services/ai/core/AiResponse";
 
 // Create a mock error for testing using the proper Data.TaggedError pattern
 class MockAiError extends AiProviderError {
@@ -39,49 +22,44 @@ class MockAiError extends AiProviderError {
   }
 }
 
-// Define this type to avoid having to implement the strict AiResponse interface
-// Explicitly make the mock service implementation compatible with AgentLanguageModel
+// Mock service implementation compatible with AgentLanguageModel
 class MockAgentLanguageModel implements AgentLanguageModel {
   readonly _tag = "AgentLanguageModel";
 
   generateText = vi.fn(
     (_params: GenerateTextOptions) =>
-      Effect.succeed({
+      Effect.succeed(CoreAiResponse.fromSimple({
         text: "Mock generated text response",
-        toolCalls: [],
         metadata: {
           usage: {
             promptTokens: 10,
             completionTokens: 20,
             totalTokens: 30,
           },
-          finishReason: "stop",
         },
-      } as MockAiResponse as AiResponse),
+      })),
   );
 
   streamText = vi.fn((_params: StreamTextOptions) =>
     Stream.fromIterable([
-      { text: "Mock ", toolCalls: [], metadata: undefined },
-      { text: "stream ", toolCalls: [], metadata: undefined },
-      { text: "response", toolCalls: [], metadata: undefined },
-    ] as AiResponse[]),
+      CoreAiResponse.fromSimple({ text: "Mock " }),
+      CoreAiResponse.fromSimple({ text: "stream " }),
+      CoreAiResponse.fromSimple({ text: "response" }),
+    ]),
   );
 
   generateStructured = vi.fn(
     (_params: GenerateStructuredOptions) =>
-      Effect.succeed({
+      Effect.succeed(CoreAiResponse.fromSimple({
         text: "Mock structured response",
-        toolCalls: [],
         metadata: {
           usage: {
             promptTokens: 5,
             completionTokens: 10,
             totalTokens: 15,
           },
-          finishReason: "stop",
         },
-      } as MockAiResponse as AiResponse),
+      })),
   );
 }
 
@@ -151,12 +129,12 @@ describe("AgentLanguageModel Service", () => {
     it("streamText should be callable and provide stream", async () => {
       const mockService = new MockAgentLanguageModel();
 
-      // Create test data
+      // Create test data using proper AiResponse instances
       const testChunks = [
-        { text: "Mock " },
-        { text: "stream " },
-        { text: "response" },
-      ] as AiResponse[];
+        CoreAiResponse.fromSimple({ text: "Mock " }),
+        CoreAiResponse.fromSimple({ text: "stream " }),
+        CoreAiResponse.fromSimple({ text: "response" }),
+      ];
 
       // Use a simpler approach - directly mock the implementation
       mockService.streamText.mockImplementation(() => {
@@ -168,7 +146,7 @@ describe("AgentLanguageModel Service", () => {
 
       // Use Effect.gen to get the stream and collect it
       const program = Effect.gen(function* ($) {
-        const model = yield* $(AgentLanguageModel);
+        const model = yield* $(AgentLanguageModel.Tag);
         const stream = model.streamText(params);
         const chunks = yield* $(Stream.runCollect(stream));
         return chunks;
