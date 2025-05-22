@@ -42,10 +42,11 @@ Okay, I will provide specific instructions to implement the hand tracking toggle
     ```
 
 2.  **Update `src/pages/HomePage.tsx`**:
-    *   Import the new button and `HandTracking` component.
-    *   Add state to manage hand tracking activation.
-    *   Render the button and pass the state to the `HandTracking` component.
-    *   Implement the pinch-to-drag logic here.
+
+    - Import the new button and `HandTracking` component.
+    - Add state to manage hand tracking activation.
+    - Render the button and pass the state to the `HandTracking` component.
+    - Implement the pinch-to-drag logic here.
 
     ```typescript
     // src/pages/HomePage.tsx
@@ -300,7 +301,8 @@ Okay, I will provide specific instructions to implement the hand tracking toggle
     // ...
 
     // Ensure TrackedHandInfo is defined or imported correctly
-    interface TrackedHandInfo { // Make sure this matches or is imported
+    interface TrackedHandInfo {
+      // Make sure this matches or is imported
       landmarks: HandLandmarks;
       pose: HandPose;
       pinchMidpoint: PinchCoordinates | null;
@@ -345,7 +347,7 @@ Okay, I will provide specific instructions to implement the hand tracking toggle
           // ... rest of onHandTrackingResults ...
           setTrackedHands(currentFrameTrackedHands); // This updates the state used by HomePage
         },
-        [enabled /*, any other dependencies like landmarkCanvasRef */]
+        [enabled /*, any other dependencies like landmarkCanvasRef */],
       );
 
       // ... rest of the hook ...
@@ -361,15 +363,14 @@ Okay, I will provide specific instructions to implement the hand tracking toggle
       const activeHandPose = primaryHand ? primaryHand.pose : HandPose.NONE;
       const pinchMidpoint = primaryHand ? primaryHand.pinchMidpoint : null;
 
-
       return {
         videoRef,
         landmarkCanvasRef,
         handPosition, // This is the index finger tip of the first hand for 3D pointer
         handTrackingStatus,
         activeHandPose, // For the primary hand, used by HandTracking.tsx UI
-        pinchMidpoint,  // For the primary hand, used by HandTracking.tsx UI
-        trackedHands,   // Array of all tracked hands with their individual data
+        pinchMidpoint, // For the primary hand, used by HandTracking.tsx UI
+        trackedHands, // Array of all tracked hands with their individual data
       };
     }
     ```
@@ -377,10 +378,14 @@ Okay, I will provide specific instructions to implement the hand tracking toggle
 5.  **Ensure `src/components/hands/index.ts` exports necessary types**:
     ```typescript
     // src/components/hands/index.ts
-    export { default as HandTracking } from './HandTracking';
+    export { default as HandTracking } from "./HandTracking";
     // ... other exports ...
-    export { useHandTracking, type HandPosition } from './useHandTracking'; // Export HandPosition
-    export { HandPose, type HandLandmarks, type PinchCoordinates } from './handPoseTypes'; // Ensure these are exported
+    export { useHandTracking, type HandPosition } from "./useHandTracking"; // Export HandPosition
+    export {
+      HandPose,
+      type HandLandmarks,
+      type PinchCoordinates,
+    } from "./handPoseTypes"; // Ensure these are exported
     // ...
     ```
 
@@ -394,44 +399,61 @@ Adjust `Pane.tsx`'s `useResizeHandlers` hook:
 // src/panes/Pane.tsx
 // Inside useResizeHandlers:
 // ...
-  const [position, setPosition] = useState(initialPosition);
-  const [size, setSize] = useState(initialSize);
+const [position, setPosition] = useState(initialPosition);
+const [size, setSize] = useState(initialSize);
 
-  // Using refs to keep track of prev values to avoid unnecessary state updates
-  // and to correctly reflect store changes when not interacting.
-  const prevPositionRef = useRef(initialPosition);
-  const prevSizeRef = useRef(initialSize);
+// Using refs to keep track of prev values to avoid unnecessary state updates
+// and to correctly reflect store changes when not interacting.
+const prevPositionRef = useRef(initialPosition);
+const prevSizeRef = useRef(initialSize);
 
-  useEffect(() => {
-    // If not currently interacting (dragging/resizing via this pane's own gestures)
-    // AND the initialPosition prop from the store has changed since last sync
-    // AND the local position is different from the new prop (to avoid redundant sets)
-    if (!isCurrentlyInteracting &&
-        (initialPosition.x !== prevPositionRef.current.x || initialPosition.y !== prevPositionRef.current.y) &&
-        (position.x !== initialPosition.x || position.y !== initialPosition.y)
-       ) {
-      setPosition(initialPosition);
-    }
-    // Always update the ref to the latest prop value when not interacting,
-    // so we can detect the *next* change from the store.
-    if (!isCurrentlyInteracting) {
-       prevPositionRef.current = initialPosition;
-    }
-  }, [initialPosition.x, initialPosition.y, isCurrentlyInteracting, position.x, position.y]);
+useEffect(() => {
+  // If not currently interacting (dragging/resizing via this pane's own gestures)
+  // AND the initialPosition prop from the store has changed since last sync
+  // AND the local position is different from the new prop (to avoid redundant sets)
+  if (
+    !isCurrentlyInteracting &&
+    (initialPosition.x !== prevPositionRef.current.x ||
+      initialPosition.y !== prevPositionRef.current.y) &&
+    (position.x !== initialPosition.x || position.y !== initialPosition.y)
+  ) {
+    setPosition(initialPosition);
+  }
+  // Always update the ref to the latest prop value when not interacting,
+  // so we can detect the *next* change from the store.
+  if (!isCurrentlyInteracting) {
+    prevPositionRef.current = initialPosition;
+  }
+}, [
+  initialPosition.x,
+  initialPosition.y,
+  isCurrentlyInteracting,
+  position.x,
+  position.y,
+]);
 
-  useEffect(() => {
-    if (!isCurrentlyInteracting &&
-        (initialSize.width !== prevSizeRef.current.width || initialSize.height !== prevSizeRef.current.height) &&
-        (size.width !== initialSize.width || size.height !== initialSize.height)
-       ) {
-      setSize(initialSize);
-    }
-    if (!isCurrentlyInteracting) {
-        prevSizeRef.current = initialSize;
-    }
-  }, [initialSize.width, initialSize.height, isCurrentlyInteracting, size.width, size.height]);
+useEffect(() => {
+  if (
+    !isCurrentlyInteracting &&
+    (initialSize.width !== prevSizeRef.current.width ||
+      initialSize.height !== prevSizeRef.current.height) &&
+    (size.width !== initialSize.width || size.height !== initialSize.height)
+  ) {
+    setSize(initialSize);
+  }
+  if (!isCurrentlyInteracting) {
+    prevSizeRef.current = initialSize;
+  }
+}, [
+  initialSize.width,
+  initialSize.height,
+  isCurrentlyInteracting,
+  size.width,
+  size.height,
+]);
 // ...
 ```
+
 This ensures that if `HomePage.tsx` updates a pane's position in the store due to a pinch drag, the `Pane` component will visually update to that new position because its `initialX` and `initialY` props will change, triggering the `useEffect`. The `isCurrentlyInteracting` flag (derived from `isDragging` or `isResizing` within `Pane.tsx`) ensures that the pane's own mouse/touch interactions don't get overridden by prop changes during an interaction.
 
 For pinch-to-drag, `isCurrentlyInteracting` in `Pane.tsx` would be `false`, allowing the prop-driven updates from the store (triggered by `HomePage.tsx`'s pinch logic) to take effect.Okay, let's integrate the hand-tracking toggle button and the pinch-to-drag functionality.
@@ -477,9 +499,10 @@ For pinch-to-drag, `isCurrentlyInteracting` in `Pane.tsx` would be `false`, allo
     ```
 
 2.  **Modify `src/pages/HomePage.tsx`**:
-    *   Import necessary components and types.
-    *   Add state for hand tracking and hand data.
-    *   Implement the pinch-to-drag logic.
+
+    - Import necessary components and types.
+    - Add state for hand tracking and hand data.
+    - Implement the pinch-to-drag logic.
 
     ```typescript
     // src/pages/HomePage.tsx
@@ -738,31 +761,51 @@ For pinch-to-drag, `isCurrentlyInteracting` in `Pane.tsx` would be `false`, allo
     const prevSizeRef = useRef(initialSize);
 
     useEffect(() => {
-      if (!isCurrentlyInteracting &&
-          (initialPosition.x !== prevPositionRef.current.x || initialPosition.y !== prevPositionRef.current.y) &&
-          (position.x !== initialPosition.x || position.y !== initialPosition.y)) {
+      if (
+        !isCurrentlyInteracting &&
+        (initialPosition.x !== prevPositionRef.current.x ||
+          initialPosition.y !== prevPositionRef.current.y) &&
+        (position.x !== initialPosition.x || position.y !== initialPosition.y)
+      ) {
         setPosition(initialPosition);
       }
       if (!isCurrentlyInteracting) {
         prevPositionRef.current = initialPosition;
       }
-    }, [initialPosition.x, initialPosition.y, isCurrentlyInteracting, position.x, position.y]);
+    }, [
+      initialPosition.x,
+      initialPosition.y,
+      isCurrentlyInteracting,
+      position.x,
+      position.y,
+    ]);
 
     useEffect(() => {
-      if (!isCurrentlyInteracting &&
-          (initialSize.width !== prevSizeRef.current.width || initialSize.height !== prevSizeRef.current.height) &&
-          (size.width !== initialSize.width || size.height !== initialSize.height)) {
+      if (
+        !isCurrentlyInteracting &&
+        (initialSize.width !== prevSizeRef.current.width ||
+          initialSize.height !== prevSizeRef.current.height) &&
+        (size.width !== initialSize.width || size.height !== initialSize.height)
+      ) {
         setSize(initialSize);
       }
       if (!isCurrentlyInteracting) {
         prevSizeRef.current = initialSize;
       }
-    }, [initialSize.width, initialSize.height, isCurrentlyInteracting, size.width, size.height]);
+    }, [
+      initialSize.width,
+      initialSize.height,
+      isCurrentlyInteracting,
+      size.width,
+      size.height,
+    ]);
 
     // ... (rest of the useResizeHandlers hook) ...
     ```
+
     And ensure `isCurrentlyInteracting` is correctly passed to `useResizeHandlers` from `Pane.tsx`.
     In `Pane.tsx`:
+
     ```typescript
     // src/panes/Pane.tsx
     // ...
@@ -777,7 +820,7 @@ For pinch-to-drag, `isCurrentlyInteracting` in `Pane.tsx` would be `false`, allo
       updatePanePosition,
       updatePaneSize,
       isInteractingSelf, // Pass this down
-      setIsResizing
+      setIsResizing,
     );
     // ...
     // In bindDrag:
@@ -796,6 +839,7 @@ For pinch-to-drag, `isCurrentlyInteracting` in `Pane.tsx` would be `false`, allo
     // }
     // ...
     ```
+
     The `setIsResizing(active)` call inside `makeResizeHandler` in `Pane.tsx` will correctly update the `isResizing` state.
 
 This setup should provide a functional hand tracking toggle and enable pinch-to-drag for panes. Test thoroughly, especially the coordinate systems and interaction between hand tracking and mouse interactions.

@@ -1,18 +1,30 @@
-import React, { useState, ChangeEvent } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { generateSecretKey } from 'nostr-tools/pure';
-import { Effect } from 'effect';
-import { runPromise, runPromiseExit } from 'effect/Effect';
-import { bytesToHex } from '@noble/hashes/utils';
-import { getMainRuntime } from '@/services/runtime';
-import { NIP90Service, CreateNIP90JobParams, NIP90InputType } from '@/services/nip90';
+import React, { useState, ChangeEvent } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { generateSecretKey } from "nostr-tools/pure";
+import { Effect } from "effect";
+import { runPromise, runPromiseExit } from "effect/Effect";
+import { bytesToHex } from "@noble/hashes/utils";
+import { getMainRuntime } from "@/services/runtime";
+import {
+  NIP90Service,
+  CreateNIP90JobParams,
+  NIP90InputType,
+} from "@/services/nip90";
 
 // Define the DVM's public key (replace with actual key in a real application)
-const OUR_DVM_PUBKEY_HEX = "32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245"; // Example key
+const OUR_DVM_PUBKEY_HEX =
+  "32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245"; // Example key
 
 export default function Nip90RequestForm() {
   const [jobKind, setJobKind] = useState<string>("5100"); // Default to Text Generation
@@ -73,7 +85,7 @@ export default function Nip90RequestForm() {
 
       // 1. Generate ephemeral keys for this request
       const requesterSkUint8Array = generateSecretKey();
-      
+
       // Store the ephemeral secret key (hex) for later decryption of responses
       const currentEphemeralSkHex = bytesToHex(requesterSkUint8Array);
       setEphemeralSkHex(currentEphemeralSkHex);
@@ -82,8 +94,15 @@ export default function Nip90RequestForm() {
       // Explicitly match the NIP90InputType tuple structure with 4 elements
       // Must match the NIP90InputSchema defined in the service
       const inputsForEncryption = [
-        [inputData.trim(), 'text' as const, undefined, undefined]
-      ] as ReadonlyArray<readonly [string, NIP90InputType, string | undefined, string | undefined]>;
+        [inputData.trim(), "text" as const, undefined, undefined],
+      ] as ReadonlyArray<
+        readonly [
+          string,
+          NIP90InputType,
+          string | undefined,
+          string | undefined,
+        ]
+      >;
 
       // Optional: Add additional parameters to be encrypted
       // const additionalParams: ['param', string, string][] = [
@@ -102,108 +121,148 @@ export default function Nip90RequestForm() {
       };
 
       // 4. Use the NIP90Service from getMainRuntime()
-      const programToRun = Effect.flatMap(NIP90Service, service =>
-        service.createJobRequest(jobParams) // This returns Effect<NostrEvent, ...>
+      const programToRun = Effect.flatMap(
+        NIP90Service,
+        (service) => service.createJobRequest(jobParams), // This returns Effect<NostrEvent, ...>
       ).pipe(
-        Effect.map(event => event.id) // `event` is NostrEvent here
+        Effect.map((event) => event.id), // `event` is NostrEvent here
       );
 
       // Provide the runtime to the program and run it
-      const result = await runPromise(Effect.provide(programToRun, getMainRuntime()));
+      const result = await runPromise(
+        Effect.provide(programToRun, getMainRuntime()),
+      );
 
       // Store successful event info
       setPublishedEventId(result);
-      
+
       // Store the event ID and secret key in localStorage for later decryption
       if (currentEphemeralSkHex) {
         try {
           // Get existing requests from localStorage or initialize empty object
-          const storedRequests = JSON.parse(localStorage.getItem('nip90_requests') || '{}');
-          
+          const storedRequests = JSON.parse(
+            localStorage.getItem("nip90_requests") || "{}",
+          );
+
           // Add this request to the stored requests
           storedRequests[result] = {
             secretKey: currentEphemeralSkHex,
             createdAt: Date.now(),
-            kind
+            kind,
           };
-          
+
           // Save back to localStorage
-          localStorage.setItem('nip90_requests', JSON.stringify(storedRequests));
+          localStorage.setItem(
+            "nip90_requests",
+            JSON.stringify(storedRequests),
+          );
         } catch (error) {
-          console.error("Failed to store request details in localStorage:", error);
+          console.error(
+            "Failed to store request details in localStorage:",
+            error,
+          );
         }
       }
     } catch (error) {
-      setPublishError(error instanceof Error ? error.message : "An unexpected error occurred.");
+      setPublishError(
+        error instanceof Error
+          ? error.message
+          : "An unexpected error occurred.",
+      );
     } finally {
       setIsPublishing(false);
     }
   };
 
   return (
-    <Card className="w-full max-w-lg mx-auto">
+    <Card className="mx-auto w-full max-w-lg">
       <CardHeader>
         <CardTitle>Create NIP-90 Job Request (Encrypted)</CardTitle>
-        <CardDescription>Define and publish a new encrypted job request to the Nostr network for your DVM.</CardDescription>
+        <CardDescription>
+          Define and publish a new encrypted job request to the Nostr network
+          for your DVM.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="jobKind">Job Kind</Label>
-          <Input 
-            id="jobKind" 
-            type="number" 
-            value={jobKind} 
-            onChange={(e: ChangeEvent<HTMLInputElement>) => setJobKind(e.target.value)} 
-            placeholder="e.g., 5100" 
-            disabled={isPublishing} 
+          <Input
+            id="jobKind"
+            type="number"
+            value={jobKind}
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+              setJobKind(e.target.value)
+            }
+            placeholder="e.g., 5100"
+            disabled={isPublishing}
           />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="inputData">Input Data (will be encrypted)</Label>
-          <Textarea 
-            id="inputData" 
-            value={inputData} 
-            onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setInputData(e.target.value)} 
-            placeholder="Enter the data for the job (e.g., a prompt for text generation)" 
-            rows={3} 
-            disabled={isPublishing} 
+          <Textarea
+            id="inputData"
+            value={inputData}
+            onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
+              setInputData(e.target.value)
+            }
+            placeholder="Enter the data for the job (e.g., a prompt for text generation)"
+            rows={3}
+            disabled={isPublishing}
           />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="outputMimeType">Output MIME Type (public)</Label>
-          <Input 
-            id="outputMimeType" 
-            value={outputMimeType} 
-            onChange={(e: ChangeEvent<HTMLInputElement>) => setOutputMimeType(e.target.value)} 
-            placeholder="e.g., text/plain" 
-            disabled={isPublishing} 
+          <Input
+            id="outputMimeType"
+            value={outputMimeType}
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+              setOutputMimeType(e.target.value)
+            }
+            placeholder="e.g., text/plain"
+            disabled={isPublishing}
           />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="bidAmount">Bid Amount (msats, public)</Label>
-          <Input 
-            id="bidAmount" 
-            type="number" 
-            value={bidAmount} 
-            onChange={(e: ChangeEvent<HTMLInputElement>) => setBidAmount(e.target.value)} 
-            placeholder="Optional: e.g., 1000" 
-            disabled={isPublishing} 
+          <Input
+            id="bidAmount"
+            type="number"
+            value={bidAmount}
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+              setBidAmount(e.target.value)
+            }
+            placeholder="Optional: e.g., 1000"
+            disabled={isPublishing}
           />
         </div>
 
         {/* UI Feedback */}
         {isPublishing && <p className="text-sm text-blue-500">Publishing...</p>}
-        {publishError && <p className="text-sm text-destructive">Error: {publishError}</p>}
+        {publishError && (
+          <p className="text-destructive text-sm">Error: {publishError}</p>
+        )}
         {publishedEventId && (
           <div className="text-sm text-green-500">
-            <p>Success! Event ID: <code className="text-xs break-all">{publishedEventId}</code></p>
-            {ephemeralSkHex && <p className="mt-1 text-xs text-muted-foreground">Ephemeral SK (for debugging/decryption): <code className="text-xs break-all">{ephemeralSkHex}</code></p>}
+            <p>
+              Success! Event ID:{" "}
+              <code className="text-xs break-all">{publishedEventId}</code>
+            </p>
+            {ephemeralSkHex && (
+              <p className="text-muted-foreground mt-1 text-xs">
+                Ephemeral SK (for debugging/decryption):{" "}
+                <code className="text-xs break-all">{ephemeralSkHex}</code>
+              </p>
+            )}
           </div>
         )}
       </CardContent>
       <CardFooter>
-        <Button onClick={handlePublishRequest} className="w-full" disabled={isPublishing}>
-          {isPublishing ? 'Publishing...' : 'Publish Encrypted Job Request'}
+        <Button
+          onClick={handlePublishRequest}
+          className="w-full"
+          disabled={isPublishing}
+        >
+          {isPublishing ? "Publishing..." : "Publish Encrypted Job Request"}
         </Button>
       </CardFooter>
     </Card>

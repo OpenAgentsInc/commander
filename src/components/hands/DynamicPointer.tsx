@@ -1,15 +1,18 @@
-import React, { useRef } from 'react';
-import * as THREE from 'three';
-import { useFrame, useThree } from '@react-three/fiber';
-import { CuboidCollider, RigidBody } from '@react-three/rapier';
-import { HandPosition } from './useHandTracking';
+import React, { useRef } from "react";
+import * as THREE from "three";
+import { useFrame, useThree } from "@react-three/fiber";
+import { CuboidCollider, RigidBody } from "@react-three/rapier";
+import { HandPosition } from "./useHandTracking";
 
 interface DynamicPointerProps {
   handPosition: HandPosition;
   vec?: THREE.Vector3;
 }
 
-export function DynamicPointer({ handPosition, vec = new THREE.Vector3() }: DynamicPointerProps) {
+export function DynamicPointer({
+  handPosition,
+  vec = new THREE.Vector3(),
+}: DynamicPointerProps) {
   const ref = useRef<any>(null);
   const { invalidate, viewport } = useThree();
 
@@ -27,7 +30,12 @@ export function DynamicPointer({ handPosition, vec = new THREE.Vector3() }: Dyna
   });
 
   return (
-    <RigidBody position={[0, 0, 0]} type="kinematicPosition" colliders={false} ref={ref}>
+    <RigidBody
+      position={[0, 0, 0]}
+      type="kinematicPosition"
+      colliders={false}
+      ref={ref}
+    >
       <CuboidCollider args={[1.5, 1.5, 1.5]} />
       {/* Invisible mesh for the hand pointer */}
       <mesh visible={false}>

@@ -1,7 +1,9 @@
 # Implementation Log for NIP28 Channel Chat Pane
 
 ## Overview
+
 This log tracks the implementation of a NIP28 channel chat pane type for the Commander app, including:
+
 - Adding a new pane type to the pane system
 - Creating NIP28-specific helpers for Nostr event creation
 - Implementing a channel chat hook and component
@@ -13,15 +15,18 @@ This log tracks the implementation of a NIP28 channel chat pane type for the Com
 I implemented the NIP28 channel chat feature with the following steps:
 
 1. **Updated Pane Types**
+
    - Added 'nip28_channel' to the pane type union
    - Added channelId and channelName properties to the content object
 
 2. **Created NIP28 Chat UI Components**
+
    - Modified ChatMessage to support optional author property
    - Created useNostrChannelChat hook for Nostr channel messaging
    - Built Nip28ChannelChat component to render the chat UI
 
 3. **Integrated with PaneManager**
+
    - Added Nip28ChannelChat component rendering in PaneManager
    - Added a "New Chan" button in the Chats pane title bar
 

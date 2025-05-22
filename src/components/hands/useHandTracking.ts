@@ -16,9 +16,9 @@ import { recognizeHandPose } from "./handPoseRecognition";
 
 interface TrackedHandInfo {
   landmarks: HandLandmarks; // from @mediapipe/hands
-  pose: HandPose;           // from ./handPoseTypes
+  pose: HandPose; // from ./handPoseTypes
   pinchMidpoint: PinchCoordinates | null; // from ./handPoseTypes
-  handedness: string;       // e.g., "Left" or "Right"
+  handedness: string; // e.g., "Left" or "Right"
 }
 
 // Fix for the WebAssembly issues in Electron
@@ -111,19 +111,19 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
               };
 
               // Pinch coordinates calculated for multiple pinches
-              
+
               // Save pinch visualization data to draw later (after all joint indicators)
               currentPinchMidpoint.normalizedMidX = normalizedMidX;
               currentPinchMidpoint.normalizedMidY = normalizedMidY;
             }
           }
-          
+
           // Add the hand data to the tracked hands array
           currentFrameTrackedHands.push({
             landmarks,
             pose,
             pinchMidpoint: currentPinchMidpoint,
-            handedness
+            handedness,
           });
 
           // Use the first hand for the 3D pointer (handPosition)
@@ -186,22 +186,26 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
 
       // Now draw all pinch visualizations AFTER all hand landmarks have been drawn
       // This ensures pinch circles and text appear on top of joint indicators
-      currentFrameTrackedHands.forEach(hand => {
-        if (hand.pinchMidpoint && hand.pinchMidpoint.normalizedMidX !== undefined && hand.pinchMidpoint.normalizedMidY !== undefined) {
+      currentFrameTrackedHands.forEach((hand) => {
+        if (
+          hand.pinchMidpoint &&
+          hand.pinchMidpoint.normalizedMidX !== undefined &&
+          hand.pinchMidpoint.normalizedMidY !== undefined
+        ) {
           const normalizedMidX = hand.pinchMidpoint.normalizedMidX;
           const normalizedMidY = hand.pinchMidpoint.normalizedMidY;
           const screenPinchX = hand.pinchMidpoint.x;
           const screenPinchY = hand.pinchMidpoint.y;
-          
+
           const canvas = landmarkCanvasRef.current!;
           const ctx = canvasCtx;
           const canvasWidth = canvas.width;
           const canvasHeight = canvas.height;
-          
+
           // Draw the pinch circle
           const canvasDrawX_unmirrored = normalizedMidX * canvasWidth;
           const canvasDrawY_unmirrored = normalizedMidY * canvasHeight;
-          
+
           ctx.beginPath();
           ctx.arc(
             canvasDrawX_unmirrored,
@@ -213,27 +217,30 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
           ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
           ctx.lineWidth = 2;
           ctx.stroke();
-          
+
           // Draw the coordinate text
           const coordText = `Pinch: ${Math.round(screenPinchX)}, ${Math.round(screenPinchY)} px`;
-          
+
           ctx.save();
           ctx.scale(-1, 1);
-          
+
           ctx.font = "bold 9px Berkeley Mono";
           const textMetrics = ctx.measureText(coordText);
           const textWidth = textMetrics.width;
           const textHeight = 14;
-          
+
           const visualCircleCenterX = (1 - normalizedMidX) * canvasWidth;
           const circleRadius = 10;
           const padding = 5;
-          const visualTextAnchorLeftX = visualCircleCenterX + circleRadius + padding;
-          const drawTextAnchorLeftX_in_flipped_ctx = -(canvasWidth - visualTextAnchorLeftX);
+          const visualTextAnchorLeftX =
+            visualCircleCenterX + circleRadius + padding;
+          const drawTextAnchorLeftX_in_flipped_ctx = -(
+            canvasWidth - visualTextAnchorLeftX
+          );
           const textY = canvasDrawY_unmirrored;
-          
+
           ctx.textAlign = "left";
-          
+
           // Draw background
           ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
           ctx.fillRect(
@@ -242,18 +249,22 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
             textWidth + 4,
             textHeight + 4,
           );
-          
+
           // Draw text
           ctx.fillStyle = "rgba(255, 255, 255, 1)";
-          ctx.fillText(coordText, drawTextAnchorLeftX_in_flipped_ctx, textY - 3);
-          
+          ctx.fillText(
+            coordText,
+            drawTextAnchorLeftX_in_flipped_ctx,
+            textY - 3,
+          );
+
           ctx.restore();
         }
       });
-      
+
       // Update the tracked hands state with the hands from the current frame
       setTrackedHands(currentFrameTrackedHands);
-      
+
       // If no hands were detected, reset the hand position
       if (currentFrameTrackedHands.length === 0) {
         setHandPosition(null);
@@ -275,43 +286,48 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
   useEffect(() => {
     const cleanupMediaPipe = () => {
       // Cleaning up MediaPipe resources...
-      
+
       if (cameraRef.current) {
         try {
           cameraRef.current.stop();
-        } catch (err) { 
-          console.error("Error stopping camera:", err); 
+        } catch (err) {
+          console.error("Error stopping camera:", err);
         }
         cameraRef.current = null;
       }
-      
+
       if (handsRef.current) {
         try {
           handsRef.current.close();
-        } catch (err) { 
-          console.error("Error closing MediaPipe Hands:", err); 
+        } catch (err) {
+          console.error("Error closing MediaPipe Hands:", err);
         }
         handsRef.current = null;
       }
-      
+
       if (videoRef.current && videoRef.current.srcObject) {
         try {
           const stream = videoRef.current.srcObject as MediaStream;
-          stream.getTracks().forEach(track => track.stop());
+          stream.getTracks().forEach((track) => track.stop());
           videoRef.current.srcObject = null;
           videoRef.current.load(); // Reset video element fully
         } catch (err) {
           console.error("Error cleaning up video stream:", err);
         }
       }
-      
+
       if (landmarkCanvasRef.current) {
-        const canvasCtx = landmarkCanvasRef.current.getContext('2d');
+        const canvasCtx = landmarkCanvasRef.current.getContext("2d");
         if (canvasCtx) {
-          canvasCtx.clearRect(0, 0, landmarkCanvasRef.current.width, landmarkCanvasRef.current.height);
+          canvasCtx.clearRect(
+            0,
+            0,
+            landmarkCanvasRef.current.width,
+            landmarkCanvasRef.current.height,
+          );
         }
       }
-      
+
       setHandTrackingStatus("Inactive");
       setHandPosition(null);
       setTrackedHands([]);
@@ -333,12 +349,20 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
 
     // Make sure any previous instances are properly closed before re-init
     if (handsRef.current) {
-      try { handsRef.current.close(); } catch(e) { /* ignore */ }
+      try {
+        handsRef.current.close();
+      } catch (e) {
+        /* ignore */
+      }
       handsRef.current = null;
     }
-    
+
     if (cameraRef.current) {
-      try { cameraRef.current.stop(); } catch(e) { /* ignore */ }
+      try {
+        cameraRef.current.stop();
+      } catch (e) {
+        /* ignore */
+      }
       cameraRef.current = null;
     }
 
@@ -362,7 +386,11 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
 
       cameraRef.current = new Camera(videoRef.current, {
         onFrame: async () => {
-          if (videoRef.current && handsRef.current && videoRef.current.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+          if (
+            videoRef.current &&
+            handsRef.current &&
+            videoRef.current.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+          ) {
             try {
               await handsRef.current.send({ image: videoRef.current });
             } catch (err) {
@@ -439,7 +467,7 @@ export function useHandTracking({ enabled }: UseHandTrackingOptions) {
     handPosition,
     handTrackingStatus,
     activeHandPose, // Add for compatibility with existing components
-    pinchMidpoint,  // Add for compatibility with existing components
-    trackedHands,   // For components that need access to all tracked hands
+    pinchMidpoint, // Add for compatibility with existing components
+    trackedHands, // For components that need access to all tracked hands
   };
 }

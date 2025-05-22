@@ -14,6 +14,7 @@ Raised the pinch threshold in `handPoseRecognition.ts` from 0.08 to 0.1 as reque
 ### 2. Removed Console Logs
 
 Cleaned up console logs from `useHandTracking.ts`:
+
 - Removed unnecessary comment lines about console logging
 - Removed debug comments about MediaPipe initialization steps
 - Replaced console.warn with a comment for unavailable refs

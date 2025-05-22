@@ -92,6 +92,7 @@ I've analyzed the existing code and identified the following issues:
 During implementation, I encountered and fixed the following issues:
 
 1. **NostrSdkError Import Error**: The `NostrSdkError` type was missing from the NostrService exports, so I replaced it with the appropriate error types from the NostrService:
+
    - Used `NostrRequestError` and `NostrPublishError` instead of `NostrSdkError`
    - Updated error handling in all files to match the correct error types
 
@@ -113,6 +114,7 @@ During implementation, I encountered and fixed the following issues:
 ## Testing
 
 The implementation has been tested manually to ensure:
+
 1. Channel creation works properly
 2. Messages are encrypted and decrypted correctly
 3. Subscription to new messages works
@@ -122,6 +124,7 @@ The implementation has been tested manually to ensure:
 ## Future Improvements
 
 While the current implementation satisfies the requirements, there are some potential improvements:
+
 1. Add configurable relays to the NostrServiceConfig
 2. Implement the rest of the NIP-28 methods like setChannelMetadata, hideMessage, and muteUser
 3. Add a proper user identity management system instead of using demo keys

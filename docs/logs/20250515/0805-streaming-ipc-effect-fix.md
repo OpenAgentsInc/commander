@@ -3,6 +3,7 @@
 ## Problem Analysis
 
 The streaming feature is failing with error:
+
 ```
 Ollama stream initialization failed: (FiberFailure) RuntimeException: Not a valid effect: undefined
 ```
@@ -50,6 +51,7 @@ After implementing the changes:
 ## Conclusion
 
 The root cause was in the Stream processing pipeline, specifically:
+
 1. The Stream.mapEffect function was not always returning an Effect for all code paths
 2. The Stream.filterMap usage was not correctly handling Option values
 3. Error propagation was not structured optimally

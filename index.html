@@ -1,17 +1,17 @@
 <!doctype html>
 <html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>OpenAgents Commander</title>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' blob: https: wss: http://localhost:11434; img-src 'self' data: blob: https://raw.githack.com https://*.pmndrs.com https://raw.githubusercontent.com"
+    />
+    <link rel="stylesheet" href="/src/styles/global.css" />
+  </head>
 
-<head>
-  <meta charset="UTF-8" />
-  <title>OpenAgents Commander</title>
-  <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' blob: https: wss: http://localhost:11434; img-src 'self' data: blob: https://raw.githack.com https://*.pmndrs.com https://raw.githubusercontent.com" />
-  <link rel="stylesheet" href="/src/styles/global.css" />
-</head>
-
-<body>
-  <div id="app" />
-  <script type="module" src="/src/renderer.ts"></script>
-</body>
-
+  <body>
+    <div id="app" />
+    <script type="module" src="/src/renderer.ts"></script>
+  </body>
 </html>

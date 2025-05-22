@@ -10,6 +10,7 @@ After implementing the IPC registration timing fix, we encountered two TypeScrip
 ## Errors
 
 1. **Error with generateChatCompletion return type**:
+
    ```
    error TS2322: Type 'Effect<never, Error, never>' is not assignable to type 'Effect<...>'.
    Type 'Error' is not assignable to type 'OllamaHttpError | OllamaParseError'.
@@ -18,6 +19,7 @@ After implementing the IPC registration timing fix, we encountered two TypeScrip
    This error occurred because our fallback implementation of `generateChatCompletion` was returning a generic `Error` object, but the interface required it to return either an `OllamaHttpError` or `OllamaParseError`.
 
 2. **Error with Cause.pretty**:
+
    ```
    error TS2345: Argument of type 'OllamaHttpError | OllamaParseError' is not assignable to parameter of type 'Cause<unknown>'.
    ```
@@ -33,20 +35,21 @@ Updated the fallback Ollama service implementation to return the proper error ty
 ```typescript
 ollamaServiceLayer = Layer.succeed(OllamaService, {
   checkOllamaStatus: () => Effect.succeed(false),
-  generateChatCompletion: () => Effect.fail({
-    _tag: "OllamaHttpError", 
-    message: "Ollama service not properly initialized",
-    request: {},
-    response: {}
-  } as any), // Cast to any to avoid TypeScript errors
-  generateChatCompletionStream: () => { 
-    throw { 
-      _tag: "OllamaHttpError", 
+  generateChatCompletion: () =>
+    Effect.fail({
+      _tag: "OllamaHttpError",
       message: "Ollama service not properly initialized",
       request: {},
-      response: {}
+      response: {},
+    } as any), // Cast to any to avoid TypeScript errors
+  generateChatCompletionStream: () => {
+    throw {
+      _tag: "OllamaHttpError",
+      message: "Ollama service not properly initialized",
+      request: {},
+      response: {},
     };
-  }
+  },
 });
 ```
 
@@ -59,12 +62,16 @@ Updated the error handling to format errors without using `Cause.pretty`:
 ```typescript
 Effect.catchAll((error) => {
   // Handle error object without using Cause.pretty since it's not a Cause type
-  const errorMessage = typeof error === 'object' && error !== null 
-    ? (error._tag || '') + ': ' + (error.message || JSON.stringify(error)) 
-    : String(error);
-  console.error("[IPC Handler] Error during Ollama status check:", errorMessage);
+  const errorMessage =
+    typeof error === "object" && error !== null
+      ? (error._tag || "") + ": " + (error.message || JSON.stringify(error))
+      : String(error);
+  console.error(
+    "[IPC Handler] Error during Ollama status check:",
+    errorMessage,
+  );
   return Effect.succeed(false); // Return false for any errors
-})
+});
 ```
 
 Instead of passing the error directly to `Cause.pretty()`, we now use a custom approach to format the error message based on its properties.

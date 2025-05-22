@@ -17,7 +17,14 @@ export interface RequestKey {
  * Global storage for mocked responses
  * This needs to be module-level to persist between test runs
  */
-const mockResponses = new Map<string, Effect.Effect<HttpClientResponse.HttpClientResponse, HttpClientError.HttpClientError, never>>();
+const mockResponses = new Map<
+  string,
+  Effect.Effect<
+    HttpClientResponse.HttpClientResponse,
+    HttpClientError.HttpClientError,
+    never
+  >
+>();
 
 /**
  * Creates a string key from a RequestKey object
@@ -31,7 +38,11 @@ function makeRequestKey(request: RequestKey): string {
  */
 export const setMockClientResponse = (
   request: RequestKey,
-  response: Effect.Effect<HttpClientResponse.HttpClientResponse, HttpClientError.HttpClientError, never>
+  response: Effect.Effect<
+    HttpClientResponse.HttpClientResponse,
+    HttpClientError.HttpClientError,
+    never
+  >,
 ): Effect.Effect<void, never, never> => {
   return Effect.sync(() => {
     mockResponses.set(makeRequestKey(request), response);
@@ -41,7 +52,11 @@ export const setMockClientResponse = (
 /**
  * Clear all mock responses - should be called between tests
  */
-export const clearMockClientResponses = (): Effect.Effect<void, never, never> => {
+export const clearMockClientResponses = (): Effect.Effect<
+  void,
+  never,
+  never
+> => {
   return Effect.sync(() => {
     mockResponses.clear();
   });
@@ -53,20 +68,22 @@ function createMockClient() {
     const url = request.url;
     const method = request.method;
     const key = makeRequestKey({ url, method });
-    
+
     const mockResponse = mockResponses.get(key);
-    
+
     if (!mockResponse) {
-      return Effect.fail(new HttpClientError.RequestError({
-        request,
-        reason: "Transport", 
-        cause: new Error(
-          `No mock response found for ${method} ${url}. ` +
-          `Make sure to set up a mock using setMockClientResponse().`
-        )
-      }));
+      return Effect.fail(
+        new HttpClientError.RequestError({
+          request,
+          reason: "Transport",
+          cause: new Error(
+            `No mock response found for ${method} ${url}. ` +
+              `Make sure to set up a mock using setMockClientResponse().`,
+          ),
+        }),
+      );
     }
-    
+
     return mockResponse;
   };
 
@@ -109,19 +126,19 @@ function createMockClient() {
       return { _tag: "TestHttpClient" };
     },
     // Mock implementation needed for withTracerPropagation to work
-    preprocess: null
+    preprocess: null,
   };
-  
+
   // Note: We're no longer using withTracerPropagation for testing
   // Since HttpClientModule is read-only, we can't modify it here
   // Instead, we're using the base client directly in OllamaServiceImpl.ts
-  
+
   return client;
 }
 
 // Create a Layer with the mock HttpClient
 // We use unknown as an intermediate step to work around the complex type structure
 export const TestHttpClientLive = Layer.succeed(
-  HttpClient, 
-  createMockClient() as unknown as HttpClient
+  HttpClient,
+  createMockClient() as unknown as HttpClient,
 );

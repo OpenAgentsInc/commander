@@ -35,7 +35,7 @@ describe("NIP90Service", () => {
   // Helper function to properly handle Effect context requirements in tests
   // The input 'effect' depends on NIP90Service, and this function provides testLayer which satisfies it
   function runEffectTest<A, E>(
-    effect: Effect.Effect<A, E, NIP90Service>
+    effect: Effect.Effect<A, E, NIP90Service>,
   ): Effect.Effect<A, E, never> {
     return Effect.provide(effect, testLayer);
   }

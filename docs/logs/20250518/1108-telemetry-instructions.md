@@ -18,7 +18,7 @@ Replace all standard `console.*` calls (log, error, warn, info, debug) throughou
       TelemetryEvent,
       TelemetryEventSchema,
       TelemetryError,
-      TrackEventError
+      TrackEventError,
     } from "./TelemetryService";
 
     /**
@@ -27,31 +27,45 @@ Replace all standard `console.*` calls (log, error, warn, info, debug) throughou
     export function createTelemetryService(): TelemetryService {
       // Determine if telemetry should be enabled based on environment
       // Vite uses import.meta.env.MODE for 'development' or 'production' in client-side code.
-      const isDevelopmentMode = import.meta.env.MODE === 'development';
+      const isDevelopmentMode = import.meta.env.MODE === "development";
       // Default behavior: full telemetry in dev, no telemetry in prod.
       let telemetryEnabled = isDevelopmentMode;
 
-      const trackEvent = (event: TelemetryEvent): Effect.Effect<void, TrackEventError> => {
+      const trackEvent = (
+        event: TelemetryEvent,
+      ): Effect.Effect<void, TrackEventError> => {
         return Effect.gen(function* (_) {
           yield* _(
             Schema.decodeUnknown(TelemetryEventSchema)(event),
             Effect.mapError(
-              (error) => new TrackEventError({ message: "Invalid event format", cause: error })
-            )
+              (error) =>
+                new TrackEventError({
+                  message: "Invalid event format",
+                  cause: error,
+                }),
+            ),
           );
 
           let currentIsEnabled = false;
           try {
             // Use a local variable to avoid race conditions if isEnabled() was async from storage
-            currentIsEnabled = yield* _(isEnabled().pipe(
-              Effect.mapError(error => new TrackEventError({
-                message: `Error checking telemetry status: ${error.message}`,
-                cause: error.cause
-              }))
-            ));
+            currentIsEnabled = yield* _(
+              isEnabled().pipe(
+                Effect.mapError(
+                  (error) =>
+                    new TrackEventError({
+                      message: `Error checking telemetry status: ${error.message}`,
+                      cause: error.cause,
+                    }),
+                ),
+              ),
+            );
           } catch (error) {
-             // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.error("TelemetryService: Error checking telemetry status in trackEvent:", error);
+            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+            console.error(
+              "TelemetryService: Error checking telemetry status in trackEvent:",
+              error,
+            );
             // Default to not tracking if status check fails, but don't break the app
             currentIsEnabled = false;
           }
@@ -62,11 +76,13 @@ Replace all standard `console.*` calls (log, error, warn, info, debug) throughou
 
           const eventWithTimestamp = {
             ...event,
-            timestamp: event.timestamp || Date.now()
+            timestamp: event.timestamp || Date.now(),
           };
 
           try {
-            const isTestEnv = process.env.NODE_ENV === 'test' || process.env.VITEST !== undefined;
+            const isTestEnv =
+              process.env.NODE_ENV === "test" ||
+              process.env.VITEST !== undefined;
             if (!isTestEnv) {
               // TELEMETRY_IGNORE_THIS_CONSOLE_CALL (This is the service's own logging mechanism)
               console.log("[Telemetry]", eventWithTimestamp);
@@ -76,7 +92,7 @@ Replace all standard `console.*` calls (log, error, warn, info, debug) throughou
             // This throw will be caught by the Effect runtime if trackEvent is run within an Effect
             throw new TrackEventError({
               message: "Failed to track event via console.log",
-              cause
+              cause,
             });
           }
         });
@@ -85,65 +101,79 @@ Replace all standard `console.*` calls (log, error, warn, info, debug) throughou
       const isEnabled = (): Effect.Effect<boolean, TelemetryError> => {
         return Effect.try({
           try: () => telemetryEnabled,
-          catch: (cause) => new TelemetryError({
-            message: "Failed to check if telemetry is enabled",
-            cause
-          })
+          catch: (cause) =>
+            new TelemetryError({
+              message: "Failed to check if telemetry is enabled",
+              cause,
+            }),
         });
       };
 
-      const setEnabled = (enabled: boolean): Effect.Effect<void, TelemetryError> => {
+      const setEnabled = (
+        enabled: boolean,
+      ): Effect.Effect<void, TelemetryError> => {
         return Effect.try({
           try: () => {
             telemetryEnabled = enabled;
             // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.log(`[TelemetryService] Telemetry explicitly set to: ${enabled}`);
+            console.log(
+              `[TelemetryService] Telemetry explicitly set to: ${enabled}`,
+            );
             return;
           },
-          catch: (cause) => new TelemetryError({
-            message: "Failed to set telemetry enabled state",
-            cause
-          })
+          catch: (cause) =>
+            new TelemetryError({
+              message: "Failed to set telemetry enabled state",
+              cause,
+            }),
         });
       };
 
       return {
         trackEvent,
         isEnabled,
-        setEnabled
+        setEnabled,
       };
     }
 
     export const TelemetryServiceLive = Layer.succeed(
       TelemetryService,
-      createTelemetryService()
+      createTelemetryService(),
     );
     ```
+
 3.  **Verification:**
-    *   Manually confirm `import.meta.env.MODE` is correctly reflecting "development" when running `pnpm start` and "production" in a built app (if easy to check). The `telemetryEnabled` variable should initialize accordingly.
+    - Manually confirm `import.meta.env.MODE` is correctly reflecting "development" when running `pnpm start` and "production" in a built app (if easy to check). The `telemetryEnabled` variable should initialize accordingly.
 
 ---
 
 **Phase 2: Implement the Console Replacement Logic**
 
 1.  **Files to Modify:** All `.ts` and `.tsx` files within `src/` directory, **EXCLUDING**:
-    *   `src/services/telemetry/TelemetryServiceImpl.ts`
-    *   `src/tests/vitest.setup.ts`
-    *   Any `console.error` calls that are specifically marked with `// TELEMETRY_IGNORE_THIS_CONSOLE_CALL` (these are telemetry system's own fallbacks).
+
+    - `src/services/telemetry/TelemetryServiceImpl.ts`
+    - `src/tests/vitest.setup.ts`
+    - Any `console.error` calls that are specifically marked with `// TELEMETRY_IGNORE_THIS_CONSOLE_CALL` (these are telemetry system's own fallbacks).
 
 2.  **Iterate through each identified file and each `console.*` call:**
 
     **2.1. Add Imports:**
     At the top of the file, if not already present, add:
+
     ```typescript
-    import { Effect, Layer, Cause, Exit } from 'effect'; // Exit may not always be needed
-    import { TelemetryService, TelemetryServiceLive, type TelemetryEvent } from '@/services/telemetry';
+    import { Effect, Layer, Cause, Exit } from "effect"; // Exit may not always be needed
+    import {
+      TelemetryService,
+      TelemetryServiceLive,
+      type TelemetryEvent,
+    } from "@/services/telemetry";
     ```
 
     **2.2. Replace `console.*` calls:**
     For each call (e.g., `console.log(arg1, arg2, ...)`):
 
     **A. Determine Category:**
+
     ```typescript
     let telemetryCategory: string;
     // Example: if original was console.log
@@ -151,45 +181,61 @@ Replace all standard `console.*` calls (log, error, warn, info, debug) throughou
     // Example: if original was console.error
     // telemetryCategory = "log:error";
     ```
+
     Map as follows:
-    *   `console.log` -> `"log:info"`
-    *   `console.info` -> `"log:info"`
-    *   `console.debug` -> `"log:debug"`
-    *   `console.warn` -> `"log:warn"`
-    *   `console.error` -> `"log:error"`
+
+    - `console.log` -> `"log:info"`
+    - `console.info` -> `"log:info"`
+    - `console.debug` -> `"log:debug"`
+    - `console.warn` -> `"log:warn"`
+    - `console.error` -> `"log:error"`
 
     **B. Construct Payload (`label` and `value`):**
     Let `args` be the array of arguments passed to the original console call.
+
     ```typescript
     let telemetryLabel: string | undefined = undefined;
     let telemetryValue: any = undefined;
 
     if (args.length > 0) {
       const firstArg = args[0];
-      if (typeof firstArg === 'string') {
+      if (typeof firstArg === "string") {
         telemetryLabel = firstArg;
         if (args.length > 1) {
           const remainingArgs = args.slice(1);
           if (remainingArgs.length === 1 && remainingArgs[0] instanceof Error) {
             const err = remainingArgs[0] as Error;
-            telemetryValue = { name: err.name, message: err.message, stack: err.stack };
-          } else if (remainingArgs.length === 1 && (typeof remainingArgs[0] === 'string' || typeof remainingArgs[0] === 'number' || typeof remainingArgs[0] === 'boolean')) {
+            telemetryValue = {
+              name: err.name,
+              message: err.message,
+              stack: err.stack,
+            };
+          } else if (
+            remainingArgs.length === 1 &&
+            (typeof remainingArgs[0] === "string" ||
+              typeof remainingArgs[0] === "number" ||
+              typeof remainingArgs[0] === "boolean")
+          ) {
             telemetryValue = remainingArgs[0];
-          }
-           else {
+          } else {
             telemetryValue = remainingArgs; // Store as an array
           }
         }
       } else if (firstArg instanceof Error) {
         const err = firstArg as Error;
-        telemetryLabel = err.message || 'Error object logged';
-        telemetryValue = { name: err.name, message: err.message, stack: err.stack };
+        telemetryLabel = err.message || "Error object logged";
+        telemetryValue = {
+          name: err.name,
+          message: err.message,
+          stack: err.stack,
+        };
         if (args.length > 1) {
           // If there are more args after an initial error object, append them to the value.
           // This is less common but good to handle.
           telemetryValue.additionalArgs = args.slice(1);
         }
-      } else { // First arg is not a string and not an Error (e.g., an object or number)
+      } else {
+        // First arg is not a string and not an Error (e.g., an object or number)
         if (args.length === 1) {
           telemetryValue = firstArg;
         } else {
@@ -199,12 +245,19 @@ Replace all standard `console.*` calls (log, error, warn, info, debug) throughou
     }
 
     // Ensure telemetryValue is stringified if it's an object or array
-    if (telemetryValue !== undefined && (typeof telemetryValue === 'object' || Array.isArray(telemetryValue))) {
+    if (
+      telemetryValue !== undefined &&
+      (typeof telemetryValue === "object" || Array.isArray(telemetryValue))
+    ) {
       try {
         telemetryValue = JSON.stringify(telemetryValue);
       } catch (e) {
         // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-        console.error("TelemetryService: Failed to stringify value for telemetry", e, telemetryValue);
+        console.error(
+          "TelemetryService: Failed to stringify value for telemetry",
+          e,
+          telemetryValue,
+        );
         telemetryValue = "[Unstringifiable Object]";
       }
     }
@@ -213,68 +266,77 @@ Replace all standard `console.*` calls (log, error, warn, info, debug) throughou
       category: telemetryCategory,
       action: "generic_console_replacement", // Or a more specific action if discernible
       label: telemetryLabel,
-      value: telemetryValue
+      value: telemetryValue,
     };
     ```
 
     **C. Create and Run Effect Program:**
     Replace the original `console.*(...)` call with:
+
     ```typescript
     Effect.gen(function* (_) {
       const telemetryService = yield* _(TelemetryService);
       yield* _(telemetryService.trackEvent(eventData)); // eventData from step B
-    }).pipe(
-      Effect.provide(TelemetryServiceLive),
-      (effect) => Effect.runPromise(effect).catch(err => {
+    }).pipe(Effect.provide(TelemetryServiceLive), (effect) =>
+      Effect.runPromise(effect).catch((err) => {
         // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-        console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err), Cause.pretty(err));
-      })
+        console.error(
+          "TelemetryService.trackEvent failed:",
+          err instanceof Error ? err.message : String(err),
+          Cause.pretty(err),
+        );
+      }),
     );
     ```
-    *   **Note on `Cause.pretty(err)`:** If `err` is not an Effect `Cause` (e.g., a direct error from `JSON.stringify` if it were to throw before the Effect pipeline), `Cause.pretty(err)` might not be ideal. However, `Effect.runPromise` itself wraps promise rejections into `Cause.Die`.
-    *   The `(effect) => Effect.runPromise(effect).catch(...)` part is important. `Effect.runPromiseExit` or `Effect.catchAll` within the pipe are alternatives if more structured error handling of the telemetry effect itself is needed. `runPromise().catch()` is simple and effective for fire-and-forget.
+
+    - **Note on `Cause.pretty(err)`:** If `err` is not an Effect `Cause` (e.g., a direct error from `JSON.stringify` if it were to throw before the Effect pipeline), `Cause.pretty(err)` might not be ideal. However, `Effect.runPromise` itself wraps promise rejections into `Cause.Die`.
+    - The `(effect) => Effect.runPromise(effect).catch(...)` part is important. `Effect.runPromiseExit` or `Effect.catchAll` within the pipe are alternatives if more structured error handling of the telemetry effect itself is needed. `runPromise().catch()` is simple and effective for fire-and-forget.
 
     **Specific Example (Nostr Publish Failure in `Nip90RequestForm.tsx`):**
-    *   **Original:**
-        ```typescript
-        // console.error('Failed to publish NIP-90 request:', Cause.pretty(exit.cause));
-        // const underlyingError = Cause.failureOption(exit.cause);
-        // const errorMessage = underlyingError._tag === "Some" && underlyingError.value instanceof Error ?
-        //                      underlyingError.value.message : "Unknown error during publishing.";
-        // setPublishError(`Publishing failed: ${errorMessage}`);
-        ```
-    *   The `console.error` line above will be replaced. `errorMessage` already holds the specific error like "Failed to publish to 2 out of 6 relays".
-    *   **Replacement:**
-        ```typescript
-        // const underlyingError = Cause.failureOption(exit.cause); // This line is still needed to get errorMessage
-        // const errorMessage = ... // This line is still needed
 
-        const telemetryDataForPublishFailure: TelemetryEvent = {
-          category: "log:error",
-          action: "nip90_publish_failure", // More specific action
-          label: `Publishing NIP-90 request failed: ${errorMessage}`, // Use the already extracted message
-          value: Cause.pretty(exit.cause) // Full cause for details
-        };
-        Effect.gen(function* (_) {
-          const telemetry = yield* _(TelemetryService);
-          yield* _(telemetry.trackEvent(telemetryDataForPublishFailure));
-        }).pipe(
-          Effect.provide(TelemetryServiceLive),
-          (effect) => Effect.runPromise(effect).catch(err => {
-            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.error("TelemetryService.trackEvent failed for NIP-90 publish error:", err);
-          })
-        );
-        // setPublishError(`Publishing failed: ${errorMessage}`); // This line remains for UI
-        ```
+    - **Original:**
+      ```typescript
+      // console.error('Failed to publish NIP-90 request:', Cause.pretty(exit.cause));
+      // const underlyingError = Cause.failureOption(exit.cause);
+      // const errorMessage = underlyingError._tag === "Some" && underlyingError.value instanceof Error ?
+      //                      underlyingError.value.message : "Unknown error during publishing.";
+      // setPublishError(`Publishing failed: ${errorMessage}`);
+      ```
+    - The `console.error` line above will be replaced. `errorMessage` already holds the specific error like "Failed to publish to 2 out of 6 relays".
+    - **Replacement:**
+
+      ```typescript
+      // const underlyingError = Cause.failureOption(exit.cause); // This line is still needed to get errorMessage
+      // const errorMessage = ... // This line is still needed
+
+      const telemetryDataForPublishFailure: TelemetryEvent = {
+        category: "log:error",
+        action: "nip90_publish_failure", // More specific action
+        label: `Publishing NIP-90 request failed: ${errorMessage}`, // Use the already extracted message
+        value: Cause.pretty(exit.cause), // Full cause for details
+      };
+      Effect.gen(function* (_) {
+        const telemetry = yield* _(TelemetryService);
+        yield* _(telemetry.trackEvent(telemetryDataForPublishFailure));
+      }).pipe(Effect.provide(TelemetryServiceLive), (effect) =>
+        Effect.runPromise(effect).catch((err) => {
+          // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+          console.error(
+            "TelemetryService.trackEvent failed for NIP-90 publish error:",
+            err,
+          );
+        }),
+      );
+      // setPublishError(`Publishing failed: ${errorMessage}`); // This line remains for UI
+      ```
 
 3.  **Review and Test:**
-    *   Run `pnpm t` to catch TypeScript errors.
-    *   Run `pnpm test`. Fix any test failures. Tests that were asserting `console.log` calls will need those assertions removed or adapted.
-    *   Manually run the application (`pnpm start`).
-        *   Verify that previously `console.log`'d messages now appear in the console prefixed with `[Telemetry]`.
-        *   Specifically test the NIP-90 encrypted event publishing failure scenario. Ensure the detailed error message (e.g., "Publishing failed: Failed to publish to 2 out of 6 relays. Reasons: ...") appears in the telemetry log on the console.
-        *   Test in a production-like environment (if possible by temporarily setting `isDevelopmentMode = false` in `TelemetryServiceImpl.ts`) to confirm no telemetry logs appear. (Then revert this temporary change).
+    - Run `pnpm t` to catch TypeScript errors.
+    - Run `pnpm test`. Fix any test failures. Tests that were asserting `console.log` calls will need those assertions removed or adapted.
+    - Manually run the application (`pnpm start`).
+      - Verify that previously `console.log`'d messages now appear in the console prefixed with `[Telemetry]`.
+      - Specifically test the NIP-90 encrypted event publishing failure scenario. Ensure the detailed error message (e.g., "Publishing failed: Failed to publish to 2 out of 6 relays. Reasons: ...") appears in the telemetry log on the console.
+      - Test in a production-like environment (if possible by temporarily setting `isDevelopmentMode = false` in `TelemetryServiceImpl.ts`) to confirm no telemetry logs appear. (Then revert this temporary change).
 
 ---
 
@@ -283,7 +345,7 @@ Replace all standard `console.*` calls (log, error, warn, info, debug) throughou
 1.  **File to Modify:** `docs/AGENTS.md`
 2.  **Action:** Add a new section detailing the logging and telemetry conventions.
 
-    ```diff
+    ````diff
     --- a/docs/AGENTS.md
     +++ b/docs/AGENTS.md
     @@ -132,3 +132,42 @@
@@ -341,7 +403,7 @@ Replace all standard `console.*` calls (log, error, warn, info, debug) throughou
     +    *   Using `Effect.runPromise(effect).catch(...)` ensures that telemetry operations are non-blocking and their errors don't crash the main application flow.
     +
     +**Refer to `docs/TELEMETRY.md` for comprehensive documentation on the Telemetry Service, including standard event categories, schema details, and advanced usage.**
-    ```
+    ````
 
 This detailed plan should guide the agent through the refactoring process successfully. The key is systematic replacement and careful testing. The success criterion regarding the NIP-90 publish failure diagnostic is directly addressed by ensuring the error details are part of the telemetry event.
 The telemetry system itself will log to console in dev mode, so the experience for developers regarding diagnostics should remain similar, just channeled through `TelemetryService`.Okay, this is a multi-faceted task. I will provide a set of instructions for the coding agent to follow.
@@ -353,37 +415,47 @@ The telemetry system itself will log to console in dev mode, so the experience f
 
     **Instructions:**
     Modify `src/services/telemetry/TelemetryServiceImpl.ts` as follows:
-    *   At the beginning of the `createTelemetryService` function, determine `isDevelopmentMode` using `import.meta.env.MODE === 'development'`.
-    *   Initialize `telemetryEnabled` based on `isDevelopmentMode`.
-    *   The `isEnabled()` method should return the current value of `telemetryEnabled`.
-    *   The `setEnabled(enabled: boolean)` method should update `telemetryEnabled` and log this action to the console (this specific console log should be marked with `// TELEMETRY_IGNORE_THIS_CONSOLE_CALL`).
-    *   The `trackEvent` method should:
-        *   First, check the current `telemetryEnabled` state (by calling `isEnabled()` internally or using the `telemetryEnabled` variable). If disabled, it should do nothing and return.
-        *   If enabled, it proceeds with schema validation and logging.
-        *   The `console.log("[Telemetry]", eventWithTimestamp);` call within `trackEvent` is part of the service's development logging mechanism and should remain, but also be marked with `// TELEMETRY_IGNORE_THIS_CONSOLE_CALL` to prevent it from being replaced in the next phase.
-        *   Ensure any internal errors from checking `isEnabled()` within `trackEvent` are caught and logged to `console.error` (marked `// TELEMETRY_IGNORE_THIS_CONSOLE_CALL`), and default to not tracking the event if this check fails.
+
+    - At the beginning of the `createTelemetryService` function, determine `isDevelopmentMode` using `import.meta.env.MODE === 'development'`.
+    - Initialize `telemetryEnabled` based on `isDevelopmentMode`.
+    - The `isEnabled()` method should return the current value of `telemetryEnabled`.
+    - The `setEnabled(enabled: boolean)` method should update `telemetryEnabled` and log this action to the console (this specific console log should be marked with `// TELEMETRY_IGNORE_THIS_CONSOLE_CALL`).
+    - The `trackEvent` method should:
+      - First, check the current `telemetryEnabled` state (by calling `isEnabled()` internally or using the `telemetryEnabled` variable). If disabled, it should do nothing and return.
+      - If enabled, it proceeds with schema validation and logging.
+      - The `console.log("[Telemetry]", eventWithTimestamp);` call within `trackEvent` is part of the service's development logging mechanism and should remain, but also be marked with `// TELEMETRY_IGNORE_THIS_CONSOLE_CALL` to prevent it from being replaced in the next phase.
+      - Ensure any internal errors from checking `isEnabled()` within `trackEvent` are caught and logged to `console.error` (marked `// TELEMETRY_IGNORE_THIS_CONSOLE_CALL`), and default to not tracking the event if this check fails.
 
     **Reference (Conceptual changes):**
+
     ```typescript
     // src/services/telemetry/TelemetryServiceImpl.ts
     // ... imports ...
 
     export function createTelemetryService(): TelemetryService {
-      const isDevelopmentMode = import.meta.env.MODE === 'development';
+      const isDevelopmentMode = import.meta.env.MODE === "development";
       let telemetryEnabled = isDevelopmentMode; // Default based on environment
 
       const isEnabled = (): Effect.Effect<boolean, TelemetryError> => {
         return Effect.succeed(telemetryEnabled); // Simplified for direct access
       };
 
-      const trackEvent = (event: TelemetryEvent): Effect.Effect<void, TrackEventError> => {
+      const trackEvent = (
+        event: TelemetryEvent,
+      ): Effect.Effect<void, TrackEventError> => {
         return Effect.gen(function* (_) {
           // Check if telemetry is enabled
-          const currentIsEnabled = yield* _(isEnabled(), Effect.catchAll((err) => {
-            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.error("TelemetryService: Critical error in isEnabled() check within trackEvent", err);
-            return Effect.succeed(false); // Default to false if status check fails
-          }));
+          const currentIsEnabled = yield* _(
+            isEnabled(),
+            Effect.catchAll((err) => {
+              // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+              console.error(
+                "TelemetryService: Critical error in isEnabled() check within trackEvent",
+                err,
+              );
+              return Effect.succeed(false); // Default to false if status check fails
+            }),
+          );
 
           if (!currentIsEnabled) {
             return; // Silently do nothing
@@ -393,29 +465,44 @@ The telemetry system itself will log to console in dev mode, so the experience f
           yield* _(
             Schema.decodeUnknown(TelemetryEventSchema)(event),
             Effect.mapError(
-              (parseError) => new TrackEventError({ message: "Invalid event format", cause: parseError })
-            )
+              (parseError) =>
+                new TrackEventError({
+                  message: "Invalid event format",
+                  cause: parseError,
+                }),
+            ),
           );
 
-          const eventWithTimestamp = { /* ... as before ... */ };
+          const eventWithTimestamp = {
+            /* ... as before ... */
+          };
 
           try {
-            const isTestEnv = process.env.NODE_ENV === 'test' || process.env.VITEST !== undefined;
+            const isTestEnv =
+              process.env.NODE_ENV === "test" ||
+              process.env.VITEST !== undefined;
             if (!isTestEnv) {
               // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
               console.log("[Telemetry]", eventWithTimestamp);
             }
           } catch (cause) {
-            throw new TrackEventError({ message: "Failed to track event via console.log", cause });
+            throw new TrackEventError({
+              message: "Failed to track event via console.log",
+              cause,
+            });
           }
         });
       };
 
-      const setEnabled = (enabled: boolean): Effect.Effect<void, TelemetryError> => {
+      const setEnabled = (
+        enabled: boolean,
+      ): Effect.Effect<void, TelemetryError> => {
         return Effect.sync(() => {
           telemetryEnabled = enabled;
           // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-          console.log(`[TelemetryService] Telemetry explicitly set to: ${enabled}`);
+          console.log(
+            `[TelemetryService] Telemetry explicitly set to: ${enabled}`,
+          );
         });
       };
 
@@ -431,26 +518,33 @@ The telemetry system itself will log to console in dev mode, so the experience f
 
 1.  **Target Files:** All `.ts` and `.tsx` files within the `src/` directory.
 2.  **Excluded Files:**
-    *   `src/services/telemetry/TelemetryServiceImpl.ts`
-    *   `src/tests/vitest.setup.ts`
-    *   Any `console.error` calls that are explicitly marked with the comment `// TELEMETRY_IGNORE_THIS_CONSOLE_CALL` above them.
+
+    - `src/services/telemetry/TelemetryServiceImpl.ts`
+    - `src/tests/vitest.setup.ts`
+    - Any `console.error` calls that are explicitly marked with the comment `// TELEMETRY_IGNORE_THIS_CONSOLE_CALL` above them.
 
 3.  **Procedure for each identified `console.*` call:**
 
     **A. Add Imports:**
     Ensure these imports are at the top of the file. Add them if missing:
+
     ```typescript
-    import { Effect, Layer, Cause, Exit } from 'effect';
-    import { TelemetryService, TelemetryServiceLive, type TelemetryEvent } from '@/services/telemetry';
+    import { Effect, Layer, Cause, Exit } from "effect";
+    import {
+      TelemetryService,
+      TelemetryServiceLive,
+      type TelemetryEvent,
+    } from "@/services/telemetry";
     ```
 
     **B. Determine Telemetry Category:**
     Map the original console method to a `telemetryCategory` string:
-    *   `console.log` -> `"log:info"`
-    *   `console.info` -> `"log:info"`
-    *   `console.debug` -> `"log:debug"`
-    *   `console.warn` -> `"log:warn"`
-    *   `console.error` -> `"log:error"`
+
+    - `console.log` -> `"log:info"`
+    - `console.info` -> `"log:info"`
+    - `console.debug` -> `"log:debug"`
+    - `console.warn` -> `"log:warn"`
+    - `console.error` -> `"log:error"`
 
     **C. Construct Telemetry Payload:**
     Let `originalArgs` be the array of arguments from the console call (e.g., `console.log(arg1, arg2)` -> `originalArgs = [arg1, arg2]`).
@@ -461,7 +555,7 @@ The telemetry system itself will log to console in dev mode, so the experience f
 
     if (originalArgs.length > 0) {
       const firstArg = originalArgs[0];
-      if (typeof firstArg === 'string') {
+      if (typeof firstArg === "string") {
         telemetryLabel = firstArg;
         if (originalArgs.length > 1) {
           const remainingArgs = originalArgs.slice(1);
@@ -469,8 +563,18 @@ The telemetry system itself will log to console in dev mode, so the experience f
           if (remainingArgs.length === 1) {
             if (remainingArgs[0] instanceof Error) {
               const err = remainingArgs[0] as Error;
-              telemetryValue = { name: err.name, message: err.message, stack: err.stack };
-            } else if (typeof remainingArgs[0] === 'string' || typeof remainingArgs[0] === 'number' || typeof remainingArgs[0] === 'boolean' || remainingArgs[0] === null || remainingArgs[0] === undefined) {
+              telemetryValue = {
+                name: err.name,
+                message: err.message,
+                stack: err.stack,
+              };
+            } else if (
+              typeof remainingArgs[0] === "string" ||
+              typeof remainingArgs[0] === "number" ||
+              typeof remainingArgs[0] === "boolean" ||
+              remainingArgs[0] === null ||
+              remainingArgs[0] === undefined
+            ) {
               telemetryValue = remainingArgs[0];
             } else {
               telemetryValue = remainingArgs; // Array with one complex item
@@ -482,11 +586,16 @@ The telemetry system itself will log to console in dev mode, so the experience f
       } else if (firstArg instanceof Error) {
         const err = firstArg as Error;
         telemetryLabel = err.message || "Error object logged"; // Use error message as label
-        telemetryValue = { name: err.name, message: err.message, stack: err.stack };
+        telemetryValue = {
+          name: err.name,
+          message: err.message,
+          stack: err.stack,
+        };
         if (originalArgs.length > 1) {
           telemetryValue.additionalArgs = originalArgs.slice(1);
         }
-      } else { // First arg is not a string and not an Error (e.g., an object or number)
+      } else {
+        // First arg is not a string and not an Error (e.g., an object or number)
         if (originalArgs.length === 1) {
           telemetryValue = firstArg;
         } else {
@@ -497,18 +606,30 @@ The telemetry system itself will log to console in dev mode, so the experience f
     }
 
     // Smart stringification for telemetryValue
-    if (telemetryValue !== undefined && telemetryValue !== null && !(typeof telemetryValue === 'string' || typeof telemetryValue === 'number' || typeof telemetryValue === 'boolean')) {
+    if (
+      telemetryValue !== undefined &&
+      telemetryValue !== null &&
+      !(
+        typeof telemetryValue === "string" ||
+        typeof telemetryValue === "number" ||
+        typeof telemetryValue === "boolean"
+      )
+    ) {
       try {
         // For Cause objects, use Cause.pretty for better readability
         if (Cause && Cause.isCause(telemetryValue)) {
-            telemetryValue = Cause.pretty(telemetryValue);
+          telemetryValue = Cause.pretty(telemetryValue);
         } else {
-            telemetryValue = JSON.stringify(telemetryValue);
+          telemetryValue = JSON.stringify(telemetryValue);
         }
       } catch (e) {
         // Non-critical console call, if stringify fails, log a placeholder
         // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-        console.error("TelemetryService Agent: Failed to stringify value for telemetry event", e, telemetryValue);
+        console.error(
+          "TelemetryService Agent: Failed to stringify value for telemetry event",
+          e,
+          telemetryValue,
+        );
         telemetryValue = "[Unstringifiable Value]";
       }
     }
@@ -517,22 +638,27 @@ The telemetry system itself will log to console in dev mode, so the experience f
       category: telemetryCategory, // From step B
       action: "generic_console_replacement",
       label: telemetryLabel,
-      value: telemetryValue
+      value: telemetryValue,
     };
     ```
 
     **D. Replace with Effect Program:**
     Replace the original `console.*(...)` call with:
+
     ```typescript
     Effect.gen(function* (_) {
       const telemetryService = yield* _(TelemetryService);
       yield* _(telemetryService.trackEvent(eventData)); // eventData from step C
-    }).pipe(
-      Effect.provide(TelemetryServiceLive),
-      (effect) => Effect.runPromise(effect).catch(err => {
+    }).pipe(Effect.provide(TelemetryServiceLive), (effect) =>
+      Effect.runPromise(effect).catch((err) => {
         // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-        console.error("TelemetryService.trackEvent failed:", err instanceof Error ? err.message : String(err), "\nCause:", Cause.isCause(err) ? Cause.pretty(err) : String(err));
-      })
+        console.error(
+          "TelemetryService.trackEvent failed:",
+          err instanceof Error ? err.message : String(err),
+          "\nCause:",
+          Cause.isCause(err) ? Cause.pretty(err) : String(err),
+        );
+      }),
     );
     ```
 
@@ -540,6 +666,7 @@ The telemetry system itself will log to console in dev mode, so the experience f
     Locate the `console.error` call in `src/components/nip90/Nip90RequestForm.tsx` within the `handlePublishRequest` function, specifically the one logging "Failed to publish NIP-90 request".
     The `errorMessage` variable already holds the detailed NIP-90 error message.
     The replacement should be:
+
     ```typescript
     // Original: console.error('Failed to publish NIP-90 request:', Cause.pretty(exit.cause));
     // Ensure 'errorMessage' and 'exit.cause' are in scope from the surrounding 'else' block.
@@ -548,17 +675,21 @@ The telemetry system itself will log to console in dev mode, so the experience f
       category: "log:error",
       action: "nip90_publish_failure", // Specific action
       label: `Publishing NIP-90 request failed: ${errorMessage}`, // Use the specific UI error message
-      value: Cause.isCause(exit.cause) ? Cause.pretty(exit.cause) : String(exit.cause) // Full cause for details
+      value: Cause.isCause(exit.cause)
+        ? Cause.pretty(exit.cause)
+        : String(exit.cause), // Full cause for details
     };
     Effect.gen(function* (_) {
       const telemetry = yield* _(TelemetryService);
       yield* _(telemetry.trackEvent(telemetryDataForPublishFailure));
-    }).pipe(
-      Effect.provide(TelemetryServiceLive),
-      (effect) => Effect.runPromise(effect).catch(telemetryErr => {
+    }).pipe(Effect.provide(TelemetryServiceLive), (effect) =>
+      Effect.runPromise(effect).catch((telemetryErr) => {
         // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-        console.error("TelemetryService.trackEvent failed for NIP-90 publish error:", telemetryErr);
-      })
+        console.error(
+          "TelemetryService.trackEvent failed for NIP-90 publish error:",
+          telemetryErr,
+        );
+      }),
     );
     // The setPublishError(`Publishing failed: ${errorMessage}`); line for UI update remains.
     ```
@@ -569,22 +700,23 @@ The telemetry system itself will log to console in dev mode, so the experience f
 
 1.  **Run Type Checks:** Execute `pnpm run t`. Address any TypeScript errors.
 2.  **Run Existing Tests:** Execute `pnpm test`.
-    *   Tests that were asserting `console.*` calls (e.g., by spying on `console.log`) will likely fail. These assertions should be removed or, if the log's content was critical to the test, the test should be adapted to verify the behavior in another way or mock `TelemetryService.trackEvent` if essential.
-    *   Fix any other test failures that arise due to the refactoring.
+    - Tests that were asserting `console.*` calls (e.g., by spying on `console.log`) will likely fail. These assertions should be removed or, if the log's content was critical to the test, the test should be adapted to verify the behavior in another way or mock `TelemetryService.trackEvent` if essential.
+    - Fix any other test failures that arise due to the refactoring.
 3.  **New Tests (Conceptual - for `TelemetryServiceImpl.ts` behavior):**
-    *   Verify that `createTelemetryService().isEnabled()` returns `true` when `import.meta.env.MODE` is `'development'`.
-    *   Verify that `createTelemetryService().isEnabled()` returns `false` when `import.meta.env.MODE` is `'production'`.
-    *   These tests might require mocking `import.meta.env.MODE`. Vitest provides ways to do this (e.g., `vi.stubEnv` or `vi.mock('vite', () => ({ importMetaEnv: { MODE: '...' } }))`). For simplicity, manual verification during development might suffice if full test setup is complex.
+
+    - Verify that `createTelemetryService().isEnabled()` returns `true` when `import.meta.env.MODE` is `'development'`.
+    - Verify that `createTelemetryService().isEnabled()` returns `false` when `import.meta.env.MODE` is `'production'`.
+    - These tests might require mocking `import.meta.env.MODE`. Vitest provides ways to do this (e.g., `vi.stubEnv` or `vi.mock('vite', () => ({ importMetaEnv: { MODE: '...' } }))`). For simplicity, manual verification during development might suffice if full test setup is complex.
 
 4.  **Manual Verification (Crucial for Success Criterion):**
-    *   Run the application using `pnpm start` (dev mode).
-    *   Trigger the NIP-90 encrypted event publishing scenario that previously showed the error "Publishing failed: Failed to publish to 2 out of 6 relays" on the UI but had no console logs.
-    *   **Expected:** In the developer console, you should now see a log from the `TelemetryService` (prefixed with `[Telemetry]`) containing:
-        *   `category: "log:error"`
-        *   `action: "nip90_publish_failure"`
-        *   `label` that includes "Publishing failed: Failed to publish to 2 out of 6 relays" (or similar, matching `errorMessage`).
-        *   `value` containing the pretty-printed `Cause` of the Nostr publish failure, which provides the detailed reasons.
-    *   Check a few other places in the app where console logs were common (e.g., `src/main.ts` during startup, component effects) to see if they are now logged via Telemetry.
+    - Run the application using `pnpm start` (dev mode).
+    - Trigger the NIP-90 encrypted event publishing scenario that previously showed the error "Publishing failed: Failed to publish to 2 out of 6 relays" on the UI but had no console logs.
+    - **Expected:** In the developer console, you should now see a log from the `TelemetryService` (prefixed with `[Telemetry]`) containing:
+      - `category: "log:error"`
+      - `action: "nip90_publish_failure"`
+      - `label` that includes "Publishing failed: Failed to publish to 2 out of 6 relays" (or similar, matching `errorMessage`).
+      - `value` containing the pretty-printed `Cause` of the Nostr publish failure, which provides the detailed reasons.
+    - Check a few other places in the app where console logs were common (e.g., `src/main.ts` during startup, component effects) to see if they are now logged via Telemetry.
 
 ---
 
@@ -594,38 +726,46 @@ The telemetry system itself will log to console in dev mode, so the experience f
 2.  **Action:** Add a new section (e.g., "11. Logging and Telemetry") to explain the new convention.
 
     **Content for the new section:**
-    ```markdown
+
+    ````markdown
     ## 11. Logging and Telemetry
 
     For all application logging, event tracking, and diagnostics, the **`TelemetryService` MUST be used**. This ensures a centralized and controllable way to manage diagnostic data.
 
     **Key Principles:**
 
-    *   **Development Mode:** By default, the `TelemetryService` logs its events to the `console.log`. This provides immediate visibility for developers.
-    *   **Production Mode:** By default, the `TelemetryService` is silent and performs no logging operations.
-    *   **User Control (Future):** The `setEnabled` method on the service allows for future UI controls to override the default behavior if needed.
+    - **Development Mode:** By default, the `TelemetryService` logs its events to the `console.log`. This provides immediate visibility for developers.
+    - **Production Mode:** By default, the `TelemetryService` is silent and performs no logging operations.
+    - **User Control (Future):** The `setEnabled` method on the service allows for future UI controls to override the default behavior if needed.
 
     **Usage Guidelines:**
 
-    *   **DO NOT USE `console.log()`, `console.warn()`, `console.error()`, `console.info()`, or `console.debug()` directly for application-level logging or diagnostics.**
-        *   These methods bypass our telemetry system.
-        *   They may be used for *temporary, local debugging only* and **MUST be removed** before committing code.
-    *   **USE `TelemetryService.trackEvent()` for all logging purposes.**
-        *   This includes informational messages, warnings, errors, and tracking of feature usage or significant application events.
+    - **DO NOT USE `console.log()`, `console.warn()`, `console.error()`, `console.info()`, or `console.debug()` directly for application-level logging or diagnostics.**
+      - These methods bypass our telemetry system.
+      - They may be used for _temporary, local debugging only_ and **MUST be removed** before committing code.
+    - **USE `TelemetryService.trackEvent()` for all logging purposes.**
 
-    *   **Exceptions (Where `console.*` is still used):**
-        *   Inside `src/services/telemetry/TelemetryServiceImpl.ts` itself, for its own operational logging (e.g., the `[Telemetry]` prefix, or logging explicit calls to `setEnabled`).
-        *   In the fallback `.catch()` block when an attempt to call `TelemetryService.trackEvent()` itself fails. These specific calls are marked with `// TELEMETRY_IGNORE_THIS_CONSOLE_CALL`.
-        *   In `src/tests/vitest.setup.ts` for test environment setup.
+      - This includes informational messages, warnings, errors, and tracking of feature usage or significant application events.
+
+    - **Exceptions (Where `console.*` is still used):**
+      - Inside `src/services/telemetry/TelemetryServiceImpl.ts` itself, for its own operational logging (e.g., the `[Telemetry]` prefix, or logging explicit calls to `setEnabled`).
+      - In the fallback `.catch()` block when an attempt to call `TelemetryService.trackEvent()` itself fails. These specific calls are marked with `// TELEMETRY_IGNORE_THIS_CONSOLE_CALL`.
+      - In `src/tests/vitest.setup.ts` for test environment setup.
 
     **How to Use `TelemetryService.trackEvent()`:**
 
     1.  **Import necessary modules:**
+
         ```typescript
-        import { Effect, Layer, Cause, Exit } from 'effect';
-        import { TelemetryService, TelemetryServiceLive, type TelemetryEvent } from '@/services/telemetry';
+        import { Effect, Layer, Cause, Exit } from "effect";
+        import {
+          TelemetryService,
+          TelemetryServiceLive,
+          type TelemetryEvent,
+        } from "@/services/telemetry";
         ```
 
     2.  **Construct your `TelemetryEvent` data:**
         When replacing old `console.*` calls, use the `category` mapping:
-        *   `console.log`/
+        - `console.log`/
+    ````

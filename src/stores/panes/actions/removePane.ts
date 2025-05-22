@@ -1,9 +1,9 @@
-import { PaneStoreType } from '../types';
+import { PaneStoreType } from "../types";
 
 // Use any to bypass strict type checking for this function
 export function removePaneAction(set: any, id: string) {
   set((state: PaneStoreType) => {
-    const remainingPanes = state.panes.filter(pane => pane.id !== id);
+    const remainingPanes = state.panes.filter((pane) => pane.id !== id);
     let newActivePaneId: string | null = null;
 
     if (state.activePaneId === id) {
@@ -14,9 +14,9 @@ export function removePaneAction(set: any, id: string) {
       newActivePaneId = state.activePaneId;
     }
 
-    const finalPanes = remainingPanes.map(p => ({
-        ...p,
-        isActive: p.id === newActivePaneId
+    const finalPanes = remainingPanes.map((p) => ({
+      ...p,
+      isActive: p.id === newActivePaneId,
     }));
 
     return {

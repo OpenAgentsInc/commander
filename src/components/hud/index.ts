@@ -1,9 +1,5 @@
-import BitcoinBalanceDisplay from './BitcoinBalanceDisplay'
-import { Hotbar } from './Hotbar'
-import { HotbarItem } from './HotbarItem'
+import BitcoinBalanceDisplay from "./BitcoinBalanceDisplay";
+import { Hotbar } from "./Hotbar";
+import { HotbarItem } from "./HotbarItem";
 
-export {
-  BitcoinBalanceDisplay,
-  Hotbar,
-  HotbarItem
-}
+export { BitcoinBalanceDisplay, Hotbar, HotbarItem };

@@ -1,1 +1,1 @@
-export { default as AgentChatPane } from './AgentChatPane';
+export { default as AgentChatPane } from "./AgentChatPane";

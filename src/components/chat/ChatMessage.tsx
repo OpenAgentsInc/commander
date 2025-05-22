@@ -17,33 +17,56 @@ export interface ChatMessageProps {
   [key: string]: any; // Allow any additional properties
 }
 
-export function ChatMessage({ content, role, isStreaming, author, timestamp }: ChatMessageProps) {
+export function ChatMessage({
+  content,
+  role,
+  isStreaming,
+  author,
+  timestamp,
+}: ChatMessageProps) {
   return (
-    <div className={cn(
-      "flex",
-      role === "user" ? "justify-end" : role === "system" ? "justify-center" : "justify-start"
-    )}>
-      <div 
+    <div
+      className={cn(
+        "flex",
+        role === "user"
+          ? "justify-end"
+          : role === "system"
+            ? "justify-center"
+            : "justify-start",
+      )}
+    >
+      <div
         className={cn(
-          "py-1 px-2 rounded-md mb-1 text-xs inline-block max-w-[85%]",
-          role === "user" 
-            ? "border border-border bg-background text-foreground text-right" 
-            : role === "assistant" 
-              ? isStreaming ? "border border-border bg-background text-foreground" : "border border-border bg-background text-foreground"
-              : "border border-border bg-background text-foreground text-[10px] italic"
+          "mb-1 inline-block max-w-[85%] rounded-md px-2 py-1 text-xs",
+          role === "user"
+            ? "border-border bg-background text-foreground border text-right"
+            : role === "assistant"
+              ? isStreaming
+                ? "border-border bg-background text-foreground border"
+                : "border-border bg-background text-foreground border"
+              : "border-border bg-background text-foreground border text-[10px] italic",
         )}
       >
-        <div className="text-[10px] font-semibold mb-0.5 text-foreground flex items-center">
-          <span>{author || (role === "user" ? "Commander" : role === "assistant" ? "Agent" : "System")}</span>
+        <div className="text-foreground mb-0.5 flex items-center text-[10px] font-semibold">
+          <span>
+            {author ||
+              (role === "user"
+                ? "Commander"
+                : role === "assistant"
+                  ? "Agent"
+                  : "System")}
+          </span>
           {isStreaming && (
             <span className="ml-1 inline-flex items-center">
-              <Loader2 className="h-3 w-3 animate-spin text-foreground" />
+              <Loader2 className="text-foreground h-3 w-3 animate-spin" />
             </span>
           )}
         </div>
-        <div className="whitespace-pre-wrap max-w-full text-foreground">
+        <div className="text-foreground max-w-full whitespace-pre-wrap">
           {content}
-          {isStreaming && <span className="ml-0.5 text-foreground animate-pulse">▋</span>}
+          {isStreaming && (
+            <span className="text-foreground ml-0.5 animate-pulse">▋</span>
+          )}
         </div>
       </div>
     </div>

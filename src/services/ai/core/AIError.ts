@@ -14,8 +14,8 @@ export class AIGenericError extends Error {
     context?: Record<string, any>;
   }) {
     super(options.message);
-    this.name = 'AIGenericError';
-    this._tag = 'AIGenericError';
+    this.name = "AIGenericError";
+    this._tag = "AIGenericError";
     this.cause = options.cause;
     this.context = options.context;
   }
@@ -39,10 +39,10 @@ export class AIProviderError extends AIGenericError {
     super({
       message: options.message,
       cause: options.cause,
-      context: options.context
+      context: options.context,
     });
-    this.name = 'AIProviderError';
-    this._tag = 'AIProviderError';
+    this.name = "AIProviderError";
+    this._tag = "AIProviderError";
     this.provider = options.provider;
     this.isRetryable = options.isRetryable;
   }
@@ -53,15 +53,14 @@ export class AIProviderError extends AIGenericError {
  * Used for missing API keys, invalid URLs, etc.
  */
 export class AIConfigurationError extends AIGenericError {
-  
   constructor(options: {
     message: string;
     cause?: unknown;
     context?: Record<string, any>;
   }) {
     super(options);
-    this.name = 'AIConfigurationError';
-    this._tag = 'AIConfigurationError';
+    this.name = "AIConfigurationError";
+    this._tag = "AIConfigurationError";
   }
 }
 
@@ -81,10 +80,10 @@ export class AIToolExecutionError extends AIGenericError {
     super({
       message: options.message,
       cause: options.cause,
-      context: options.context
+      context: options.context,
     });
-    this.name = 'AIToolExecutionError';
-    this._tag = 'AIToolExecutionError';
+    this.name = "AIToolExecutionError";
+    this._tag = "AIToolExecutionError";
     this.toolName = options.toolName;
   }
 }
@@ -107,10 +106,10 @@ export class AIContextWindowError extends AIGenericError {
     super({
       message: options.message,
       cause: options.cause,
-      context: options.context
+      context: options.context,
     });
-    this.name = 'AIContextWindowError';
-    this._tag = 'AIContextWindowError';
+    this.name = "AIContextWindowError";
+    this._tag = "AIContextWindowError";
     this.limit = options.limit;
     this.current = options.current;
   }
@@ -134,10 +133,10 @@ export class AIContentPolicyError extends AIGenericError {
     super({
       message: options.message,
       cause: options.cause,
-      context: options.context
+      context: options.context,
     });
-    this.name = 'AIContentPolicyError';
-    this._tag = 'AIContentPolicyError';
+    this.name = "AIContentPolicyError";
+    this._tag = "AIContentPolicyError";
     this.provider = options.provider;
     this.flaggedContent = options.flaggedContent;
   }
@@ -148,9 +147,9 @@ export class AIContentPolicyError extends AIGenericError {
  * Useful for converting provider-specific errors to our error type
  */
 export function fromProviderError(
-  error: unknown, 
-  provider: string, 
-  isRetryable = false
+  error: unknown,
+  provider: string,
+  isRetryable = false,
 ): AIProviderError {
   if (error instanceof Error) {
     return new AIProviderError({
@@ -160,7 +159,7 @@ export function fromProviderError(
       isRetryable,
     });
   }
-  
+
   return new AIProviderError({
     message: String(error),
     provider,

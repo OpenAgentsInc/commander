@@ -1,6 +1,7 @@
 # Telemetry Service Implementation
 
 ## Overview
+
 The task was to implement a Telemetry service using the Effect.js pattern established in the project. The service needed to handle tracking of events, with the ability to enable or disable telemetry collection.
 
 ## Implementation Details
@@ -16,9 +17,16 @@ import { Effect, Context, Data, Schema } from "effect";
 export const TelemetryEventSchema = Schema.Struct({
   category: Schema.String,
   action: Schema.String,
-  value: Schema.optional(Schema.Union(Schema.String, Schema.Number, Schema.Boolean, Schema.Undefined)),
+  value: Schema.optional(
+    Schema.Union(
+      Schema.String,
+      Schema.Number,
+      Schema.Boolean,
+      Schema.Undefined,
+    ),
+  ),
   label: Schema.optional(Schema.String),
-  timestamp: Schema.optional(Schema.Number)
+  timestamp: Schema.optional(Schema.Number),
 });
 
 export type TelemetryEvent = Schema.Schema.Type<typeof TelemetryEventSchema>;
@@ -42,13 +50,13 @@ export interface TelemetryService {
    * @returns Effect with void on success or an error
    */
   trackEvent(event: TelemetryEvent): Effect.Effect<void, TrackEventError>;
-  
+
   /**
    * Check if telemetry is enabled
    * @returns Effect with boolean indicating if telemetry is enabled
    */
   isEnabled(): Effect.Effect<boolean, TelemetryError>;
-  
+
   /**
    * Enable or disable telemetry
    * @param enabled Whether to enable or disable telemetry
@@ -58,7 +66,8 @@ export interface TelemetryService {
 }
 
 // --- Service Tag ---
-export const TelemetryService = Context.GenericTag<TelemetryService>("TelemetryService");
+export const TelemetryService =
+  Context.GenericTag<TelemetryService>("TelemetryService");
 ```
 
 ### 2. TelemetryServiceImpl.ts - Service Implementation
@@ -72,7 +81,7 @@ import {
   TelemetryEvent,
   TelemetryEventSchema,
   TelemetryError,
-  TrackEventError
+  TrackEventError,
 } from "./TelemetryService";
 
 /**
@@ -83,16 +92,22 @@ export function createTelemetryService(): TelemetryService {
   let telemetryEnabled = false;
 
   /**
-   * Track a telemetry event 
+   * Track a telemetry event
    */
-  const trackEvent = (event: TelemetryEvent): Effect.Effect<void, TrackEventError> => {
+  const trackEvent = (
+    event: TelemetryEvent,
+  ): Effect.Effect<void, TrackEventError> => {
     return Effect.gen(function* (_) {
       // Validate the event using Schema
       yield* _(
         Schema.decodeUnknown(TelemetryEventSchema)(event),
         Effect.mapError(
-          (error) => new TrackEventError({ message: "Invalid event format", cause: error })
-        )
+          (error) =>
+            new TrackEventError({
+              message: "Invalid event format",
+              cause: error,
+            }),
+        ),
       );
 
       // Check if telemetry is enabled before tracking
@@ -104,7 +119,7 @@ export function createTelemetryService(): TelemetryService {
       // Add timestamp if not present
       const eventWithTimestamp = {
         ...event,
-        timestamp: event.timestamp || Date.now()
+        timestamp: event.timestamp || Date.now(),
       };
 
       // In a real implementation, this would send data to a telemetry service
@@ -115,11 +130,12 @@ export function createTelemetryService(): TelemetryService {
             console.log("[Telemetry]", eventWithTimestamp);
             return;
           },
-          catch: (cause) => new TrackEventError({ 
-            message: "Failed to track event", 
-            cause 
-          })
-        })
+          catch: (cause) =>
+            new TrackEventError({
+              message: "Failed to track event",
+              cause,
+            }),
+        }),
       );
     });
   };
@@ -130,33 +146,37 @@ export function createTelemetryService(): TelemetryService {
   const isEnabled = (): Effect.Effect<boolean, TelemetryError> => {
     return Effect.try({
       try: () => telemetryEnabled,
-      catch: (cause) => new TelemetryError({ 
-        message: "Failed to check if telemetry is enabled", 
-        cause 
-      })
+      catch: (cause) =>
+        new TelemetryError({
+          message: "Failed to check if telemetry is enabled",
+          cause,
+        }),
     });
   };
 
   /**
    * Enable or disable telemetry
    */
-  const setEnabled = (enabled: boolean): Effect.Effect<void, TelemetryError> => {
+  const setEnabled = (
+    enabled: boolean,
+  ): Effect.Effect<void, TelemetryError> => {
     return Effect.try({
       try: () => {
         telemetryEnabled = enabled;
         return;
       },
-      catch: (cause) => new TelemetryError({ 
-        message: "Failed to set telemetry enabled state", 
-        cause 
-      })
+      catch: (cause) =>
+        new TelemetryError({
+          message: "Failed to set telemetry enabled state",
+          cause,
+        }),
     });
   };
 
   return {
     trackEvent,
     isEnabled,
-    setEnabled
+    setEnabled,
   };
 }
 
@@ -165,7 +185,7 @@ export function createTelemetryService(): TelemetryService {
  */
 export const TelemetryServiceLive = Layer.succeed(
   TelemetryService,
-  createTelemetryService()
+  createTelemetryService(),
 );
 ```
 
@@ -175,10 +195,10 @@ Set up the exports:
 
 ```typescript
 // Export all symbols from the service interface
-export * from './TelemetryService';
+export * from "./TelemetryService";
 
 // Export implementation
-export * from './TelemetryServiceImpl';
+export * from "./TelemetryServiceImpl";
 ```
 
 ### 4. TelemetryService.test.ts - Unit Tests
@@ -186,40 +206,40 @@ export * from './TelemetryServiceImpl';
 Created comprehensive tests verifying all aspects of the service functionality:
 
 ```typescript
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Effect, Layer } from 'effect';
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { Effect, Layer } from "effect";
 import {
   TelemetryService,
   TelemetryServiceLive,
   TrackEventError,
   TelemetryError,
-  type TelemetryEvent
-} from '@/services/telemetry';
+  type TelemetryEvent,
+} from "@/services/telemetry";
 
 // Since we're using console.log for the implementation placeholder
 // let's spy on console.log
-const consoleLogSpy = vi.spyOn(console, 'log');
+const consoleLogSpy = vi.spyOn(console, "log");
 
-describe('TelemetryService', () => {
+describe("TelemetryService", () => {
   beforeEach(() => {
     consoleLogSpy.mockClear();
   });
 
-  it('TelemetryService tag should be defined', () => {
+  it("TelemetryService tag should be defined", () => {
     expect(TelemetryService).toBeDefined();
   });
 
-  it('TelemetryServiceLive layer should be defined', () => {
+  it("TelemetryServiceLive layer should be defined", () => {
     expect(TelemetryServiceLive).toBeDefined();
   });
 
-  it('can access the service via the layer', async () => {
+  it("can access the service via the layer", async () => {
     const program = Effect.gen(function* (_) {
       const telemetryService = yield* _(TelemetryService);
       expect(telemetryService).toBeDefined();
-      expect(telemetryService.trackEvent).toBeTypeOf('function');
-      expect(telemetryService.isEnabled).toBeTypeOf('function');
-      expect(telemetryService.setEnabled).toBeTypeOf('function');
+      expect(telemetryService.trackEvent).toBeTypeOf("function");
+      expect(telemetryService.isEnabled).toBeTypeOf("function");
+      expect(telemetryService.setEnabled).toBeTypeOf("function");
       return "success";
     }).pipe(Effect.provide(TelemetryServiceLive));
 
@@ -227,8 +247,8 @@ describe('TelemetryService', () => {
     expect(result).toBe("success");
   });
 
-  describe('isEnabled & setEnabled', () => {
-    it('should be disabled by default', async () => {
+  describe("isEnabled & setEnabled", () => {
+    it("should be disabled by default", async () => {
       const program = Effect.gen(function* (_) {
         const telemetryService = yield* _(TelemetryService);
         return yield* _(telemetryService.isEnabled());
@@ -238,7 +258,7 @@ describe('TelemetryService', () => {
       expect(isEnabled).toBe(false);
     });
 
-    it('should be enabled after calling setEnabled(true)', async () => {
+    it("should be enabled after calling setEnabled(true)", async () => {
       const program = Effect.gen(function* (_) {
         const telemetryService = yield* _(TelemetryService);
         yield* _(telemetryService.setEnabled(true));
@@ -249,7 +269,7 @@ describe('TelemetryService', () => {
       expect(isEnabled).toBe(true);
     });
 
-    it('should be disabled after calling setEnabled(false)', async () => {
+    it("should be disabled after calling setEnabled(false)", async () => {
       const program = Effect.gen(function* (_) {
         const telemetryService = yield* _(TelemetryService);
         // First enable
@@ -264,11 +284,11 @@ describe('TelemetryService', () => {
     });
   });
 
-  describe('trackEvent', () => {
-    it('should not log anything when telemetry is disabled', async () => {
+  describe("trackEvent", () => {
+    it("should not log anything when telemetry is disabled", async () => {
       const validEvent: TelemetryEvent = {
-        category: 'test',
-        action: 'click'
+        category: "test",
+        action: "click",
       };
 
       const program = Effect.gen(function* (_) {
@@ -284,10 +304,10 @@ describe('TelemetryService', () => {
       expect(consoleLogSpy).not.toHaveBeenCalled();
     });
 
-    it('should log events to console when telemetry is enabled', async () => {
+    it("should log events to console when telemetry is enabled", async () => {
       const validEvent: TelemetryEvent = {
-        category: 'test',
-        action: 'click'
+        category: "test",
+        action: "click",
       };
 
       const program = Effect.gen(function* (_) {
@@ -301,17 +321,20 @@ describe('TelemetryService', () => {
 
       await Effect.runPromise(program);
       expect(consoleLogSpy).toHaveBeenCalledTimes(1);
-      expect(consoleLogSpy).toHaveBeenCalledWith("[Telemetry]", expect.objectContaining({
-        category: 'test',
-        action: 'click',
-        timestamp: expect.any(Number)
-      }));
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        "[Telemetry]",
+        expect.objectContaining({
+          category: "test",
+          action: "click",
+          timestamp: expect.any(Number),
+        }),
+      );
     });
 
-    it('should add timestamp if not provided', async () => {
+    it("should add timestamp if not provided", async () => {
       const validEvent: TelemetryEvent = {
-        category: 'test',
-        action: 'click'
+        category: "test",
+        action: "click",
       };
 
       const program = Effect.gen(function* (_) {
@@ -322,17 +345,20 @@ describe('TelemetryService', () => {
       }).pipe(Effect.provide(TelemetryServiceLive));
 
       await Effect.runPromise(program);
-      expect(consoleLogSpy).toHaveBeenCalledWith("[Telemetry]", expect.objectContaining({
-        timestamp: expect.any(Number)
-      }));
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        "[Telemetry]",
+        expect.objectContaining({
+          timestamp: expect.any(Number),
+        }),
+      );
     });
 
-    it('should use provided timestamp if available', async () => {
+    it("should use provided timestamp if available", async () => {
       const fixedTimestamp = 1621234567890;
       const validEvent: TelemetryEvent = {
-        category: 'test',
-        action: 'click',
-        timestamp: fixedTimestamp
+        category: "test",
+        action: "click",
+        timestamp: fixedTimestamp,
       };
 
       const program = Effect.gen(function* (_) {
@@ -343,17 +369,20 @@ describe('TelemetryService', () => {
       }).pipe(Effect.provide(TelemetryServiceLive));
 
       await Effect.runPromise(program);
-      expect(consoleLogSpy).toHaveBeenCalledWith("[Telemetry]", expect.objectContaining({
-        timestamp: fixedTimestamp
-      }));
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        "[Telemetry]",
+        expect.objectContaining({
+          timestamp: fixedTimestamp,
+        }),
+      );
     });
 
-    it('should accept optional values', async () => {
+    it("should accept optional values", async () => {
       const validEvent: TelemetryEvent = {
-        category: 'test',
-        action: 'click',
+        category: "test",
+        action: "click",
         value: 123,
-        label: 'button'
+        label: "button",
       };
 
       const program = Effect.gen(function* (_) {
@@ -364,17 +393,20 @@ describe('TelemetryService', () => {
       }).pipe(Effect.provide(TelemetryServiceLive));
 
       await Effect.runPromise(program);
-      expect(consoleLogSpy).toHaveBeenCalledWith("[Telemetry]", expect.objectContaining({
-        value: 123,
-        label: 'button'
-      }));
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        "[Telemetry]",
+        expect.objectContaining({
+          value: 123,
+          label: "button",
+        }),
+      );
     });
 
-    it('should fail with TrackEventError for invalid event (missing required fields)', async () => {
+    it("should fail with TrackEventError for invalid event (missing required fields)", async () => {
       // @ts-expect-error Testing invalid event
       const invalidEvent = {
         // Missing required 'category' field
-        action: 'click'
+        action: "click",
       };
 
       const program = Effect.gen(function* (_) {
@@ -402,54 +434,59 @@ describe('TelemetryService', () => {
 Updated HomePage.tsx to use the telemetry service:
 
 1. Added imports:
+
 ```typescript
 import { TelemetryService, TelemetryServiceLive } from "@/services/telemetry";
 ```
 
 2. Added state variables:
+
 ```typescript
 const [telemetryResult, setTelemetryResult] = useState<string | null>(null);
 const [telemetryEnabled, setTelemetryEnabled] = useState<boolean>(false);
 ```
 
 3. Added handler for testing telemetry:
+
 ```typescript
 const handleTestTelemetryClick = async () => {
   const program = Effect.gen(function* (_) {
     const telemetryService = yield* _(TelemetryService);
-    
+
     // 1. Get current state
     const initiallyEnabled = yield* _(telemetryService.isEnabled());
-    
+
     // 2. Toggle telemetry state
     const newState = !initiallyEnabled;
     yield* _(telemetryService.setEnabled(newState));
-    
+
     // 3. Confirm the change
     const updatedEnabled = yield* _(telemetryService.isEnabled());
-    
+
     // 4. Track a test event if enabled
     if (updatedEnabled) {
-      yield* _(telemetryService.trackEvent({
-        category: 'test',
-        action: 'telemetry_test',
-        value: Date.now(),
-        label: 'from_homepage'
-      }));
+      yield* _(
+        telemetryService.trackEvent({
+          category: "test",
+          action: "telemetry_test",
+          value: Date.now(),
+          label: "from_homepage",
+        }),
+      );
     }
-    
+
     // Update UI state
     setTelemetryEnabled(updatedEnabled);
-    
+
     return {
       initialState: initiallyEnabled,
       newState: updatedEnabled,
-      eventTracked: updatedEnabled
+      eventTracked: updatedEnabled,
     };
   }).pipe(Effect.provide(TelemetryServiceLive));
-  
+
   const result = await Effect.runPromiseExit(program);
-  
+
   Exit.match(result, {
     onSuccess: (details) => {
       console.log("Telemetry test complete:", details);
@@ -458,20 +495,28 @@ const handleTestTelemetryClick = async () => {
     onFailure: (cause) => {
       console.error("Telemetry test failed:", Cause.pretty(cause));
       setTelemetryResult(`Error testing telemetry. See console for details.`);
-    }
+    },
   });
 };
 ```
 
 4. Added UI button and result display:
+
 ```tsx
 <div>
-  <Button onClick={handleTestTelemetryClick} variant={telemetryEnabled ? "destructive" : "secondary"} className="mb-1">
+  <Button
+    onClick={handleTestTelemetryClick}
+    variant={telemetryEnabled ? "destructive" : "secondary"}
+    className="mb-1"
+  >
     {telemetryEnabled ? "Disable Telemetry" : "Enable Telemetry"}
   </Button>
-  
+
   {telemetryResult && (
-    <div className="p-2 bg-background/80 backdrop-blur-sm rounded-md text-sm max-w-96 overflow-auto whitespace-pre-wrap" style={{ maxHeight: '12rem' }}>
+    <div
+      className="bg-background/80 max-w-96 overflow-auto rounded-md p-2 text-sm whitespace-pre-wrap backdrop-blur-sm"
+      style={{ maxHeight: "12rem" }}
+    >
       {telemetryResult}
     </div>
   )}
@@ -532,21 +577,30 @@ The implementation successfully meets the requirements of the telemetry service 
 Fixed the following TypeScript errors:
 
 1. Fixed error with isEnabled() error type by properly mapping TelemetryError to TrackEventError:
+
 ```typescript
 // Check if telemetry is enabled before tracking
-const enabled = yield* _(isEnabled().pipe(
-  Effect.mapError(error => new TrackEventError({
-    message: error.message, 
-    cause: error.cause
-  }))
-));
+const enabled =
+  yield *
+  _(
+    isEnabled().pipe(
+      Effect.mapError(
+        (error) =>
+          new TrackEventError({
+            message: error.message,
+            cause: error.cause,
+          }),
+      ),
+    ),
+  );
 ```
 
 2. Fixed type error in test by using type assertion instead of ts-expect-error:
+
 ```typescript
 const invalidEvent = {
   // Missing required 'category' field
-  action: 'click'
+  action: "click",
 } as TelemetryEvent;
 ```
 
@@ -557,12 +611,13 @@ All tests are now passing with no TypeScript errors.
 Fixed the issue where telemetry logs were appearing in test output:
 
 1. Added environment detection in TelemetryServiceImpl.ts to silence logs in test mode:
+
 ```typescript
 try: () => {
   // Check if we're in test environment
-  const isTestEnv = process.env.NODE_ENV === 'test' || 
+  const isTestEnv = process.env.NODE_ENV === 'test' ||
                    process.env.VITEST !== undefined;
-  
+
   // Only log if not in test environment
   if (!isTestEnv) {
     console.log("[Telemetry]", eventWithTimestamp);
@@ -572,70 +627,85 @@ try: () => {
 ```
 
 2. Completely refactored the test approach to use a mock implementation:
+
 ```typescript
 // Create a mock implementation for the TelemetryService that we can test directly
 const createMockTelemetryService = () => {
   let telemetryEnabled = false;
   let logs: Array<any> = [];
-  
+
   return {
     service: {
-      trackEvent: (event: TelemetryEvent) => 
+      trackEvent: (event: TelemetryEvent) =>
         Effect.gen(function* (_) {
           // Schema validation using the same pattern as real implementation
           yield* _(
-            Schema.decodeUnknown(Schema.Struct({
-              category: Schema.String,
-              action: Schema.String,
-            }))(event),
+            Schema.decodeUnknown(
+              Schema.Struct({
+                category: Schema.String,
+                action: Schema.String,
+              }),
+            )(event),
             Effect.mapError(
-              (error) => new TrackEventError({ 
-                message: "Invalid event format", 
-                cause: error 
-              })
-            )
+              (error) =>
+                new TrackEventError({
+                  message: "Invalid event format",
+                  cause: error,
+                }),
+            ),
           );
-          
+
           // Check if telemetry is enabled
           if (!telemetryEnabled) {
             return;
           }
-          
+
           // Store the log instead of console.log
           logs.push(["[Telemetry]", eventWithTimestamp]);
           return;
         }),
-        
-      isEnabled: () => 
+
+      isEnabled: () =>
         Effect.try({
           try: () => telemetryEnabled,
-          catch: (cause) => new TelemetryError({ 
-            message: "Failed to check if telemetry is enabled", 
-            cause 
-          })
+          catch: (cause) =>
+            new TelemetryError({
+              message: "Failed to check if telemetry is enabled",
+              cause,
+            }),
         }),
-      
-      setEnabled: (enabled: boolean) => 
+
+      setEnabled: (enabled: boolean) =>
         Effect.try({
           try: () => {
             telemetryEnabled = enabled;
             return;
           },
-          catch: (cause) => new TelemetryError({ 
-            message: "Failed to set telemetry enabled state", 
-            cause 
-          })
-        })
+          catch: (cause) =>
+            new TelemetryError({
+              message: "Failed to set telemetry enabled state",
+              cause,
+            }),
+        }),
     },
     getLogs: () => [...logs],
-    clearLogs: () => { logs = []; }
+    clearLogs: () => {
+      logs = [];
+    },
   };
 };
 ```
 
 3. Fixed TypeScript errors in tests with proper type assertions:
+
 ```typescript
-await Effect.runPromise(Effect.provide(program, mockTelemetryLayer) as Effect.Effect<string, never, never>);
+await Effect.runPromise(
+  Effect.provide(program, mockTelemetryLayer) as Effect.Effect<
+    string,
+    never,
+    never
+  >,
+);
 ```
 
 This approach provides multiple significant benefits:
@@ -663,8 +733,8 @@ const originalConsoleDebug = console.debug;
 // Setup mock server
 beforeAll(() => {
   // Start mock server
-  server.listen({ onUnhandledRequest: 'error' });
-  
+  server.listen({ onUnhandledRequest: "error" });
+
   // Silence all console output during tests
   // Replace all console methods with no-ops
   console.log = () => {};
@@ -677,7 +747,7 @@ beforeAll(() => {
 afterAll(() => {
   // Close server
   server.close();
-  
+
   // Restore console functionality
   console.log = originalConsoleLog;
   console.info = originalConsoleInfo;

@@ -7,11 +7,13 @@ This document provides a detailed analysis of the errors encountered when using 
 ## Error Pattern
 
 The primary error manifests as:
+
 ```
 Aborted(Module.arguments has been replaced with plain arguments_ (the initial value can be provided on Module, but after startup the value is only looked for on a local variable of that name))
 ```
 
 This is followed by additional errors:
+
 ```
 WebGLRenderer: Context Lost.
 Uncaught TypeError: Cannot read properties of undefined (reading '/mediapipe/hands/hands_solution_packed_assets.data')
@@ -95,8 +97,8 @@ MediaPipe uses a `locateFile` function to find its assets:
 
 ```javascript
 new Hands({
-  locateFile: (file) => `/mediapipe/hands/${file}`
-})
+  locateFile: (file) => `/mediapipe/hands/${file}`,
+});
 ```
 
 In Electron, this path resolution may not work as expected due to the app:// protocol used for file access.
@@ -143,12 +145,12 @@ Identify and filter out the specific input values that trigger the cascade:
 if (newRightHandPinch >= 0.05) {
   setHandSceneProps({
     rightHandPinchDistance: newRightHandPinch,
-    isLeftHandTouching: newIsLeftTouching
+    isLeftHandTouching: newIsLeftTouching,
   });
 } else {
-  setHandSceneProps(prev => ({
+  setHandSceneProps((prev) => ({
     ...prev,
-    isLeftHandTouching: newIsLeftTouching
+    isLeftHandTouching: newIsLeftTouching,
   }));
 }
 ```
@@ -159,7 +161,7 @@ Ensure MediaPipe and Three.js use separate WebGL contexts:
 
 ```javascript
 // For Three.js
-<R3FCanvas 
+<R3FCanvas
   gl={{ alpha: true, antialias: true, preserveDrawingBuffer: true }}
 >
 ```
@@ -170,18 +172,18 @@ Provide explicit paths to all required assets:
 
 ```javascript
 locateFile: (file) => {
-  if (file.endsWith('.js')) {
+  if (file.endsWith(".js")) {
     return `/mediapipe/hands/hands.js`;
-  } else if (file.endsWith('.wasm')) {
+  } else if (file.endsWith(".wasm")) {
     return `/mediapipe/hands/hands_solution_simd_wasm_bin.wasm`;
-  } else if (file.endsWith('.binarypb')) {
+  } else if (file.endsWith(".binarypb")) {
     return `/mediapipe/hands/hands.binarypb`;
-  } else if (file.endsWith('.data')) {
+  } else if (file.endsWith(".data")) {
     return `/mediapipe/hands/hands_solution_packed_assets.data`;
   } else {
     return `/mediapipe/hands/${file}`;
   }
-}
+};
 ```
 
 ## Conclusion
@@ -194,12 +196,14 @@ The WebAssembly errors in MediaPipe Hands within Electron are due to a complex i
 4. The specific hand gestures that trigger resource-intensive computations
 
 A robust solution likely requires multiple approaches:
+
 - Preventing WebAssembly module reinitialization
 - Careful management of the input values that trigger the errors
 - Isolating WebGL contexts between libraries
 - Proper error handling to prevent cascading failures
 
 For production applications, it may be necessary to consider alternative approaches such as:
+
 - Running MediaPipe in a separate process
 - Using native node modules instead of WebAssembly for critical computations
 - Implementing custom hand tracking solutions that are more lightweight

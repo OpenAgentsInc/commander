@@ -5,9 +5,10 @@ Here are the specific instructions:
 **I. Enhance Data Structures and `Kind5050DVMService` for Payment Tracking**
 
 1.  **File: `src/types/dvm.ts`**
-    *   Modify the `JobHistoryEntry` interface to include fields for storing invoice details:
-        *   Add `invoiceBolt11?: string;`
-        *   Add `invoicePaymentHash?: string;`
+
+    - Modify the `JobHistoryEntry` interface to include fields for storing invoice details:
+      - Add `invoiceBolt11?: string;`
+      - Add `invoicePaymentHash?: string;`
 
     ```typescript
     // src/types/dvm.ts
@@ -35,92 +36,119 @@ Here are the specific instructions:
     ```
 
 2.  **File: `src/services/dvm/Kind5050DVMServiceImpl.ts`**
-    *   **Modify `processJobRequestInternal`:**
-        *   After successfully creating a Lightning invoice with `spark.createLightningInvoice`, ensure the `bolt11Invoice` (from `invoiceSDKResult.invoice.encodedInvoice`) and `paymentHash` (from `invoiceSDKResult.invoice.paymentHash`) are stored in the conceptual `JobHistoryEntry` for this job.
-        *   The initial status of the job at this point (after sending the Kind 6xxx result) should be set to `'pending_payment'`.
-        *   **Note:** Since job history is currently mocked, these updates will be conceptual for now, preparing for when persistence is added. For testing this phase, you might need to temporarily add these fields to the mock data structure if `getJobHistory` relies on it.
-    *   **Add a new private member for the invoice checking fiber:**
-        ```typescript
-        let invoiceCheckFiber: Fiber.RuntimeFiber<void, never> | null = null;
-        ```
-    *   **Create a new private method `checkAndUpdateInvoiceStatuses()`:**
-        *   This method will be an `Effect.Effect<void, DVMError | TrackEventError, Kind5050DVMService | SparkService | TelemetryService>`.
-        *   It should:
-            1.  Log a telemetry event: `dvm:payment_check_start`.
-            2.  Call `getJobHistory({ page: 1, pageSize: 100 })` (or a large enough pageSize to get all relevant jobs for now) on itself (`this` service instance, or directly if within the same Effect scope).
-            3.  Filter these history entries for jobs with `status === 'pending_payment'` AND a non-empty `invoiceBolt11`.
-            4.  For each such job:
-                *   Log a telemetry event: `dvm:payment_check_invoice_attempt`, with `jobId` and `invoiceBolt11`.
-                *   Call `spark.checkInvoiceStatus(job.invoiceBolt11)`.
-                *   If the `checkInvoiceStatus` returns `{ status: 'paid', amountPaidMsats?: number }`:
-                    *   Update the job's status to `'paid'` (conceptually, for now, this means logging it or preparing data for a future `updateJobHistoryEntry` method).
-                    *   If `amountPaidMsats` is available, update `paymentReceivedSats` (convert msats to sats).
-                    *   Log a telemetry event: `dvm:payment_check_invoice_paid`.
-                *   If status is `'expired'` or `'error'`:
-                    *   Log a telemetry event: `dvm:payment_check_invoice_failed_or_expired`, with details.
-                    *   Optionally, update job status to `'error'` or a new status like `'payment_failed'` if desired (for now, leaving it as `'pending_payment'` if not explicitly paid is fine).
-                *   Handle errors from `checkInvoiceStatus` with telemetry.
-            5.  Log a telemetry event: `dvm:payment_check_complete`.
 
-    *   **Modify `startListening()`:**
-        *   After successfully starting the Nostr subscription and setting `isActiveInternal = true;`:
-        *   Create a scheduled effect that runs `checkAndUpdateInvoiceStatuses()` periodically (e.g., every 2 minutes).
-            ```typescript
-            // Inside startListening, after isActiveInternal = true;
-            const invoiceCheckEffect = this.checkAndUpdateInvoiceStatuses().pipe( // Assuming 'this' context works, or pass dependencies
-              Effect.catchAllCause(cause =>
-                telemetry.trackEvent({
+    - **Modify `processJobRequestInternal`:**
+      - After successfully creating a Lightning invoice with `spark.createLightningInvoice`, ensure the `bolt11Invoice` (from `invoiceSDKResult.invoice.encodedInvoice`) and `paymentHash` (from `invoiceSDKResult.invoice.paymentHash`) are stored in the conceptual `JobHistoryEntry` for this job.
+      - The initial status of the job at this point (after sending the Kind 6xxx result) should be set to `'pending_payment'`.
+      - **Note:** Since job history is currently mocked, these updates will be conceptual for now, preparing for when persistence is added. For testing this phase, you might need to temporarily add these fields to the mock data structure if `getJobHistory` relies on it.
+    - **Add a new private member for the invoice checking fiber:**
+      ```typescript
+      let invoiceCheckFiber: Fiber.RuntimeFiber<void, never> | null = null;
+      ```
+    - **Create a new private method `checkAndUpdateInvoiceStatuses()`:**
+
+      - This method will be an `Effect.Effect<void, DVMError | TrackEventError, Kind5050DVMService | SparkService | TelemetryService>`.
+      - It should:
+        1.  Log a telemetry event: `dvm:payment_check_start`.
+        2.  Call `getJobHistory({ page: 1, pageSize: 100 })` (or a large enough pageSize to get all relevant jobs for now) on itself (`this` service instance, or directly if within the same Effect scope).
+        3.  Filter these history entries for jobs with `status === 'pending_payment'` AND a non-empty `invoiceBolt11`.
+        4.  For each such job:
+            - Log a telemetry event: `dvm:payment_check_invoice_attempt`, with `jobId` and `invoiceBolt11`.
+            - Call `spark.checkInvoiceStatus(job.invoiceBolt11)`.
+            - If the `checkInvoiceStatus` returns `{ status: 'paid', amountPaidMsats?: number }`:
+              - Update the job's status to `'paid'` (conceptually, for now, this means logging it or preparing data for a future `updateJobHistoryEntry` method).
+              - If `amountPaidMsats` is available, update `paymentReceivedSats` (convert msats to sats).
+              - Log a telemetry event: `dvm:payment_check_invoice_paid`.
+            - If status is `'expired'` or `'error'`:
+              - Log a telemetry event: `dvm:payment_check_invoice_failed_or_expired`, with details.
+              - Optionally, update job status to `'error'` or a new status like `'payment_failed'` if desired (for now, leaving it as `'pending_payment'` if not explicitly paid is fine).
+            - Handle errors from `checkInvoiceStatus` with telemetry.
+        5.  Log a telemetry event: `dvm:payment_check_complete`.
+
+    - **Modify `startListening()`:**
+
+      - After successfully starting the Nostr subscription and setting `isActiveInternal = true;`:
+      - Create a scheduled effect that runs `checkAndUpdateInvoiceStatuses()` periodically (e.g., every 2 minutes).
+
+        ```typescript
+        // Inside startListening, after isActiveInternal = true;
+        const invoiceCheckEffect = this.checkAndUpdateInvoiceStatuses().pipe(
+          // Assuming 'this' context works, or pass dependencies
+          Effect.catchAllCause(
+            (cause) =>
+              telemetry
+                .trackEvent({
                   category: "dvm:error",
                   action: "invoice_check_loop_error",
                   label: "Error in periodic invoice check loop",
-                  value: Cause.pretty(cause)
-                }).pipe(Effect.ignoreLogged) // Log and ignore to keep the loop running
-              )
-            );
+                  value: Cause.pretty(cause),
+                })
+                .pipe(Effect.ignoreLogged), // Log and ignore to keep the loop running
+          ),
+        );
 
-            // Schedule the effect to run periodically
-            const scheduledInvoiceCheck = Effect.repeat(
-              invoiceCheckEffect,
-              Schedule.spaced(Duration.minutes(2)) // Check every 2 minutes
-            );
+        // Schedule the effect to run periodically
+        const scheduledInvoiceCheck = Effect.repeat(
+          invoiceCheckEffect,
+          Schedule.spaced(Duration.minutes(2)), // Check every 2 minutes
+        );
 
-            // Fork the scheduled effect into its own fiber
-            invoiceCheckFiber = Effect.runFork(
-              // Provide necessary services to the checkAndUpdateInvoiceStatuses effect
-              // This requires careful dependency management.
-              // If checkAndUpdateInvoiceStatuses is a method of the service instance,
-              // it implicitly has access to `this.spark`, `this.telemetry`, etc.
-              // If it's a standalone Effect, dependencies must be provided.
-              // For now, let's assume it's a method that can access injected services.
-              scheduledInvoiceCheck
+        // Fork the scheduled effect into its own fiber
+        invoiceCheckFiber = Effect.runFork(
+          // Provide necessary services to the checkAndUpdateInvoiceStatuses effect
+          // This requires careful dependency management.
+          // If checkAndUpdateInvoiceStatuses is a method of the service instance,
+          // it implicitly has access to `this.spark`, `this.telemetry`, etc.
+          // If it's a standalone Effect, dependencies must be provided.
+          // For now, let's assume it's a method that can access injected services.
+          scheduledInvoiceCheck,
+        );
+        yield *
+          _(
+            telemetry
+              .trackEvent({
+                category: "dvm:status",
+                action: "invoice_check_loop_started",
+              })
+              .pipe(Effect.ignoreLogged),
+          );
+        ```
+
+    - **Modify `stopListening()`:**
+      - If `invoiceCheckFiber` is active, interrupt it:
+        ```typescript
+        // Inside stopListening, before setting isActiveInternal = false;
+        if (invoiceCheckFiber) {
+          Effect.runFork(Fiber.interrupt(invoiceCheckFiber)); // Interrupt the fiber
+          invoiceCheckFiber = null;
+          yield *
+            _(
+              telemetry
+                .trackEvent({
+                  category: "dvm:status",
+                  action: "invoice_check_loop_stopped",
+                })
+                .pipe(Effect.ignoreLogged),
             );
-            yield* _(telemetry.trackEvent({ category: 'dvm:status', action: 'invoice_check_loop_started' }).pipe(Effect.ignoreLogged));
-            ```
-    *   **Modify `stopListening()`:**
-        *   If `invoiceCheckFiber` is active, interrupt it:
-            ```typescript
-            // Inside stopListening, before setting isActiveInternal = false;
-            if (invoiceCheckFiber) {
-              Effect.runFork(Fiber.interrupt(invoiceCheckFiber)); // Interrupt the fiber
-              invoiceCheckFiber = null;
-              yield* _(telemetry.trackEvent({ category: 'dvm:status', action: 'invoice_check_loop_stopped' }).pipe(Effect.ignoreLogged));
-            }
-            ```
+        }
+        ```
 
 **II. Enhance `SparkService` for Invoice Status Checking**
 
 1.  **File: `src/services/spark/SparkService.ts`**
-    *   Add a new method definition to the `SparkService` interface:
-        ```typescript
-        checkInvoiceStatus(invoiceBolt11: string): Effect.Effect<{ status: 'pending' | 'paid' | 'expired' | 'error', amountPaidMsats?: number }, SparkError | TrackEventError, never>;
-        ```
+
+    - Add a new method definition to the `SparkService` interface:
+      ```typescript
+      checkInvoiceStatus(invoiceBolt11: string): Effect.Effect<{ status: 'pending' | 'paid' | 'expired' | 'error', amountPaidMsats?: number }, SparkError | TrackEventError, never>;
+      ```
 
 2.  **File: `src/services/spark/SparkServiceImpl.ts`**
-    *   Implement the `checkInvoiceStatus` method:
-        *   This method will call the appropriate Spark SDK function. Since the exact SDK method is not specified, you'll create a plausible interaction.
-            *   **Assumption:** The SDK has a method like `wallet.getInvoiceStatus({ invoice: string })` or `wallet.lookupInvoice({ paymentHash: string })`. If it uses payment hash, you'll need to parse the BOLT11 invoice to get the payment hash first (this might be complex, so for now, assume the SDK can check by BOLT11 string directly or a simplified payment hash retrieval).
-        *   The implementation should map the SDK's response statuses to `'pending' | 'paid' | 'expired' | 'error'`.
-        *   Include telemetry logging for the check attempt, success (with status), and failure.
+
+    - Implement the `checkInvoiceStatus` method:
+      - This method will call the appropriate Spark SDK function. Since the exact SDK method is not specified, you'll create a plausible interaction.
+        - **Assumption:** The SDK has a method like `wallet.getInvoiceStatus({ invoice: string })` or `wallet.lookupInvoice({ paymentHash: string })`. If it uses payment hash, you'll need to parse the BOLT11 invoice to get the payment hash first (this might be complex, so for now, assume the SDK can check by BOLT11 string directly or a simplified payment hash retrieval).
+      - The implementation should map the SDK's response statuses to `'pending' | 'paid' | 'expired' | 'error'`.
+      - Include telemetry logging for the check attempt, success (with status), and failure.
 
     ```typescript
     // src/services/spark/SparkServiceImpl.ts
@@ -215,20 +243,20 @@ Here are the specific instructions:
 
 **III. UI Updates for Payment Status (Conceptual - DvmJobHistoryPane)**
 
-*   The `DvmJobHistoryPane.tsx` already displays job status using a badge. Ensure the `getStatusBadgeVariant` correctly handles the `'paid'` status (e.g., mapping it to the "default" success-like variant).
-*   If a job is `'paid'`, the `invoiceAmountSats` (or a new `paymentReceivedSats` if different and available) should accurately reflect what was paid.
-*   The "Refresh" button in `DvmJobHistoryPane.tsx` will indirectly show updated payment statuses because it refetches the job history, which should include any jobs whose statuses were updated by the DVM's periodic check.
+- The `DvmJobHistoryPane.tsx` already displays job status using a badge. Ensure the `getStatusBadgeVariant` correctly handles the `'paid'` status (e.g., mapping it to the "default" success-like variant).
+- If a job is `'paid'`, the `invoiceAmountSats` (or a new `paymentReceivedSats` if different and available) should accurately reflect what was paid.
+- The "Refresh" button in `DvmJobHistoryPane.tsx` will indirectly show updated payment statuses because it refetches the job history, which should include any jobs whose statuses were updated by the DVM's periodic check.
 
 **IV. Testing Considerations**
 
-*   **`Kind5050DVMServiceImpl.test.ts`:**
-    *   Add tests for `checkAndUpdateInvoiceStatuses`:
-        *   Mock `getJobHistory` to return jobs in `pending_payment` state with mock invoice details.
-        *   Mock `SparkService.checkInvoiceStatus` to simulate different outcomes (paid, pending, error).
-        *   Verify that job statuses are conceptually updated (e.g., by checking arguments to a mock `updateJobStatusInHistory` function if you were to implement one, or by checking telemetry logs).
-    *   Test that `startListening` correctly starts the invoice checking loop and `stopListening` interrupts it.
-*   **`SparkService.test.ts`:**
-    *   Add tests for the new `checkInvoiceStatus` method, mocking various SDK responses and ensuring correct mapping to `status` and `amountPaidMsats`, and that telemetry is logged.
+- **`Kind5050DVMServiceImpl.test.ts`:**
+  - Add tests for `checkAndUpdateInvoiceStatuses`:
+    - Mock `getJobHistory` to return jobs in `pending_payment` state with mock invoice details.
+    - Mock `SparkService.checkInvoiceStatus` to simulate different outcomes (paid, pending, error).
+    - Verify that job statuses are conceptually updated (e.g., by checking arguments to a mock `updateJobStatusInHistory` function if you were to implement one, or by checking telemetry logs).
+  - Test that `startListening` correctly starts the invoice checking loop and `stopListening` interrupts it.
+- **`SparkService.test.ts`:**
+  - Add tests for the new `checkInvoiceStatus` method, mocking various SDK responses and ensuring correct mapping to `status` and `amountPaidMsats`, and that telemetry is logged.
 
 This completes the instructions for implementing payment verification and handling. The DVM will now be able to track and attempt to verify payments for the jobs it processes.```typescript
 // File: src/types/dvm.ts
@@ -236,31 +264,31 @@ This completes the instructions for implementing payment verification and handli
 export type JobStatus = 'pending_payment' | 'processing' | 'paid' | 'completed' | 'error' | 'cancelled';
 
 export interface JobHistoryEntry {
-  id: string; // Unique ID for the history entry (e.g., could be derived from jobRequestEventId or a UUID)
-  timestamp: number; // Unix timestamp of when the job request was received or processed
-  jobRequestEventId: string; // ID of the original NIP-90 job request event (kind 5xxx)
-  requesterPubkey: string; // Pubkey of the user who requested the job
-  kind: number; // Original job kind (e.g., 5100)
-  inputSummary: string; // A brief summary of the job input (e.g., first 50 chars of a prompt)
-  status: JobStatus;
-  ollamaModelUsed?: string; // Model used for processing
-  tokensProcessed?: number; // If applicable, e.g., for text generation
-  invoiceAmountSats?: number; // Amount in sats requested
-  invoiceBolt11?: string; // <-- ADDED
-  invoicePaymentHash?: string; // <-- ADDED
-  paymentReceivedSats?: number; // Amount in sats actually received (for future payment verification)
-  resultSummary?: string; // Brief summary of the result or "N/A"
-  errorDetails?: string; // If status is 'error', details of the error
+id: string; // Unique ID for the history entry (e.g., could be derived from jobRequestEventId or a UUID)
+timestamp: number; // Unix timestamp of when the job request was received or processed
+jobRequestEventId: string; // ID of the original NIP-90 job request event (kind 5xxx)
+requesterPubkey: string; // Pubkey of the user who requested the job
+kind: number; // Original job kind (e.g., 5100)
+inputSummary: string; // A brief summary of the job input (e.g., first 50 chars of a prompt)
+status: JobStatus;
+ollamaModelUsed?: string; // Model used for processing
+tokensProcessed?: number; // If applicable, e.g., for text generation
+invoiceAmountSats?: number; // Amount in sats requested
+invoiceBolt11?: string; // <-- ADDED
+invoicePaymentHash?: string; // <-- ADDED
+paymentReceivedSats?: number; // Amount in sats actually received (for future payment verification)
+resultSummary?: string; // Brief summary of the result or "N/A"
+errorDetails?: string; // If status is 'error', details of the error
 }
 
 export interface JobStatistics {
-  totalJobsProcessed: number;
-  totalSuccessfulJobs: number;
-  totalFailedJobs: number;
-  totalRevenueSats: number; // Sum of `paymentReceivedSats` for paid/completed jobs
-  jobsPendingPayment: number;
-  averageProcessingTimeMs?: number; // Optional: For future calculation
-  modelUsageCounts?: Record<string, number>; // e.g., { "gemma2:latest": 50, "llama3": 20 }
+totalJobsProcessed: number;
+totalSuccessfulJobs: number;
+totalFailedJobs: number;
+totalRevenueSats: number; // Sum of `paymentReceivedSats` for paid/completed jobs
+jobsPendingPayment: number;
+averageProcessingTimeMs?: number; // Optional: For future calculation
+modelUsageCounts?: Record<string, number>; // e.g., { "gemma2:latest": 50, "llama3": 20 }
 }
 
 // File: src/services/dvm/Kind5050DVMServiceImpl.ts
@@ -274,100 +302,100 @@ import { SparkService, type CreateLightningInvoiceParams, SparkError, LightningI
 import { NIP04Service, NIP04DecryptError, NIP04EncryptError } from '@/services/nip04';
 import { useDVMSettingsStore } from '@/stores/dvmSettingsStore';
 import {
-  NIP90Input,
-  NIP90JobParam,
-  NIP90InputType
+NIP90Input,
+NIP90JobParam,
+NIP90InputType
 } from '@/services/nip90';
 import {
-  Kind5050DVMService,
-  Kind5050DVMServiceConfig,
-  Kind5050DVMServiceConfigTag,
-  DVMConfigError,
-  DVMConnectionError,
-  DVMJobRequestError,
-  DVMJobProcessingError,
-  DVMPaymentError,
-  DVMError
+Kind5050DVMService,
+Kind5050DVMServiceConfig,
+Kind5050DVMServiceConfigTag,
+DVMConfigError,
+DVMConnectionError,
+DVMJobRequestError,
+DVMJobProcessingError,
+DVMPaymentError,
+DVMError
 } from './Kind5050DVMService';
 import type { JobHistoryEntry, JobStatistics, JobStatus } from '@/types/dvm'; // Import JobStatus
-// import * as ParseResult from "@effect/schema/ParseResult"; // Not used for now
+// import \* as ParseResult from "@effect/schema/ParseResult"; // Not used for now
 
 // Helper function createNip90FeedbackEvent remains the same
 function createNip90FeedbackEvent(
-  dvmPrivateKeyHex: string,
-  requestEvent: NostrEvent,
-  status: "payment-required" | "processing" | "error" | "success" | "partial",
-  contentOrExtraInfo?: string,
-  amountDetails?: { amountMillisats: number; invoice?: string }
+dvmPrivateKeyHex: string,
+requestEvent: NostrEvent,
+status: "payment-required" | "processing" | "error" | "success" | "partial",
+contentOrExtraInfo?: string,
+amountDetails?: { amountMillisats: number; invoice?: string }
 ): NostrEvent {
-  const tags: string[][] = [
-    ["e", requestEvent.id],
-    ["p", requestEvent.pubkey],
-  ];
+const tags: string[][] = [
+["e", requestEvent.id],
+["p", requestEvent.pubkey],
+];
 
-  const statusTagPayload = [status];
-  if (contentOrExtraInfo && (status === "error" || status === "processing" || status === "payment-required")) {
-    statusTagPayload.push(contentOrExtraInfo.substring(0, 256));
-  }
-  tags.push(statusTagPayload);
+const statusTagPayload = [status];
+if (contentOrExtraInfo && (status === "error" || status === "processing" || status === "payment-required")) {
+statusTagPayload.push(contentOrExtraInfo.substring(0, 256));
+}
+tags.push(statusTagPayload);
 
-  if (amountDetails) {
-    const amountTag = ["amount", amountDetails.amountMillisats.toString()];
-    if (amountDetails.invoice) amountTag.push(amountDetails.invoice);
-    tags.push(amountTag);
-  }
+if (amountDetails) {
+const amountTag = ["amount", amountDetails.amountMillisats.toString()];
+if (amountDetails.invoice) amountTag.push(amountDetails.invoice);
+tags.push(amountTag);
+}
 
-  const template: EventTemplate = {
-    kind: 7000,
-    created_at: Math.floor(Date.now() / 1000),
-    tags,
-    content: (status === "partial" || (status === "error" && contentOrExtraInfo && contentOrExtraInfo.length > 256)) ? (contentOrExtraInfo || "") : "",
-  };
-  return finalizeEvent(template, hexToBytes(dvmPrivateKeyHex)) as NostrEvent;
+const template: EventTemplate = {
+kind: 7000,
+created_at: Math.floor(Date.now() / 1000),
+tags,
+content: (status === "partial" || (status === "error" && contentOrExtraInfo && contentOrExtraInfo.length > 256)) ? (contentOrExtraInfo || "") : "",
+};
+return finalizeEvent(template, hexToBytes(dvmPrivateKeyHex)) as NostrEvent;
 }
 
 // Helper function createNip90JobResultEvent remains the same
 function createNip90JobResultEvent(
-  dvmPrivateKeyHex: string,
-  requestEvent: NostrEvent,
-  jobOutputContent: string,
-  invoiceAmountMillisats: number,
-  bolt11Invoice: string,
-  outputIsEncrypted: boolean
+dvmPrivateKeyHex: string,
+requestEvent: NostrEvent,
+jobOutputContent: string,
+invoiceAmountMillisats: number,
+bolt11Invoice: string,
+outputIsEncrypted: boolean
 ): NostrEvent {
-  const tags: string[][] = [
-    ["request", JSON.stringify(requestEvent)],
-    ["e", requestEvent.id],
-    ["p", requestEvent.pubkey],
-    ["amount", invoiceAmountMillisats.toString(), bolt11Invoice]
-  ];
+const tags: string[][] = [
+["request", JSON.stringify(requestEvent)],
+["e", requestEvent.id],
+["p", requestEvent.pubkey],
+["amount", invoiceAmountMillisats.toString(), bolt11Invoice]
+];
 
-  if (outputIsEncrypted) tags.push(["encrypted"]);
-  requestEvent.tags.filter(t => t[0] === 'i').forEach(t => tags.push(t));
+if (outputIsEncrypted) tags.push(["encrypted"]);
+requestEvent.tags.filter(t => t[0] === 'i').forEach(t => tags.push(t));
 
-  const resultKind = requestEvent.kind + 1000;
-  if (resultKind < 6000 || resultKind > 6999) {
-    console.error(`Calculated result kind ${resultKind} is out of NIP-90 range for request kind ${requestEvent.kind}. Defaulting to 6000.`);
-  }
+const resultKind = requestEvent.kind + 1000;
+if (resultKind < 6000 || resultKind > 6999) {
+console.error(`Calculated result kind ${resultKind} is out of NIP-90 range for request kind ${requestEvent.kind}. Defaulting to 6000.`);
+}
 
-  const template: EventTemplate = {
-    kind: Math.max(6000, Math.min(6999, resultKind)),
-    created_at: Math.floor(Date.now() / 1000),
-    tags,
-    content: jobOutputContent,
-  };
-  return finalizeEvent(template, hexToBytes(dvmPrivateKeyHex)) as NostrEvent;
+const template: EventTemplate = {
+kind: Math.max(6000, Math.min(6999, resultKind)),
+created_at: Math.floor(Date.now() / 1000),
+tags,
+content: jobOutputContent,
+};
+return finalizeEvent(template, hexToBytes(dvmPrivateKeyHex)) as NostrEvent;
 }
 
 export const Kind5050DVMServiceLive = Layer.scoped(
-  Kind5050DVMService,
-  Effect.gen(function* (_) {
-    const defaultConfig = yield* _(Kind5050DVMServiceConfigTag);
-    const telemetry = yield* _(TelemetryService);
-    const nostr = yield* _(NostrService);
-    const ollama = yield* _(OllamaService);
-    const spark = yield* _(SparkService);
-    const nip04 = yield* _(NIP04Service);
+Kind5050DVMService,
+Effect.gen(function* (\_) {
+const defaultConfig = yield* _(Kind5050DVMServiceConfigTag);
+const telemetry = yield\* _(TelemetryService);
+const nostr = yield* \_(NostrService);
+const ollama = yield* _(OllamaService);
+const spark = yield\* _(SparkService);
+const nip04 = yield\* \_(NIP04Service);
 
     let isActiveInternal = useDVMSettingsStore.getState().getEffectiveConfig().active;
     let currentSubscription: Subscription | null = null;
@@ -720,15 +748,15 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         return mockStats;
       }),
     };
-  })
-);
 
+})
+);
 
 // File: src/services/spark/SparkService.ts
 // ... (existing interfaces and types) ...
 export interface SparkService {
-  // ... (existing methods) ...
-  checkInvoiceStatus(invoiceBolt11: string): Effect.Effect<{ status: 'pending' | 'paid' | 'expired' | 'error', amountPaidMsats?: number }, SparkError | TrackEventError, never>;
+// ... (existing methods) ...
+checkInvoiceStatus(invoiceBolt11: string): Effect.Effect<{ status: 'pending' | 'paid' | 'expired' | 'error', amountPaidMsats?: number }, SparkError | TrackEventError, never>;
 }
 // ...
 
@@ -812,7 +840,9 @@ export interface SparkService {
           value: JSON.stringify({ invoice: invoiceBolt11.substring(0,20)+'...' })
         }))
       ),
+
 // ... (rest of the service methods) ...
+
 ```
 
 **Note for `Kind5050DVMServiceImpl.ts` -> `processJobRequestInternal`:**
@@ -824,3 +854,4 @@ When you modify `processJobRequestInternal` to store `invoiceBolt11` and `invoic
 *   The `DvmJobHistoryPane.tsx` component should naturally reflect these changes once real data (or updated mock data reflecting payment) is available.
 
 This will implement the payment verification logic using the (stubbed for now) Spark SDK interaction.
+```

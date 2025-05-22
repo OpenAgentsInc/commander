@@ -1,6 +1,7 @@
 Okay, Agent, the next phase for the `SELLING_COMPUTE` feature is to implement **User-Configurable DVM Settings**, including pricing.
 
 This involves:
+
 1.  Creating a persistent store for user-defined DVM settings.
 2.  Building a UI (dialog) for users to modify these settings.
 3.  Integrating these settings into the `Kind5050DVMService` so it uses them for its operations (identity, relays, job kinds, pricing, model parameters).
@@ -8,83 +9,85 @@ This involves:
 **Phase 1: DVM Settings Store and Configuration**
 
 1.  **Define `DVMUserSettings` Interface and Store:**
-    *   **File:** `src/stores/dvmSettingsStore.ts` (Create this new file)
-    *   **Purpose:** Store user-configurable DVM settings using Zustand with `persist` middleware for `localStorage`.
-    *   **Interface `DVMUserSettings`:**
-        *   `dvmPrivateKeyHex?: string` (User's DVM Nostr private key. If not set, the service will use its hardcoded dev default)
-        *   `dvmPublicKeyHex?: string` (Read-only, derived automatically from `dvmPrivateKeyHex` by the UI)
-        *   `relaysCsv?: string` (Comma-separated string of relay URLs)
-        *   `supportedJobKindsCsv?: string` (Comma-separated string of kind numbers, e.g., "5100, 5050")
-        *   `textGenerationConfig?: Partial<DefaultTextGenerationJobConfig>` (Allow partial overrides of text generation params)
-    *   **Store State:** `settings: DVMUserSettings` (initial state: `{}`)
-    *   **Store Actions:**
-        *   `updateSettings(newSettings: Partial<DVMUserSettings>)`: Updates the settings.
-        *   `resetSettings()`: Resets settings to an empty object, effectively reverting to defaults used by the service.
-        *   `getEffectivePrivateKeyHex(): string`: Returns user's SK or the default dev SK from `DefaultKind5050DVMServiceConfigLayer`.
-        *   `getEffectiveRelays(): string[]`: Returns user's relays or defaults.
-        *   `getEffectiveSupportedJobKinds(): number[]`: Returns user's kinds or defaults.
-        *   `getEffectiveTextGenerationConfig(): DefaultTextGenerationJobConfig`: Returns merged user and default text gen config.
+
+    - **File:** `src/stores/dvmSettingsStore.ts` (Create this new file)
+    - **Purpose:** Store user-configurable DVM settings using Zustand with `persist` middleware for `localStorage`.
+    - **Interface `DVMUserSettings`:**
+      - `dvmPrivateKeyHex?: string` (User's DVM Nostr private key. If not set, the service will use its hardcoded dev default)
+      - `dvmPublicKeyHex?: string` (Read-only, derived automatically from `dvmPrivateKeyHex` by the UI)
+      - `relaysCsv?: string` (Comma-separated string of relay URLs)
+      - `supportedJobKindsCsv?: string` (Comma-separated string of kind numbers, e.g., "5100, 5050")
+      - `textGenerationConfig?: Partial<DefaultTextGenerationJobConfig>` (Allow partial overrides of text generation params)
+    - **Store State:** `settings: DVMUserSettings` (initial state: `{}`)
+    - **Store Actions:**
+      - `updateSettings(newSettings: Partial<DVMUserSettings>)`: Updates the settings.
+      - `resetSettings()`: Resets settings to an empty object, effectively reverting to defaults used by the service.
+      - `getEffectivePrivateKeyHex(): string`: Returns user's SK or the default dev SK from `DefaultKind5050DVMServiceConfigLayer`.
+      - `getEffectiveRelays(): string[]`: Returns user's relays or defaults.
+      - `getEffectiveSupportedJobKinds(): number[]`: Returns user's kinds or defaults.
+      - `getEffectiveTextGenerationConfig(): DefaultTextGenerationJobConfig`: Returns merged user and default text gen config.
 
 2.  **Update `src/services/dvm/Kind5050DVMService.ts`:**
-    *   No direct changes needed to `Kind5050DVMServiceConfig` or `DefaultKind5050DVMServiceConfigLayer`. These will continue to provide the application's *default* DVM settings. The service implementation will now prioritize user settings from the new store.
+    - No direct changes needed to `Kind5050DVMServiceConfig` or `DefaultKind5050DVMServiceConfigLayer`. These will continue to provide the application's _default_ DVM settings. The service implementation will now prioritize user settings from the new store.
 
 **Phase 2: UI for DVM Settings**
 
 1.  **Create `DVMSettingsDialog.tsx` Component:**
-    *   **File:** `src/components/dvm/DVMSettingsDialog.tsx` (Create new folder `src/components/dvm` and this file)
-    *   **UI:** Use Shadcn UI components (`Dialog`, `Input`, `Label`, `Textarea`, `Button`, etc.).
-    *   **Form Fields:**
-        *   **DVM Private Key:** `Textarea` for `dvmPrivateKeyHex`. Display a prominent security warning about handling private keys.
-        *   **DVM Public Key:** Read-only `Input`, derived from `dvmPrivateKeyHex` in the UI using `getPublicKey` from `nostr-tools/pure`. Updates automatically when the private key changes.
-        *   **Relays:** `Textarea` for `relaysCsv`. Users enter one relay URL per line. (The store will handle parsing/splitting).
-        *   **Supported Job Kinds:** `Textarea` for `supportedJobKindsCsv`. Users enter comma-separated kind numbers (e.g., "5100, 5000").
-        *   **Text Generation Config Section:**
-            *   Model: `Input` for `textGenerationConfig.model`.
-            *   Max Tokens: `Input type="number"` for `textGenerationConfig.max_tokens`.
-            *   Temperature: `Input type="number" step="0.1"` for `textGenerationConfig.temperature`.
-            *   Top K: `Input type="number"` for `textGenerationConfig.top_k`.
-            *   Top P: `Input type="number" step="0.1"` for `textGenerationConfig.top_p`.
-            *   Frequency Penalty: `Input type="number" step="0.1"` for `textGenerationConfig.frequency_penalty`.
-            *   Min Price (Sats): `Input type="number"` for `textGenerationConfig.minPriceSats`.
-            *   Price per 1k Tokens (Sats): `Input type="number"` for `textGenerationConfig.pricePer1kTokens`.
-    *   **Functionality:**
-        *   On dialog open, populate form fields from `useDVMSettingsStore.getState().settings`. For fields not set by the user, display placeholder text derived from `DefaultKind5050DVMServiceConfigLayer`.
-        *   "Save Settings" button:
-            *   Parses `relaysCsv` (split by newline, trim, filter empty) and `supportedJobKindsCsv` (split by comma, trim, convert to number, filter NaN).
-            *   Calls `updateSettings` on `useDVMSettingsStore` with the new `DVMUserSettings` object.
-        *   "Reset to Defaults" button:
-            *   Calls `resetSettings` on `useDVMSettingsStore`.
-            *   Re-populates the form with default values.
-        *   "Cancel" button / Close dialog.
+
+    - **File:** `src/components/dvm/DVMSettingsDialog.tsx` (Create new folder `src/components/dvm` and this file)
+    - **UI:** Use Shadcn UI components (`Dialog`, `Input`, `Label`, `Textarea`, `Button`, etc.).
+    - **Form Fields:**
+      - **DVM Private Key:** `Textarea` for `dvmPrivateKeyHex`. Display a prominent security warning about handling private keys.
+      - **DVM Public Key:** Read-only `Input`, derived from `dvmPrivateKeyHex` in the UI using `getPublicKey` from `nostr-tools/pure`. Updates automatically when the private key changes.
+      - **Relays:** `Textarea` for `relaysCsv`. Users enter one relay URL per line. (The store will handle parsing/splitting).
+      - **Supported Job Kinds:** `Textarea` for `supportedJobKindsCsv`. Users enter comma-separated kind numbers (e.g., "5100, 5000").
+      - **Text Generation Config Section:**
+        - Model: `Input` for `textGenerationConfig.model`.
+        - Max Tokens: `Input type="number"` for `textGenerationConfig.max_tokens`.
+        - Temperature: `Input type="number" step="0.1"` for `textGenerationConfig.temperature`.
+        - Top K: `Input type="number"` for `textGenerationConfig.top_k`.
+        - Top P: `Input type="number" step="0.1"` for `textGenerationConfig.top_p`.
+        - Frequency Penalty: `Input type="number" step="0.1"` for `textGenerationConfig.frequency_penalty`.
+        - Min Price (Sats): `Input type="number"` for `textGenerationConfig.minPriceSats`.
+        - Price per 1k Tokens (Sats): `Input type="number"` for `textGenerationConfig.pricePer1kTokens`.
+    - **Functionality:**
+      - On dialog open, populate form fields from `useDVMSettingsStore.getState().settings`. For fields not set by the user, display placeholder text derived from `DefaultKind5050DVMServiceConfigLayer`.
+      - "Save Settings" button:
+        - Parses `relaysCsv` (split by newline, trim, filter empty) and `supportedJobKindsCsv` (split by comma, trim, convert to number, filter NaN).
+        - Calls `updateSettings` on `useDVMSettingsStore` with the new `DVMUserSettings` object.
+      - "Reset to Defaults" button:
+        - Calls `resetSettings` on `useDVMSettingsStore`.
+        - Re-populates the form with default values.
+      - "Cancel" button / Close dialog.
 
 2.  **Add "Settings" Button to `SellComputePane.tsx`:**
-    *   **File:** `src/components/sell-compute/SellComputePane.tsx`
-    *   Add a new button (e.g., Cog icon from `lucide-react`) to the `SellComputePane`.
-    *   This button will be the `DialogTrigger` for the `DVMSettingsDialog.tsx` component.
+    - **File:** `src/components/sell-compute/SellComputePane.tsx`
+    - Add a new button (e.g., Cog icon from `lucide-react`) to the `SellComputePane`.
+    - This button will be the `DialogTrigger` for the `DVMSettingsDialog.tsx` component.
 
 **Phase 3: Integrate User Settings into `Kind5050DVMServiceImpl.ts`**
 
 1.  **Modify `Kind5050DVMServiceImpl.ts`:**
-    *   Import `useDVMSettingsStore` and the helper functions from it (e.g., `getEffectivePrivateKeyHex`, etc.).
-    *   Remove direct reliance on the injected `config` from `Kind5050DVMServiceConfigTag` for dynamic parameters. The injected `config` can still be used for truly static defaults if any remain.
-    *   **In `startListening()`:**
-        *   Use `useDVMSettingsStore.getState().getEffectivePrivateKeyHex()` to get the DVM's private key. If it's the default dev key, consider logging a warning.
-        *   Use `useDVMSettingsStore.getState().getEffectiveRelays()` for the list of relays to connect to.
-        *   Use `useDVMSettingsStore.getState().getEffectiveSupportedJobKinds()` for the Nostr subscription filter.
-        *   Store the `dvmPublicKeyHex` derived from the effective private key for internal use (e.g., filtering out its own events).
-    *   **In `processJobRequestInternal()`:**
-        *   Use `useDVMSettingsStore.getState().getEffectiveTextGenerationConfig()` to get the current text generation parameters (model, pricing, inference params).
-        *   Use this effective config for Ollama requests and price calculations.
-        *   The DVM's private key for signing events and NIP-04 operations should come from `getEffectivePrivateKeyHex()`.
+    - Import `useDVMSettingsStore` and the helper functions from it (e.g., `getEffectivePrivateKeyHex`, etc.).
+    - Remove direct reliance on the injected `config` from `Kind5050DVMServiceConfigTag` for dynamic parameters. The injected `config` can still be used for truly static defaults if any remain.
+    - **In `startListening()`:**
+      - Use `useDVMSettingsStore.getState().getEffectivePrivateKeyHex()` to get the DVM's private key. If it's the default dev key, consider logging a warning.
+      - Use `useDVMSettingsStore.getState().getEffectiveRelays()` for the list of relays to connect to.
+      - Use `useDVMSettingsStore.getState().getEffectiveSupportedJobKinds()` for the Nostr subscription filter.
+      - Store the `dvmPublicKeyHex` derived from the effective private key for internal use (e.g., filtering out its own events).
+    - **In `processJobRequestInternal()`:**
+      - Use `useDVMSettingsStore.getState().getEffectiveTextGenerationConfig()` to get the current text generation parameters (model, pricing, inference params).
+      - Use this effective config for Ollama requests and price calculations.
+      - The DVM's private key for signing events and NIP-04 operations should come from `getEffectivePrivateKeyHex()`.
 
 **Summary of Changes for Agent:**
 
-*   **New Store:** `src/stores/dvmSettingsStore.ts` for user DVM settings.
-*   **New UI Component:** `src/components/dvm/DVMSettingsDialog.tsx` for editing settings.
-*   **Modify `SellComputePane.tsx`:** Add a button to open `DVMSettingsDialog`.
-*   **Modify `Kind5050DVMServiceImpl.ts`:**
-    *   Use `useDVMSettingsStore.getState().getEffective...()` helpers to retrieve operational parameters (DVM identity, relays, job kinds, text generation config including pricing) at runtime when `startListening` is called and when `processJobRequestInternal` is executed.
-    *   The `Kind5050DVMServiceConfigTag` passed during layer construction will now primarily provide fallback defaults if user settings are not configured.
+- **New Store:** `src/stores/dvmSettingsStore.ts` for user DVM settings.
+- **New UI Component:** `src/components/dvm/DVMSettingsDialog.tsx` for editing settings.
+- **Modify `SellComputePane.tsx`:** Add a button to open `DVMSettingsDialog`.
+- **Modify `Kind5050DVMServiceImpl.ts`:**
+  - Use `useDVMSettingsStore.getState().getEffective...()` helpers to retrieve operational parameters (DVM identity, relays, job kinds, text generation config including pricing) at runtime when `startListening` is called and when `processJobRequestInternal` is executed.
+  - The `Kind5050DVMServiceConfigTag` passed during layer construction will now primarily provide fallback defaults if user settings are not configured.
 
 This approach ensures that the DVM service uses the most up-to-date user settings for its operations, especially for pricing, without requiring a service restart to pick up changes.
 

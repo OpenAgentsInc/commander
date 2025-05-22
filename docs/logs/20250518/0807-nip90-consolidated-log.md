@@ -5,14 +5,17 @@ I'll be implementing a NIP-90 job request form UI as outlined in the instruction
 ## Step 1: Create the form test and component
 
 First, I've created the test file for the form component in `/src/tests/unit/components/nip90/Nip90RequestForm.test.tsx`. This includes:
+
 - Basic test for rendering the form with all required fields
 - Test for form state updates when inputs change
 
 The test includes mocks for:
+
 - nostr-tools/pure library functions (generateSecretKey, getPublicKey, finalizeEvent)
 - NostrService for testing the form submission
 
 Next, I implemented the Nip90RequestForm component in `/src/components/nip90/Nip90RequestForm.tsx`. This component:
+
 - Uses Shadcn UI components for the form elements
 - Manages form state with React useState hooks
 - Includes validation for form fields
@@ -24,6 +27,7 @@ I also updated the `/src/components/nip90/index.ts` file to export the new compo
 ## Step 2: Implement the NIP-90 event creation helper function
 
 Created a utility function to construct NIP-90 job request events:
+
 - Implemented `createNip90JobRequest` in `/src/helpers/nip90/event_creation.ts`
 - This function handles:
   - Setting the correct event kind (5000-5999)
@@ -31,12 +35,14 @@ Created a utility function to construct NIP-90 job request events:
   - Finalizing and signing the event using nostr-tools
 
 Added tests for this helper function in `/src/tests/unit/helpers/nip90/event_creation.test.ts`:
+
 - Tests creating a valid NIP-90 job request with all parameters
 - Tests handling of optional bid parameter (undefined or zero)
 
 ## Step 3: Add form submission tests
 
 Enhanced the tests for our form component to verify submission functionality:
+
 - Added test for successful form submission that verifies:
   - The form calls the generateSecretKey function from nostr-tools
   - It correctly calls NostrService.publishEvent with the properly constructed event
@@ -44,12 +50,13 @@ Enhanced the tests for our form component to verify submission functionality:
 - Added tests for error handling:
   - Field validation errors (e.g., empty input data)
   - Publishing errors from the NostrService
-  
+
 These tests use mocks and the Effect.Provider to inject a test version of the NostrService.
 
 ## Step 4: Integrate the form into HomePage
 
 Integrated the NIP-90 Request Form into the application UI:
+
 - Updated the HomePage component to import the Nip90RequestForm
 - Modified the right panel layout to include both the form and event list
 - Added a flex column layout with gap to separate the form and list
@@ -61,6 +68,7 @@ Integrated the NIP-90 Request Form into the application UI:
 The implementation of the NIP-90 job request form is now complete. Users can now:
 
 1. Fill out a form with job details including:
+
    - Job Kind (5000-5999)
    - Input Data
    - Output MIME Type

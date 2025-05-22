@@ -1,32 +1,26 @@
 import { describe, it, expect, vi } from "vitest";
 import { Effect, Layer, Context } from "effect";
-import { 
-  AgentChatSession 
-} from "@/services/ai/core/AgentChatSession";
-import { 
-  AIContextWindowError 
-} from "@/services/ai/core/AIError";
-import type { 
-  AgentChatMessage 
-} from "@/services/ai/core/AgentChatMessage";
+import { AgentChatSession } from "@/services/ai/core/AgentChatSession";
+import { AIContextWindowError } from "@/services/ai/core/AIError";
+import type { AgentChatMessage } from "@/services/ai/core/AgentChatMessage";
 
 // Mock chat message for testing
 const mockUserMessage: AgentChatMessage = {
   role: "user",
   content: "Hello AI",
-  timestamp: Date.now()
+  timestamp: Date.now(),
 };
 
 const mockAssistantMessage: AgentChatMessage = {
   role: "assistant",
   content: "Hello human",
-  timestamp: Date.now()
+  timestamp: Date.now(),
 };
 
 const mockSystemMessage: AgentChatMessage = {
   role: "system",
   content: "You are a helpful AI assistant",
-  timestamp: Date.now()
+  timestamp: Date.now(),
 };
 
 // Mock implementation of AgentChatSession
@@ -37,24 +31,26 @@ class MockAgentChatSession implements AgentChatSession {
   addMessage = vi.fn((message: AgentChatMessage) => {
     // For testing token limit errors
     if (message.content && message.content.includes("TOKEN_LIMIT_TEST")) {
-      return Effect.fail(new AIContextWindowError({
-        message: "Context window exceeded",
-        limit: 4000,
-        current: 4100
-      }));
+      return Effect.fail(
+        new AIContextWindowError({
+          message: "Context window exceeded",
+          limit: 4000,
+          current: 4100,
+        }),
+      );
     }
-    
+
     this.messages.push(message);
     return Effect.succeed(void 0);
   });
 
   getHistory = vi.fn((options?: { limit?: number }) => {
     let result = [...this.messages];
-    
+
     if (options?.limit) {
       result = result.slice(-options.limit);
     }
-    
+
     return Effect.succeed(result);
   });
 
@@ -63,40 +59,44 @@ class MockAgentChatSession implements AgentChatSession {
     return Effect.succeed(void 0);
   });
 
-  prepareMessagesForModel = vi.fn((options?: { 
-    maxTokens?: number,
-    includeSystemMessage?: boolean,
-    systemMessage?: string
-  }) => {
-    // For testing token limit errors
-    if (options?.maxTokens === 1) {
-      return Effect.fail(new AIContextWindowError({
-        message: "Cannot prepare messages: token limit too small",
-        limit: options.maxTokens,
-        current: this.messages.length * 10 // Simplified token estimation
-      }));
-    }
-    
-    let result = [...this.messages];
-    
-    // Add system message if requested
-    if (options?.includeSystemMessage && options?.systemMessage) {
-      result.unshift({
-        role: "system",
-        content: options.systemMessage,
-        timestamp: Date.now()
-      });
-    }
-    
-    return Effect.succeed(result);
-  });
+  prepareMessagesForModel = vi.fn(
+    (options?: {
+      maxTokens?: number;
+      includeSystemMessage?: boolean;
+      systemMessage?: string;
+    }) => {
+      // For testing token limit errors
+      if (options?.maxTokens === 1) {
+        return Effect.fail(
+          new AIContextWindowError({
+            message: "Cannot prepare messages: token limit too small",
+            limit: options.maxTokens,
+            current: this.messages.length * 10, // Simplified token estimation
+          }),
+        );
+      }
+
+      let result = [...this.messages];
+
+      // Add system message if requested
+      if (options?.includeSystemMessage && options?.systemMessage) {
+        result.unshift({
+          role: "system",
+          content: options.systemMessage,
+          timestamp: Date.now(),
+        });
+      }
+
+      return Effect.succeed(result);
+    },
+  );
 
   getEstimatedTokenCount = vi.fn(() => {
     // Very simplified token estimation for testing
     const tokenCount = this.messages.reduce((sum, msg) => {
       return sum + (msg.content ? msg.content.length : 0);
     }, 0);
-    
+
     return Effect.succeed(tokenCount);
   });
 }
@@ -110,16 +110,15 @@ describe("AgentChatSession Service", () => {
   it("should resolve a mock implementation via Effect context", async () => {
     const mockService = new MockAgentChatSession();
     const testLayer = Layer.succeed(AgentChatSession, mockService);
-    
-    const program = Effect.flatMap(
-      AgentChatSession,
-      (service) => Effect.succeed(service)
+
+    const program = Effect.flatMap(AgentChatSession, (service) =>
+      Effect.succeed(service),
     );
 
     const resolvedService = await Effect.runPromise(
-      program.pipe(Effect.provide(testLayer))
+      program.pipe(Effect.provide(testLayer)),
     );
-    
+
     expect(resolvedService).toBe(mockService);
   });
 
@@ -128,16 +127,14 @@ describe("AgentChatSession Service", () => {
       const mockService = new MockAgentChatSession();
       const testLayer = Layer.succeed(AgentChatSession, mockService);
 
-      const program = Effect.flatMap(
-        AgentChatSession,
-        (service) => Effect.flatMap(
-          service.addMessage(mockUserMessage),
-          () => service.getHistory()
-        )
+      const program = Effect.flatMap(AgentChatSession, (service) =>
+        Effect.flatMap(service.addMessage(mockUserMessage), () =>
+          service.getHistory(),
+        ),
       );
 
       const history = await Effect.runPromise(
-        program.pipe(Effect.provide(testLayer))
+        program.pipe(Effect.provide(testLayer)),
       );
 
       expect(mockService.addMessage).toHaveBeenCalledWith(mockUserMessage);
@@ -147,22 +144,19 @@ describe("AgentChatSession Service", () => {
     it("addMessage should fail with AIContextWindowError when limit exceeded", async () => {
       const mockService = new MockAgentChatSession();
       const testLayer = Layer.succeed(AgentChatSession, mockService);
-      
+
       const tokenLimitMessage: AgentChatMessage = {
         role: "user",
         content: "TOKEN_LIMIT_TEST message",
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
 
-      const program = Effect.flatMap(
-        AgentChatSession,
-        (service) => service.addMessage(tokenLimitMessage)
+      const program = Effect.flatMap(AgentChatSession, (service) =>
+        service.addMessage(tokenLimitMessage),
       );
 
       try {
-        await Effect.runPromise(
-          program.pipe(Effect.provide(testLayer))
-        );
+        await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
         // Should not reach here
         expect(true).toBe(false);
       } catch (error: any) {
@@ -181,13 +175,12 @@ describe("AgentChatSession Service", () => {
       mockService.addMessage(mockAssistantMessage);
 
       // Test getHistory
-      const program = Effect.flatMap(
-        AgentChatSession,
-        (service) => service.getHistory()
+      const program = Effect.flatMap(AgentChatSession, (service) =>
+        service.getHistory(),
       );
 
       const history = await Effect.runPromise(
-        program.pipe(Effect.provide(testLayer))
+        program.pipe(Effect.provide(testLayer)),
       );
 
       expect(history).toHaveLength(3);
@@ -206,13 +199,12 @@ describe("AgentChatSession Service", () => {
       mockService.addMessage(mockAssistantMessage);
 
       // Test getHistory with limit
-      const program = Effect.flatMap(
-        AgentChatSession,
-        (service) => service.getHistory({ limit: 2 })
+      const program = Effect.flatMap(AgentChatSession, (service) =>
+        service.getHistory({ limit: 2 }),
       );
 
       const history = await Effect.runPromise(
-        program.pipe(Effect.provide(testLayer))
+        program.pipe(Effect.provide(testLayer)),
       );
 
       expect(history).toHaveLength(2);
@@ -230,16 +222,12 @@ describe("AgentChatSession Service", () => {
       mockService.addMessage(mockAssistantMessage);
 
       // Test clearHistory
-      const program = Effect.flatMap(
-        AgentChatSession,
-        (service) => Effect.flatMap(
-          service.clearHistory(),
-          () => service.getHistory()
-        )
+      const program = Effect.flatMap(AgentChatSession, (service) =>
+        Effect.flatMap(service.clearHistory(), () => service.getHistory()),
       );
 
       const history = await Effect.runPromise(
-        program.pipe(Effect.provide(testLayer))
+        program.pipe(Effect.provide(testLayer)),
       );
 
       expect(mockService.clearHistory).toHaveBeenCalled();
@@ -255,23 +243,22 @@ describe("AgentChatSession Service", () => {
       mockService.addMessage(mockAssistantMessage);
 
       // Test prepareMessagesForModel with system message
-      const program = Effect.flatMap(
-        AgentChatSession,
-        (service) => service.prepareMessagesForModel({
+      const program = Effect.flatMap(AgentChatSession, (service) =>
+        service.prepareMessagesForModel({
           includeSystemMessage: true,
           systemMessage: "Custom system message",
-        })
+        }),
       );
 
       const preparedMessages = await Effect.runPromise(
-        program.pipe(Effect.provide(testLayer))
+        program.pipe(Effect.provide(testLayer)),
       );
 
       expect(mockService.prepareMessagesForModel).toHaveBeenCalledWith({
         includeSystemMessage: true,
         systemMessage: "Custom system message",
       });
-      
+
       // Our mock adds the system message as first message
       expect(preparedMessages[0].role).toBe("system");
       expect(preparedMessages[0].content).toBe("Custom system message");
@@ -287,20 +274,19 @@ describe("AgentChatSession Service", () => {
       mockService.addMessage(mockAssistantMessage);
 
       // Test with a tiny token limit
-      const program = Effect.flatMap(
-        AgentChatSession,
-        (service) => service.prepareMessagesForModel({ maxTokens: 1 })
+      const program = Effect.flatMap(AgentChatSession, (service) =>
+        service.prepareMessagesForModel({ maxTokens: 1 }),
       );
 
       try {
-        await Effect.runPromise(
-          program.pipe(Effect.provide(testLayer))
-        );
+        await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
         // Should not reach here
         expect(true).toBe(false);
       } catch (error: any) {
         expect(error).toBeDefined();
-        expect(error.message).toContain("Cannot prepare messages: token limit too small");
+        expect(error.message).toContain(
+          "Cannot prepare messages: token limit too small",
+        );
       }
     });
 
@@ -312,26 +298,25 @@ describe("AgentChatSession Service", () => {
       const message1: AgentChatMessage = {
         role: "user",
         content: "1234567890", // 10 characters
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
-      
+
       const message2: AgentChatMessage = {
         role: "assistant",
         content: "12345", // 5 characters
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
 
       mockService.addMessage(message1);
       mockService.addMessage(message2);
 
       // Test getEstimatedTokenCount
-      const program = Effect.flatMap(
-        AgentChatSession,
-        (service) => service.getEstimatedTokenCount()
+      const program = Effect.flatMap(AgentChatSession, (service) =>
+        service.getEstimatedTokenCount(),
       );
 
       const tokenCount = await Effect.runPromise(
-        program.pipe(Effect.provide(testLayer))
+        program.pipe(Effect.provide(testLayer)),
       );
 
       expect(mockService.getEstimatedTokenCount).toHaveBeenCalled();

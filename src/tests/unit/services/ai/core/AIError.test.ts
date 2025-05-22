@@ -6,14 +6,14 @@ import {
   AIToolExecutionError,
   AIContextWindowError,
   AIContentPolicyError,
-  fromProviderError
+  fromProviderError,
 } from "@/services/ai/core/AIError";
 
 describe("Custom AI Error Types", () => {
   describe("AIGenericError", () => {
     it("should construct with message only", () => {
       const error = new AIGenericError({
-        message: "Generic AI error"
+        message: "Generic AI error",
       });
 
       expect(error).toBeInstanceOf(Error);
@@ -31,7 +31,7 @@ describe("Custom AI Error Types", () => {
       const error = new AIGenericError({
         message: "Generic AI error with details",
         cause,
-        context
+        context,
       });
 
       expect(error).toBeInstanceOf(Error);
@@ -48,7 +48,7 @@ describe("Custom AI Error Types", () => {
     it("should construct with required fields", () => {
       const error = new AIProviderError({
         message: "Provider API error",
-        provider: "OpenAI"
+        provider: "OpenAI",
       });
 
       expect(error).toBeInstanceOf(Error);
@@ -69,7 +69,7 @@ describe("Custom AI Error Types", () => {
         provider: "OpenAI",
         cause,
         context,
-        isRetryable: true
+        isRetryable: true,
       });
 
       expect(error).toBeInstanceOf(Error);
@@ -92,7 +92,7 @@ describe("Custom AI Error Types", () => {
       const error = new AIConfigurationError({
         message: "Configuration error",
         cause,
-        context
+        context,
       });
 
       expect(error).toBeInstanceOf(Error);
@@ -110,7 +110,7 @@ describe("Custom AI Error Types", () => {
     it("should construct with required fields", () => {
       const error = new AIToolExecutionError({
         message: "Tool execution failed",
-        toolName: "calculator"
+        toolName: "calculator",
       });
 
       expect(error).toBeInstanceOf(Error);
@@ -129,7 +129,7 @@ describe("Custom AI Error Types", () => {
         message: "Tool execution failed with details",
         toolName: "calculator",
         cause,
-        context
+        context,
       });
 
       expect(error).toBeInstanceOf(Error);
@@ -147,7 +147,7 @@ describe("Custom AI Error Types", () => {
   describe("AIContextWindowError", () => {
     it("should construct with message only", () => {
       const error = new AIContextWindowError({
-        message: "Context window exceeded"
+        message: "Context window exceeded",
       });
 
       expect(error).toBeInstanceOf(Error);
@@ -168,7 +168,7 @@ describe("Custom AI Error Types", () => {
         limit: 4096,
         current: 4200,
         cause,
-        context
+        context,
       });
 
       expect(error).toBeInstanceOf(Error);
@@ -188,7 +188,7 @@ describe("Custom AI Error Types", () => {
     it("should construct with required fields", () => {
       const error = new AIContentPolicyError({
         message: "Content policy violation",
-        provider: "OpenAI"
+        provider: "OpenAI",
       });
 
       expect(error).toBeInstanceOf(Error);
@@ -210,7 +210,7 @@ describe("Custom AI Error Types", () => {
         provider: "OpenAI",
         flaggedContent,
         cause,
-        context
+        context,
       });
 
       expect(error).toBeInstanceOf(Error);

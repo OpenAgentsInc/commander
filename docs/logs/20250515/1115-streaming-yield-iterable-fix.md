@@ -5,24 +5,27 @@
 After reading the detailed instructions in `1102-fixit.md` and `1112-followup-instructions.md`, I understand we're dealing with two major issues:
 
 1. In `OllamaServiceImpl.ts`: Incorrect usage of Stream operators causing type errors and runtime issues
+
    - Using Stream operators like `Stream.decodeText()`, `Stream.splitLines()` incorrectly
    - Missing `Stream.compact()` method in the Effect-TS version being used
    - Need to replace with appropriate syntax for this Effect-TS version
 
 2. In `ollama-listeners.ts`: Improper handling of the Stream in the Effect.gen block
    - Getting a `TypeError: yield* (intermediate value)(intermediate value)(intermediate value) is not iterable` error
-   - This suggests we're trying to yield* the Stream itself, which is not an iterable Effect
+   - This suggests we're trying to yield\* the Stream itself, which is not an iterable Effect
 
 ## Current TypeScript Errors
 
 After running the typechecker, these are the issues we need to fix:
 
 In `OllamaServiceImpl.ts`:
+
 1. Incorrect use of `Stream.decodeText()` and `Stream.splitLines()` - they need a stream parameter
 2. `Stream.compact()` doesn't exist in this version of Effect-TS
 3. `Schema.isParseError` doesn't exist in this version
 
 In `ollama-listeners.ts`:
+
 1. Type mismatch on line 118: trying to yield a Stream but Effect.gen expects an Effect
 2. Type error on line 167: treating stream as a Stream object but it's something else
 3. `Effect.provide(Layer.setRequestCache())` is missing a required argument
@@ -31,6 +34,7 @@ In `ollama-listeners.ts`:
 ## Implementation Plan
 
 1. Fix `OllamaServiceImpl.ts` first:
+
    - Correct the Stream.pipe syntax to match this version of Effect-TS
    - Replace Stream.compact with Stream.filterMap + Option.getOrUndefined
    - Fix Schema.isParseError check
@@ -46,8 +50,9 @@ In `ollama-listeners.ts`:
 I made the following changes to fix the initial issues:
 
 1. In `OllamaServiceImpl.ts`:
+
    - Added detailed logging throughout the stream processing
-   - Changed `Stream.pipe` syntax to use the correct format 
+   - Changed `Stream.pipe` syntax to use the correct format
    - Replaced `Stream.compact()` with `Stream.filterMap(Option.getOrUndefined)`
    - Fixed the ParseError checking to use `_tag` property instead of `Schema.isParseError`
 
@@ -71,6 +76,7 @@ After the first round of fixes, I'm still seeing these errors:
 I made the following changes:
 
 1. In `ollama-listeners.ts`:
+
    - Removed the `Stream.isStream` check since it doesn't exist in this version
 
 2. In `OllamaServiceImpl.ts`:

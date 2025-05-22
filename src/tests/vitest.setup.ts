@@ -1,5 +1,5 @@
-import { beforeAll, afterEach, afterAll } from 'vitest';
-import { server } from './mocks/server';
+import { beforeAll, afterEach, afterAll } from "vitest";
+import { server } from "./mocks/server";
 
 // Store original console methods
 const originalConsoleLog = console.log;
@@ -11,8 +11,8 @@ const originalConsoleDebug = console.debug;
 // Setup mock server
 beforeAll(() => {
   // Start mock server
-  server.listen({ onUnhandledRequest: 'error' });
-  
+  server.listen({ onUnhandledRequest: "error" });
+
   // Silence all console output during tests
   // Replace all console methods with no-ops
   console.log = () => {};
@@ -27,7 +27,7 @@ afterEach(() => server.resetHandlers());
 afterAll(() => {
   // Close server
   server.close();
-  
+
   // Restore console functionality
   console.log = originalConsoleLog;
   console.info = originalConsoleInfo;

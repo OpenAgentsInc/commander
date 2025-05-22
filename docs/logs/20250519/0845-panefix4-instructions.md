@@ -12,9 +12,11 @@ useEffect(() => {
   if (!isCurrentlyInteracting) {
     // Only update if initialPosition has actually changed from what we already know
     // AND if local position is different from initialPosition
-    if ((initialPosition.x !== prevPositionRef.current.x ||
-         initialPosition.y !== prevPositionRef.current.y) &&
-        (initialPosition.x !== position.x || initialPosition.y !== position.y)) {
+    if (
+      (initialPosition.x !== prevPositionRef.current.x ||
+        initialPosition.y !== prevPositionRef.current.y) &&
+      (initialPosition.x !== position.x || initialPosition.y !== position.y)
+    ) {
       setPosition(initialPosition);
     }
     // Always update prevPositionRef if not interacting, to sync with store if it changed
@@ -25,9 +27,11 @@ useEffect(() => {
 // Similar change for size useEffect
 useEffect(() => {
   if (!isCurrentlyInteracting) {
-    if ((initialSize.width !== prevSizeRef.current.width ||
-         initialSize.height !== prevSizeRef.current.height) &&
-        (initialSize.width !== size.width || initialSize.height !== size.height)) {
+    if (
+      (initialSize.width !== prevSizeRef.current.width ||
+        initialSize.height !== prevSizeRef.current.height) &&
+      (initialSize.width !== size.width || initialSize.height !== size.height)
+    ) {
       setSize(initialSize);
     }
     prevSizeRef.current = initialSize;
@@ -382,7 +386,8 @@ export const Pane: React.FC<PaneProps> = ({
 ```
 
 Now, I'll update the log file to reflect this change.
-```markdown
+
+````markdown
 # Pane System Fix - Part 3
 
 ## Issue Analysis
@@ -409,8 +414,14 @@ Added a ref to track both the mouse/pointer coordinates and the pane's position 
 
 ```typescript
 // Ref for drag start coordinates (pointer and pane)
-const dragStartRef = useRef<{ x: number, y: number, paneX: number, paneY: number } | null>(null);
+const dragStartRef = useRef<{
+  x: number;
+  y: number;
+  paneX: number;
+  paneY: number;
+} | null>(null);
 ```
+````
 
 This ref acts as a stable reference point throughout the entire drag operation, unaffected by React re-renders or state changes.
 
@@ -426,15 +437,18 @@ Completely overhauled the `bindDrag` implementation to:
 ```typescript
 const handlePaneMouseDown = (e: React.MouseEvent) => {
   const target = e.target as HTMLElement;
-  if (target.classList.contains('resize-handle') || target.closest('.title-bar-button-container')) {
-      return;
+  if (
+    target.classList.contains("resize-handle") ||
+    target.closest(".title-bar-button-container")
+  ) {
+    return;
   }
   // Capture pane position *before* store update
   dragStartRef.current = {
     x: 0, // Pointer X will be set by useDrag
     y: 0, // Pointer Y will be set by useDrag
     paneX: position.x,
-    paneY: position.y
+    paneY: position.y,
   };
   // bringPaneToFront will also handle setting it as active and ensures correct z-index.
   bringPaneToFront(id);
@@ -448,7 +462,8 @@ const bindDrag = useDrag(
     if (first) {
       // dragStartRef.current.paneX/Y should already be set by handlePaneMouseDown
       // Only update pointer coordinates here
-      if (dragStartRef.current) { // Should always be true if mousedown happened on title bar
+      if (dragStartRef.current) {
+        // Should always be true if mousedown happened on title bar
         dragStartRef.current.x = pointerX;
         dragStartRef.current.y = pointerY;
       } else {
@@ -457,7 +472,7 @@ const bindDrag = useDrag(
           x: pointerX,
           y: pointerY,
           paneX: position.x, // Current local position
-          paneY: position.y
+          paneY: position.y,
         };
       }
     }
@@ -485,11 +500,11 @@ const bindDrag = useDrag(
   },
   {
     filterTaps: true,
-  }
+  },
 );
 ```
 
-The key difference is that we now rely on the absolute pointer coordinates (`xy`) rather than the gesture library's calculated offsets, making the drag operation more stable during React state changes. `handlePaneMouseDown` now correctly captures the pane's position into `dragStartRef` *before* `bringPaneToFront` is called, ensuring the reference position is from the state prior to activation-related re-renders.
+The key difference is that we now rely on the absolute pointer coordinates (`xy`) rather than the gesture library's calculated offsets, making the drag operation more stable during React state changes. `handlePaneMouseDown` now correctly captures the pane's position into `dragStartRef` _before_ `bringPaneToFront` is called, ensuring the reference position is from the state prior to activation-related re-renders.
 
 ### 3. Improved `useResizeHandlers` Hook
 
@@ -499,9 +514,11 @@ Updated the `useEffect` hooks in `useResizeHandlers` to remove local `position` 
 // In useResizeHandlers
 useEffect(() => {
   if (!isCurrentlyInteracting) {
-    if ((initialPosition.x !== prevPositionRef.current.x ||
-         initialPosition.y !== prevPositionRef.current.y) &&
-        (initialPosition.x !== position.x || initialPosition.y !== position.y)) {
+    if (
+      (initialPosition.x !== prevPositionRef.current.x ||
+        initialPosition.y !== prevPositionRef.current.y) &&
+      (initialPosition.x !== position.x || initialPosition.y !== position.y)
+    ) {
       setPosition(initialPosition);
     }
     prevPositionRef.current = initialPosition;
@@ -510,15 +527,18 @@ useEffect(() => {
 
 useEffect(() => {
   if (!isCurrentlyInteracting) {
-    if ((initialSize.width !== prevSizeRef.current.width ||
-         initialSize.height !== prevSizeRef.current.height) &&
-        (initialSize.width !== size.width || initialSize.height !== size.height)) {
+    if (
+      (initialSize.width !== prevSizeRef.current.width ||
+        initialSize.height !== prevSizeRef.current.height) &&
+      (initialSize.width !== size.width || initialSize.height !== size.height)
+    ) {
       setSize(initialSize);
     }
     prevSizeRef.current = initialSize;
   }
 }, [initialSize.width, initialSize.height, isCurrentlyInteracting]); // REMOVED size.width, size.height
 ```
+
 This change ensures the effects are cleaner and less likely to cause unintended side-effects by running too often.
 
 ### 4. Enhanced Store Actions
@@ -538,10 +558,13 @@ The `ResizeHandlerParams` type was previously added, enhancing type safety.
 The changes implemented provide a much more stable dragging experience by:
 
 1.  Using absolute pointer coordinates instead of relative offsets.
-2.  Maintaining stable reference points (`dragStartRef`) captured *before* activation-triggered re-renders.
+2.  Maintaining stable reference points (`dragStartRef`) captured _before_ activation-triggered re-renders.
 3.  Manually calculating position changes based on these stable references.
 4.  Minimizing unnecessary React state updates during interaction by refining `useEffect` dependencies.
 5.  Ensuring store actions are efficient in how they update pane states.
 
 This approach is more resistant to the race conditions and state synchronization issues that were causing the dragging problems, particularly when activating a non-active pane during drag initiation. The drag should now be smooth even for fast movements on initially inactive panes.
+
+```
+
 ```

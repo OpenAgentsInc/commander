@@ -9,24 +9,25 @@ Here's an analysis and instructions for the coding agent:
 1.  **R3F Canvas Lifecycle:** The current setup in `HandTracking.tsx` conditionally renders `ThreeScene` using `{showHandTracking && <ThreeScene ... />}`. Since `ThreeScene.tsx` contains the R3F `<Canvas>`, this means the entire R3F scene, including its WebGL context, is destroyed and recreated every time `showHandTracking` toggles. This is highly problematic and a common cause for context loss, especially if other GPU-intensive operations (like MediaPipe initialization) are happening concurrently.
 2.  **MediaPipe's Potential WebGL Usage:** MediaPipe Hands can use WebGL for its operations. If it initializes its own WebGL context while the R3F context is being recreated or is already active, it can lead to conflicts, exceeding browser/system limits for WebGL contexts, or causing one context to invalidate the other.
 3.  **Initial Black Screen:** The user seeing a black screen initially (before any toggling) suggests the R3F `<Canvas>` in `ThreeScene.tsx` might not be rendering its content as expected from the start, or its content is not visible. This needs to be addressed to ensure the "cube thing" is visible initially.
-4.  **"Split Second" View:** Seeing the cube scene for a split second when toggling ON hand tracking means the R3F canvas *does* initialize and render briefly before the context is lost. This reinforces the idea that the conflict happens during the simultaneous setup or resource negotiation.
+4.  **"Split Second" View:** Seeing the cube scene for a split second when toggling ON hand tracking means the R3F canvas _does_ initialize and render briefly before the context is lost. This reinforces the idea that the conflict happens during the simultaneous setup or resource negotiation.
 
 **Core Strategy:**
 
-The most robust solution is to have a single, persistent R3F `<Canvas>` for your main 3D scene that is *not* unmounted when hand tracking is toggled. MediaPipe's 2D landmark canvas can then be overlaid or managed separately without interfering with the primary WebGL context.
+The most robust solution is to have a single, persistent R3F `<Canvas>` for your main 3D scene that is _not_ unmounted when hand tracking is toggled. MediaPipe's 2D landmark canvas can then be overlaid or managed separately without interfering with the primary WebGL context.
 
 **Instructions for the Coding Agent:**
 
 **Step 1: Ensure R3F Canvas is Persistent and Renders Initially**
 
-*   **Objective:** Move the main R3F `<Canvas>` to `HomePage.tsx` so it's always mounted and renders the "cube scene" from the start. `HandTracking.tsx` will then only manage MediaPipe and its 2D overlay.
+- **Objective:** Move the main R3F `<Canvas>` to `HomePage.tsx` so it's always mounted and renders the "cube scene" from the start. `HandTracking.tsx` will then only manage MediaPipe and its 2D overlay.
 
 1.  **Modify `src/pages/HomePage.tsx`:**
-    *   Import necessary R3F components (`Canvas`, `useThree`, `useFrame`) and any specific content from your current `ThreeScene.tsx` (like the cube, lights, environment).
-    *   Call `useHandTracking` hook at the `HomePage` level to get `handPosition` and other necessary data/refs for both the main scene and the UI-only hand tracking component.
-    *   Render the R3F `<Canvas>` directly within `HomePage.tsx`. This canvas will be for your main "cube scene".
-    *   Pass the `handPosition` to the content inside this main `<Canvas>` if you need to visualize the hand in 3D.
-    *   Refactor `HandTracking.tsx` into a new component (e.g., `HandTrackingUIControls`) that *only* renders the UI toggles, status text, the hidden `<video>` element, and the 2D `landmarkCanvasRef`. It will receive necessary refs and data as props from `HomePage.tsx`.
+
+    - Import necessary R3F components (`Canvas`, `useThree`, `useFrame`) and any specific content from your current `ThreeScene.tsx` (like the cube, lights, environment).
+    - Call `useHandTracking` hook at the `HomePage` level to get `handPosition` and other necessary data/refs for both the main scene and the UI-only hand tracking component.
+    - Render the R3F `<Canvas>` directly within `HomePage.tsx`. This canvas will be for your main "cube scene".
+    - Pass the `handPosition` to the content inside this main `<Canvas>` if you need to visualize the hand in 3D.
+    - Refactor `HandTracking.tsx` into a new component (e.g., `HandTrackingUIControls`) that _only_ renders the UI toggles, status text, the hidden `<video>` element, and the 2D `landmarkCanvasRef`. It will receive necessary refs and data as props from `HomePage.tsx`.
 
     ```typescript
     // src/pages/HomePage.tsx
@@ -232,8 +233,9 @@ The most robust solution is to have a single, persistent R3F `<Canvas>` for your
     ```
 
 2.  **Create `src/components/hands/HandTrackingUIControls.tsx`:**
-    *   This new component will take the UI elements (Switch, Labels, status, video, 2D canvas) from the original `HandTracking.tsx`.
-    *   It will *not* call `useHandTracking` itself or render `ThreeScene`.
+
+    - This new component will take the UI elements (Switch, Labels, status, video, 2D canvas) from the original `HandTracking.tsx`.
+    - It will _not_ call `useHandTracking` itself or render `ThreeScene`.
 
     ```typescript
     // src/components/hands/HandTrackingUIControls.tsx
@@ -336,18 +338,19 @@ The most robust solution is to have a single, persistent R3F `<Canvas>` for your
     ```
 
 3.  **Remove `ThreeScene.tsx` from `src/components/hands/HandTracking.tsx`:**
-    *   The old `HandTracking.tsx` should be deleted or renamed (e.g., to `HandTrackingCoreLogic.ts` if it contained non-React logic, but `useHandTracking.ts` serves this purpose). The new UI component is `HandTrackingUIControls.tsx`.
-    *   Ensure `src/components/hands/index.ts` exports `HandTrackingUIControls` if it's meant to be the public component, or adjust imports in `HomePage.tsx` accordingly. For now, `HomePage.tsx` imports it directly.
-    *   The original `ThreeScene.tsx` can be repurposed to be the `MainSceneContent` component used in `HomePage.tsx`, or its content directly inlined. It must NOT render its own `<Canvas>`.
+    - The old `HandTracking.tsx` should be deleted or renamed (e.g., to `HandTrackingCoreLogic.ts` if it contained non-React logic, but `useHandTracking.ts` serves this purpose). The new UI component is `HandTrackingUIControls.tsx`.
+    - Ensure `src/components/hands/index.ts` exports `HandTrackingUIControls` if it's meant to be the public component, or adjust imports in `HomePage.tsx` accordingly. For now, `HomePage.tsx` imports it directly.
+    - The original `ThreeScene.tsx` can be repurposed to be the `MainSceneContent` component used in `HomePage.tsx`, or its content directly inlined. It must NOT render its own `<Canvas>`.
 
 **Step 2: Refine `useHandTracking.ts` for Robust Cleanup**
 
-*   **Objective:** Ensure MediaPipe resources are thoroughly released when hand tracking is disabled.
+- **Objective:** Ensure MediaPipe resources are thoroughly released when hand tracking is disabled.
 
 1.  **Modify `src/components/hands/useHandTracking.ts`:**
-    *   In the `useEffect` hook that initializes MediaPipe `Hands`:
-        *   Make the cleanup function more robust. When `enabled` becomes `false`, explicitly nullify refs to MediaPipe objects after closing/stopping them.
-        *   Ensure the 2D landmark canvas is cleared.
+
+    - In the `useEffect` hook that initializes MediaPipe `Hands`:
+      - Make the cleanup function more robust. When `enabled` becomes `false`, explicitly nullify refs to MediaPipe objects after closing/stopping them.
+      - Ensure the 2D landmark canvas is cleared.
 
     ```typescript
     // src/components/hands/useHandTracking.ts
@@ -360,7 +363,9 @@ The most robust solution is to have a single, persistent R3F `<Canvas>` for your
       useEffect(() => {
         if (!enabled) {
           // Cleanup logic
-          console.log("[useHandTracking] Disabling hand tracking. Cleaning up...");
+          console.log(
+            "[useHandTracking] Disabling hand tracking. Cleaning up...",
+          );
           if (cameraRef.current) {
             try {
               cameraRef.current.stop();
@@ -378,20 +383,25 @@ The most robust solution is to have a single, persistent R3F `<Canvas>` for your
             handsRef.current = null;
           }
           if (landmarkCanvasRef.current) {
-            const canvasCtx = landmarkCanvasRef.current.getContext('2d');
+            const canvasCtx = landmarkCanvasRef.current.getContext("2d");
             if (canvasCtx) {
-              canvasCtx.clearRect(0, 0, landmarkCanvasRef.current.width, landmarkCanvasRef.current.height);
+              canvasCtx.clearRect(
+                0,
+                0,
+                landmarkCanvasRef.current.width,
+                landmarkCanvasRef.current.height,
+              );
               console.log("[useHandTracking] Landmark canvas cleared.");
             }
           }
 
           // Reset states
-          setHandTrackingStatus('Inactive');
+          setHandTrackingStatus("Inactive");
           setActiveHandPose(HandPose.NONE);
           setPinchMidpoint(null);
           setHandPosition(null); // For the 3D pointer in main scene
 
-          if(videoRef.current) {
+          if (videoRef.current) {
             videoRef.current.pause();
             videoRef.current.srcObject = null;
             console.log("[useHandTracking] Video stream stopped and cleared.");
@@ -402,14 +412,16 @@ The most robust solution is to have a single, persistent R3F `<Canvas>` for your
 
         // Initialization logic (when enabled is true)
         if (!videoRef.current || !landmarkCanvasRef.current) {
-          console.warn("[useHandTracking] Video or Landmark canvas ref not available for init.");
+          console.warn(
+            "[useHandTracking] Video or Landmark canvas ref not available for init.",
+          );
           return;
         }
 
         // Ensure DOM elements are visible and have dimensions for MediaPipe Camera
         // This might be an issue if opacity is 0 or display is none initially
-        videoRef.current.style.display = 'block'; // Temporarily ensure it's interactable by Camera util
-        landmarkCanvasRef.current.style.display = 'block';
+        videoRef.current.style.display = "block"; // Temporarily ensure it's interactable by Camera util
+        landmarkCanvasRef.current.style.display = "block";
 
         // ... (rest of the initialization logic for Hands and Camera) ...
         // After cameraRef.current.start():
@@ -423,18 +435,22 @@ The most robust solution is to have a single, persistent R3F `<Canvas>` for your
           if (cameraRef.current) {
             try {
               cameraRef.current.stop();
-            } catch (err) { console.error("Camera stop error on unmount:", err); }
+            } catch (err) {
+              console.error("Camera stop error on unmount:", err);
+            }
             cameraRef.current = null;
           }
           if (handsRef.current) {
             try {
               handsRef.current.close();
-            } catch (err) { console.error("Hands close error on unmount:", err); }
+            } catch (err) {
+              console.error("Hands close error on unmount:", err);
+            }
             handsRef.current = null;
           }
           if (videoRef.current && videoRef.current.srcObject) {
             const stream = videoRef.current.srcObject as MediaStream;
-            stream.getTracks().forEach(track => track.stop());
+            stream.getTracks().forEach((track) => track.stop());
             videoRef.current.srcObject = null;
           }
         };
@@ -446,14 +462,16 @@ The most robust solution is to have a single, persistent R3F `<Canvas>` for your
 
 **Step 3: Diagnostic Logging for WebGL Contexts**
 
-*   **Objective:** Add logs to understand when WebGL contexts are created and potentially lost.
+- **Objective:** Add logs to understand when WebGL contexts are created and potentially lost.
 
 1.  **Modify `src/main.ts` (Electron Main Process):**
-    *   Listen for GPU process crashes, which can indicate severe WebGL problems.
+
+    - Listen for GPU process crashes, which can indicate severe WebGL problems.
+
     ```typescript
     // src/main.ts
     // ...
-    app.on('gpu-process-crashed', (event, killed) => {
+    app.on("gpu-process-crashed", (event, killed) => {
       console.error(`Electron GPU process crashed. Killed: ${killed}`);
       // Optionally, you could try to relaunch the app or show an error to the user.
     });
@@ -461,23 +479,39 @@ The most robust solution is to have a single, persistent R3F `<Canvas>` for your
     app.whenReady().then(createWindow).then(installExtensions);
     // ...
     ```
-    *   In `createWindow` function, after `mainWindow` is created, log webGL related info:
+
+    - In `createWindow` function, after `mainWindow` is created, log webGL related info:
+
     ```typescript
-        // src/main.ts -> createWindow
-        const mainWindow = new BrowserWindow({ /* ... */ });
-        // ...
-        mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-          console.error('Window content failed to load:', errorCode, errorDescription);
-        });
-        mainWindow.webContents.on('render-process-gone', (event, details) => {
-          console.error('Render process gone:', details);
-        });
-        mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
-          // level 0:verbose, 1:info, 2:warning, 3:error
-          if (message.includes("WebGL") || message.includes("Context Lost")) {
-            console.log(`[Renderer Console - Main Intercept]: ${message} (Source: ${sourceId}:${line})`);
-          }
-        });
+    // src/main.ts -> createWindow
+    const mainWindow = new BrowserWindow({
+      /* ... */
+    });
+    // ...
+    mainWindow.webContents.on(
+      "did-fail-load",
+      (event, errorCode, errorDescription) => {
+        console.error(
+          "Window content failed to load:",
+          errorCode,
+          errorDescription,
+        );
+      },
+    );
+    mainWindow.webContents.on("render-process-gone", (event, details) => {
+      console.error("Render process gone:", details);
+    });
+    mainWindow.webContents.on(
+      "console-message",
+      (event, level, message, line, sourceId) => {
+        // level 0:verbose, 1:info, 2:warning, 3:error
+        if (message.includes("WebGL") || message.includes("Context Lost")) {
+          console.log(
+            `[Renderer Console - Main Intercept]: ${message} (Source: ${sourceId}:${line})`,
+          );
+        }
+      },
+    );
     ```
 
 **Step 4: Test and Observe**
@@ -485,14 +519,14 @@ The most robust solution is to have a single, persistent R3F `<Canvas>` for your
 1.  Run `pnpm start`.
 2.  **Initial View:** The "cube scene" (or the simplified blue box from `MainSceneContent`) should be visible immediately in `HomePage.tsx` because the R3F `<Canvas>` is now rendered unconditionally there. The background should be dark gray (`#111827`).
 3.  **Toggle Hand Tracking ON:**
-    *   Observe the console for "THREE.WebGLRenderer: Context Lost" errors.
-    *   Check if the main R3F scene remains visible and interactive (if it has interaction).
-    *   Check if the hand tracking 2D landmark canvas appears and functions correctly.
-    *   Look for the logs added in `useEffect` in `HomePage` for context lost/restored on the main canvas.
-    *   Look for logs from `useHandTracking` regarding initialization and cleanup.
+    - Observe the console for "THREE.WebGLRenderer: Context Lost" errors.
+    - Check if the main R3F scene remains visible and interactive (if it has interaction).
+    - Check if the hand tracking 2D landmark canvas appears and functions correctly.
+    - Look for the logs added in `useEffect` in `HomePage` for context lost/restored on the main canvas.
+    - Look for logs from `useHandTracking` regarding initialization and cleanup.
 4.  **Toggle Hand Tracking OFF:**
-    *   Verify that MediaPipe resources are cleaned up (check `useHandTracking` console logs).
-    *   The main R3F scene should remain unaffected.
+    - Verify that MediaPipe resources are cleaned up (check `useHandTracking` console logs).
+    - The main R3F scene should remain unaffected.
 
 **Expected Outcome:**
 
@@ -501,6 +535,7 @@ By ensuring the main R3F `<Canvas>` is persistent and not unmounted/remounted, t
 The most likely cause of the context loss is the R3F `<Canvas>` being unmounted and remounted when hand tracking is toggled. MediaPipe's initialization, especially if it uses WebGL internally, can conflict with R3F's context creation if they happen concurrently or if resource limits are hit.
 
 **Strategy:**
+
 1.  Make the main R3F `<Canvas>` persistent in `HomePage.tsx` so it's always mounted.
 2.  Refactor `HandTracking.tsx` to be a UI-only component that displays controls and the 2D landmark canvas, without managing or rendering an R3F scene itself.
 3.  The `useHandTracking` hook will be called in `HomePage.tsx`, and its data (like `handPosition`) can be passed to the main R3F scene if needed for 3D visualization of hands.
@@ -510,9 +545,10 @@ Here are the instructions:
 **Phase 1: Stabilize the R3F Canvas and Refactor Hand Tracking UI**
 
 1.  **Modify `src/pages/HomePage.tsx` to Host the Main R3F `<Canvas>`:**
-    *   The R3F `<Canvas>` for the "cube scene" will now live here and render unconditionally.
-    *   The `useHandTracking` hook will be called here to get hand tracking data.
-    *   A new component, `HandTrackingUIControls`, will handle the UI for hand tracking.
+
+    - The R3F `<Canvas>` for the "cube scene" will now live here and render unconditionally.
+    - The `useHandTracking` hook will be called here to get hand tracking data.
+    - A new component, `HandTrackingUIControls`, will handle the UI for hand tracking.
 
     ```typescript
     // src/pages/HomePage.tsx
@@ -707,7 +743,8 @@ Here are the instructions:
     ```
 
 2.  **Create `src/components/hands/HandTrackingUIControls.tsx`:**
-    *   This component will contain the UI elements previously in `HandTracking.tsx` (switch, status text, video, 2D canvas) but *not* the R3F `ThreeScene`.
+
+    - This component will contain the UI elements previously in `HandTracking.tsx` (switch, status text, video, 2D canvas) but _not_ the R3F `ThreeScene`.
 
     ```typescript
     // src/components/hands/HandTrackingUIControls.tsx
@@ -805,14 +842,15 @@ Here are the instructions:
     ```
 
 3.  **Refactor/Remove Old `src/components/hands/HandTracking.tsx` and `src/components/hands/ThreeScene.tsx`:**
-    *   The original `HandTracking.tsx` component is now replaced by `HandTrackingUIControls.tsx`.
-    *   The content of the original `ThreeScene.tsx` (everything *inside* its `<Canvas>` tag) should be moved to `MainSceneContent` in `HomePage.tsx` or a similar component imported by `HomePage.tsx`. The `ThreeScene.tsx` file itself, if it only contained the R3F `<Canvas>` wrapper, can be removed or repurposed.
-    *   Update `src/components/hands/index.ts` to export `HandTrackingUIControls` instead of the old `HandTracking` if necessary, or adjust imports in `HomePage.tsx`.
+    - The original `HandTracking.tsx` component is now replaced by `HandTrackingUIControls.tsx`.
+    - The content of the original `ThreeScene.tsx` (everything _inside_ its `<Canvas>` tag) should be moved to `MainSceneContent` in `HomePage.tsx` or a similar component imported by `HomePage.tsx`. The `ThreeScene.tsx` file itself, if it only contained the R3F `<Canvas>` wrapper, can be removed or repurposed.
+    - Update `src/components/hands/index.ts` to export `HandTrackingUIControls` instead of the old `HandTracking` if necessary, or adjust imports in `HomePage.tsx`.
 
 **Phase 2: Refine `useHandTracking.ts` Cleanup**
 
 1.  **Modify `src/components/hands/useHandTracking.ts` for Robust Cleanup:**
-    *   Ensure that when `enabled` becomes `false`, all MediaPipe resources (Camera, Hands instance) and the video stream are properly stopped and released.
+
+    - Ensure that when `enabled` becomes `false`, all MediaPipe resources (Camera, Hands instance) and the video stream are properly stopped and released.
 
     ```typescript
     // src/components/hands/useHandTracking.ts
@@ -833,29 +871,38 @@ Here are the instructions:
           if (cameraRef.current) {
             try {
               cameraRef.current.stop();
-            } catch (err) { console.error("Error stopping camera:", err); }
+            } catch (err) {
+              console.error("Error stopping camera:", err);
+            }
             cameraRef.current = null;
           }
           if (handsRef.current) {
             try {
               handsRef.current.close();
-            } catch (err) { console.error("Error closing MediaPipe Hands:", err); }
+            } catch (err) {
+              console.error("Error closing MediaPipe Hands:", err);
+            }
             handsRef.current = null;
           }
           if (videoRef.current && videoRef.current.srcObject) {
             const stream = videoRef.current.srcObject as MediaStream;
-            stream.getTracks().forEach(track => track.stop());
+            stream.getTracks().forEach((track) => track.stop());
             videoRef.current.srcObject = null;
             videoRef.current.load(); // Attempt to reset video element fully
             console.log("[useHandTracking] Video stream stopped and cleared.");
           }
           if (landmarkCanvasRef.current) {
-            const canvasCtx = landmarkCanvasRef.current.getContext('2d');
+            const canvasCtx = landmarkCanvasRef.current.getContext("2d");
             if (canvasCtx) {
-              canvasCtx.clearRect(0, 0, landmarkCanvasRef.current.width, landmarkCanvasRef.current.height);
+              canvasCtx.clearRect(
+                0,
+                0,
+                landmarkCanvasRef.current.width,
+                landmarkCanvasRef.current.height,
+              );
             }
           }
-          setHandTrackingStatus('Inactive');
+          setHandTrackingStatus("Inactive");
           setActiveHandPose(HandPose.NONE);
           setPinchMidpoint(null);
           setHandPosition(null);
@@ -869,7 +916,9 @@ Here are the instructions:
 
         // Initialization logic (when enabled is true)
         if (!videoRef.current || !landmarkCanvasRef.current) {
-          console.warn("[useHandTracking] Video or Landmark canvas ref not available for init.");
+          console.warn(
+            "[useHandTracking] Video or Landmark canvas ref not available for init.",
+          );
           return;
         }
 
@@ -879,16 +928,26 @@ Here are the instructions:
         // landmarkCanvasRef.current.style.display = 'block';
 
         console.log("[useHandTracking] Initializing MediaPipe...");
-        setHandTrackingStatus('Initializing MediaPipe...');
+        setHandTrackingStatus("Initializing MediaPipe...");
 
         // Make sure Hands is only initialized once or properly closed before re-init
-        if (handsRef.current) { // If re-enabling, ensure old instance is closed
-            try { handsRef.current.close(); } catch(e) { /* ignore */ }
-            handsRef.current = null;
+        if (handsRef.current) {
+          // If re-enabling, ensure old instance is closed
+          try {
+            handsRef.current.close();
+          } catch (e) {
+            /* ignore */
+          }
+          handsRef.current = null;
         }
-        if (cameraRef.current) { // If re-enabling, ensure old instance is stopped
-            try { cameraRef.current.stop(); } catch(e) { /* ignore */ }
-            cameraRef.current = null;
+        if (cameraRef.current) {
+          // If re-enabling, ensure old instance is stopped
+          try {
+            cameraRef.current.stop();
+          } catch (e) {
+            /* ignore */
+          }
+          cameraRef.current = null;
         }
 
         handsRef.current = new Hands({
@@ -896,7 +955,7 @@ Here are the instructions:
         });
         handsRef.current.setOptions({
           selfieMode: false, // Crucial for non-mirrored coordinates if DynamicPointer expects that
-          maxNumHands: 1,    // Changed from 2 to 1 for simplicity / performance
+          maxNumHands: 1, // Changed from 2 to 1 for simplicity / performance
           modelComplexity: 0,
           minDetectionConfidence: 0.7,
           minTrackingConfidence: 0.5,
@@ -907,10 +966,17 @@ Here are the instructions:
           if (videoRef.current && handsRef.current) {
             cameraRef.current = new Camera(videoRef.current, {
               onFrame: async () => {
-                if (videoRef.current && handsRef.current && videoRef.current.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+                if (
+                  videoRef.current &&
+                  handsRef.current &&
+                  videoRef.current.readyState >=
+                    HTMLMediaElement.HAVE_CURRENT_DATA
+                ) {
                   try {
                     await handsRef.current.send({ image: videoRef.current });
-                  } catch (err) { /* console.log("Frame send error (normal during tracking stop/start)"); */ }
+                  } catch (err) {
+                    /* console.log("Frame send error (normal during tracking stop/start)"); */
+                  }
                 }
               },
               width: 640,
@@ -918,23 +984,27 @@ Here are the instructions:
             });
             try {
               await cameraRef.current.start();
-              setHandTrackingStatus('Tracking active');
+              setHandTrackingStatus("Tracking active");
               console.log("[useHandTracking] MediaPipe Camera started.");
             } catch (cameraError) {
-              console.error('Error starting MediaPipe Camera:', cameraError);
-              setHandTrackingStatus(`Error starting camera: ${cameraError instanceof Error ? cameraError.message : String(cameraError)}`);
+              console.error("Error starting MediaPipe Camera:", cameraError);
+              setHandTrackingStatus(
+                `Error starting camera: ${cameraError instanceof Error ? cameraError.message : String(cameraError)}`,
+              );
               cleanupMediaPipe(); // Cleanup if camera fails to start
             }
           }
         };
 
-        startCamera().catch(err => {
-            console.error("Error in camera start sequence:", err);
-            setHandTrackingStatus("Failed to start camera.");
+        startCamera().catch((err) => {
+          console.error("Error in camera start sequence:", err);
+          setHandTrackingStatus("Failed to start camera.");
         });
 
         return () => {
-          console.log("[useHandTracking] useEffect cleanup for enabled/onHandTrackingResults change.");
+          console.log(
+            "[useHandTracking] useEffect cleanup for enabled/onHandTrackingResults change.",
+          );
           cleanupMediaPipe(); // This will be called if `enabled` changes to false OR component unmounts
         };
       }, [enabled, onHandTrackingResults]); // Dependency array
@@ -955,26 +1025,26 @@ Here are the instructions:
 
 1.  **Run `pnpm run t`** to check for TypeScript errors after these significant refactors.
 2.  **Run `pnpm start`**.
-    *   **Initial State:** Verify the "cube scene" (e.g., the blue box) is visible immediately on `HomePage` load. The background should be black. There should be no WebGL errors in the console at this stage.
-    *   **Toggle Hand Tracking ON:**
-        *   The main R3F scene should remain visible and unaffected.
-        *   The hand tracking UI controls (switch, status text) should appear.
-        *   The 2D landmark canvas should become active (showing hand landmarks if a hand is present).
-        *   **Critically, check the console for "THREE.WebGLRenderer: Context Lost" or any other WebGL errors.** With the R3F canvas now persistent, this error should be gone or its cause different.
-        *   Check console logs from `HomePage` for `webglcontextlost` events.
-        *   Check console logs from `useHandTracking` for initialization messages.
-    *   **Toggle Hand Tracking OFF:**
-        *   The main R3F scene should remain visible.
-        *   Hand tracking UI and 2D landmark canvas should hide/clear.
-        *   MediaPipe resources should be cleaned up (check `useHandTracking` console logs).
-        *   No WebGL errors should appear.
+    - **Initial State:** Verify the "cube scene" (e.g., the blue box) is visible immediately on `HomePage` load. The background should be black. There should be no WebGL errors in the console at this stage.
+    - **Toggle Hand Tracking ON:**
+      - The main R3F scene should remain visible and unaffected.
+      - The hand tracking UI controls (switch, status text) should appear.
+      - The 2D landmark canvas should become active (showing hand landmarks if a hand is present).
+      - **Critically, check the console for "THREE.WebGLRenderer: Context Lost" or any other WebGL errors.** With the R3F canvas now persistent, this error should be gone or its cause different.
+      - Check console logs from `HomePage` for `webglcontextlost` events.
+      - Check console logs from `useHandTracking` for initialization messages.
+    - **Toggle Hand Tracking OFF:**
+      - The main R3F scene should remain visible.
+      - Hand tracking UI and 2D landmark canvas should hide/clear.
+      - MediaPipe resources should be cleaned up (check `useHandTracking` console logs).
+      - No WebGL errors should appear.
 
 **Further Diagnostics (if context loss persists after above):**
 
-*   If the context loss still occurs, even with a persistent R3F canvas:
-    1.  **Simplify `MainSceneContent` in `HomePage.tsx`** further: remove everything except `<color attach="background" />` and a single simple `<mesh>`.
-    2.  **Check `gl` prop in `HomePage.tsx` `<Canvas>`:** Experiment with `powerPreference: 'low-power'` in the `gl` prop of the main `<Canvas>`.
-    3.  **In `src/main.ts`,** temporarily add `app.commandLine.appendSwitch('disable-gpu');` before `app.whenReady()` to run Electron in software rendering mode. If this prevents context loss, it strongly points to a GPU driver or hardware acceleration conflict with MediaPipe. This is purely diagnostic.
-    4.  Check `index.html`'s Content Security Policy (CSP) for any overly restrictive WebGL or WASM policies, though the current one seems reasonable for local assets and MediaPipe's known CDNs (though you are loading `/mediapipe/hands/` locally).
+- If the context loss still occurs, even with a persistent R3F canvas:
+  1.  **Simplify `MainSceneContent` in `HomePage.tsx`** further: remove everything except `<color attach="background" />` and a single simple `<mesh>`.
+  2.  **Check `gl` prop in `HomePage.tsx` `<Canvas>`:** Experiment with `powerPreference: 'low-power'` in the `gl` prop of the main `<Canvas>`.
+  3.  **In `src/main.ts`,** temporarily add `app.commandLine.appendSwitch('disable-gpu');` before `app.whenReady()` to run Electron in software rendering mode. If this prevents context loss, it strongly points to a GPU driver or hardware acceleration conflict with MediaPipe. This is purely diagnostic.
+  4.  Check `index.html`'s Content Security Policy (CSP) for any overly restrictive WebGL or WASM policies, though the current one seems reasonable for local assets and MediaPipe's known CDNs (though you are loading `/mediapipe/hands/` locally).
 
 By making the R3F Canvas persistent, we eliminate the most common cause of this type of context loss. The subsequent steps are about refining resource management and diagnosing deeper conflicts if they exist.

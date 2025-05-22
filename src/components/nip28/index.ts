@@ -1,1 +1,1 @@
-export * from './Nip28ChannelChat';
+export * from "./Nip28ChannelChat";

@@ -17,6 +17,7 @@ TS2835: Relative import paths need explicit file extensions in ECMAScript import
 ```
 
 Example:
+
 ```typescript
 import { server } from './mocks/server';
                        ~~~~~~~~~~~~~~~~
@@ -31,6 +32,7 @@ TS2307: Cannot find module '@/components/ToggleTheme' or its corresponding type 
 ```
 
 Example:
+
 ```typescript
 import ToggleTheme from "@/components/ToggleTheme";
 ```
@@ -66,22 +68,24 @@ The root cause is switching from CommonJS to ESM module resolution by adding `"t
 ### Comprehensive Approach (Most Correct)
 
 1. Add extensions to all relative imports:
+
    ```typescript
    // Before
-   import { server } from './mocks/server';
-   
+   import { server } from "./mocks/server";
+
    // After
-   import { server } from './mocks/server.js'; // Note: Use .js even for .ts files
+   import { server } from "./mocks/server.js"; // Note: Use .js even for .ts files
    ```
 
 2. Update TypeScript configuration to support ESM module resolution:
+
    ```json
    {
      "compilerOptions": {
        "moduleResolution": "NodeNext", // or "node16"
        "module": "NodeNext", // or "node16"
        "target": "ESNext",
-       "allowImportingTsExtensions": true,
+       "allowImportingTsExtensions": true
        // ... other options
      }
    }
@@ -98,7 +102,7 @@ Revert the ESM migration partially while keeping the Vite-specific changes:
 1. Remove `"type": "module"` from package.json
 2. Keep the renamed Vite config files with .mts extension
 3. Update the Vite configs to handle both CJS and ESM modes
-4. Update the scripts to reference the .mts config files 
+4. Update the scripts to reference the .mts config files
 
 ## Next Steps
 

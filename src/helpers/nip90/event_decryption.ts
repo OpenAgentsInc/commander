@@ -1,6 +1,6 @@
-import { hexToBytes } from '@noble/hashes/utils';
-import { NIP04Service, NIP04DecryptError } from '@/services/nip04';
-import { Effect } from 'effect';
+import { hexToBytes } from "@noble/hashes/utils";
+import { NIP04Service, NIP04DecryptError } from "@/services/nip04";
+import { Effect } from "effect";
 
 /**
  * Decrypts NIP-04 encrypted content.
@@ -12,18 +12,24 @@ import { Effect } from 'effect';
 export function decryptNip04Content(
   ourSkHex: string,
   theirPkHex: string,
-  encryptedContent: string
+  encryptedContent: string,
 ): Effect.Effect<string, NIP04DecryptError, NIP04Service> {
   return Effect.gen(function* (_) {
     const nip04Service = yield* _(NIP04Service);
     try {
       const ourSkUint8Array = hexToBytes(ourSkHex);
-      return yield* _(nip04Service.decrypt(ourSkUint8Array, theirPkHex, encryptedContent));
+      return yield* _(
+        nip04Service.decrypt(ourSkUint8Array, theirPkHex, encryptedContent),
+      );
     } catch (error) {
-      return yield* _(Effect.fail(new NIP04DecryptError({ 
-        message: "Failed to convert secret key from hex", 
-        cause: error 
-      })));
+      return yield* _(
+        Effect.fail(
+          new NIP04DecryptError({
+            message: "Failed to convert secret key from hex",
+            cause: error,
+          }),
+        ),
+      );
     }
   });
 }

@@ -3,6 +3,7 @@ Okay, Agent, the next phase of the `SELLING_COMPUTE` plan is to enable **Dynamic
 Currently, the `Kind5050DVMService` implicitly uses the default relays configured in `NostrService`. We need to modify it so that when the DVM goes online, it subscribes to the relays specified in the user's DVM settings.
 
 This will involve:
+
 1.  Modifying the `NostrService.subscribeToEvents` method to accept an optional list of relays for a specific subscription.
 2.  Updating `Kind5050DVMServiceImpl.ts` to fetch the user-configured relays from `useDVMSettingsStore` and pass them to `nostr.subscribeToEvents`.
 3.  Ensuring appropriate telemetry and tests are updated.
@@ -12,8 +13,9 @@ Here are the specific instructions:
 **I. Modify `NostrService` for Per-Subscription Relays**
 
 1.  **File: `src/services/nostr/NostrService.ts`**
-    *   Update the `subscribeToEvents` method in the `NostrService` interface:
-        *   Add an optional `relays?: readonly string[]` parameter.
+
+    - Update the `subscribeToEvents` method in the `NostrService` interface:
+      - Add an optional `relays?: readonly string[]` parameter.
 
     ```typescript
     // src/services/nostr/NostrService.ts
@@ -21,15 +23,19 @@ Here are the specific instructions:
 
     export interface NostrService {
       getPool(): Effect.Effect<SimplePool, NostrPoolError, never>;
-      listEvents(filters: NostrFilter[]): Effect.Effect<NostrEvent[], NostrRequestError, never>;
-      publishEvent(event: NostrEvent): Effect.Effect<void, NostrPublishError, never>;
+      listEvents(
+        filters: NostrFilter[],
+      ): Effect.Effect<NostrEvent[], NostrRequestError, never>;
+      publishEvent(
+        event: NostrEvent,
+      ): Effect.Effect<void, NostrPublishError, never>;
       cleanupPool(): Effect.Effect<void, NostrPoolError, never>;
 
       subscribeToEvents(
         filters: NostrFilter[],
         onEvent: (event: NostrEvent) => void,
         relays?: readonly string[], // <-- Add this optional parameter
-        onEOSE?: () => void
+        onEOSE?: () => void,
       ): Effect.Effect<Subscription, NostrRequestError, never>;
     }
 
@@ -37,16 +43,19 @@ Here are the specific instructions:
     ```
 
 2.  **File: `src/services/nostr/NostrServiceImpl.ts`**
-    *   Update the `subscribeToEvents` method implementation:
-        *   Accept the new optional `relays` parameter.
-        *   If `relays` are provided and not empty, use them for `pool.subscribe`. Otherwise, use `config.relays`.
-        *   Update telemetry to log which relays are being used for the subscription.
+
+    - Update the `subscribeToEvents` method implementation:
+      - Accept the new optional `relays` parameter.
+      - If `relays` are provided and not empty, use them for `pool.subscribe`. Otherwise, use `config.relays`.
+      - Update telemetry to log which relays are being used for the subscription.
 
     ```typescript
     // src/services/nostr/NostrServiceImpl.ts
     // ... (imports)
 
-    export function createNostrService(config: NostrServiceConfig): NostrService {
+    export function createNostrService(
+      config: NostrServiceConfig,
+    ): NostrService {
       // ... (getPoolEffect and other methods as before) ...
 
       return {
@@ -56,75 +65,117 @@ Here are the specific instructions:
           filters: NostrFilter[],
           onEvent: (event: NostrEvent) => void,
           customRelays?: readonly string[], // <-- Add parameter here
-          onEOSE?: () => void
+          onEOSE?: () => void,
         ) =>
           Effect.gen(function* (_) {
             const pool = yield* _(
               getPoolEffect, // Assuming getPoolEffect is defined as in your provided file
-              Effect.mapError(error => new NostrRequestError({
-                message: `Failed to initialize pool for subscription: ${error.message}`,
-                cause: error.cause
-              }))
+              Effect.mapError(
+                (error) =>
+                  new NostrRequestError({
+                    message: `Failed to initialize pool for subscription: ${error.message}`,
+                    cause: error.cause,
+                  }),
+              ),
             );
 
-            const relaysToUse = (customRelays && customRelays.length > 0) ? customRelays : config.relays;
+            const relaysToUse =
+              customRelays && customRelays.length > 0
+                ? customRelays
+                : config.relays;
 
             if (relaysToUse.length === 0) {
-              return yield* _(Effect.fail(new NostrRequestError({
-                message: "No relays specified for subscription and no default relays configured."
-              })));
+              return yield* _(
+                Effect.fail(
+                  new NostrRequestError({
+                    message:
+                      "No relays specified for subscription and no default relays configured.",
+                  }),
+                ),
+              );
             }
 
             try {
               // Log which relays are being used
-              Effect.runFork(Effect.provide(
-                Effect.flatMap(TelemetryService, ts => ts.trackEvent({
-                  category: "nostr:subscribe",
-                  action: "attempt_subscription",
-                  label: `Filters: ${filters.length}, Relays: ${relaysToUse.join(', ')}`
-                })),
-                Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)
-              ));
+              Effect.runFork(
+                Effect.provide(
+                  Effect.flatMap(TelemetryService, (ts) =>
+                    ts.trackEvent({
+                      category: "nostr:subscribe",
+                      action: "attempt_subscription",
+                      label: `Filters: ${filters.length}, Relays: ${relaysToUse.join(", ")}`,
+                    }),
+                  ),
+                  Layer.provide(
+                    TelemetryServiceLive,
+                    DefaultTelemetryConfigLayer,
+                  ),
+                ),
+              );
 
               const subParams = {
                 onevent: (event: any) => {
                   onEvent(event as NostrEvent);
                 },
-                oneose: onEOSE ? () => {
-                  onEOSE();
-                } : undefined,
+                oneose: onEOSE
+                  ? () => {
+                      onEOSE();
+                    }
+                  : undefined,
                 // Optional: Add onclosed and onerror handlers if needed
               };
 
-              const subCloser = pool.subscribe(relaysToUse as string[], filters[0], subParams);
+              const subCloser = pool.subscribe(
+                relaysToUse as string[],
+                filters[0],
+                subParams,
+              );
 
-              Effect.runFork(Effect.provide(
-                Effect.flatMap(TelemetryService, ts => ts.trackEvent({
-                  category: "nostr:subscribe",
-                  action: "subscription_created",
-                  label: `Subscription ID (client-side): ${subCloser.id ?? 'unknown'}`
-                })),
-                Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)
-              ));
+              Effect.runFork(
+                Effect.provide(
+                  Effect.flatMap(TelemetryService, (ts) =>
+                    ts.trackEvent({
+                      category: "nostr:subscribe",
+                      action: "subscription_created",
+                      label: `Subscription ID (client-side): ${subCloser.id ?? "unknown"}`,
+                    }),
+                  ),
+                  Layer.provide(
+                    TelemetryServiceLive,
+                    DefaultTelemetryConfigLayer,
+                  ),
+                ),
+              );
 
               return {
                 unsub: () => {
-                  Effect.runFork(Effect.provide(
-                    Effect.flatMap(TelemetryService, ts => ts.trackEvent({
-                      category: "nostr:subscribe",
-                      action: "unsubscribed",
-                      label: `Subscription ID (client-side): ${subCloser.id ?? 'unknown'}`
-                    })),
-                    Layer.provide(TelemetryServiceLive, DefaultTelemetryConfigLayer)
-                  ));
+                  Effect.runFork(
+                    Effect.provide(
+                      Effect.flatMap(TelemetryService, (ts) =>
+                        ts.trackEvent({
+                          category: "nostr:subscribe",
+                          action: "unsubscribed",
+                          label: `Subscription ID (client-side): ${subCloser.id ?? "unknown"}`,
+                        }),
+                      ),
+                      Layer.provide(
+                        TelemetryServiceLive,
+                        DefaultTelemetryConfigLayer,
+                      ),
+                    ),
+                  );
                   subCloser.close();
-                }
+                },
               };
             } catch (error) {
-              return yield* _(Effect.fail(new NostrRequestError({
-                message: "Failed to create subscription via pool.subscribe",
-                cause: error
-              })));
+              return yield* _(
+                Effect.fail(
+                  new NostrRequestError({
+                    message: "Failed to create subscription via pool.subscribe",
+                    cause: error,
+                  }),
+                ),
+              );
             }
           }),
       };
@@ -136,10 +187,11 @@ Here are the specific instructions:
 **II. Update `Kind5050DVMService` to Use User-Configured Relays**
 
 1.  **File: `src/services/dvm/Kind5050DVMServiceImpl.ts`**
-    *   In the `startListening` method:
-        *   Fetch `currentEffectiveConfig` using `useDVMSettingsStore.getState().getEffectiveConfig()`.
-        *   Pass `currentEffectiveConfig.relays` to the `nostr.subscribeToEvents` call as the new third argument.
-        *   Update the telemetry event for `start_listening_attempt` to include the specific relays being used from the effective config.
+
+    - In the `startListening` method:
+      - Fetch `currentEffectiveConfig` using `useDVMSettingsStore.getState().getEffectiveConfig()`.
+      - Pass `currentEffectiveConfig.relays` to the `nostr.subscribeToEvents` call as the new third argument.
+      - Update the telemetry event for `start_listening_attempt` to include the specific relays being used from the effective config.
 
     ```typescript
     // src/services/dvm/Kind5050DVMServiceImpl.ts
@@ -155,11 +207,14 @@ Here are the specific instructions:
         const spark = yield* _(SparkService);
         const nip04 = yield* _(NIP04Service);
 
-        let isActiveInternal = useDVMSettingsStore.getState().getEffectiveConfig().active; // Initialize based on effective config
+        let isActiveInternal = useDVMSettingsStore
+          .getState()
+          .getEffectiveConfig().active; // Initialize based on effective config
         let currentSubscription: Subscription | null = null;
         // currentDvmPublicKeyHex is already correctly initialized and updated in your existing code
-        let currentDvmPublicKeyHex = useDVMSettingsStore.getState().getDerivedPublicKeyHex() || defaultConfig.dvmPublicKeyHex;
-
+        let currentDvmPublicKeyHex =
+          useDVMSettingsStore.getState().getDerivedPublicKeyHex() ||
+          defaultConfig.dvmPublicKeyHex;
 
         // ... (publishFeedback, processJobRequestInternal, createNip90FeedbackEvent, createNip90JobResultEvent as before,
         // ensuring they use dvmPrivateKeyHex from the effective config where needed) ...
@@ -167,98 +222,186 @@ Here are the specific instructions:
         // by calling useDVMSettingsStore.getState().getEffectiveConfig() at the start of that function.
 
         return {
-          startListening: () => Effect.gen(function* (_) {
-            if (isActiveInternal) {
-              yield* _(telemetry.trackEvent({ category: 'dvm:status', action: 'start_listening_already_active' }).pipe(Effect.ignoreLogged));
-              return;
-            }
-
-            // Fetch the LATEST effective config when starting to listen
-            const effectiveConfig = useDVMSettingsStore.getState().getEffectiveConfig();
-            currentDvmPublicKeyHex = effectiveConfig.dvmPublicKeyHex; // Update internal PK based on current settings
-
-            if (!effectiveConfig.dvmPrivateKeyHex) {
-              return yield* _(Effect.fail(new DVMConfigError({ message: "DVM private key not configured." })));
-            }
-            if (effectiveConfig.relays.length === 0) {
-              return yield* _(Effect.fail(new DVMConfigError({ message: "No DVM relays configured." })));
-            }
-
-            yield* _(telemetry.trackEvent({
-              category: 'dvm:status',
-              action: 'start_listening_attempt',
-              label: `Relays: ${effectiveConfig.relays.join(', ')}, Kinds: ${effectiveConfig.supportedJobKinds.join(', ')}`
-            }).pipe(Effect.ignoreLogged));
-
-            const jobRequestFilter: NostrFilter = {
-              kinds: effectiveConfig.supportedJobKinds,
-              since: Math.floor(Date.now() / 1000) - 300, // Start with recent jobs
-            };
-
-            const sub = yield* _(nostr.subscribeToEvents(
-              [jobRequestFilter],
-              (event: NostrEvent) => {
-                const latestConfig = useDVMSettingsStore.getState().getEffectiveConfig(); // Get latest config for this check
-                if (event.pubkey === latestConfig.dvmPublicKeyHex && (event.kind === 7000 || (event.kind >= 6000 && event.kind <= 6999))) return;
-                Effect.runFork(processJobRequestInternal(event));
-              },
-              effectiveConfig.relays, // Pass the effective relays here
-              () => { // onEOSE callback (optional)
-                Effect.runFork(telemetry.trackEvent({
-                  category: "dvm:nostr",
-                  action: "subscription_eose",
-                  label: `EOSE received for DVM job kinds: ${effectiveConfig.supportedJobKinds.join(', ')}`
-                }).pipe(Effect.ignoreLogged));
+          startListening: () =>
+            Effect.gen(function* (_) {
+              if (isActiveInternal) {
+                yield* _(
+                  telemetry
+                    .trackEvent({
+                      category: "dvm:status",
+                      action: "start_listening_already_active",
+                    })
+                    .pipe(Effect.ignoreLogged),
+                );
+                return;
               }
-            ).pipe(Effect.mapError(e => new DVMConnectionError({ message: "Failed to subscribe to Nostr for DVM requests", cause: e }))));
 
-            currentSubscription = sub;
-            isActiveInternal = true;
-            yield* _(telemetry.trackEvent({ category: 'dvm:status', action: 'start_listening_success' }).pipe(Effect.ignoreLogged));
-          }),
+              // Fetch the LATEST effective config when starting to listen
+              const effectiveConfig = useDVMSettingsStore
+                .getState()
+                .getEffectiveConfig();
+              currentDvmPublicKeyHex = effectiveConfig.dvmPublicKeyHex; // Update internal PK based on current settings
+
+              if (!effectiveConfig.dvmPrivateKeyHex) {
+                return yield* _(
+                  Effect.fail(
+                    new DVMConfigError({
+                      message: "DVM private key not configured.",
+                    }),
+                  ),
+                );
+              }
+              if (effectiveConfig.relays.length === 0) {
+                return yield* _(
+                  Effect.fail(
+                    new DVMConfigError({
+                      message: "No DVM relays configured.",
+                    }),
+                  ),
+                );
+              }
+
+              yield* _(
+                telemetry
+                  .trackEvent({
+                    category: "dvm:status",
+                    action: "start_listening_attempt",
+                    label: `Relays: ${effectiveConfig.relays.join(", ")}, Kinds: ${effectiveConfig.supportedJobKinds.join(", ")}`,
+                  })
+                  .pipe(Effect.ignoreLogged),
+              );
+
+              const jobRequestFilter: NostrFilter = {
+                kinds: effectiveConfig.supportedJobKinds,
+                since: Math.floor(Date.now() / 1000) - 300, // Start with recent jobs
+              };
+
+              const sub = yield* _(
+                nostr
+                  .subscribeToEvents(
+                    [jobRequestFilter],
+                    (event: NostrEvent) => {
+                      const latestConfig = useDVMSettingsStore
+                        .getState()
+                        .getEffectiveConfig(); // Get latest config for this check
+                      if (
+                        event.pubkey === latestConfig.dvmPublicKeyHex &&
+                        (event.kind === 7000 ||
+                          (event.kind >= 6000 && event.kind <= 6999))
+                      )
+                        return;
+                      Effect.runFork(processJobRequestInternal(event));
+                    },
+                    effectiveConfig.relays, // Pass the effective relays here
+                    () => {
+                      // onEOSE callback (optional)
+                      Effect.runFork(
+                        telemetry
+                          .trackEvent({
+                            category: "dvm:nostr",
+                            action: "subscription_eose",
+                            label: `EOSE received for DVM job kinds: ${effectiveConfig.supportedJobKinds.join(", ")}`,
+                          })
+                          .pipe(Effect.ignoreLogged),
+                      );
+                    },
+                  )
+                  .pipe(
+                    Effect.mapError(
+                      (e) =>
+                        new DVMConnectionError({
+                          message:
+                            "Failed to subscribe to Nostr for DVM requests",
+                          cause: e,
+                        }),
+                    ),
+                  ),
+              );
+
+              currentSubscription = sub;
+              isActiveInternal = true;
+              yield* _(
+                telemetry
+                  .trackEvent({
+                    category: "dvm:status",
+                    action: "start_listening_success",
+                  })
+                  .pipe(Effect.ignoreLogged),
+              );
+            }),
 
           // ... (stopListening and isListening methods as before, they use isActiveInternal) ...
-          stopListening: () => Effect.gen(function* (_) {
-            if (!isActiveInternal) {
-              yield* _(telemetry.trackEvent({ category: 'dvm:status', action: 'stop_listening_already_inactive'}).pipe(Effect.ignoreLogged));
-              return;
-            }
-            yield* _(telemetry.trackEvent({ category: 'dvm:status', action: 'stop_listening_attempt'}).pipe(Effect.ignoreLogged));
-
-            if (currentSubscription) {
-              try {
-                currentSubscription.unsub();
-                currentSubscription = null;
-              } catch(e) {
-                yield* _(telemetry.trackEvent({ category: 'dvm:error', action: 'stop_listening_unsub_failure', label: e instanceof Error ? e.message : String(e) }).pipe(Effect.ignoreLogged));
+          stopListening: () =>
+            Effect.gen(function* (_) {
+              if (!isActiveInternal) {
+                yield* _(
+                  telemetry
+                    .trackEvent({
+                      category: "dvm:status",
+                      action: "stop_listening_already_inactive",
+                    })
+                    .pipe(Effect.ignoreLogged),
+                );
+                return;
               }
-            }
-            isActiveInternal = false;
-            yield* _(telemetry.trackEvent({ category: 'dvm:status', action: 'stop_listening_success'}).pipe(Effect.ignoreLogged));
-          }),
+              yield* _(
+                telemetry
+                  .trackEvent({
+                    category: "dvm:status",
+                    action: "stop_listening_attempt",
+                  })
+                  .pipe(Effect.ignoreLogged),
+              );
+
+              if (currentSubscription) {
+                try {
+                  currentSubscription.unsub();
+                  currentSubscription = null;
+                } catch (e) {
+                  yield* _(
+                    telemetry
+                      .trackEvent({
+                        category: "dvm:error",
+                        action: "stop_listening_unsub_failure",
+                        label: e instanceof Error ? e.message : String(e),
+                      })
+                      .pipe(Effect.ignoreLogged),
+                  );
+                }
+              }
+              isActiveInternal = false;
+              yield* _(
+                telemetry
+                  .trackEvent({
+                    category: "dvm:status",
+                    action: "stop_listening_success",
+                  })
+                  .pipe(Effect.ignoreLogged),
+              );
+            }),
 
           isListening: () => Effect.succeed(isActiveInternal),
         };
-      })
+      }),
     );
     ```
 
 **III. Update Tests (Conceptual)**
 
-*   **`src/tests/unit/services/nostr/NostrService.test.ts`:**
-    *   Add test cases for `subscribeToEvents` to verify that if the `relays` argument is provided, `pool.subscribe` is called with those relays.
-    *   Verify that if `relays` argument is *not* provided, `pool.subscribe` is called with `config.relays`.
-*   **`src/tests/unit/services/dvm/Kind5050DVMService.test.ts`:**
-    *   When testing `startListening`, mock `useDVMSettingsStore.getState().getEffectiveConfig()` to return a config with specific test relays.
-    *   Verify that `mockNostrService.subscribeToEvents` is called with these test relays as the third argument.
+- **`src/tests/unit/services/nostr/NostrService.test.ts`:**
+  - Add test cases for `subscribeToEvents` to verify that if the `relays` argument is provided, `pool.subscribe` is called with those relays.
+  - Verify that if `relays` argument is _not_ provided, `pool.subscribe` is called with `config.relays`.
+- **`src/tests/unit/services/dvm/Kind5050DVMService.test.ts`:**
+  - When testing `startListening`, mock `useDVMSettingsStore.getState().getEffectiveConfig()` to return a config with specific test relays.
+  - Verify that `mockNostrService.subscribeToEvents` is called with these test relays as the third argument.
 
 **IV. Manual Testing**
 
-*   After implementation, manually test by:
-    1.  Starting the DVM with default relays (leave relays blank in settings). Check console/telemetry to see which relays it connects to for subscriptions.
-    2.  Going offline.
-    3.  Configuring a custom, different set of relays in the DVM settings dialog.
-    4.  Going online again. Check console/telemetry to verify the DVM now subscribes to the new custom relays.
+- After implementation, manually test by:
+  1.  Starting the DVM with default relays (leave relays blank in settings). Check console/telemetry to see which relays it connects to for subscriptions.
+  2.  Going offline.
+  3.  Configuring a custom, different set of relays in the DVM settings dialog.
+  4.  Going online again. Check console/telemetry to verify the DVM now subscribes to the new custom relays.
 
 This set of instructions focuses on making the DVM service use the relays from user settings for its NIP-90 job subscriptions. It does not yet make `NostrService` itself fully dynamic in terms of its default pool relays for other potential subscribers within the app.```typescript
 // File: src/services/nostr/NostrService.ts
@@ -267,92 +410,92 @@ import type { SimplePool } from "nostr-tools/pool";
 
 // Define our own Sub type similar to nostr-tools
 interface NostrToolsSub {
-  unsub: () => void;
-  // Add other properties from nostr-tools Sub if needed, like 'id'
-  id?: string;
+unsub: () => void;
+// Add other properties from nostr-tools Sub if needed, like 'id'
+id?: string;
 }
 
 // --- Custom Error Types ---
 export class NostrPoolError extends Data.TaggedError("NostrPoolError")<{
-  message: string;
-  cause?: unknown;
+message: string;
+cause?: unknown;
 }> {}
 
 export class NostrRequestError extends Data.TaggedError("NostrRequestError")<{
-  message: string;
-  cause?: unknown;
+message: string;
+cause?: unknown;
 }> {}
 
 export class NostrPublishError extends Data.TaggedError("NostrPublishError")<{
-  message: string;
-  cause?: unknown;
+message: string;
+cause?: unknown;
 }> {}
 
 // --- NostrEvent Type (simplification of NostrToolsEvent) ---
 export interface NostrEvent {
-  id: string;
-  kind: number;
-  tags: string[][];
-  content: string;
-  created_at: number;
-  pubkey: string;
-  sig: string;
+id: string;
+kind: number;
+tags: string[][];
+content: string;
+created_at: number;
+pubkey: string;
+sig: string;
 }
 
 // --- NostrFilter Type (simplification of NostrToolsFilter) ---
 export interface NostrFilter {
-  ids?: string[];
-  kinds?: number[];
-  authors?: string[];
-  since?: number;
-  until?: number;
-  limit?: number;
-  search?: string;
-  [key: `#${string}`]: string[] | undefined;
+ids?: string[];
+kinds?: number[];
+authors?: string[];
+since?: number;
+until?: number;
+limit?: number;
+search?: string;
+[key: `#${string}`]: string[] | undefined;
 }
 
 // --- Subscription Type ---
 export interface Subscription {
-  unsub: () => void;
+unsub: () => void;
 }
 
 // --- Service Configuration ---
 export interface NostrServiceConfig {
-  readonly relays: readonly string[];
-  readonly requestTimeoutMs: number;
+readonly relays: readonly string[];
+readonly requestTimeoutMs: number;
 }
 
 export const NostrServiceConfigTag = Context.GenericTag<NostrServiceConfig>("NostrServiceConfig");
 
 // --- Default Configuration Layer ---
 export const DefaultNostrServiceConfigLayer = Layer.succeed(
-  NostrServiceConfigTag,
-  {
-    relays: [
-      "wss://purplepag.es/",
-      "wss://nos.lol/",
-      "wss://relay.damus.io/",
-      "wss://relay.snort.social/",
-      "wss://offchain.pub/",
-      "wss://nostr-pub.wellorder.net/"
-    ],
-    requestTimeoutMs: 10000 // 10 seconds
-  }
+NostrServiceConfigTag,
+{
+relays: [
+"wss://purplepag.es/",
+"wss://nos.lol/",
+"wss://relay.damus.io/",
+"wss://relay.snort.social/",
+"wss://offchain.pub/",
+"wss://nostr-pub.wellorder.net/"
+],
+requestTimeoutMs: 10000 // 10 seconds
+}
 );
 
 // --- Service Interface ---
 export interface NostrService {
-  getPool(): Effect.Effect<SimplePool, NostrPoolError, never>;
-  listEvents(filters: NostrFilter[]): Effect.Effect<NostrEvent[], NostrRequestError, never>;
-  publishEvent(event: NostrEvent): Effect.Effect<void, NostrPublishError, never>;
-  cleanupPool(): Effect.Effect<void, NostrPoolError, never>;
+getPool(): Effect.Effect<SimplePool, NostrPoolError, never>;
+listEvents(filters: NostrFilter[]): Effect.Effect<NostrEvent[], NostrRequestError, never>;
+publishEvent(event: NostrEvent): Effect.Effect<void, NostrPublishError, never>;
+cleanupPool(): Effect.Effect<void, NostrPoolError, never>;
 
-  subscribeToEvents(
-    filters: NostrFilter[],
-    onEvent: (event: NostrEvent) => void,
-    customRelays?: readonly string[], // <-- Updated: optional relays parameter
-    onEOSE?: () => void
-  ): Effect.Effect<Subscription, NostrRequestError, never>;
+subscribeToEvents(
+filters: NostrFilter[],
+onEvent: (event: NostrEvent) => void,
+customRelays?: readonly string[], // <-- Updated: optional relays parameter
+onEOSE?: () => void
+): Effect.Effect<Subscription, NostrRequestError, never>;
 }
 
 export const NostrService = Context.GenericTag<NostrService>("NostrService");
@@ -365,25 +508,25 @@ import { TelemetryService, TelemetryServiceLive, DefaultTelemetryConfigLayer, ty
 import { SimplePool } from "nostr-tools";
 import type { Filter as NostrToolsFilter } from "nostr-tools"; // Ensure NostrToolsFilter is imported
 import {
-  NostrService,
-  NostrServiceConfigTag,
-  type NostrServiceConfig,
-  type NostrEvent,
-  type NostrFilter,
-  NostrPoolError,
-  NostrRequestError,
-  NostrPublishError,
-  type Subscription // Ensure Subscription type is imported or defined
+NostrService,
+NostrServiceConfigTag,
+type NostrServiceConfig,
+type NostrEvent,
+type NostrFilter,
+NostrPoolError,
+NostrRequestError,
+NostrPublishError,
+type Subscription // Ensure Subscription type is imported or defined
 } from "./NostrService";
 
 // Real implementation that connects to actual Nostr relays
 export function createNostrService(config: NostrServiceConfig): NostrService {
-  let poolInstance: SimplePool | null = null;
+let poolInstance: SimplePool | null = null;
 
-  const getPoolEffect = Effect.try({
-    try: () => {
-      if (!poolInstance) {
-        poolInstance = new SimplePool();
+const getPoolEffect = Effect.try({
+try: () => {
+if (!poolInstance) {
+poolInstance = new SimplePool();
 
         const initEvent: TelemetryEvent = {
           category: "log:info",
@@ -406,10 +549,11 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
       return poolInstance;
     },
     catch: (error) => new NostrPoolError({ message: "Failed to initialize Nostr pool", cause: error }),
-  });
 
-  return {
-    getPool: () => getPoolEffect,
+});
+
+return {
+getPool: () => getPoolEffect,
 
     listEvents: (filters: NostrFilter[]) =>
       Effect.gen(function*(_) {
@@ -719,26 +863,27 @@ export function createNostrService(config: NostrServiceConfig): NostrService {
         },
         catch: (error) => new NostrPoolError({ message: "Failed to clean up Nostr pool", cause: error }),
       }),
-  };
+
+};
 }
 
 export const NostrServiceLive = Layer.effect(
-  NostrService,
-  Effect.flatMap(NostrServiceConfigTag, (config) => Effect.succeed(createNostrService(config)))
+NostrService,
+Effect.flatMap(NostrServiceConfigTag, (config) => Effect.succeed(createNostrService(config)))
 );
 
 // File: src/services/dvm/Kind5050DVMServiceImpl.ts
 // ... (imports, including useDVMSettingsStore, Kind5050DVMServiceConfigTag from './Kind5050DVMService') ...
 
 export const Kind5050DVMServiceLive = Layer.scoped(
-  Kind5050DVMService,
-  Effect.gen(function* (_) {
-    const defaultConfig = yield* _(Kind5050DVMServiceConfigTag); // Default config for fallbacks
-    const telemetry = yield* _(TelemetryService);
-    const nostr = yield* _(NostrService);
-    const ollama = yield* _(OllamaService);
-    const spark = yield* _(SparkService);
-    const nip04 = yield* _(NIP04Service);
+Kind5050DVMService,
+Effect.gen(function* (\_) {
+const defaultConfig = yield* _(Kind5050DVMServiceConfigTag); // Default config for fallbacks
+const telemetry = yield\* _(TelemetryService);
+const nostr = yield* \_(NostrService);
+const ollama = yield* _(OllamaService);
+const spark = yield\* _(SparkService);
+const nip04 = yield\* \_(NIP04Service);
 
     let isActiveInternal = useDVMSettingsStore.getState().getEffectiveConfig().active;
     let currentSubscription: Subscription | null = null;
@@ -960,7 +1105,8 @@ export const Kind5050DVMServiceLive = Layer.scoped(
 
       isListening: () => Effect.succeed(isActiveInternal),
     };
-  })
+
+})
 );
 
 // File: src/services/dvm/index.ts
@@ -1144,46 +1290,46 @@ export default SellComputePane;
 ```
 
 Note on `processJobRequestInternal` in `Kind5050DVMServiceImpl.ts`:
-The placeholder comments like `// ... (rest of parsing and validation logic using dvmPrivateKeyHex and textGenConfig) ...` mean that the agent should ensure the logic within that function (which was already implemented in the previous step `1334-instructions.md`) is now using `dvmPrivateKeyHex` and `textGenConfig` variables that are derived from `useDVMSettingsStore.getState().getEffectiveConfig()` at the *beginning of `processJobRequestInternal` itself*, rather than from a `config` variable passed down or from the initial config of the service. This ensures each job request uses the latest settings. The provided solution above already reflects this.
+The placeholder comments like `// ... (rest of parsing and validation logic using dvmPrivateKeyHex and textGenConfig) ...` mean that the agent should ensure the logic within that function (which was already implemented in the previous step `1334-instructions.md`) is now using `dvmPrivateKeyHex` and `textGenConfig` variables that are derived from `useDVMSettingsStore.getState().getEffectiveConfig()` at the _beginning of `processJobRequestInternal` itself_, rather than from a `config` variable passed down or from the initial config of the service. This ensures each job request uses the latest settings. The provided solution above already reflects this.
 
 The logic for `OllamaChatCompletionRequest` parameters (like `max_tokens`, `temperature`) is still logged via telemetry as a placeholder, as `OllamaService` does not yet accept an `options` field for these. This is fine for this phase.Okay, Agent, this is the next major phase for the `SELLING_COMPUTE` feature. We will implement the core logic for the `Kind5050DVMService`. This service will listen for NIP-90 job requests (kind 5000-5999, specifically 5100 for text generation in this phase), process them using Ollama and Spark, and respond with results and feedback. We will also integrate this service with the `SellComputePane` UI.
 
 **I. Refine `Kind5050DVMService` Configuration and Identity**
 
 1.  **File: `src/services/dvm/Kind5050DVMService.ts`**
-    *   Modify the `Kind5050DVMServiceConfig` interface to include `dvmPrivateKeyHex` (for the DVM's Nostr identity) and `dvmPublicKeyHex` (derived from the private key).
-    *   Update `defaultJobConfig` within `Kind5050DVMServiceConfig` to `defaultTextGenerationJobConfig`, making it specific for text generation tasks, referencing parameters from `docs/dvm-kind-5050.md`.
-    *   Adjust `DefaultKind5050DVMServiceConfigLayer` to provide a default development private key (generate one using `nostr-tools/pure`) and derive the public key.
+    - Modify the `Kind5050DVMServiceConfig` interface to include `dvmPrivateKeyHex` (for the DVM's Nostr identity) and `dvmPublicKeyHex` (derived from the private key).
+    - Update `defaultJobConfig` within `Kind5050DVMServiceConfig` to `defaultTextGenerationJobConfig`, making it specific for text generation tasks, referencing parameters from `docs/dvm-kind-5050.md`.
+    - Adjust `DefaultKind5050DVMServiceConfigLayer` to provide a default development private key (generate one using `nostr-tools/pure`) and derive the public key.
 
 **II. Implement Core DVM Logic in `src/services/dvm/Kind5050DVMServiceImpl.ts`**
 
-*   Inject dependencies: `NostrService`, `OllamaService`, `SparkService`, `NIP04Service`, `TelemetryService`, and now use `useDVMSettingsStore` to get the effective DVM configuration at runtime.
-*   Implement `startListening()`:
-    *   Fetch the effective DVM configuration (identity, relays, supported kinds) from `useDVMSettingsStore`.
-    *   Subscribe to Nostr events matching `effectiveConfig.supportedJobKinds` on `effectiveConfig.relays`. The `onEvent` callback should fork `processJobRequestInternal`.
-*   Implement `stopListening()`: Unsubscribe from Nostr events.
-*   Implement `isListening()`: Return the internal active state.
-*   Implement `processJobRequestInternal(jobRequestEvent: NostrEvent)`:
-    *   Fetch the current effective DVM configuration (especially `dvmPrivateKeyHex` and `defaultTextGenerationJobConfig` which includes pricing) from `useDVMSettingsStore` at the beginning of *each* job processing.
-    *   Parse and validate the request. Handle NIP-04 decryption if the "encrypted" tag is present, using the effective DVM private key.
-    *   Send "processing" feedback (Kind 7000) signed with the effective DVM private key.
-    *   Perform inference using `OllamaService`. Map NIP-90 parameters (e.g., `max_tokens`) to `OllamaChatCompletionRequest` using the effective text generation config.
-    *   Generate a Lightning invoice using `SparkService` and the effective pricing model.
-    *   Encrypt the result using NIP-04 (with effective DVM private key) if the original request was encrypted.
-    *   Publish the job result (Kind 6xxx) with the invoice, signed by the effective DVM private key.
-    *   Publish final "success" or "error" feedback (Kind 7000), signed by the effective DVM private key.
-    *   Ensure robust error handling and telemetry throughout the process.
-*   Create helper functions for NIP-90 event creation (`createNip90FeedbackEvent`, `createNip90JobResultEvent`) that take the DVM private key as an argument.
+- Inject dependencies: `NostrService`, `OllamaService`, `SparkService`, `NIP04Service`, `TelemetryService`, and now use `useDVMSettingsStore` to get the effective DVM configuration at runtime.
+- Implement `startListening()`:
+  - Fetch the effective DVM configuration (identity, relays, supported kinds) from `useDVMSettingsStore`.
+  - Subscribe to Nostr events matching `effectiveConfig.supportedJobKinds` on `effectiveConfig.relays`. The `onEvent` callback should fork `processJobRequestInternal`.
+- Implement `stopListening()`: Unsubscribe from Nostr events.
+- Implement `isListening()`: Return the internal active state.
+- Implement `processJobRequestInternal(jobRequestEvent: NostrEvent)`:
+  - Fetch the current effective DVM configuration (especially `dvmPrivateKeyHex` and `defaultTextGenerationJobConfig` which includes pricing) from `useDVMSettingsStore` at the beginning of _each_ job processing.
+  - Parse and validate the request. Handle NIP-04 decryption if the "encrypted" tag is present, using the effective DVM private key.
+  - Send "processing" feedback (Kind 7000) signed with the effective DVM private key.
+  - Perform inference using `OllamaService`. Map NIP-90 parameters (e.g., `max_tokens`) to `OllamaChatCompletionRequest` using the effective text generation config.
+  - Generate a Lightning invoice using `SparkService` and the effective pricing model.
+  - Encrypt the result using NIP-04 (with effective DVM private key) if the original request was encrypted.
+  - Publish the job result (Kind 6xxx) with the invoice, signed by the effective DVM private key.
+  - Publish final "success" or "error" feedback (Kind 7000), signed by the effective DVM private key.
+  - Ensure robust error handling and telemetry throughout the process.
+- Create helper functions for NIP-90 event creation (`createNip90FeedbackEvent`, `createNip90JobResultEvent`) that take the DVM private key as an argument.
 
 **III. Update `src/services/runtime.ts`**
 
-*   Ensure `Kind5050DVMServiceLive` is added to `FullAppLayer` and its dependencies (including `NIP04Service` for the DVM layer) are correctly provided. The `Kind5050DVMServiceConfigTag` will now provide the *default* application-level config, which the service implementation uses as a fallback if user settings are absent.
+- Ensure `Kind5050DVMServiceLive` is added to `FullAppLayer` and its dependencies (including `NIP04Service` for the DVM layer) are correctly provided. The `Kind5050DVMServiceConfigTag` will now provide the _default_ application-level config, which the service implementation uses as a fallback if user settings are absent.
 
 **IV. Update `src/components/sell-compute/SellComputePane.tsx`**
 
-*   Connect the "GO ONLINE" / "GO OFFLINE" button to `Kind5050DVMService.startListening()` and `stopListening()`.
-*   Update the `isOnline` state in the UI by calling `Kind5050DVMService.isListening()` after start/stop actions and on component mount to reflect the actual service state.
-*   Add a loading state (`isDvmLoading`) to the "GO ONLINE" / "GO OFFLINE" button to indicate when DVM operations are in progress.
+- Connect the "GO ONLINE" / "GO OFFLINE" button to `Kind5050DVMService.startListening()` and `stopListening()`.
+- Update the `isOnline` state in the UI by calling `Kind5050DVMService.isListening()` after start/stop actions and on component mount to reflect the actual service state.
+- Add a loading state (`isDvmLoading`) to the "GO ONLINE" / "GO OFFLINE" button to indicate when DVM operations are in progress.
 
 ```typescript
 // File: src/services/dvm/Kind5050DVMService.ts

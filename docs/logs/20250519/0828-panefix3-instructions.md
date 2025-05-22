@@ -4,26 +4,26 @@ Here are specific instructions to address these:
 
 **1. Refine Drag Logic in `Pane.tsx` for Smoother Interaction and Correct Reference Points**
 
-The core idea is to manually calculate the pane's new position based on the pointer's movement relative to its starting point *at the moment the drag gesture is initiated*, rather than relying solely on `@use-gesture`'s `offset` when rapid state changes (like pane activation) are occurring.
+The core idea is to manually calculate the pane's new position based on the pointer's movement relative to its starting point _at the moment the drag gesture is initiated_, rather than relying solely on `@use-gesture`'s `offset` when rapid state changes (like pane activation) are occurring.
 
 **File: `src/panes/Pane.tsx`**
 
-*   **Introduce `dragStartRef`:** This ref will store both the initial pointer coordinates and the pane's coordinates at the true start of the drag.
-*   **Modify `bindDrag`:**
-    *   Use `xy: [pointerX, pointerY]` (current pointer screen coordinates) from `@use-gesture`.
-    *   In the `first` event:
-        *   Call `bringPaneToFront(id)`. This action should now be solely responsible for making the pane active and bringing it to the front (the store actions were already optimized for this).
-        *   Capture the current pointer coordinates (`pointerX`, `pointerY`) and the pane's *current local state* position (`position.x`, `position.y`) into `dragStartRef.current`.
-    *   During drag (`active` is true):
-        *   Calculate `deltaX` and `deltaY` from the initial pointer position stored in `dragStartRef.current`.
-        *   Calculate `newX` and `newY` by adding these deltas to the pane's position *captured at the start of the drag* (also from `dragStartRef.current`).
-        *   Apply bounds.
-        *   Call `setPosition` with the new bounded coordinates for immediate visual feedback.
-    *   In the `last` event:
-        *   Call `updatePanePosition` to persist the final position to the store.
-        *   Clear `dragStartRef.current`.
-*   **Simplify `handlePaneMouseDown`:** This should now *only* call `bringPaneToFront(id)`. The `useDrag`'s `first` event will not need to handle activation again. Ensure `onMouseDownCapture` is used for `handlePaneMouseDown` on the main pane `div`.
-*   **Keep `useEffect` in `useResizeHandlers` as is from the previous fix:** The logic to only sync props to local state if `!isCurrentlyInteracting` is important. The `isCurrentlyInteracting` flag (combination of `isDragging` from main drag and `isResizing` from resize handles) should correctly gate this.
+- **Introduce `dragStartRef`:** This ref will store both the initial pointer coordinates and the pane's coordinates at the true start of the drag.
+- **Modify `bindDrag`:**
+  - Use `xy: [pointerX, pointerY]` (current pointer screen coordinates) from `@use-gesture`.
+  - In the `first` event:
+    - Call `bringPaneToFront(id)`. This action should now be solely responsible for making the pane active and bringing it to the front (the store actions were already optimized for this).
+    - Capture the current pointer coordinates (`pointerX`, `pointerY`) and the pane's _current local state_ position (`position.x`, `position.y`) into `dragStartRef.current`.
+  - During drag (`active` is true):
+    - Calculate `deltaX` and `deltaY` from the initial pointer position stored in `dragStartRef.current`.
+    - Calculate `newX` and `newY` by adding these deltas to the pane's position _captured at the start of the drag_ (also from `dragStartRef.current`).
+    - Apply bounds.
+    - Call `setPosition` with the new bounded coordinates for immediate visual feedback.
+  - In the `last` event:
+    - Call `updatePanePosition` to persist the final position to the store.
+    - Clear `dragStartRef.current`.
+- **Simplify `handlePaneMouseDown`:** This should now _only_ call `bringPaneToFront(id)`. The `useDrag`'s `first` event will not need to handle activation again. Ensure `onMouseDownCapture` is used for `handlePaneMouseDown` on the main pane `div`.
+- **Keep `useEffect` in `useResizeHandlers` as is from the previous fix:** The logic to only sync props to local state if `!isCurrentlyInteracting` is important. The `isCurrentlyInteracting` flag (combination of `isDragging` from main drag and `isResizing` from resize handles) should correctly gate this.
 
 ```typescript
 // src/panes/Pane.tsx
@@ -341,32 +341,47 @@ The `bringPaneToFrontAction` from the previous response (`docs/logs/20250519/075
 ```typescript
 // src/stores/panes/actions/bringPaneToFront.ts
 // (Ensure this is the optimized version from the previous instructions)
-import { PaneStoreType, SetPaneStore } from '../types';
+import { PaneStoreType, SetPaneStore } from "../types";
 
-export function bringPaneToFrontAction(set: SetPaneStore, idToBringToFront: string) {
+export function bringPaneToFrontAction(
+  set: SetPaneStore,
+  idToBringToFront: string,
+) {
   set((state: PaneStoreType) => {
-    const paneIndex = state.panes.findIndex(pane => pane.id === idToBringToFront);
+    const paneIndex = state.panes.findIndex(
+      (pane) => pane.id === idToBringToFront,
+    );
     if (paneIndex === -1) return state; // Pane not found
 
     const paneToMove = state.panes[paneIndex];
 
-    const needsActivationChange = !paneToMove.isActive || state.activePaneId !== idToBringToFront;
+    const needsActivationChange =
+      !paneToMove.isActive || state.activePaneId !== idToBringToFront;
     const needsReordering = paneIndex !== state.panes.length - 1;
 
     if (!needsActivationChange && !needsReordering) {
       // Check if lastPanePosition actually needs an update
-      if (state.lastPanePosition?.x !== paneToMove.x || state.lastPanePosition?.y !== paneToMove.y ||
-          state.lastPanePosition?.width !== paneToMove.width || state.lastPanePosition?.height !== paneToMove.height) {
+      if (
+        state.lastPanePosition?.x !== paneToMove.x ||
+        state.lastPanePosition?.y !== paneToMove.y ||
+        state.lastPanePosition?.width !== paneToMove.width ||
+        state.lastPanePosition?.height !== paneToMove.height
+      ) {
         return {
           ...state,
-          lastPanePosition: { x: paneToMove.x, y: paneToMove.y, width: paneToMove.width, height: paneToMove.height }
+          lastPanePosition: {
+            x: paneToMove.x,
+            y: paneToMove.y,
+            width: paneToMove.width,
+            height: paneToMove.height,
+          },
         };
       }
       return state; // Absolutely no change needed
     }
 
     let panesArrayIdentityChanged = false;
-    const newPanesArrayWithActivation = state.panes.map(pane => {
+    const newPanesArrayWithActivation = state.panes.map((pane) => {
       const shouldBeActive = pane.id === idToBringToFront;
       if (pane.isActive !== shouldBeActive) {
         panesArrayIdentityChanged = true;
@@ -375,40 +390,65 @@ export function bringPaneToFrontAction(set: SetPaneStore, idToBringToFront: stri
       return pane;
     });
 
-    const targetPaneInstanceInNewArray = newPanesArrayWithActivation.find(p => p.id === idToBringToFront)!;
+    const targetPaneInstanceInNewArray = newPanesArrayWithActivation.find(
+      (p) => p.id === idToBringToFront,
+    )!;
 
     // If only activation changed but not order, and it's already the last element (frontmost).
     // This means newPanesArrayWithActivation is the final state for panes array.
-    if (panesArrayIdentityChanged && !needsReordering && newPanesArrayWithActivation[newPanesArrayWithActivation.length -1].id === idToBringToFront) {
-         return {
-            panes: newPanesArrayWithActivation,
-            activePaneId: idToBringToFront,
-            lastPanePosition: { x: targetPaneInstanceInNewArray.x, y: targetPaneInstanceInNewArray.y, width: targetPaneInstanceInNewArray.width, height: targetPaneInstanceInNewArray.height }
-         };
+    if (
+      panesArrayIdentityChanged &&
+      !needsReordering &&
+      newPanesArrayWithActivation[newPanesArrayWithActivation.length - 1].id ===
+        idToBringToFront
+    ) {
+      return {
+        panes: newPanesArrayWithActivation,
+        activePaneId: idToBringToFront,
+        lastPanePosition: {
+          x: targetPaneInstanceInNewArray.x,
+          y: targetPaneInstanceInNewArray.y,
+          width: targetPaneInstanceInNewArray.width,
+          height: targetPaneInstanceInNewArray.height,
+        },
+      };
     }
 
     // If reordering is needed (or if activation changed and it wasn't already last):
-    const otherPanesInstances = newPanesArrayWithActivation.filter(p => p.id !== idToBringToFront);
-    const finalOrderedPanes = [...otherPanesInstances, targetPaneInstanceInNewArray];
+    const otherPanesInstances = newPanesArrayWithActivation.filter(
+      (p) => p.id !== idToBringToFront,
+    );
+    const finalOrderedPanes = [
+      ...otherPanesInstances,
+      targetPaneInstanceInNewArray,
+    ];
 
     return {
       panes: finalOrderedPanes,
       activePaneId: idToBringToFront,
-      lastPanePosition: { x: targetPaneInstanceInNewArray.x, y: targetPaneInstanceInNewArray.y, width: targetPaneInstanceInNewArray.width, height: targetPaneInstanceInNewArray.height }
+      lastPanePosition: {
+        x: targetPaneInstanceInNewArray.x,
+        y: targetPaneInstanceInNewArray.y,
+        width: targetPaneInstanceInNewArray.width,
+        height: targetPaneInstanceInNewArray.height,
+      },
     };
   });
 }
 ```
+
 **Self-correction:** The logic for `bringPaneToFrontAction` looks mostly good. The check `newPanesArrayWithActivation[newPanesArrayWithActivation.length -1].id === idToBringToFront` for the `if (panesArrayIdentityChanged && !needsReordering ...)` block is redundant because `!needsReordering` already implies it's the last element. It can be simplified slightly but the current version is safe.
 
 **Final check of `useEffect` in `useResizeHandlers`:**
 The `isCurrentlyInteracting` flag is passed from the `Pane` component.
-*   When dragging the pane title bar, `isDragging` in `Pane` becomes true, so `isCurrentlyInteracting` passed to `useResizeHandlers` becomes true.
-*   When resizing a handle, `setIsResizing(active)` in `makeResizeHandler` sets `isResizing` in `Pane` to true, so `isCurrentlyInteracting` becomes true.
+
+- When dragging the pane title bar, `isDragging` in `Pane` becomes true, so `isCurrentlyInteracting` passed to `useResizeHandlers` becomes true.
+- When resizing a handle, `setIsResizing(active)` in `makeResizeHandler` sets `isResizing` in `Pane` to true, so `isCurrentlyInteracting` becomes true.
 
 This gating seems correct. The most critical change is the `bindDrag` logic using manual offset calculation based on `xy` and `dragStartRef`.
 
 These changes aim to make the drag initiation more robust by:
-*   Ensuring pane activation and z-index updates happen on `mousedown` before the drag gesture's internal calculations fully initialize.
-*   Using `xy` (current pointer position) and a ref (`dragStartRef`) to calculate movement delta, making the drag less susceptible to state changes that might alter the `position` state `useDrag` uses for its `from` or `offset` calculations.
-*   Minimizing object recreation in store actions to prevent unnecessary re-renders of unrelated panes or unexpected resets of the dragging pane's internal state.
+
+- Ensuring pane activation and z-index updates happen on `mousedown` before the drag gesture's internal calculations fully initialize.
+- Using `xy` (current pointer position) and a ref (`dragStartRef`) to calculate movement delta, making the drag less susceptible to state changes that might alter the `position` state `useDrag` uses for its `from` or `offset` calculations.
+- Minimizing object recreation in store actions to prevent unnecessary re-renders of unrelated panes or unexpected resets of the dragging pane's internal state.

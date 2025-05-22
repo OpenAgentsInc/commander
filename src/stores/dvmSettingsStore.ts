@@ -1,10 +1,13 @@
 // src/stores/dvmSettingsStore.ts
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import type { DefaultTextGenerationJobConfig, Kind5050DVMServiceConfig } from '@/services/dvm/Kind5050DVMService';
-import { defaultKind5050DVMServiceConfig } from '@/services/dvm/Kind5050DVMService';
-import { getPublicKey } from 'nostr-tools/pure';
-import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import type {
+  DefaultTextGenerationJobConfig,
+  Kind5050DVMServiceConfig,
+} from "@/services/dvm/Kind5050DVMService";
+import { defaultKind5050DVMServiceConfig } from "@/services/dvm/Kind5050DVMService";
+import { getPublicKey } from "nostr-tools/pure";
+import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
 
 /**
  * User-configurable settings for the DVM (Data Vending Machine)
@@ -51,18 +54,24 @@ export const useDVMSettingsStore = create<DVMSettingsStoreState>()(
 
       // Get effective private key (user setting or default)
       getEffectivePrivateKeyHex: () => {
-        return get().settings.dvmPrivateKeyHex || defaultConfigValues.dvmPrivateKeyHex;
+        return (
+          get().settings.dvmPrivateKeyHex ||
+          defaultConfigValues.dvmPrivateKeyHex
+        );
       },
 
       // Derive public key from private key
       getDerivedPublicKeyHex: () => {
         const skHex = get().settings.dvmPrivateKeyHex;
         if (!skHex) return defaultConfigValues.dvmPublicKeyHex;
-        
+
         try {
           return getPublicKey(hexToBytes(skHex));
         } catch (e) {
-          console.warn("Could not derive public key from stored private key:", e);
+          console.warn(
+            "Could not derive public key from stored private key:",
+            e,
+          );
           return defaultConfigValues.dvmPublicKeyHex;
         }
       },
@@ -73,9 +82,9 @@ export const useDVMSettingsStore = create<DVMSettingsStoreState>()(
         if (!userRelaysCsv) return defaultConfigValues.relays;
 
         const userRelays = userRelaysCsv
-          .split('\n')
-          .map(r => r.trim())
-          .filter(r => r.length > 0);
+          .split("\n")
+          .map((r) => r.trim())
+          .filter((r) => r.length > 0);
 
         return userRelays.length > 0 ? userRelays : defaultConfigValues.relays;
       },
@@ -86,11 +95,13 @@ export const useDVMSettingsStore = create<DVMSettingsStoreState>()(
         if (!userKindsCsv) return defaultConfigValues.supportedJobKinds;
 
         const userKinds = userKindsCsv
-          .split(',')
-          .map(k => parseInt(k.trim(), 10))
-          .filter(k => !isNaN(k));
+          .split(",")
+          .map((k) => parseInt(k.trim(), 10))
+          .filter((k) => !isNaN(k));
 
-        return userKinds.length > 0 ? userKinds : defaultConfigValues.supportedJobKinds;
+        return userKinds.length > 0
+          ? userKinds
+          : defaultConfigValues.supportedJobKinds;
       },
 
       // Get effective text generation config (merged user + default)
@@ -101,15 +112,16 @@ export const useDVMSettingsStore = create<DVMSettingsStoreState>()(
           ...userConfig,
         };
       },
-      
+
       // Get complete effective configuration
       getEffectiveConfig: () => {
         const privateKeyHex = get().getEffectivePrivateKeyHex();
-        const derivedPublicKeyHex = get().getDerivedPublicKeyHex() || defaultConfigValues.dvmPublicKeyHex;
+        const derivedPublicKeyHex =
+          get().getDerivedPublicKeyHex() || defaultConfigValues.dvmPublicKeyHex;
         const relays = get().getEffectiveRelays();
         const supportedJobKinds = get().getEffectiveSupportedJobKinds();
         const textGenerationConfig = get().getEffectiveTextGenerationConfig();
-        
+
         return {
           active: defaultConfigValues.active,
           dvmPrivateKeyHex: privateKeyHex,
@@ -121,8 +133,8 @@ export const useDVMSettingsStore = create<DVMSettingsStoreState>()(
       },
     }),
     {
-      name: 'dvm-user-settings',
+      name: "dvm-user-settings",
       storage: createJSONStorage(() => localStorage),
-    }
-  )
+    },
+  ),
 );

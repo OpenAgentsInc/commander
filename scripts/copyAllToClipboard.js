@@ -4,8 +4,11 @@
  * Script to recursively copy the contents of all files in specified directories to the clipboard
  * with proper formatting for documentation purposes.
  *
- * Usage: node copyAllToClipboard.js [--docs]
+ * Usage: node copyAllToClipboard.js [options]
  *   --docs: Only copy files from the docs/ directory and its subdirectories
+ *   --types: Prepend TypeScript check results (runs "pnpm run t") to the copied content
+ *   --tests: Prepend test results (runs "pnpm test") to the copied content
+ *   --tt: Prepend both TypeScript check and test results to the copied content
  */
 
 const fs = require("fs");
@@ -15,7 +18,7 @@ const { execSync } = require("child_process");
 // In CommonJS, __dirname is available globally
 
 // Directories to recursively scan
-const dirsToScan = ["docs", "src"];
+const dirsToScan = ["docs", "src", "node_modules/@effect/ai-openai/dist/dts/"];
 
 // Directories to exclude
 const dirsToExclude = [
@@ -36,6 +39,7 @@ const dirsToExclude = [
 
 // Files to explicitly include from root
 const rootFilesToInclude = [
+  // "node_modules/@effect/ai-openai/dist/dts/OpenAiClient.d.ts",
   // "node_modules/@buildonspark/spark-sdk/src/spark-wallet.ts",
   // "node_modules/@buildonspark/spark-sdk/src/nice-grpc-web.ts",
   // "node_modules/@buildonspark/spark-sdk/src/errors/base.ts",
@@ -114,6 +118,18 @@ const getLanguage = (ext) => {
   return languageMap[ext] || "";
 };
 
+// Function to run a command and return its output
+const runCommand = (command) => {
+  try {
+    console.log(`Running: ${command}`);
+    return execSync(command, { encoding: "utf8" });
+  } catch (error) {
+    console.error(`Error running ${command}:`, error.message);
+    // Return both stdout and stderr from the error
+    return `Command failed with exit code ${error.status}:\n\n${error.stdout || ""}\n${error.stderr || ""}\n`;
+  }
+};
+
 // Function to copy text to clipboard
 const copyToClipboard = (text) => {
   // For macOS
@@ -178,13 +194,16 @@ const parseArgs = () => {
   const args = process.argv.slice(2);
   return {
     docsOnly: args.includes("--docs"),
+    runTypes: args.includes("--types") || args.includes("--tt"),
+    runTests: args.includes("--tests") || args.includes("--tt"),
   };
 };
 
 // Main function to read files and format content
 const main = () => {
-  const { docsOnly } = parseArgs();
+  const { docsOnly, runTypes, runTests } = parseArgs();
   let allFiles = [];
+  let clipboardContent = "";
 
   if (docsOnly) {
     console.log(
@@ -219,8 +238,45 @@ const main = () => {
   // Sort files by path for better organization
   allFiles.sort();
 
-  let clipboardContent = "";
   let processedCount = 0;
+
+  // Add a description if running TypeScript checks or tests
+  if (runTypes || runTests) {
+    clipboardContent += "# Code Quality Report\n\n";
+    clipboardContent += "Generated on: " + new Date().toISOString() + "\n\n";
+  }
+
+  // Run TypeScript checks if requested
+  if (runTypes) {
+    console.log("🔍 Running TypeScript checks with 'pnpm run t'...");
+    const typeCheckOutput = runCommand("pnpm run t");
+    clipboardContent += "## TypeScript Check Results\n\n";
+    clipboardContent += "```\n";
+    clipboardContent += typeCheckOutput;
+    clipboardContent += "```\n\n";
+
+    if (!typeCheckOutput.includes("Command failed")) {
+      console.log("✅ TypeScript check completed");
+    } else {
+      console.log("⚠️ TypeScript check completed with issues");
+    }
+  }
+
+  // Run tests if requested
+  if (runTests) {
+    console.log("🧪 Running tests with 'pnpm test'...");
+    const testOutput = runCommand("pnpm test");
+    clipboardContent += "## Test Results\n\n";
+    clipboardContent += "```\n";
+    clipboardContent += testOutput;
+    clipboardContent += "```\n\n";
+
+    if (!testOutput.includes("Command failed")) {
+      console.log("✅ Tests completed");
+    } else {
+      console.log("⚠️ Tests completed with issues");
+    }
+  }
 
   for (const filePath of allFiles) {
     try {

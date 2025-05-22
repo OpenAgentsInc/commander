@@ -1,5 +1,5 @@
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 
 export interface UIPosition {
   x: number;
@@ -22,7 +22,7 @@ interface UIElementsStoreState {
 }
 
 const initialChatWindowState: UIElementState = {
-  id: 'chatWindow',
+  id: "chatWindow",
   position: { x: 16, y: 450 }, // Default position, adjust as needed
   isPinned: false,
 };
@@ -46,12 +46,17 @@ export const useUIElementsStore = create<UIElementsStoreState>()(
       pinElement: (id, initialPosition) =>
         set((state) => {
           const currentElement = state.elements[id];
-          const posToSet = initialPosition || currentElement?.position || { x: 0, y: 0 };
+          const posToSet = initialPosition ||
+            currentElement?.position || { x: 0, y: 0 };
           return {
             elements: {
               ...state.elements,
               [id]: {
-                ...(currentElement || { id, position: posToSet, isPinned: false }), // Ensure all fields exist
+                ...(currentElement || {
+                  id,
+                  position: posToSet,
+                  isPinned: false,
+                }), // Ensure all fields exist
                 position: posToSet, // Explicitly set position on pin
                 isPinned: true,
               },
@@ -88,7 +93,7 @@ export const useUIElementsStore = create<UIElementsStoreState>()(
         }),
     }),
     {
-      name: 'ui-elements-positions',
+      name: "ui-elements-positions",
       storage: createJSONStorage(() => localStorage),
       // On rehydration, we want isPinned to be false for all elements
       onRehydrateStorage: () => (state) => {

@@ -1,7 +1,11 @@
-import React from 'react';
-import { cn } from '@/utils/tailwind';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { isMacOs } from '@/utils/os';
+import React from "react";
+import { cn } from "@/utils/tailwind";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { isMacOs } from "@/utils/os";
 
 interface HotbarItemProps {
   slotNumber: number;
@@ -22,7 +26,7 @@ export const HotbarItem: React.FC<HotbarItemProps> = ({
   isGhost,
   className,
 }) => {
-  const modifierPrefix = isMacOs() ? '⌘' : 'Ctrl+';
+  const modifierPrefix = isMacOs() ? "⌘" : "Ctrl+";
   const shortcutText = `${modifierPrefix}${slotNumber}`;
 
   return (
@@ -32,16 +36,16 @@ export const HotbarItem: React.FC<HotbarItemProps> = ({
           onClick={onClick}
           aria-label={title || `Hotbar slot ${slotNumber}`}
           className={cn(
-            "relative flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 border border-border/50 bg-background/70 backdrop-blur-sm rounded-sm shadow-md transition-all duration-150 hover:bg-accent hover:border-primary focus:outline-none focus:ring-1 focus:ring-primary",
-            isActive && "bg-primary/20 border-primary ring-1 ring-primary",
-            isGhost && "opacity-30 hover:opacity-50 cursor-default",
-            className
+            "border-border/50 bg-background/70 hover:bg-accent hover:border-primary focus:ring-primary relative flex h-10 w-10 items-center justify-center rounded-sm border shadow-md backdrop-blur-sm transition-all duration-150 focus:ring-1 focus:outline-none sm:h-12 sm:w-12",
+            isActive && "bg-primary/20 border-primary ring-primary ring-1",
+            isGhost && "cursor-default opacity-30 hover:opacity-50",
+            className,
           )}
           disabled={isGhost}
         >
           {children}
           {!isGhost && (
-            <div className="absolute bottom-0.5 right-0.5 flex items-center text-[0.6rem] text-muted-foreground px-0.5 bg-background/50 rounded-sm leading-none">
+            <div className="text-muted-foreground bg-background/50 absolute right-0.5 bottom-0.5 flex items-center rounded-sm px-0.5 text-[0.6rem] leading-none">
               <span className="font-sans">{modifierPrefix}</span>
               <span>{slotNumber}</span>
             </div>
@@ -50,7 +54,9 @@ export const HotbarItem: React.FC<HotbarItemProps> = ({
       </TooltipTrigger>
       {!isGhost && (
         <TooltipContent side="top" sideOffset={5}>
-          <p>{title || `Slot ${slotNumber}`} ({shortcutText})</p>
+          <p>
+            {title || `Slot ${slotNumber}`} ({shortcutText})
+          </p>
         </TooltipContent>
       )}
     </Tooltip>

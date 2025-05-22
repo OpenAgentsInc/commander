@@ -1,13 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { Schema, Effect } from "effect";
-import { 
-  AgentChatMessageSchema, 
+import {
+  AgentChatMessageSchema,
   ToolCallSchema,
-  createUserMessage, 
-  createAssistantMessage, 
+  createUserMessage,
+  createAssistantMessage,
   createSystemMessage,
   createToolResponseMessage,
-  type AgentChatMessage
+  type AgentChatMessage,
 } from "@/services/ai/core/AgentChatMessage";
 
 describe("AgentChatMessage", () => {
@@ -16,11 +16,11 @@ describe("AgentChatMessage", () => {
       const userMessage: AgentChatMessage = {
         role: "user" as const,
         content: "Hello, AI!",
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
-      
+
       const result = await Effect.runPromise(
-        Schema.decodeUnknown(AgentChatMessageSchema)(userMessage)
+        Schema.decodeUnknown(AgentChatMessageSchema)(userMessage),
       );
       expect(result).toEqual(userMessage);
     });
@@ -29,11 +29,11 @@ describe("AgentChatMessage", () => {
       const assistantMessage: AgentChatMessage = {
         role: "assistant" as const,
         content: "Hello, human! How can I help you?",
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
-      
+
       const result = await Effect.runPromise(
-        Schema.decodeUnknown(AgentChatMessageSchema)(assistantMessage)
+        Schema.decodeUnknown(AgentChatMessageSchema)(assistantMessage),
       );
       expect(result).toEqual(assistantMessage);
     });
@@ -42,11 +42,11 @@ describe("AgentChatMessage", () => {
       const systemMessage: AgentChatMessage = {
         role: "system" as const,
         content: "You are a helpful AI assistant.",
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
-      
+
       const result = await Effect.runPromise(
-        Schema.decodeUnknown(AgentChatMessageSchema)(systemMessage)
+        Schema.decodeUnknown(AgentChatMessageSchema)(systemMessage),
       );
       expect(result).toEqual(systemMessage);
     });
@@ -57,11 +57,11 @@ describe("AgentChatMessage", () => {
         content: "42",
         name: "calculator",
         tool_call_id: "call_123",
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
-      
+
       const result = await Effect.runPromise(
-        Schema.decodeUnknown(AgentChatMessageSchema)(toolMessage)
+        Schema.decodeUnknown(AgentChatMessageSchema)(toolMessage),
       );
       expect(result).toEqual(toolMessage);
     });
@@ -76,15 +76,15 @@ describe("AgentChatMessage", () => {
             type: "function" as const,
             function: {
               name: "calculate",
-              arguments: '{"expression": "2+2"}'
-            }
-          }
+              arguments: '{"expression": "2+2"}',
+            },
+          },
         ],
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
-      
+
       const result = await Effect.runPromise(
-        Schema.decodeUnknown(AgentChatMessageSchema)(toolCallMessage)
+        Schema.decodeUnknown(AgentChatMessageSchema)(toolCallMessage),
       );
       expect(result).toEqual(toolCallMessage);
     });
@@ -93,12 +93,12 @@ describe("AgentChatMessage", () => {
       const invalidMessage = {
         role: "invalid_role", // Invalid role
         content: "Hello, AI!",
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
-      
+
       try {
         await Effect.runPromise(
-          Schema.decodeUnknown(AgentChatMessageSchema)(invalidMessage)
+          Schema.decodeUnknown(AgentChatMessageSchema)(invalidMessage),
         );
         // Should not reach here
         expect(true).toBe(false);
@@ -113,13 +113,13 @@ describe("AgentChatMessage", () => {
         // Missing type field
         function: {
           name: "calculate",
-          arguments: '{"expression": "2+2"}'
-        }
+          arguments: '{"expression": "2+2"}',
+        },
       };
-      
+
       try {
         await Effect.runPromise(
-          Schema.decodeUnknown(ToolCallSchema)(invalidToolCall)
+          Schema.decodeUnknown(ToolCallSchema)(invalidToolCall),
         );
         // Should not reach here
         expect(true).toBe(false);
@@ -133,7 +133,7 @@ describe("AgentChatMessage", () => {
     it("should create a proper user message", () => {
       const content = "Hello, AI!";
       const message = createUserMessage(content);
-      
+
       expect(message.role).toBe("user");
       expect(message.content).toBe(content);
       expect(message.timestamp).toBeTypeOf("number");
@@ -142,7 +142,7 @@ describe("AgentChatMessage", () => {
     it("should create a proper assistant message", () => {
       const content = "Hello, human!";
       const message = createAssistantMessage(content);
-      
+
       expect(message.role).toBe("assistant");
       expect(message.content).toBe(content);
       expect(message.timestamp).toBeTypeOf("number");
@@ -152,7 +152,7 @@ describe("AgentChatMessage", () => {
     it("should create a proper streaming assistant message", () => {
       const content = "Hello";
       const message = createAssistantMessage(content, true);
-      
+
       expect(message.role).toBe("assistant");
       expect(message.content).toBe(content);
       expect(message.timestamp).toBeTypeOf("number");
@@ -162,7 +162,7 @@ describe("AgentChatMessage", () => {
     it("should create a proper system message", () => {
       const content = "You are a helpful AI assistant.";
       const message = createSystemMessage(content);
-      
+
       expect(message.role).toBe("system");
       expect(message.content).toBe(content);
       expect(message.timestamp).toBeTypeOf("number");
@@ -173,7 +173,7 @@ describe("AgentChatMessage", () => {
       const toolName = "calculator";
       const content = "4";
       const message = createToolResponseMessage(toolCallId, toolName, content);
-      
+
       expect(message.role).toBe("tool");
       expect(message.content).toBe(content);
       expect(message.tool_call_id).toBe(toolCallId);

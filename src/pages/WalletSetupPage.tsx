@@ -1,10 +1,16 @@
-import React, { useState, useCallback } from 'react';
-import { useWalletStore } from '@/stores/walletStore';
-import { usePaneStore } from '@/stores/pane';
-import { useShallow } from 'zustand/react/shallow';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Loader2, Wallet } from 'lucide-react';
+import React, { useState, useCallback } from "react";
+import { useWalletStore } from "@/stores/walletStore";
+import { usePaneStore } from "@/stores/pane";
+import { useShallow } from "zustand/react/shallow";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Loader2, Wallet } from "lucide-react";
 
 interface WalletSetupPageProps {
   paneId: string; // To close this pane when navigating
@@ -17,17 +23,18 @@ const WalletSetupPage: React.FC<WalletSetupPageProps> = ({ paneId }) => {
       isLoading: state.isLoading,
       error: state.error,
       clearError: state.clearError,
-    }))
+    })),
   );
-  
-  const { openSeedPhraseBackupPane, openRestoreWalletPane, removePane } = usePaneStore(
-    useShallow((state) => ({
-      openSeedPhraseBackupPane: state.openSeedPhraseBackupPane,
-      openRestoreWalletPane: state.openRestoreWalletPane,
-      removePane: state.removePane,
-    }))
-  );
-  
+
+  const { openSeedPhraseBackupPane, openRestoreWalletPane, removePane } =
+    usePaneStore(
+      useShallow((state) => ({
+        openSeedPhraseBackupPane: state.openSeedPhraseBackupPane,
+        openRestoreWalletPane: state.openRestoreWalletPane,
+        removePane: state.removePane,
+      })),
+    );
+
   const [isGenerating, setIsGenerating] = useState(false);
 
   // Memoize handlers to prevent unnecessary re-renders
@@ -44,7 +51,13 @@ const WalletSetupPage: React.FC<WalletSetupPageProps> = ({ paneId }) => {
     } finally {
       setIsGenerating(false);
     }
-  }, [clearError, generateNewWallet, openSeedPhraseBackupPane, paneId, removePane]);
+  }, [
+    clearError,
+    generateNewWallet,
+    openSeedPhraseBackupPane,
+    paneId,
+    removePane,
+  ]);
 
   const handleRestoreWallet = useCallback(() => {
     clearError();
@@ -54,11 +67,11 @@ const WalletSetupPage: React.FC<WalletSetupPageProps> = ({ paneId }) => {
   }, [clearError, openRestoreWalletPane, paneId, removePane]);
 
   return (
-    <div className="container flex items-center justify-center min-h-full p-4">
+    <div className="container flex min-h-full items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mb-2 flex justify-center">
-            <Wallet className="h-12 w-12 text-primary" />
+            <Wallet className="text-primary h-12 w-12" />
           </div>
           <CardTitle className="text-2xl">Bitcoin Wallet Setup</CardTitle>
           <CardDescription>
@@ -78,7 +91,7 @@ const WalletSetupPage: React.FC<WalletSetupPageProps> = ({ paneId }) => {
                 Creating New Wallet...
               </>
             ) : (
-              'Create New Wallet'
+              "Create New Wallet"
             )}
           </Button>
           <Button
@@ -90,9 +103,9 @@ const WalletSetupPage: React.FC<WalletSetupPageProps> = ({ paneId }) => {
           >
             Restore Existing Wallet
           </Button>
-          
+
           {error && (
-            <div className="text-destructive text-sm text-center mt-4">
+            <div className="text-destructive mt-4 text-center text-sm">
               {error}
             </div>
           )}

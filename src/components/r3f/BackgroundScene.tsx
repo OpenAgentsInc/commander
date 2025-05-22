@@ -1,12 +1,12 @@
 // src/components/r3f/BackgroundScene.tsx
-import React, { useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
-import * as THREE from 'three';
+import React, { useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import { OrbitControls } from "@react-three/drei";
+import * as THREE from "three";
 
 // Skip TypeScript checks and use dynamic imports to handle the components
 // @ts-ignore - Ignore TypeScript errors for postprocessing
-import { EffectComposer, Bloom } from '@react-three/postprocessing';
+import { EffectComposer, Bloom } from "@react-three/postprocessing";
 
 function RotatingCube() {
   const meshRef = useRef<THREE.Mesh>(null!);
@@ -18,8 +18,8 @@ function RotatingCube() {
     // Only auto-rotate if user is not controlling
     if (meshRef.current && !isUserControlling.current) {
       // Increased rotation speed
-      meshRef.current.rotation.x += delta * 0.3;  // 3x faster
-      meshRef.current.rotation.y += delta * 0.4;  // ~2.7x faster
+      meshRef.current.rotation.x += delta * 0.3; // 3x faster
+      meshRef.current.rotation.y += delta * 0.4; // ~2.7x faster
     }
   });
 
@@ -27,9 +27,15 @@ function RotatingCube() {
     <mesh
       ref={meshRef}
       position={[0, 0, 0]} // Centered position
-      onPointerDown={() => { isUserControlling.current = true; }}
-      onPointerUp={() => { isUserControlling.current = false; }}
-      onPointerLeave={() => { isUserControlling.current = false; }}
+      onPointerDown={() => {
+        isUserControlling.current = true;
+      }}
+      onPointerUp={() => {
+        isUserControlling.current = false;
+      }}
+      onPointerLeave={() => {
+        isUserControlling.current = false;
+      }}
     >
       <boxGeometry args={[1.5, 1.5, 1.5]} />
       <meshStandardMaterial

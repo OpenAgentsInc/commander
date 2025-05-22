@@ -5,6 +5,7 @@
 The instructions require adding streaming support to the OllamaService, following the OpenAI-compatible `/v1/chat/completions` endpoint with Server-Sent Events (SSE) format.
 
 Key requirements:
+
 - Define schemas for OpenAI-compatible streaming chunks
 - Update the OllamaService interface to include a streaming method
 - Implement streaming functionality in OllamaServiceImpl
@@ -23,6 +24,7 @@ These schemas mirror the OpenAI API streaming format, handling assistant role de
 ## 3. Service Interface Update
 
 Added a new method to the `OllamaService` interface:
+
 ```typescript
 generateChatCompletionStream(
     request: OllamaChatCompletionRequest
@@ -34,6 +36,7 @@ This method takes the same request format as the non-streaming method but return
 ## 4. Implementation in OllamaServiceImpl
 
 Implemented `generateChatCompletionStream` with these key components:
+
 - Request preparation with `stream: true` explicitly set
 - HTTP execution with error handling
 - Stream processing to handle SSE format:
@@ -47,6 +50,7 @@ Implemented `generateChatCompletionStream` with these key components:
 ## 5. Unit Tests
 
 Added a comprehensive test suite for the streaming implementation:
+
 - Success case with multiple chunks (role, content tokens, finish)
 - Error handling for HTTP errors (404)
 - Error handling for malformed JSON

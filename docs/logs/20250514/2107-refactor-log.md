@@ -19,6 +19,7 @@ Based on reviewing both the analysis of the previous implementation and the refa
 I'll follow a TDD approach with these steps:
 
 1. **Phase 1: Schema Integration**
+
    - Research current Schema API in main effect package
    - Define message schema
    - Define config schema
@@ -46,11 +47,13 @@ After reviewing the Effect Schema documentation (https://effect.website/docs/sch
 
 1. Schemas in Effect are now directly in the main Effect package, imported as `import { Schema } from "effect"`
 2. The API has important differences from the previous standalone @effect/schema:
+
    - Schema definition uses functions like `Schema.Struct`, `Schema.literal` rather than `S.Struct`
    - Type extraction uses `Schema.Type<typeof mySchema>` pattern
    - Optional fields with defaults use `Schema.optional(Schema.string, { default: "default-value" })`
 
 3. Key Schema features we'll use:
+
    - `Schema.Struct` - for object/record schemas
    - `Schema.Array` - for array types
    - `Schema.literal` - for enum values
@@ -59,7 +62,7 @@ After reviewing the Effect Schema documentation (https://effect.website/docs/sch
 
 4. For error handling, Effect Schema supports:
    - Custom branded types with Schema.Brand
-   - Parser transforms with Schema.transform  
+   - Parser transforms with Schema.transform
    - Validation via Schema.parse which returns Effect with validation errors
 
 Now I'll begin implementing the Schema-based approach for our OllamaService.

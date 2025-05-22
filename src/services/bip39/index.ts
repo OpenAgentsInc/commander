@@ -1,5 +1,5 @@
 // Export all symbols from the service interface
-export * from './BIP39Service';
+export * from "./BIP39Service";
 
 // Export implementation
-export * from './BIP39ServiceImpl';
+export * from "./BIP39ServiceImpl";

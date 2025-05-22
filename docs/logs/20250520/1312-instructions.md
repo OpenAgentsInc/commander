@@ -4,31 +4,31 @@ Okay, this is a significant feature addition! Let's break it down into manageabl
 
 1.  **UI - Hotbar Implementation:** Create the `Hotbar` component and migrate existing HUD buttons into it.
 2.  **UI - "Sell Compute" Pane:**
-    *   Define the new pane type and its basic structure.
-    *   Integrate it into the pane management system and make it accessible (e.g., via a new Hotbar button).
+    - Define the new pane type and its basic structure.
+    - Integrate it into the pane management system and make it accessible (e.g., via a new Hotbar button).
 3.  **"Sell Compute" Pane Logic - Status Checks:**
-    *   Implement status checking for Spark Wallet and Ollama.
-    *   Update the UI to reflect these statuses.
+    - Implement status checking for Spark Wallet and Ollama.
+    - Update the UI to reflect these statuses.
 4.  **"Sell Compute" Pane Logic - "Go Online" Functionality:**
-    *   Implement the online/offline toggle.
+    - Implement the online/offline toggle.
 5.  **Core DVM Logic - NIP-90 Kind 5050 Handling:**
-    *   Create a new Effect service (`Kind5050DVMService`) to manage DVM operations.
-    *   Subscribe to Kind 5050 events when "online".
-    *   Process incoming requests:
-        *   Send "processing" feedback (Kind 7000).
-        *   Perform inference via `OllamaService`.
-        *   Create an invoice via `SparkService`.
-        *   Send results (Kind 6050) with payment request.
-        *   Send "success" / "error" feedback (Kind 7000).
+    - Create a new Effect service (`Kind5050DVMService`) to manage DVM operations.
+    - Subscribe to Kind 5050 events when "online".
+    - Process incoming requests:
+      - Send "processing" feedback (Kind 7000).
+      - Perform inference via `OllamaService`.
+      - Create an invoice via `SparkService`.
+      - Send results (Kind 6050) with payment request.
+      - Send "success" / "error" feedback (Kind 7000).
 6.  **Testing and Typechecking:** Ensure all tests and type checks pass at each logical step.
 
 Let's start with the UI changes.
 
 **Step 1: Create the `Hotbar` Component and Refactor HUD Buttons**
 
-*   Create a new Hotbar component.
-*   Move existing HUD buttons into the Hotbar.
-*   Add a new button to the Hotbar for opening the "Sell Compute" pane.
+- Create a new Hotbar component.
+- Move existing HUD buttons into the Hotbar.
+- Add a new button to the Hotbar for opening the "Sell Compute" pane.
 
 ```typescript
 // File: src/components/hud/HotbarItem.tsx
@@ -635,10 +635,10 @@ const SellComputePane: React.FC = () => {
 
 **Next Steps:**
 
-*   Implement the `Kind5050DVMService`.
-*   Connect the "GO ONLINE" button to `Kind5050DVMService.startListening()` and `stopListening()`.
-*   Flesh out the "Connect Wallet" and "Connect Ollama" UI/flow if needed beyond status checks.
-*   Thorough testing.
+- Implement the `Kind5050DVMService`.
+- Connect the "GO ONLINE" button to `Kind5050DVMService.startListening()` and `stopListening()`.
+- Flesh out the "Connect Wallet" and "Connect Ollama" UI/flow if needed beyond status checks.
+- Thorough testing.
 
 I will pause here. The DVM logic is substantial and should be a separate step.
 The UI for the Hotbar and the basic "Sell Compute" pane with status checks is now in place. The next instructions should focus on the `Kind5050DVMService` implementation.
@@ -646,21 +646,34 @@ The UI for the Hotbar and the basic "Sell Compute" pane with status checks is no
 
 A quick test for the new Hotbar items and the Sell Compute pane in `HomePage.test.tsx` would be good.
 Example:
+
 ```typescript
 // src/tests/unit/pages/HomePage.test.tsx
 // ...
-it('renders Hotbar with expected items', () => {
+it("renders Hotbar with expected items", () => {
   renderComponent();
-  expect(screen.getByRole('button', { name: /Reset HUD Layout/i })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /Enable Hand Tracking/i })).toBeInTheDocument(); // Initial title
-  expect(screen.getByRole('button', { name: /New NIP-28 Channel/i })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /NIP-90 DVM Dashboard/i })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /Sell Compute/i })).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: /Reset HUD Layout/i }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: /Enable Hand Tracking/i }),
+  ).toBeInTheDocument(); // Initial title
+  expect(
+    screen.getByRole("button", { name: /New NIP-28 Channel/i }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: /NIP-90 DVM Dashboard/i }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: /Sell Compute/i }),
+  ).toBeInTheDocument();
 });
 
-it('opens Sell Compute pane when Hotbar item is clicked', async () => {
+it("opens Sell Compute pane when Hotbar item is clicked", async () => {
   renderComponent();
-  const sellComputeButton = screen.getByRole('button', { name: /Sell Compute/i });
+  const sellComputeButton = screen.getByRole("button", {
+    name: /Sell Compute/i,
+  });
   fireEvent.click(sellComputeButton);
   // Check if the usePaneStore().openSellComputePane action was called or if the pane appears
   // This requires mocking usePaneStore or checking for pane content
@@ -672,6 +685,7 @@ it('opens Sell Compute pane when Hotbar item is clicked', async () => {
   });
 });
 ```
+
 This example test for `HomePage.test.tsx` will need `usePaneStore` to be mocked appropriately, or the `SellComputePane` to be rendered and its title checked.Okay, Agent, the plan and execution are looking good so far. Let's proceed with the new "Sell Compute" feature.
 
 **Implementation Steps:**
@@ -679,74 +693,75 @@ This example test for `HomePage.test.tsx` will need `usePaneStore` to be mocked 
 **Phase 1: UI - Hotbar and "Sell Compute" Pane Shell**
 
 1.  **Create `Hotbar.tsx` and `HotbarItem.tsx` Components:**
-    *   Define `HotbarItemProps` and the `HotbarItem` component.
-    *   Define `HotbarProps` and the `Hotbar` component, which will render `HotbarItem`s for existing HUD actions and the new "Sell Compute" action.
+    - Define `HotbarItemProps` and the `HotbarItem` component.
+    - Define `HotbarProps` and the `Hotbar` component, which will render `HotbarItem`s for existing HUD actions and the new "Sell Compute" action.
 2.  **Refactor `HomePage.tsx`:**
-    *   Remove the direct rendering of `ResetHUDButton`, `HandTrackingToggleButton`, `NewChannelButton`, `Nip90DashboardButton`.
-    *   Import and render the new `Hotbar` component, passing necessary props (like hand tracking state/toggle and the action to open the sell compute pane).
+    - Remove the direct rendering of `ResetHUDButton`, `HandTrackingToggleButton`, `NewChannelButton`, `Nip90DashboardButton`.
+    - Import and render the new `Hotbar` component, passing necessary props (like hand tracking state/toggle and the action to open the sell compute pane).
 3.  **Define "Sell Compute" Pane Type and Store Actions:**
-    *   Add `'sell_compute'` to `Pane.type` in `src/types/pane.ts`.
-    *   Create `src/stores/panes/actions/openSellComputePane.ts` with `openSellComputePaneAction` and `SELL_COMPUTE_PANE_ID`. This action should add a new pane of type `'sell_compute'` or bring an existing one to the front.
-    *   Export this action from `src/stores/panes/actions/index.ts`.
-    *   Add `openSellComputePane: () => void;` to `PaneStoreType` in `src/stores/panes/types.ts`.
-    *   Integrate the action into `usePaneStore` in `src/stores/pane.ts`.
+    - Add `'sell_compute'` to `Pane.type` in `src/types/pane.ts`.
+    - Create `src/stores/panes/actions/openSellComputePane.ts` with `openSellComputePaneAction` and `SELL_COMPUTE_PANE_ID`. This action should add a new pane of type `'sell_compute'` or bring an existing one to the front.
+    - Export this action from `src/stores/panes/actions/index.ts`.
+    - Add `openSellComputePane: () => void;` to `PaneStoreType` in `src/stores/panes/types.ts`.
+    - Integrate the action into `usePaneStore` in `src/stores/pane.ts`.
 4.  **Create `SellComputePane.tsx` Component:**
-    *   Implement the basic structure of the "Sell Compute" pane as shown in the image (title, wallet status text, Ollama status text, "GO ONLINE" button, descriptive text). Use placeholder states for `isWalletConnected`, `isOllamaConnected`, `isOnline`.
-    *   Use Lucide icons (`PlusCircle`, `HelpCircle`, `Zap`, `ZapOff`) for buttons/indicators.
+    - Implement the basic structure of the "Sell Compute" pane as shown in the image (title, wallet status text, Ollama status text, "GO ONLINE" button, descriptive text). Use placeholder states for `isWalletConnected`, `isOllamaConnected`, `isOnline`.
+    - Use Lucide icons (`PlusCircle`, `HelpCircle`, `Zap`, `ZapOff`) for buttons/indicators.
 5.  **Integrate `SellComputePane` into `PaneManager.tsx`:**
-    *   Import `SellComputePane`.
-    *   Add a case in `PaneManager.tsx` to render `SellComputePane` when `pane.type === 'sell_compute'`.
+    - Import `SellComputePane`.
+    - Add a case in `PaneManager.tsx` to render `SellComputePane` when `pane.type === 'sell_compute'`.
 
 **Phase 2: "Sell Compute" Pane Logic - Status Checks**
 
 1.  **Enhance `SparkService`:**
-    *   Add `checkWalletStatus(): Effect.Effect<boolean, SparkError | TrackEventError, never>` to the `SparkService` interface.
-    *   Implement `checkWalletStatus` in `SparkServiceImpl.ts`. This could try a lightweight, non-modifying operation like `getBalance` internally. If successful, return `true`. Log telemetry for the check.
+    - Add `checkWalletStatus(): Effect.Effect<boolean, SparkError | TrackEventError, never>` to the `SparkService` interface.
+    - Implement `checkWalletStatus` in `SparkServiceImpl.ts`. This could try a lightweight, non-modifying operation like `getBalance` internally. If successful, return `true`. Log telemetry for the check.
 2.  **Enhance `OllamaService`:**
-    *   Add `checkOllamaStatus(): Effect.Effect<boolean, OllamaHttpError | OllamaParseError, never>` to the `OllamaService` interface.
-    *   Implement `checkOllamaStatus` in `OllamaServiceImpl.ts`. This could make a request to the Ollama base URL (e.g., `http://localhost:11434/`) which usually returns "Ollama is running".
+    - Add `checkOllamaStatus(): Effect.Effect<boolean, OllamaHttpError | OllamaParseError, never>` to the `OllamaService` interface.
+    - Implement `checkOllamaStatus` in `OllamaServiceImpl.ts`. This could make a request to the Ollama base URL (e.g., `http://localhost:11434/`) which usually returns "Ollama is running".
 3.  **Update `SellComputePane.tsx`:**
-    *   Use `useEffect` and `useCallback` to call `SparkService.checkWalletStatus()` and `OllamaService.checkOllamaStatus()` on mount and when a "refresh status" button (e.g., the `PlusCircle` icon) is clicked.
-    *   Update `isWalletConnected` and `isOllamaConnected` state based on the results.
-    *   Display "Checking..." or similar loading state while statuses are being fetched.
+    - Use `useEffect` and `useCallback` to call `SparkService.checkWalletStatus()` and `OllamaService.checkOllamaStatus()` on mount and when a "refresh status" button (e.g., the `PlusCircle` icon) is clicked.
+    - Update `isWalletConnected` and `isOllamaConnected` state based on the results.
+    - Display "Checking..." or similar loading state while statuses are being fetched.
 
 **Phase 3: "Sell Compute" Pane Logic - "Go Online" Functionality**
 
 1.  **Implement Online/Offline State in `SellComputePane.tsx`:**
-    *   The `isOnline` state is already present.
-    *   The "GO ONLINE" / "GO OFFLINE" button should toggle this state.
-    *   The button should be disabled if `isWalletConnected` or `isOllamaConnected` is `false` (unless `isOnline` is true, allowing the user to go offline).
-    *   This state will later control the DVM service's listening activity.
+    - The `isOnline` state is already present.
+    - The "GO ONLINE" / "GO OFFLINE" button should toggle this state.
+    - The button should be disabled if `isWalletConnected` or `isOllamaConnected` is `false` (unless `isOnline` is true, allowing the user to go offline).
+    - This state will later control the DVM service's listening activity.
 
 **Phase 4: Core DVM Logic - NIP-90 Kind 5050 Handling (Service Stub)**
 
 1.  **Create `Kind5050DVMService` (Interface and Stub Implementation):**
-    *   **File:** `src/services/dvm/Kind5050DVMService.ts`
-        *   Define `Kind5050DVMServiceConfig` (e.g., DVM secret key, relays to use, default pricing model).
-        *   Define `Kind5050DVMService` interface:
-            *   `startListening(): Effect.Effect<void, DVMError, /* Dependencies */>`
-            *   `stopListening(): Effect.Effect<void, DVMError, /* Dependencies */>`
-            *   `isListening(): Effect.Effect<boolean, DVMError, /* Dependencies */>`
-        *   Define `DVMError` types.
-    *   **File:** `src/services/dvm/Kind5050DVMServiceImpl.ts`
-        *   Create a stub implementation for `Kind5050DVMServiceLive` that depends on `NostrService`, `OllamaService`, `SparkService`, `TelemetryService`, `Kind5050DVMServiceConfig`.
-        *   `startListening` would log "DVM started listening".
-        *   `stopListening` would log "DVM stopped listening".
-        *   `isListening` would return a placeholder boolean.
+    - **File:** `src/services/dvm/Kind5050DVMService.ts`
+      - Define `Kind5050DVMServiceConfig` (e.g., DVM secret key, relays to use, default pricing model).
+      - Define `Kind5050DVMService` interface:
+        - `startListening(): Effect.Effect<void, DVMError, /* Dependencies */>`
+        - `stopListening(): Effect.Effect<void, DVMError, /* Dependencies */>`
+        - `isListening(): Effect.Effect<boolean, DVMError, /* Dependencies */>`
+      - Define `DVMError` types.
+    - **File:** `src/services/dvm/Kind5050DVMServiceImpl.ts`
+      - Create a stub implementation for `Kind5050DVMServiceLive` that depends on `NostrService`, `OllamaService`, `SparkService`, `TelemetryService`, `Kind5050DVMServiceConfig`.
+      - `startListening` would log "DVM started listening".
+      - `stopListening` would log "DVM stopped listening".
+      - `isListening` would return a placeholder boolean.
 2.  **Integrate `Kind5050DVMService` into `src/services/runtime.ts`:**
-    *   Add it to `FullAppContext` and `FullAppLayer`.
+    - Add it to `FullAppContext` and `FullAppLayer`.
 3.  **Update `SellComputePane.tsx` "Go Online" Button:**
-    *   When toggling `isOnline`, call `Kind5050DVMService.startListening()` or `stopListening()` via `getMainRuntime()`.
+    - When toggling `isOnline`, call `Kind5050DVMService.startListening()` or `stopListening()` via `getMainRuntime()`.
 
 **Phase 5: Implement NIP-90 Kind 5050 Request Processing**
 
 This is the most complex part and will be detailed further if Phase 1-4 are successful. It involves:
-*   Subscribing to Nostr kind 5050 events.
-*   Parsing job requests.
-*   Sending "processing" feedback (Kind 7000).
-*   Using `OllamaService` for inference.
-*   Using `SparkService` to create invoices.
-*   Sending job results (Kind 6050) and final feedback (Kind 7000).
+
+- Subscribing to Nostr kind 5050 events.
+- Parsing job requests.
+- Sending "processing" feedback (Kind 7000).
+- Using `OllamaService` for inference.
+- Using `SparkService` to create invoices.
+- Sending job results (Kind 6050) and final feedback (Kind 7000).
 
 Let's proceed with Phase 1. I will generate the code for the Hotbar and the initial "Sell Compute" pane structure.```typescript
 // File: src/components/hud/HotbarItem.tsx
@@ -754,39 +769,38 @@ import React from 'react';
 import { cn } from '@/utils/tailwind';
 
 interface HotbarItemProps {
-  slotNumber: number;
-  onClick?: () => void;
-  children?: React.ReactNode;
-  title?: string;
-  isActive?: boolean;
-  className?: string;
+slotNumber: number;
+onClick?: () => void;
+children?: React.ReactNode;
+title?: string;
+isActive?: boolean;
+className?: string;
 }
 
 export const HotbarItem: React.FC<HotbarItemProps> = ({
-  slotNumber,
-  onClick,
-  children,
-  title,
-  isActive,
-  className,
+slotNumber,
+onClick,
+children,
+title,
+isActive,
+className,
 }) => {
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      aria-label={title || `Hotbar slot ${slotNumber}`}
-      className={cn(
-        "relative flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 border border-border/50 bg-background/70 backdrop-blur-sm rounded-sm shadow-md transition-all duration-150 hover:bg-accent hover:border-primary focus:outline-none focus:ring-1 focus:ring-primary",
-        isActive && "bg-primary/20 border-primary ring-1 ring-primary",
-        className
-      )}
-    >
-      {children}
-      <span className="absolute bottom-0.5 right-0.5 text-[0.5rem] text-muted-foreground px-0.5 bg-background/50 rounded-sm">
-        {slotNumber}
-      </span>
-    </button>
-  );
+return (
+<button
+onClick={onClick}
+title={title}
+aria-label={title || `Hotbar slot ${slotNumber}`}
+className={cn(
+"relative flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 border border-border/50 bg-background/70 backdrop-blur-sm rounded-sm shadow-md transition-all duration-150 hover:bg-accent hover:border-primary focus:outline-none focus:ring-1 focus:ring-primary",
+isActive && "bg-primary/20 border-primary ring-1 ring-primary",
+className
+)} >
+{children}
+<span className="absolute bottom-0.5 right-0.5 text-[0.5rem] text-muted-foreground px-0.5 bg-background/50 rounded-sm">
+{slotNumber}
+</span>
+</button>
+);
 };
 
 // File: src/components/hud/Hotbar.tsx
@@ -798,54 +812,53 @@ import { usePaneStore } from '@/stores/pane';
 // Removed useUIElementsStore as hand tracking state will be passed via props
 
 interface HotbarProps {
-  className?: string;
-  isHandTrackingActive: boolean;
-  onToggleHandTracking: () => void;
-  onOpenSellComputePane: () => void;
+className?: string;
+isHandTrackingActive: boolean;
+onToggleHandTracking: () => void;
+onOpenSellComputePane: () => void;
 }
 
 export const Hotbar: React.FC<HotbarProps> = ({ className, isHandTrackingActive, onToggleHandTracking, onOpenSellComputePane }) => {
-  const resetHUDState = usePaneStore((state) => state.resetHUDState);
-  const createNip28Channel = usePaneStore((state) => state.createNip28ChannelPane);
-  const openNip90Dashboard = usePaneStore((state) => state.openNip90DashboardPane);
-  const activePaneId = usePaneStore((state) => state.activePaneId);
-  const SELL_COMPUTE_PANE_ID = 'sell_compute';
+const resetHUDState = usePaneStore((state) => state.resetHUDState);
+const createNip28Channel = usePaneStore((state) => state.createNip28ChannelPane);
+const openNip90Dashboard = usePaneStore((state) => state.openNip90DashboardPane);
+const activePaneId = usePaneStore((state) => state.activePaneId);
+const SELL_COMPUTE_PANE_ID = 'sell_compute';
 
-  const handleCreateChannel = () => {
-    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/:/g, '');
-    const defaultName = `Channel ${timestamp}`;
-    createNip28Channel(defaultName);
-  };
+const handleCreateChannel = () => {
+const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/:/g, '');
+const defaultName = `Channel ${timestamp}`;
+createNip28Channel(defaultName);
+};
 
-  return (
-    <div
-      className={cn(
-        "fixed bottom-4 left-1/2 transform -translate-x-1/2 z-[10000] flex space-x-1 p-1 bg-background/50 border border-border/30 rounded-md shadow-lg backdrop-blur-sm",
-        className
-      )}
-    >
-      <HotbarItem slotNumber={1} onClick={resetHUDState} title="Reset HUD Layout">
-        <RefreshCw className="w-5 h-5 text-muted-foreground" />
-      </HotbarItem>
-      <HotbarItem slotNumber={2} onClick={onToggleHandTracking} title={isHandTrackingActive ? "Disable Hand Tracking" : "Enable Hand Tracking"} isActive={isHandTrackingActive}>
-        <Hand className="w-5 h-5 text-muted-foreground" />
-      </HotbarItem>
-      <HotbarItem slotNumber={3} onClick={handleCreateChannel} title="New NIP-28 Channel">
-        <MessageSquarePlus className="w-5 h-5 text-muted-foreground" />
-      </HotbarItem>
-      <HotbarItem slotNumber={4} onClick={openNip90Dashboard} title="NIP-90 DVM Dashboard" isActive={activePaneId === 'nip90-dashboard'}>
-        <Cpu className="w-5 h-5 text-muted-foreground" />
-      </HotbarItem>
-      <HotbarItem slotNumber={5} onClick={onOpenSellComputePane} title="Sell Compute" isActive={activePaneId === SELL_COMPUTE_PANE_ID}>
-        <Store className="w-5 h-5 text-muted-foreground" />
-      </HotbarItem>
-      {Array.from({ length: 4 }).map((_, index) => (
-        <HotbarItem key={`empty-${6 + index}`} slotNumber={6 + index} title={`Slot ${6 + index}`} className="opacity-30 cursor-not-allowed hover:bg-background/70">
-          <div className="w-5 h-5 text-muted-foreground/50"></div>
-        </HotbarItem>
-      ))}
-    </div>
-  );
+return (
+<div
+className={cn(
+"fixed bottom-4 left-1/2 transform -translate-x-1/2 z-[10000] flex space-x-1 p-1 bg-background/50 border border-border/30 rounded-md shadow-lg backdrop-blur-sm",
+className
+)} >
+<HotbarItem slotNumber={1} onClick={resetHUDState} title="Reset HUD Layout">
+<RefreshCw className="w-5 h-5 text-muted-foreground" />
+</HotbarItem>
+<HotbarItem slotNumber={2} onClick={onToggleHandTracking} title={isHandTrackingActive ? "Disable Hand Tracking" : "Enable Hand Tracking"} isActive={isHandTrackingActive}>
+<Hand className="w-5 h-5 text-muted-foreground" />
+</HotbarItem>
+<HotbarItem slotNumber={3} onClick={handleCreateChannel} title="New NIP-28 Channel">
+<MessageSquarePlus className="w-5 h-5 text-muted-foreground" />
+</HotbarItem>
+<HotbarItem slotNumber={4} onClick={openNip90Dashboard} title="NIP-90 DVM Dashboard" isActive={activePaneId === 'nip90-dashboard'}>
+<Cpu className="w-5 h-5 text-muted-foreground" />
+</HotbarItem>
+<HotbarItem slotNumber={5} onClick={onOpenSellComputePane} title="Sell Compute" isActive={activePaneId === SELL*COMPUTE_PANE_ID}>
+<Store className="w-5 h-5 text-muted-foreground" />
+</HotbarItem>
+{Array.from({ length: 4 }).map((*, index) => (
+<HotbarItem key={`empty-${6 + index}`} slotNumber={6 + index} title={`Slot ${6 + index}`} className="opacity-30 cursor-not-allowed hover:bg-background/70">
+<div className="w-5 h-5 text-muted-foreground/50"></div>
+</HotbarItem>
+))}
+</div>
+);
 };
 
 // File: src/pages/HomePage.tsx
@@ -859,62 +872,62 @@ import { usePaneStore } from "@/stores/pane";
 import { Hotbar } from "@/components/hud/Hotbar"; // Import Hotbar
 
 interface HandDataContext {
-  activeHandPose: HandPose;
-  pinchMidpoint: PinchCoordinates | null;
-  primaryHandLandmarks: HandLandmarks | null;
-  trackedHandsCount: number;
+activeHandPose: HandPose;
+pinchMidpoint: PinchCoordinates | null;
+primaryHandLandmarks: HandLandmarks | null;
+trackedHandsCount: number;
 }
 
 const TITLE_BAR_HEIGHT = 32;
 // const SELL_COMPUTE_PANE_ID = 'sell_compute'; // Defined in Hotbar, can be passed or imported if needed elsewhere
 
 export default function HomePage() {
-  const [isHandTrackingActive, setIsHandTrackingActive] = useState(false);
-  const [handData, setHandData] = useState<HandDataContext | null>(null);
-  const [draggingPaneId, setDraggingPaneId] = useState<string | null>(null);
-  const initialPinchPositionRef = useRef<{ x: number; y: number } | null>(null);
-  const paneStartPosRef = useRef<{ x: number; y: number } | null>(null);
+const [isHandTrackingActive, setIsHandTrackingActive] = useState(false);
+const [handData, setHandData] = useState<HandDataContext | null>(null);
+const [draggingPaneId, setDraggingPaneId] = useState<string | null>(null);
+const initialPinchPositionRef = useRef<{ x: number; y: number } | null>(null);
+const paneStartPosRef = useRef<{ x: number; y: number } | null>(null);
 
-  const { panes, bringPaneToFront, updatePanePosition, activePaneId, openSellComputePane } = usePaneStore(
-    (state) => ({
-      panes: state.panes,
-      bringPaneToFront: state.bringPaneToFront,
-      updatePanePosition: state.updatePanePosition,
-      activePaneId: state.activePaneId,
-      openSellComputePane: state.openSellComputePane,
-    })
-  );
+const { panes, bringPaneToFront, updatePanePosition, activePaneId, openSellComputePane } = usePaneStore(
+(state) => ({
+panes: state.panes,
+bringPaneToFront: state.bringPaneToFront,
+updatePanePosition: state.updatePanePosition,
+activePaneId: state.activePaneId,
+openSellComputePane: state.openSellComputePane,
+})
+);
 
-  const toggleHandTracking = () => {
-    const newState = !isHandTrackingActive;
-    setIsHandTrackingActive(newState);
-    if (!newState && draggingPaneId) {
-      setDraggingPaneId(null);
-      initialPinchPositionRef.current = null;
-      paneStartPosRef.current = null;
-    }
-  };
+const toggleHandTracking = () => {
+const newState = !isHandTrackingActive;
+setIsHandTrackingActive(newState);
+if (!newState && draggingPaneId) {
+setDraggingPaneId(null);
+initialPinchPositionRef.current = null;
+paneStartPosRef.current = null;
+}
+};
 
-  const prevHandDataRef = useRef<HandDataContext | null>(null);
-  const handleHandDataUpdate = (data: HandDataContext) => {
-    if (!prevHandDataRef.current ||
-        data.activeHandPose !== prevHandDataRef.current.activeHandPose ||
-        data.trackedHandsCount !== prevHandDataRef.current.trackedHandsCount ||
-        JSON.stringify(data.pinchMidpoint) !== JSON.stringify(prevHandDataRef.current.pinchMidpoint)) {
-      prevHandDataRef.current = data;
-      setHandData(data);
-    }
-  };
+const prevHandDataRef = useRef<HandDataContext | null>(null);
+const handleHandDataUpdate = (data: HandDataContext) => {
+if (!prevHandDataRef.current ||
+data.activeHandPose !== prevHandDataRef.current.activeHandPose ||
+data.trackedHandsCount !== prevHandDataRef.current.trackedHandsCount ||
+JSON.stringify(data.pinchMidpoint) !== JSON.stringify(prevHandDataRef.current.pinchMidpoint)) {
+prevHandDataRef.current = data;
+setHandData(data);
+}
+};
 
-  useEffect(() => {
-    if (!isHandTrackingActive || !handData || !handData.pinchMidpoint || handData.trackedHandsCount === 0) {
-      if (draggingPaneId) {
-        setDraggingPaneId(null);
-        initialPinchPositionRef.current = null;
-        paneStartPosRef.current = null;
-      }
-      return;
-    }
+useEffect(() => {
+if (!isHandTrackingActive || !handData || !handData.pinchMidpoint || handData.trackedHandsCount === 0) {
+if (draggingPaneId) {
+setDraggingPaneId(null);
+initialPinchPositionRef.current = null;
+paneStartPosRef.current = null;
+}
+return;
+}
 
     const { activeHandPose, pinchMidpoint } = handData;
 
@@ -955,47 +968,47 @@ export default function HomePage() {
         paneStartPosRef.current = null;
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHandTrackingActive, handData, draggingPaneId]);
 
+// eslint-disable-next-line react-hooks/exhaustive-deps
+}, [isHandTrackingActive, handData, draggingPaneId]);
 
-  return (
-    <div className="relative w-full h-full overflow-hidden">
-      <SimpleGrid />
-      <PaneManager />
-      <HandTracking
-        showHandTracking={isHandTrackingActive}
-        setShowHandTracking={setIsHandTrackingActive} // This prop might not be used by HandTracking if toggle is external
-        onHandDataUpdate={handleHandDataUpdate}
-      />
-      <Hotbar
+return (
+<div className="relative w-full h-full overflow-hidden">
+<SimpleGrid />
+<PaneManager />
+<HandTracking
+showHandTracking={isHandTrackingActive}
+setShowHandTracking={setIsHandTrackingActive} // This prop might not be used by HandTracking if toggle is external
+onHandDataUpdate={handleHandDataUpdate}
+/>
+<Hotbar
         isHandTrackingActive={isHandTrackingActive}
         onToggleHandTracking={toggleHandTracking}
         onOpenSellComputePane={openSellComputePane}
       />
-    </div>
-  );
+</div>
+);
 }
 
 // File: src/types/pane.ts
 // Add 'sell_compute' to Pane.type
 export type Pane = {
-  id: string;
-  type: 'default' | 'chat' | 'chats' | 'user' | 'diff' | 'changelog' | 'nip28_channel' | 'nip90_dashboard' | 'sell_compute' | string; // Added 'sell_compute'
-  title: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  isActive?: boolean;
-  dismissable?: boolean;
-  content?: {
-    oldContent?: string;
-    newContent?: string;
-    channelId?: string;
-    channelName?: string;
-    [key: string]: unknown;
-  };
+id: string;
+type: 'default' | 'chat' | 'chats' | 'user' | 'diff' | 'changelog' | 'nip28_channel' | 'nip90_dashboard' | 'sell_compute' | string; // Added 'sell_compute'
+title: string;
+x: number;
+y: number;
+width: number;
+height: number;
+isActive?: boolean;
+dismissable?: boolean;
+content?: {
+oldContent?: string;
+newContent?: string;
+channelId?: string;
+channelName?: string;
+[key: string]: unknown;
+};
 }
 // PaneInput remains the same
 
@@ -1005,17 +1018,16 @@ import { PaneStoreType, SetPaneStore } from '../types';
 import { addPaneActionLogic } from './addPane'; // Assuming this provides logic without calling set directly
 import { DEFAULT_PANE_WIDTH, DEFAULT_PANE_HEIGHT } from '../constants';
 
-
 export const SELL_COMPUTE_PANE_ID = 'sell_compute';
 
 export function openSellComputePaneAction(set: SetPaneStore) {
-  set((state: PaneStoreType) => {
-    const existingPane = state.panes.find(p => p.id === SELL_COMPUTE_PANE_ID);
-    if (existingPane) {
-      // Bring to front and activate if already exists
-      const newPanes = state.panes
-        .map(p => ({ ...p, isActive: p.id === SELL_COMPUTE_PANE_ID }))
-        .sort((a, b) => (a.isActive ? 1 : -1) - (b.isActive ? 1 : -1)); // crude bring to front
+set((state: PaneStoreType) => {
+const existingPane = state.panes.find(p => p.id === SELL_COMPUTE_PANE_ID);
+if (existingPane) {
+// Bring to front and activate if already exists
+const newPanes = state.panes
+.map(p => ({ ...p, isActive: p.id === SELL_COMPUTE_PANE_ID }))
+.sort((a, b) => (a.isActive ? 1 : -1) - (b.isActive ? 1 : -1)); // crude bring to front
 
       return {
         ...state,
@@ -1048,27 +1060,28 @@ export function openSellComputePaneAction(set: SetPaneStore) {
     }
 
     return { ...state, ...changes };
-  });
+
+});
 }
 
 // File: src/stores/panes/actions/index.ts
-export * from './addPane';
-export * from './removePane';
-export * from './updatePanePosition';
-export * from './updatePaneSize';
-export * from './bringPaneToFront';
-export * from './setActivePane';
-export * from './openChatPane';
-export * from './createNip28ChannelPane';
-export * from './openNip90DashboardPane';
-export * from './openSellComputePane'; // Add this export
+export _ from './addPane';
+export _ from './removePane';
+export _ from './updatePanePosition';
+export _ from './updatePaneSize';
+export _ from './bringPaneToFront';
+export _ from './setActivePane';
+export _ from './openChatPane';
+export _ from './createNip28ChannelPane';
+export _ from './openNip90DashboardPane';
+export _ from './openSellComputePane'; // Add this export
 
 // File: src/stores/panes/types.ts
 import { Pane, PaneInput } from '@/types/pane';
 // ... (other imports)
 export interface PaneStoreType extends PaneState {
-  // ... existing actions
-  openSellComputePane: () => void; // Add this line
+// ... existing actions
+openSellComputePane: () => void; // Add this line
 }
 // SetPaneStore and GetPaneStore remain the same
 
@@ -1077,22 +1090,21 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 // ... (other imports)
 import {
-  // ...
-  openSellComputePaneAction, // Import new action
+// ...
+openSellComputePaneAction, // Import new action
 } from "./panes/actions";
 // ... (getInitialPanes, initialState as before, or update to include sell_compute)
 
 export const usePaneStore = create<PaneStoreType>()(
-  persist(
-    (set, get) => ({
-      ...initialState,
-      // ... existing actions
-      openSellComputePane: () => openSellComputePaneAction(set), // Add this line
-    }),
-    // ... (rest of persist config)
-  )
+persist(
+(set, get) => ({
+...initialState,
+// ... existing actions
+openSellComputePane: () => openSellComputePaneAction(set), // Add this line
+}),
+// ... (rest of persist config)
+)
 );
-
 
 // File: src/components/sell-compute/SellComputePane.tsx
 import React, { useState, useEffect, useCallback } from 'react';
@@ -1106,82 +1118,82 @@ import { Effect } from 'effect';
 import { runPromiseExit, Exit, Cause } from 'effect/Effect';
 
 const SellComputePane: React.FC = () => {
-  const [isWalletConnected, setIsWalletConnected] = useState(false);
-  const [isOllamaConnected, setIsOllamaConnected] = useState(false);
-  const [isOnline, setIsOnline] = useState(false);
-  const [statusLoading, setStatusLoading] = useState({ wallet: false, ollama: false });
+const [isWalletConnected, setIsWalletConnected] = useState(false);
+const [isOllamaConnected, setIsOllamaConnected] = useState(false);
+const [isOnline, setIsOnline] = useState(false);
+const [statusLoading, setStatusLoading] = useState({ wallet: false, ollama: false });
 
-  const runtime = getMainRuntime();
+const runtime = getMainRuntime();
 
-  const checkWalletStatus = useCallback(async () => {
-    setStatusLoading(s => ({ ...s, wallet: true }));
-    const walletProgram = Effect.flatMap(SparkService, s => s.checkWalletStatus());
-    runPromiseExit(Effect.provide(walletProgram, runtime)).then(exit => {
-      if (Exit.isSuccess(exit)) setIsWalletConnected(exit.value);
-      else {
-        console.error("Wallet status check failed:", Cause.squash(exit.cause));
-        setIsWalletConnected(false);
-      }
-      setStatusLoading(s => ({ ...s, wallet: false }));
-    });
-  }, [runtime]);
+const checkWalletStatus = useCallback(async () => {
+setStatusLoading(s => ({ ...s, wallet: true }));
+const walletProgram = Effect.flatMap(SparkService, s => s.checkWalletStatus());
+runPromiseExit(Effect.provide(walletProgram, runtime)).then(exit => {
+if (Exit.isSuccess(exit)) setIsWalletConnected(exit.value);
+else {
+console.error("Wallet status check failed:", Cause.squash(exit.cause));
+setIsWalletConnected(false);
+}
+setStatusLoading(s => ({ ...s, wallet: false }));
+});
+}, [runtime]);
 
-  const checkOllamaStatus = useCallback(async () => {
-    setStatusLoading(s => ({ ...s, ollama: true }));
-    const ollamaProgram = Effect.flatMap(OllamaService, s => s.checkOllamaStatus());
-    runPromiseExit(Effect.provide(ollamaProgram, runtime)).then(exit => {
-      if (Exit.isSuccess(exit)) setIsOllamaConnected(exit.value);
-      else {
-        console.error("Ollama status check failed:", Cause.squash(exit.cause));
-        setIsOllamaConnected(false);
-      }
-      setStatusLoading(s => ({ ...s, ollama: false }));
-    });
-  }, [runtime]);
+const checkOllamaStatus = useCallback(async () => {
+setStatusLoading(s => ({ ...s, ollama: true }));
+const ollamaProgram = Effect.flatMap(OllamaService, s => s.checkOllamaStatus());
+runPromiseExit(Effect.provide(ollamaProgram, runtime)).then(exit => {
+if (Exit.isSuccess(exit)) setIsOllamaConnected(exit.value);
+else {
+console.error("Ollama status check failed:", Cause.squash(exit.cause));
+setIsOllamaConnected(false);
+}
+setStatusLoading(s => ({ ...s, ollama: false }));
+});
+}, [runtime]);
 
-  useEffect(() => {
-    checkWalletStatus();
-    checkOllamaStatus();
-  }, [checkWalletStatus, checkOllamaStatus]);
+useEffect(() => {
+checkWalletStatus();
+checkOllamaStatus();
+}, [checkWalletStatus, checkOllamaStatus]);
 
-  const handleGoOnline = () => {
-    if (isWalletConnected && isOllamaConnected) {
-      setIsOnline(!isOnline);
-      // TODO: Call Kind5050DVMService.startListening() or stopListening()
-      console.log(`Compute selling ${!isOnline ? 'started' : 'stopped'}`);
-    } else {
-      alert("Please connect your wallet and Ollama to go online.");
-    }
-  };
+const handleGoOnline = () => {
+if (isWalletConnected && isOllamaConnected) {
+setIsOnline(!isOnline);
+// TODO: Call Kind5050DVMService.startListening() or stopListening()
+console.log(`Compute selling ${!isOnline ? 'started' : 'stopped'}`);
+} else {
+alert("Please connect your wallet and Ollama to go online.");
+}
+};
 
-  const walletStatusText = statusLoading.wallet ? 'Checking...' : (isWalletConnected ? 'CONNECTED' : 'NOT CONNECTED');
-  const ollamaStatusText = statusLoading.ollama ? 'Checking...' : (isOllamaConnected ? 'CONNECTED' : 'NOT CONNECTED');
-  const walletStatusColor = isWalletConnected ? 'text-green-500' : 'text-destructive';
-  const ollamaStatusColor = isOllamaConnected ? 'text-green-500' : 'text-destructive';
+const walletStatusText = statusLoading.wallet ? 'Checking...' : (isWalletConnected ? 'CONNECTED' : 'NOT CONNECTED');
+const ollamaStatusText = statusLoading.ollama ? 'Checking...' : (isOllamaConnected ? 'CONNECTED' : 'NOT CONNECTED');
+const walletStatusColor = isWalletConnected ? 'text-green-500' : 'text-destructive';
+const ollamaStatusColor = isOllamaConnected ? 'text-green-500' : 'text-destructive';
 
-  return (
-    <div className="p-4 h-full flex flex-col items-center justify-center text-sm">
-      <Card className="w-full max-w-md bg-background/80 backdrop-blur-sm">
-        <CardHeader>
-          <CardTitle className="text-center text-lg">Sell Compute Power</CardTitle> {/* Larger Title */}
-        </CardHeader>
-        <CardContent className="space-y-4"> {/* Reduced space-y */}
-          <div className="flex items-center justify-between p-3 border border-border/30 rounded-md">
-            <div className="flex items-center">
-              {isWalletConnected ? <Wifi className="w-5 h-5 mr-2 text-green-500"/> : <WifiOff className="w-5 h-5 mr-2 text-destructive"/>}
-              <div>
-                <p className="font-semibold">Wallet</p>
-                <p className={cn("text-xs", walletStatusColor)}>{walletStatusText}</p>
-              </div>
-            </div>
-            <div className="flex space-x-1">
-              <Button variant="ghost" size="icon" title="Check Wallet Status" onClick={checkWalletStatus} disabled={statusLoading.wallet}>
-                 {statusLoading.wallet ? <div className="w-4 h-4 animate-spin rounded-full border-2 border-current border-t-transparent"></div> : <RefreshCcw className="w-4 h-4" />}
-              </Button>
-              {/* Replace PlusCircle with a more relevant icon or action if connection is manual */}
-              <Button variant="ghost" size="icon" title="Connect Wallet (Not Implemented)"> <HelpCircle className="w-4 h-4" /> </Button>
-            </div>
-          </div>
+return (
+<div className="p-4 h-full flex flex-col items-center justify-center text-sm">
+<Card className="w-full max-w-md bg-background/80 backdrop-blur-sm">
+<CardHeader>
+<CardTitle className="text-center text-lg">Sell Compute Power</CardTitle> {/_ Larger Title _/}
+</CardHeader>
+<CardContent className="space-y-4"> {/_ Reduced space-y _/}
+<div className="flex items-center justify-between p-3 border border-border/30 rounded-md">
+<div className="flex items-center">
+{isWalletConnected ? <Wifi className="w-5 h-5 mr-2 text-green-500"/> : <WifiOff className="w-5 h-5 mr-2 text-destructive"/>}
+<div>
+<p className="font-semibold">Wallet</p>
+<p className={cn("text-xs", walletStatusColor)}>{walletStatusText}</p>
+</div>
+</div>
+<div className="flex space-x-1">
+<Button variant="ghost" size="icon" title="Check Wallet Status" onClick={checkWalletStatus} disabled={statusLoading.wallet}>
+{statusLoading.wallet ? <div className="w-4 h-4 animate-spin rounded-full border-2 border-current border-t-transparent"></div> : <RefreshCcw className="w-4 h-4" />}
+</Button>
+{/_ Replace PlusCircle with a more relevant icon or action if connection is manual _/}
+<Button variant="ghost" size="icon" title="Connect Wallet (Not Implemented)"> <HelpCircle className="w-4 h-4" /> </Button>
+</div>
+</div>
 
           <div className="flex items-center justify-between p-3 border border-border/30 rounded-md">
             <div className="flex items-center">
@@ -1215,10 +1227,10 @@ const SellComputePane: React.FC = () => {
         </CardContent>
       </Card>
     </div>
-  );
+
+);
 };
 export default SellComputePane;
-
 
 // File: src/components/sell-compute/index.ts
 export { default as SellComputePane } from './SellComputePane';
@@ -1227,41 +1239,42 @@ export { default as SellComputePane } from './SellComputePane';
 import { SellComputePane } from '@/components/sell-compute'; // Add this import
 // ...
 // Inside the map function:
-/*
-  ...
-  {pane.type === 'sell_compute' && <SellComputePane />}
-  ...
-*/
+/_
+...
+{pane.type === 'sell_compute' && <SellComputePane />}
+...
+_/
 // Add 'sell_compute' to the exclusion list for the default placeholder:
-/*
-  ...
-  !(
-    pane.type === 'chat' ||
-    // ... other types
-    pane.type === 'sell_compute' || // Add this
-    pane.type === 'default'
-  ) && <PlaceholderDefaultComponent type={pane.type} />
-*/
+/_
+...
+!(
+pane.type === 'chat' ||
+// ... other types
+pane.type === 'sell_compute' || // Add this
+pane.type === 'default'
+) && <PlaceholderDefaultComponent type={pane.type} />
+_/
 
 // File: src/services/spark/SparkService.ts
 // Add checkWalletStatus to the interface
 export interface SparkService {
-  createLightningInvoice(
-    params: CreateLightningInvoiceParams
-  ): Effect.Effect<LightningInvoice, SparkError | TrackEventError, never>;
+createLightningInvoice(
+params: CreateLightningInvoiceParams
+): Effect.Effect<LightningInvoice, SparkError | TrackEventError, never>;
 
-  payLightningInvoice(
-    params: PayLightningInvoiceParams
-  ): Effect.Effect<LightningPayment, SparkError | TrackEventError, never>;
+payLightningInvoice(
+params: PayLightningInvoiceParams
+): Effect.Effect<LightningPayment, SparkError | TrackEventError, never>;
 
-  getBalance(): Effect.Effect<
-    BalanceInfo,
-    SparkError | TrackEventError,
-    never
-  >;
+getBalance(): Effect.Effect<
+BalanceInfo,
+SparkError | TrackEventError,
+never
 
-  getSingleUseDepositAddress(): Effect.Effect<string, SparkError | TrackEventError, never>;
-  checkWalletStatus(): Effect.Effect<boolean, SparkError | TrackEventError, never>; // Added
+> ;
+
+getSingleUseDepositAddress(): Effect.Effect<string, SparkError | TrackEventError, never>;
+checkWalletStatus(): Effect.Effect<boolean, SparkError | TrackEventError, never>; // Added
 }
 // Other types and tags remain the same
 
@@ -1269,16 +1282,16 @@ export interface SparkService {
 // Implement checkWalletStatus
 // ... (imports)
 export const SparkServiceLive = Layer.scoped(
-  SparkService,
-  Effect.gen(function* (_) {
-    const sparkConfig = yield* _(SparkServiceConfigTag);
-    const telemetry = yield* _(TelemetryService);
-    const wallet = yield* _(
-      Effect.tryPromise({
-        // ... (wallet initialization) ...
-      })
-    );
-    yield* _(Effect.addFinalizer(() => { /* ... */ }));
+SparkService,
+Effect.gen(function* (\_) {
+const sparkConfig = yield* _(SparkServiceConfigTag);
+const telemetry = yield\* _(TelemetryService);
+const wallet = yield* \_(
+Effect.tryPromise({
+// ... (wallet initialization) ...
+})
+);
+yield* \_(Effect.addFinalizer(() => { /_ ... _/ }));
 
     return {
       // ... (existing methods createLightningInvoice, payLightningInvoice, getBalance, getSingleUseDepositAddress)
@@ -1318,21 +1331,22 @@ export const SparkServiceLive = Layer.scoped(
         }
       }),
     };
-  })
+
+})
 );
 
 // File: src/services/ollama/OllamaService.ts
 // Add checkOllamaStatus to the interface
 export interface OllamaService {
-  generateChatCompletion(
-    request: OllamaChatCompletionRequest
-  ): Effect.Effect<OllamaChatCompletionResponse, OllamaHttpError | OllamaParseError, never>;
+generateChatCompletion(
+request: OllamaChatCompletionRequest
+): Effect.Effect<OllamaChatCompletionResponse, OllamaHttpError | OllamaParseError, never>;
 
-  generateChatCompletionStream(
-    request: OllamaChatCompletionRequest
-  ): Stream.Stream<OllamaOpenAIChatStreamChunk, OllamaHttpError | OllamaParseError, never>;
+generateChatCompletionStream(
+request: OllamaChatCompletionRequest
+): Stream.Stream<OllamaOpenAIChatStreamChunk, OllamaHttpError | OllamaParseError, never>;
 
-  checkOllamaStatus(): Effect.Effect<boolean, OllamaHttpError | OllamaParseError, never>; // Added
+checkOllamaStatus(): Effect.Effect<boolean, OllamaHttpError | OllamaParseError, never>; // Added
 }
 // Other types and tags remain the same
 
@@ -1340,10 +1354,10 @@ export interface OllamaService {
 // Implement checkOllamaStatus
 // ... (imports)
 export function createOllamaService(
-    config: OllamaServiceConfig,
-    httpClient: HttpClientService // Use the aliased type
+config: OllamaServiceConfig,
+httpClient: HttpClientService // Use the aliased type
 ): OllamaService {
-    const makeUrl = (path: string) => `${config.baseURL}${path}`;
+const makeUrl = (path: string) => `${config.baseURL}${path}`;
 
     return {
       // ... (existing methods generateChatCompletion, generateChatCompletionStream)
@@ -1373,9 +1387,11 @@ export function createOllamaService(
         }
       }),
     };
+
 }
 // OllamaServiceLive remains the same
-```
+
+````
 
 **Notes on the implementation:**
 
@@ -1437,7 +1453,7 @@ graph TD
     AD --> AE{Connect "Go Online" to DVM service stubs};
     AE --> AF{End of Current Batch - Ready for DVM Logic};
     AF --> AG[Output Code];
-```
+````
 
 **Phase 1: UI - Hotbar and "Sell Compute" Pane Shell**
 
@@ -1447,7 +1463,7 @@ graph TD
 **4. Create `SellComputePane.tsx` Component**
 **5. Integrate `SellComputePane` into `PaneManager.tsx`**
 
-*(Generating code for Phase 1 based on the detailed plan)*
+_(Generating code for Phase 1 based on the detailed plan)_
 
 ```typescript
 // File: src/components/hud/HotbarItem.tsx

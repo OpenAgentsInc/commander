@@ -2,8 +2,8 @@ Okay, I see the test failures and the TypeScript errors. The primary issues seem
 
 1.  **Test Failures**: The schema validation tests are failing because the telemetry for operation failure (e.g., `create_invoice_failure`) is not being called as expected when schema validation fails. Instead, only `wallet_initialize_start` and `wallet_initialize_success` are logged by telemetry. This indicates an issue in how errors from schema validation are propagated or how telemetry is logged on such failures within `SparkServiceImpl.ts`.
 2.  **TypeScript Errors in `SparkServiceImpl.ts`**:
-    *   The `Effect.addFinalizer` block is not correctly typed. The finalizer effect must have an error channel of `never`. The current `Effect.gen` used within it might introduce an error channel if `releaseTelemetry.trackEvent` or `Effect.promise(() => wallet.cleanupConnections())` can fail.
-    *   The `Effect.catchAllCause` within that finalizer is also incorrectly typed or used.
+    - The `Effect.addFinalizer` block is not correctly typed. The finalizer effect must have an error channel of `never`. The current `Effect.gen` used within it might introduce an error channel if `releaseTelemetry.trackEvent` or `Effect.promise(() => wallet.cleanupConnections())` can fail.
+    - The `Effect.catchAllCause` within that finalizer is also incorrectly typed or used.
 3.  **TypeScript Errors in `SparkService.test.ts`**: Multiple `TS2345` errors where an `Effect` is expected to have an `R` (environment) channel of `never` but is inferred as `unknown`. This usually means that the `testLayerForLive` is not fully satisfying all dependencies of `SparkServiceLive`, or there's a type mismatch in how the Effect program is constructed or provided.
 
 Let's address these step by step.
@@ -16,46 +16,65 @@ The finalizer must return an `Effect<any, never, R2>`. The agent's previous log 
 // File: src/services/spark/SparkServiceImpl.ts
 
 // Modify the Effect.addFinalizer block:
-    yield* _(Effect.addFinalizer(() => {
+yield *
+  _(
+    Effect.addFinalizer(() => {
       // Use Effect.sync to ensure the finalizer itself doesn't have a typed error channel
       return Effect.sync(() => {
-        if (typeof wallet.cleanupConnections === 'function') {
+        if (typeof wallet.cleanupConnections === "function") {
           try {
-            wallet.cleanupConnections()
+            wallet
+              .cleanupConnections()
               .then(() => {
                 // TELEMETRY_IGNORE_THIS_CONSOLE_CALL (Finalizer logging)
-                console.log('[SparkService Finalizer] Wallet connections cleaned up successfully.');
+                console.log(
+                  "[SparkService Finalizer] Wallet connections cleaned up successfully.",
+                );
                 // Attempt to use telemetry via Effect.runFork (fire-and-forget)
                 // This should ideally use the 'telemetry' instance captured by SparkServiceLive's Effect.gen
-                Effect.runFork(telemetry.trackEvent({
-                  category: 'spark:dispose',
-                  action: 'wallet_cleanup_success',
-                  label: `Network: ${sparkConfig.network}`
-                }));
+                Effect.runFork(
+                  telemetry.trackEvent({
+                    category: "spark:dispose",
+                    action: "wallet_cleanup_success",
+                    label: `Network: ${sparkConfig.network}`,
+                  }),
+                );
               })
-              .catch(error => {
+              .catch((error) => {
                 // TELEMETRY_IGNORE_THIS_CONSOLE_CALL (Finalizer logging)
-                console.error('[SparkService Finalizer] Failed to cleanup wallet connections:', error);
-                Effect.runFork(telemetry.trackEvent({
-                  category: 'spark:dispose',
-                  action: 'wallet_cleanup_failure',
-                  label: error instanceof Error ? error.message : 'Unknown cleanup error',
-                  value: String(error)
-                }));
+                console.error(
+                  "[SparkService Finalizer] Failed to cleanup wallet connections:",
+                  error,
+                );
+                Effect.runFork(
+                  telemetry.trackEvent({
+                    category: "spark:dispose",
+                    action: "wallet_cleanup_failure",
+                    label:
+                      error instanceof Error
+                        ? error.message
+                        : "Unknown cleanup error",
+                    value: String(error),
+                  }),
+                );
               });
           } catch (e) {
             // TELEMETRY_IGNORE_THIS_CONSOLE_CALL (Finalizer logging)
-            console.error('[SparkService Finalizer] Critical error during wallet.cleanupConnections sync call:', e);
+            console.error(
+              "[SparkService Finalizer] Critical error during wallet.cleanupConnections sync call:",
+              e,
+            );
           }
         }
         return undefined; // Effect.sync requires a return value
       });
-    }));
+    }),
+  );
 ```
 
 **II. Fix Telemetry Logic for Schema Validation Failures in `SparkServiceImpl.ts`**
 
-The schema validation should fail the main effect, and this failure should be caught by an outer `Effect.tapError` which then logs the appropriate failure telemetry. The `operation_start` telemetry should only be logged *after* successful validation.
+The schema validation should fail the main effect, and this failure should be caught by an outer `Effect.tapError` which then logs the appropriate failure telemetry. The `operation_start` telemetry should only be logged _after_ successful validation.
 
 ```typescript
 // File: src/services/spark/SparkServiceImpl.ts
@@ -235,16 +254,18 @@ The `safeRunEffect` helper casts the `R` channel to `never`. This should be acce
 **IV. Run Type Checks and Tests**
 
 After applying the above changes to `SparkServiceImpl.ts`:
+
 1.  Run `pnpm t` to check for TypeScript errors.
 2.  Run `pnpm test src/tests/unit/services/spark/SparkService.test.ts`.
 
 **Expected Outcome:**
-*   TypeScript errors in `SparkServiceImpl.ts` related to the finalizer should be resolved.
-*   The two failing tests related to schema validation should now pass because:
-    *   Schema validation errors will cause the main `Effect.gen` block of the service method to fail.
-    *   The `operation_start` telemetry will be skipped.
-    *   The SDK mock (`createLightningInvoiceMock` or `payLightningInvoiceMock`) will not be called.
-    *   The outer `Effect.tapError` will catch the `SparkValidationError` and log a `*_failure` event (e.g., `create_invoice_failure`), which the test asserts. The telemetry payload should now include the detailed error context.
+
+- TypeScript errors in `SparkServiceImpl.ts` related to the finalizer should be resolved.
+- The two failing tests related to schema validation should now pass because:
+  - Schema validation errors will cause the main `Effect.gen` block of the service method to fail.
+  - The `operation_start` telemetry will be skipped.
+  - The SDK mock (`createLightningInvoiceMock` or `payLightningInvoiceMock`) will not be called.
+  - The outer `Effect.tapError` will catch the `SparkValidationError` and log a `*_failure` event (e.g., `create_invoice_failure`), which the test asserts. The telemetry payload should now include the detailed error context.
 
 If new TypeScript errors arise in the test file due to `testLayerForLive` and `R` channel mismatches after the `SparkServiceImpl.ts` fixes, those will need to be addressed by ensuring the `SparkServiceLive` layer is correctly typed and all its dependencies are satisfied by `testLayerForLive` without needing the `unknown` cast in `safeRunEffect`. However, the `safeRunEffect` cast is a common pattern in tests when dealing with complex layers.Okay, I've reviewed the errors and the instructions. The core issues are:
 
@@ -262,38 +283,54 @@ I'll apply the `Effect.sync` approach for the finalizer, ensuring its error chan
 // File: src/services/spark/SparkServiceImpl.ts
 
 // Inside SparkServiceLive, replace the Effect.addFinalizer block with:
-    yield* _(Effect.addFinalizer(() => {
+yield *
+  _(
+    Effect.addFinalizer(() => {
       // Use Effect.sync to ensure the finalizer itself doesn't have a typed error channel of its own.
       // The operations inside (like wallet.cleanupConnections() or telemetry.trackEvent)
       // will be run, but their success/failure won't make the finalizer itself fail in a typed way.
       return Effect.sync(() => {
-        if (typeof wallet.cleanupConnections === 'function') {
-          wallet.cleanupConnections()
+        if (typeof wallet.cleanupConnections === "function") {
+          wallet
+            .cleanupConnections()
             .then(() => {
               // TELEMETRY_IGNORE_THIS_CONSOLE_CALL (Finalizer logging)
-              console.log(`[SparkService Finalizer] Wallet connections cleaned up successfully for network: ${sparkConfig.network}.`);
+              console.log(
+                `[SparkService Finalizer] Wallet connections cleaned up successfully for network: ${sparkConfig.network}.`,
+              );
               // Attempt to use telemetry via Effect.runFork (fire-and-forget)
-              Effect.runFork(telemetry.trackEvent({
-                category: 'spark:dispose',
-                action: 'wallet_cleanup_success',
-                label: `Network: ${sparkConfig.network}`
-              }));
+              Effect.runFork(
+                telemetry.trackEvent({
+                  category: "spark:dispose",
+                  action: "wallet_cleanup_success",
+                  label: `Network: ${sparkConfig.network}`,
+                }),
+              );
             })
-            .catch(error => {
+            .catch((error) => {
               // TELEMETRY_IGNORE_THIS_CONSOLE_CALL (Finalizer logging)
-              console.error(`[SparkService Finalizer] Failed to cleanup wallet connections for network: ${sparkConfig.network}:`, error);
-              Effect.runFork(telemetry.trackEvent({
-                category: 'spark:dispose',
-                action: 'wallet_cleanup_failure',
-                label: error instanceof Error ? error.message : 'Unknown cleanup error',
-                value: String(error),
-                context: { network: sparkConfig.network }
-              }));
+              console.error(
+                `[SparkService Finalizer] Failed to cleanup wallet connections for network: ${sparkConfig.network}:`,
+                error,
+              );
+              Effect.runFork(
+                telemetry.trackEvent({
+                  category: "spark:dispose",
+                  action: "wallet_cleanup_failure",
+                  label:
+                    error instanceof Error
+                      ? error.message
+                      : "Unknown cleanup error",
+                  value: String(error),
+                  context: { network: sparkConfig.network },
+                }),
+              );
             });
         }
         return undefined; // Effect.sync requires a return value
       });
-    }));
+    }),
+  );
 ```
 
 **Step 2: Fix Telemetry Logic for Schema Validation Failures in `SparkServiceImpl.ts`**
@@ -451,7 +488,8 @@ payLightningInvoice: (params: PayLightningInvoiceParams) =>
 // For getBalance: category 'spark:balance', action 'get_balance_failure'
 // For getSingleUseDepositAddress: category 'spark:deposit', action 'get_deposit_address_failure'
 ```
-*(Self-correction: The `errorDetails: (parseError as any).errors` was removed as it might be too complex for simple stringification in telemetry. The stringification of the cause in the final telemetry log should be simplified to `String(err.cause)` to avoid issues with complex objects).*
+
+_(Self-correction: The `errorDetails: (parseError as any).errors` was removed as it might be too complex for simple stringification in telemetry. The stringification of the cause in the final telemetry log should be simplified to `String(err.cause)` to avoid issues with complex objects)._
 
 **Step 3: Address TypeScript Errors in `SparkService.test.ts`**
 
@@ -480,6 +518,7 @@ The `safeRunEffect` helper should remain for now, as it helps bypass potential c
 **Step 4: Run Type Checks and Tests**
 
 After applying the above changes to `SparkServiceImpl.ts`:
+
 1.  Run `pnpm t`.
 2.  Run `pnpm test src/tests/unit/services/spark/SparkService.test.ts`.
 
@@ -535,6 +574,7 @@ getSingleUseDepositAddress: () =>
   ),
 
 ```
+
 I will proceed with these modifications.Okay, I'll address the TypeScript errors and test failures.
 
 **I. Fix TypeScript Errors in `SparkServiceImpl.ts` (Finalizer)**
@@ -545,44 +585,60 @@ The finalizer's effect must have an error channel of `never`. The previous attem
 // File: src/services/spark/SparkServiceImpl.ts
 
 // Inside SparkServiceLive Layer.scoped, replace the Effect.addFinalizer block:
-    yield* _(Effect.addFinalizer(() =>
+yield *
+  _(
+    Effect.addFinalizer(() =>
       // Use Effect.sync to ensure the finalizer itself doesn't have a typed error channel.
       Effect.sync(() => {
         // The 'telemetry' instance is captured from the outer scope of SparkServiceLive's Effect.gen
         // The 'sparkConfig' is also captured.
-        if (typeof wallet.cleanupConnections === 'function') {
-          wallet.cleanupConnections()
+        if (typeof wallet.cleanupConnections === "function") {
+          wallet
+            .cleanupConnections()
             .then(() => {
               // TELEMETRY_IGNORE_THIS_CONSOLE_CALL (Finalizer logging)
-              console.log(`[SparkService Finalizer] Wallet connections cleaned up successfully for network: ${sparkConfig.network}.`);
+              console.log(
+                `[SparkService Finalizer] Wallet connections cleaned up successfully for network: ${sparkConfig.network}.`,
+              );
               // Attempt to use telemetry via Effect.runFork (fire-and-forget)
               // This runs the telemetry effect in a new fiber that doesn't affect the finalizer's type.
-              Effect.runFork(telemetry.trackEvent({
-                category: 'spark:dispose',
-                action: 'wallet_cleanup_success',
-                label: `Network: ${sparkConfig.network}`
-              }));
+              Effect.runFork(
+                telemetry.trackEvent({
+                  category: "spark:dispose",
+                  action: "wallet_cleanup_success",
+                  label: `Network: ${sparkConfig.network}`,
+                }),
+              );
             })
-            .catch(error => {
+            .catch((error) => {
               // TELEMETRY_IGNORE_THIS_CONSOLE_CALL (Finalizer logging)
-              console.error(`[SparkService Finalizer] Failed to cleanup wallet connections for network: ${sparkConfig.network}:`, error);
-              Effect.runFork(telemetry.trackEvent({
-                category: 'spark:dispose',
-                action: 'wallet_cleanup_failure',
-                label: error instanceof Error ? error.message : 'Unknown cleanup error',
-                value: String(error), // Keep value simple for stringification
-                context: { network: sparkConfig.network }
-              }));
+              console.error(
+                `[SparkService Finalizer] Failed to cleanup wallet connections for network: ${sparkConfig.network}:`,
+                error,
+              );
+              Effect.runFork(
+                telemetry.trackEvent({
+                  category: "spark:dispose",
+                  action: "wallet_cleanup_failure",
+                  label:
+                    error instanceof Error
+                      ? error.message
+                      : "Unknown cleanup error",
+                  value: String(error), // Keep value simple for stringification
+                  context: { network: sparkConfig.network },
+                }),
+              );
             });
         }
         return undefined; // Effect.sync requires a return value.
-      })
-    ));
+      }),
+    ),
+  );
 ```
 
 **II. Fix Telemetry Logic for Schema Validation Failures in `SparkServiceImpl.ts`**
 
-The schema validation should occur first. If it fails, the main effect for the operation fails, and an outer `Effect.tapError` logs the failure. The operation-specific `_start` telemetry should only log *after* successful validation.
+The schema validation should occur first. If it fails, the main effect for the operation fails, and an outer `Effect.tapError` logs the failure. The operation-specific `_start` telemetry should only log _after_ successful validation.
 
 ```typescript
 // File: src/services/spark/SparkServiceImpl.ts

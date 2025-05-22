@@ -1,6 +1,6 @@
 Okay, I will create a comprehensive markdown document explaining the pane system from your codebase. This document will include all relevant code snippets and explanations to enable a coding agent to implement the pane functionality, including dragging and resizing, in a new Electron-based system without relying on NextJS or Convex specifics.
 
-```markdown
+````markdown
 # Pane System Implementation Guide
 
 ## 1. Introduction
@@ -11,11 +11,11 @@ This document outlines the architecture and components of the pane system, provi
 
 ## 2. Core Concepts
 
-*   **Pane**: An individual window-like component that can be dragged, resized, and can display specific content. Each pane has properties like ID, type, title, position (x, y), size (width, height), and state (active, open).
-*   **Pane Manager**: A top-level component responsible for rendering and managing the lifecycle of all active panes. It orchestrates their display based on state managed elsewhere.
-*   **State Management**: A centralized store (using Zustand in this implementation) holds the state of all panes, including their positions, sizes, types, and visibility. Actions to modify panes (add, remove, update) are dispatched through this store.
-*   **Drag and Resize**: Panes are interactive. Users can drag them to new positions and resize them using handles on their borders. This is implemented using `@use-gesture/react`.
-*   **Z-index Management**: Panes can overlap. Clicking on a pane brings it to the front (highest z-index) and marks it as active.
+- **Pane**: An individual window-like component that can be dragged, resized, and can display specific content. Each pane has properties like ID, type, title, position (x, y), size (width, height), and state (active, open).
+- **Pane Manager**: A top-level component responsible for rendering and managing the lifecycle of all active panes. It orchestrates their display based on state managed elsewhere.
+- **State Management**: A centralized store (using Zustand in this implementation) holds the state of all panes, including their positions, sizes, types, and visibility. Actions to modify panes (add, remove, update) are dispatched through this store.
+- **Drag and Resize**: Panes are interactive. Users can drag them to new positions and resize them using handles on their borders. This is implemented using `@use-gesture/react`.
+- **Z-index Management**: Panes can overlap. Clicking on a pane brings it to the front (highest z-index) and marks it as active.
 
 ## 3. Implementation Details
 
@@ -24,10 +24,11 @@ This document outlines the architecture and components of the pane system, provi
 The fundamental data structure for a pane is defined in `types/pane.ts`.
 
 **File: `types/pane.ts`**
+
 ```typescript
 export type Pane = {
   id: string; // Unique identifier for the pane. For chat panes, this might be derived from a chat/thread ID.
-  type: 'default' | 'chat' | 'chats' | 'user' | 'diff' | 'changelog' | string; // Type of content the pane displays. Add more as needed.
+  type: "default" | "chat" | "chats" | "user" | "diff" | "changelog" | string; // Type of content the pane displays. Add more as needed.
   title: string; // Title displayed in the pane's title bar.
   x: number; // X-coordinate of the top-left corner.
   y: number; // Y-coordinate of the top-left corner.
@@ -35,31 +36,37 @@ export type Pane = {
   height: number; // Height of the pane.
   isActive?: boolean; // Indicates if the pane is currently active (focused).
   dismissable?: boolean; // If true, the pane can be closed by the user.
-  content?: { // Optional content, used by 'diff' type or other custom types.
+  content?: {
+    // Optional content, used by 'diff' type or other custom types.
     oldContent?: string;
     newContent?: string;
     [key: string]: any; // Allows for other content properties
   };
   // Add any other pane-specific properties here, e.g.:
   // chatId?: string; // If the pane is associated with a chat
-}
+};
 
 // Type for input when creating a new pane, where x, y, width, height are optional or calculated.
-export type PaneInput = Omit<Pane, 'x' | 'y' | 'width' | 'height' | 'id' | 'isActive'> & {
+export type PaneInput = Omit<
+  Pane,
+  "x" | "y" | "width" | "height" | "id" | "isActive"
+> & {
   id?: string; // ID might be generated or passed.
   // Optional initial position/size, can be calculated by the manager if not provided.
   x?: number;
   y?: number;
   width?: number;
   height?: number;
-}
+};
 ```
+````
 
 ### 3.2. Pane Component (`Pane.tsx`)
 
 This component is responsible for rendering an individual pane, including its title bar, content, and handling drag/resize interactions.
 
 **File: `panes/Pane.tsx`**
+
 ```typescript
 "use client" // This directive is Next.js specific, remove for Electron if not using a similar SSR/client boundary system.
 
@@ -311,21 +318,24 @@ export const Pane: React.FC<PaneProps> = ({
   )
 }
 ```
+
 **Notes on `Pane.tsx`**:
-*   The `useResizeHandlers` custom hook encapsulates the logic for each of the 8 resize handles.
-*   `initialX`, `initialY`, `initialWidth`, `initialHeight` are used to set the initial state but the component also listens to prop changes for these values to allow external updates (e.g., from store reset).
-*   `bounds` for dragging are calculated to keep a small part of the pane (title bar) on screen.
-*   Clicking a pane brings it to the front (`bringPaneToFront`) and sets it as active (`setActivePane`). `onMouseDownCapture` is used on the main pane div to ensure this happens even if children try to stop propagation.
-*   `dismissable` prop controls the visibility of the close button.
-*   Resize handles are small, positioned slightly outside the border for easier interaction.
-*   Styling uses Tailwind CSS (via `className`) and inline styles for dynamic properties (position, size, z-index).
-*   The content area has `overflow-auto` for scrollable content and `h-[calc(100%-2rem)]` to fill space below the title bar.
+
+- The `useResizeHandlers` custom hook encapsulates the logic for each of the 8 resize handles.
+- `initialX`, `initialY`, `initialWidth`, `initialHeight` are used to set the initial state but the component also listens to prop changes for these values to allow external updates (e.g., from store reset).
+- `bounds` for dragging are calculated to keep a small part of the pane (title bar) on screen.
+- Clicking a pane brings it to the front (`bringPaneToFront`) and sets it as active (`setActivePane`). `onMouseDownCapture` is used on the main pane div to ensure this happens even if children try to stop propagation.
+- `dismissable` prop controls the visibility of the close button.
+- Resize handles are small, positioned slightly outside the border for easier interaction.
+- Styling uses Tailwind CSS (via `className`) and inline styles for dynamic properties (position, size, z-index).
+- The content area has `overflow-auto` for scrollable content and `h-[calc(100%-2rem)]` to fill space below the title bar.
 
 ### 3.3. Pane Manager (`PaneManager.tsx`)
 
 This component iterates over the panes in the store and renders a `PaneComponent` (our `Pane.tsx` above) for each one, passing in the specific content component based on the pane's `type`.
 
 **File: `panes/PaneManager.tsx`**
+
 ```typescript
 "use client" // Remove for Electron
 
@@ -403,25 +413,33 @@ export const PaneManager = () => {
   )
 }
 ```
+
 **Notes on `PaneManager.tsx`**:
-*   It fetches the `panes` array from the `usePaneStore`.
-*   It maps over `sortedPanes` (you might adjust sorting logic; often, explicit z-index on panes is enough, and render order might not matter as much).
-*   For each pane object, it renders a `PaneComponent`.
-*   The `children` of `PaneComponent` are determined by `pane.type`. You'll need to import and use your actual content components (e.g., `Chat`, `ChatsPane`).
-*   The `UserStatus` component was rendered outside the loop in the original code, suggesting it might be a special, non-standard pane or a fixed HUD element. If it's a regular draggable/resizable pane, it should be part of the `panes` array and rendered within the loop.
+
+- It fetches the `panes` array from the `usePaneStore`.
+- It maps over `sortedPanes` (you might adjust sorting logic; often, explicit z-index on panes is enough, and render order might not matter as much).
+- For each pane object, it renders a `PaneComponent`.
+- The `children` of `PaneComponent` are determined by `pane.type`. You'll need to import and use your actual content components (e.g., `Chat`, `ChatsPane`).
+- The `UserStatus` component was rendered outside the loop in the original code, suggesting it might be a special, non-standard pane or a fixed HUD element. If it's a regular draggable/resizable pane, it should be part of the `panes` array and rendered within the loop.
 
 ### 3.4. State Management (Zustand Store)
 
 The pane system's state is managed by a Zustand store. The original `store/pane.ts` was refactored into a `store/panes/` directory structure.
 
 **File: `store/panes/types.ts`** (Defines types for the store state and actions)
+
 ```typescript
-import { Pane, PaneInput } from '@/types/pane'; // Assuming types/pane.ts is accessible via @/
+import { Pane, PaneInput } from "@/types/pane"; // Assuming types/pane.ts is accessible via @/
 
 export interface PaneState {
   panes: Pane[];
   activePaneId: string | null; // Tracks the ID of the currently active pane
-  lastPanePosition: { x: number; y: number; width: number; height: number } | null;
+  lastPanePosition: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null;
   // Add any other global state related to panes if needed
 }
 
@@ -442,34 +460,50 @@ export interface PaneStoreType extends PaneState {
 
 // Type for the `set` function provided by Zustand, used in action implementations
 export type SetPaneStore = (
-  partial: PaneStoreType | Partial<PaneStoreType> | ((state: PaneStoreType) => PaneStoreType | Partial<PaneStoreType>),
-  replace?: boolean | undefined
+  partial:
+    | PaneStoreType
+    | Partial<PaneStoreType>
+    | ((state: PaneStoreType) => PaneStoreType | Partial<PaneStoreType>),
+  replace?: boolean | undefined,
 ) => void;
 ```
 
 **File: `store/panes/constants.ts`**
+
 ```typescript
 export const DEFAULT_PANE_WIDTH = 400;
 export const DEFAULT_PANE_HEIGHT = 300;
 export const PANE_MARGIN = 20; // General margin or offset for tiling
 export const PANE_OFFSET = 45; // Specific offset for new panes when tiling, as used in openChatPane
-export const CHATS_PANE_ID = 'chats';
-export const CHANGELOG_PANE_ID = 'changelog'; // Or any unique ID like a UUID
+export const CHATS_PANE_ID = "chats";
+export const CHANGELOG_PANE_ID = "changelog"; // Or any unique ID like a UUID
 ```
 
 **File: `store/panes/utils/calculatePanePosition.ts`**
+
 ```typescript
-import { Pane } from '@/types/pane';
-import { PANE_OFFSET, DEFAULT_PANE_WIDTH, DEFAULT_PANE_HEIGHT, PANE_MARGIN } from '../constants';
+import { Pane } from "@/types/pane";
+import {
+  PANE_OFFSET,
+  DEFAULT_PANE_WIDTH,
+  DEFAULT_PANE_HEIGHT,
+  PANE_MARGIN,
+} from "../constants";
 
 // Calculates an initial position for a new pane.
 // This might need more sophisticated logic for tiling or cascading.
 export function calculateNewPanePosition(
   existingPanes: Pane[],
-  lastPanePosition: { x: number; y: number; width: number; height: number } | null
+  lastPanePosition: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null,
 ): { x: number; y: number; width: number; height: number } {
-  const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
-  const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+  const screenWidth = typeof window !== "undefined" ? window.innerWidth : 1920;
+  const screenHeight =
+    typeof window !== "undefined" ? window.innerHeight : 1080;
 
   if (lastPanePosition) {
     let newX = lastPanePosition.x + PANE_OFFSET;
@@ -482,7 +516,12 @@ export function calculateNewPanePosition(
     if (newY + DEFAULT_PANE_HEIGHT > screenHeight - PANE_MARGIN) {
       newY = PANE_MARGIN * 2; // Reset to a starting Y
     }
-    return { x: newX, y: newY, width: DEFAULT_PANE_WIDTH, height: DEFAULT_PANE_HEIGHT };
+    return {
+      x: newX,
+      y: newY,
+      width: DEFAULT_PANE_WIDTH,
+      height: DEFAULT_PANE_HEIGHT,
+    };
   }
 
   // Default position for the very first pane (if no lastPanePosition)
@@ -496,14 +535,16 @@ export function calculateNewPanePosition(
 ```
 
 **File: `store/panes/utils/ensurePaneIsVisible.ts`**
+
 ```typescript
-import { Pane } from '@/types/pane';
-import { PANE_MARGIN } from '../constants';
+import { Pane } from "@/types/pane";
+import { PANE_MARGIN } from "../constants";
 
 // Adjusts pane position and size to ensure it's within viewport bounds.
 export function ensurePaneIsVisible(pane: Pane): Pane {
-  const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
-  const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+  const screenWidth = typeof window !== "undefined" ? window.innerWidth : 1920;
+  const screenHeight =
+    typeof window !== "undefined" ? window.innerHeight : 1080;
 
   let { x, y, width, height } = pane;
 
@@ -527,77 +568,101 @@ export function ensurePaneIsVisible(pane: Pane): Pane {
   width = Math.min(width, screenWidth - x - PANE_MARGIN);
   height = Math.min(height, screenHeight - y - PANE_MARGIN);
 
-
   return { ...pane, x, y, width, height };
 }
 ```
 
 **File: `store/panes/actions/addPane.ts`**
+
 ```typescript
-import { Pane, PaneInput } from '@/types/pane';
-import { PaneState, PaneStoreType, SetPaneStore } from '../types';
-import { calculateNewPanePosition } from '../utils/calculatePanePosition';
-import { ensurePaneIsVisible } from '../utils/ensurePaneIsVisible';
-import { DEFAULT_PANE_WIDTH, DEFAULT_PANE_HEIGHT } from '../constants';
+import { Pane, PaneInput } from "@/types/pane";
+import { PaneState, PaneStoreType, SetPaneStore } from "../types";
+import { calculateNewPanePosition } from "../utils/calculatePanePosition";
+import { ensurePaneIsVisible } from "../utils/ensurePaneIsVisible";
+import { DEFAULT_PANE_WIDTH, DEFAULT_PANE_HEIGHT } from "../constants";
 
 let paneIdCounter = 2; // Start after default panes if any
 
 export function addPaneAction(
   set: SetPaneStore,
   newPaneInput: PaneInput,
-  shouldTile: boolean = false // Default to not tiling for generic addPane
+  shouldTile: boolean = false, // Default to not tiling for generic addPane
 ) {
   set((state: PaneStoreType) => {
     // Check if pane with this ID already exists
-    if (newPaneInput.id && state.panes.find(p => p.id === newPaneInput.id)) {
+    if (newPaneInput.id && state.panes.find((p) => p.id === newPaneInput.id)) {
       // Bring existing pane to front and activate it
-      const paneToActivate = state.panes.find(p => p.id === newPaneInput.id)!;
+      const paneToActivate = state.panes.find((p) => p.id === newPaneInput.id)!;
       return {
-        panes: state.panes.map(p => ({
-          ...p,
-          isActive: p.id === newPaneInput.id,
-        })).sort((a, b) => (a.id === newPaneInput.id ? 1 : 0) - (b.id === newPaneInput.id ? 1 : 0)), // crude bring to front
+        panes: state.panes
+          .map((p) => ({
+            ...p,
+            isActive: p.id === newPaneInput.id,
+          }))
+          .sort(
+            (a, b) =>
+              (a.id === newPaneInput.id ? 1 : 0) -
+              (b.id === newPaneInput.id ? 1 : 0),
+          ), // crude bring to front
         activePaneId: newPaneInput.id,
-        lastPanePosition: { x: paneToActivate.x, y: paneToActivate.y, width: paneToActivate.width, height: paneToActivate.height }
+        lastPanePosition: {
+          x: paneToActivate.x,
+          y: paneToActivate.y,
+          width: paneToActivate.width,
+          height: paneToActivate.height,
+        },
       };
     }
 
-    const basePosition = calculateNewPanePosition(state.panes, state.lastPanePosition);
+    const basePosition = calculateNewPanePosition(
+      state.panes,
+      state.lastPanePosition,
+    );
 
     const newPane: Pane = ensurePaneIsVisible({
       id: newPaneInput.id || `pane-${paneIdCounter++}`,
       type: newPaneInput.type,
-      title: newPaneInput.title || `Pane ${paneIdCounter-1}`,
+      title: newPaneInput.title || `Pane ${paneIdCounter - 1}`,
       x: newPaneInput.x ?? basePosition.x,
       y: newPaneInput.y ?? basePosition.y,
       width: newPaneInput.width ?? DEFAULT_PANE_WIDTH,
       height: newPaneInput.height ?? DEFAULT_PANE_HEIGHT,
       isActive: true,
-      dismissable: newPaneInput.dismissable !== undefined ? newPaneInput.dismissable : true,
+      dismissable:
+        newPaneInput.dismissable !== undefined
+          ? newPaneInput.dismissable
+          : true,
       content: newPaneInput.content,
     });
 
-    const updatedPanes = state.panes.map(p => ({ ...p, isActive: false }));
+    const updatedPanes = state.panes.map((p) => ({ ...p, isActive: false }));
 
     return {
       panes: [...updatedPanes, newPane],
       activePaneId: newPane.id,
-      lastPanePosition: { x: newPane.x, y: newPane.y, width: newPane.width, height: newPane.height },
+      lastPanePosition: {
+        x: newPane.x,
+        y: newPane.y,
+        width: newPane.width,
+        height: newPane.height,
+      },
     };
   });
 }
 ```
 
 **File: `store/panes/actions/removePane.ts`**
+
 ```typescript
-import { PaneStoreType, SetPaneStore } from '../types';
+import { PaneStoreType, SetPaneStore } from "../types";
 
 export function removePaneAction(set: SetPaneStore, id: string) {
   set((state: PaneStoreType) => {
-    const remainingPanes = state.panes.filter(pane => pane.id !== id);
+    const remainingPanes = state.panes.filter((pane) => pane.id !== id);
     let newActivePaneId: string | null = null;
 
-    if (state.activePaneId === id) { // If the removed pane was active
+    if (state.activePaneId === id) {
+      // If the removed pane was active
       if (remainingPanes.length > 0) {
         // Make the last pane in the list active (or another logic)
         newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
@@ -606,9 +671,9 @@ export function removePaneAction(set: SetPaneStore, id: string) {
       newActivePaneId = state.activePaneId; // Keep current active if it wasn't removed
     }
 
-    const finalPanes = remainingPanes.map(p => ({
-        ...p,
-        isActive: p.id === newActivePaneId
+    const finalPanes = remainingPanes.map((p) => ({
+      ...p,
+      isActive: p.id === newActivePaneId,
     }));
 
     return {
@@ -620,84 +685,123 @@ export function removePaneAction(set: SetPaneStore, id: string) {
 ```
 
 **File: `store/panes/actions/updatePanePosition.ts`**
-```typescript
-import { PaneStoreType, SetPaneStore } from '../types';
-import { ensurePaneIsVisible } from '../utils/ensurePaneIsVisible';
 
-export function updatePanePositionAction(set: SetPaneStore, id: string, x: number, y: number) {
+```typescript
+import { PaneStoreType, SetPaneStore } from "../types";
+import { ensurePaneIsVisible } from "../utils/ensurePaneIsVisible";
+
+export function updatePanePositionAction(
+  set: SetPaneStore,
+  id: string,
+  x: number,
+  y: number,
+) {
   set((state: PaneStoreType) => {
-    let updatedPaneRef: { x: number; y: number; width: number; height: number } | null = null;
-    const newPanes = state.panes.map(pane => {
+    let updatedPaneRef: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    } | null = null;
+    const newPanes = state.panes.map((pane) => {
       if (pane.id === id) {
         const updated = ensurePaneIsVisible({ ...pane, x, y });
-        updatedPaneRef = { x: updated.x, y: updated.y, width: updated.width, height: updated.height };
+        updatedPaneRef = {
+          x: updated.x,
+          y: updated.y,
+          width: updated.width,
+          height: updated.height,
+        };
         return updated;
       }
       return pane;
     });
     return {
       panes: newPanes,
-      lastPanePosition: updatedPaneRef || state.lastPanePosition
+      lastPanePosition: updatedPaneRef || state.lastPanePosition,
     };
   });
 }
 ```
 
 **File: `store/panes/actions/updatePaneSize.ts`**
-```typescript
-import { PaneStoreType, SetPaneStore } from '../types';
-import { ensurePaneIsVisible } from '../utils/ensurePaneIsVisible';
 
-export function updatePaneSizeAction(set: SetPaneStore, id: string, width: number, height: number) {
+```typescript
+import { PaneStoreType, SetPaneStore } from "../types";
+import { ensurePaneIsVisible } from "../utils/ensurePaneIsVisible";
+
+export function updatePaneSizeAction(
+  set: SetPaneStore,
+  id: string,
+  width: number,
+  height: number,
+) {
   set((state: PaneStoreType) => {
-    let updatedPaneRef: { x: number; y: number; width: number; height: number } | null = null;
-    const newPanes = state.panes.map(pane => {
+    let updatedPaneRef: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    } | null = null;
+    const newPanes = state.panes.map((pane) => {
       if (pane.id === id) {
         const updated = ensurePaneIsVisible({ ...pane, width, height });
-        updatedPaneRef = { x: updated.x, y: updated.y, width: updated.width, height: updated.height };
+        updatedPaneRef = {
+          x: updated.x,
+          y: updated.y,
+          width: updated.width,
+          height: updated.height,
+        };
         return updated;
       }
       return pane;
     });
     return {
       panes: newPanes,
-      lastPanePosition: updatedPaneRef || state.lastPanePosition
+      lastPanePosition: updatedPaneRef || state.lastPanePosition,
     };
   });
 }
 ```
 
 **File: `store/panes/actions/bringPaneToFront.ts`**
+
 ```typescript
-import { PaneStoreType, SetPaneStore } from '../types';
+import { PaneStoreType, SetPaneStore } from "../types";
 
 export function bringPaneToFrontAction(set: SetPaneStore, id: string) {
   set((state: PaneStoreType) => {
-    const paneToMove = state.panes.find(pane => pane.id === id);
+    const paneToMove = state.panes.find((pane) => pane.id === id);
     if (!paneToMove) return state;
 
-    const otherPanes = state.panes.filter(pane => pane.id !== id);
+    const otherPanes = state.panes.filter((pane) => pane.id !== id);
     // The `Pane.tsx` component uses `isActive` to set a higher z-index.
     // So, we just need to set the active pane ID and map isActive.
     return {
       panes: [
-        ...otherPanes.map(p => ({ ...p, isActive: false })),
-        { ...paneToMove, isActive: true }
+        ...otherPanes.map((p) => ({ ...p, isActive: false })),
+        { ...paneToMove, isActive: true },
       ].sort((a, b) => (a.isActive ? 1 : 0) - (b.isActive ? 1 : 0)), // Ensure active is last for CSS stacking if z-index isn't enough
       activePaneId: id,
-      lastPanePosition: { x: paneToMove.x, y: paneToMove.y, width: paneToMove.width, height: paneToMove.height }
+      lastPanePosition: {
+        x: paneToMove.x,
+        y: paneToMove.y,
+        width: paneToMove.width,
+        height: paneToMove.height,
+      },
     };
   });
 }
 ```
 
 **File: `store/panes/actions/setActivePane.ts`**
+
 ```typescript
-import { PaneStoreType, SetPaneStore } from '../types';
+import { PaneStoreType, SetPaneStore } from "../types";
 
 export function setActivePaneAction(set: SetPaneStore, id: string | null) {
   set((state: PaneStoreType) => ({
-    panes: state.panes.map(pane => ({
+    panes: state.panes.map((pane) => ({
       ...pane,
       isActive: pane.id === id,
     })),
@@ -707,22 +811,28 @@ export function setActivePaneAction(set: SetPaneStore, id: string | null) {
 ```
 
 **File: `store/panes/actions/openChatPane.ts`** (Handles special logic for chat panes)
+
 ```typescript
-import { Pane, PaneInput } from '@/types/pane';
-import { PaneStoreType, SetPaneStore } from '../types';
-import { CHATS_PANE_ID, PANE_OFFSET, DEFAULT_PANE_WIDTH, DEFAULT_PANE_HEIGHT } from '../constants';
-import { ensurePaneIsVisible } from '../utils/ensurePaneIsVisible';
+import { Pane, PaneInput } from "@/types/pane";
+import { PaneStoreType, SetPaneStore } from "../types";
+import {
+  CHATS_PANE_ID,
+  PANE_OFFSET,
+  DEFAULT_PANE_WIDTH,
+  DEFAULT_PANE_HEIGHT,
+} from "../constants";
+import { ensurePaneIsVisible } from "../utils/ensurePaneIsVisible";
 
 // Utility to ensure 'chats' pane exists and is first
 function ensureChatsPane(panes: Pane[]): Pane[] {
   let currentPanes = [...panes];
-  let chatsPane = currentPanes.find(p => p.id === CHATS_PANE_ID);
+  let chatsPane = currentPanes.find((p) => p.id === CHATS_PANE_ID);
 
   if (!chatsPane) {
     chatsPane = {
       id: CHATS_PANE_ID,
-      type: 'chats',
-      title: 'Chats',
+      type: "chats",
+      title: "Chats",
       x: 20, // Default position
       y: 20,
       width: 300,
@@ -733,33 +843,37 @@ function ensureChatsPane(panes: Pane[]): Pane[] {
     currentPanes.unshift(chatsPane); // Add to the beginning
   } else {
     // Move to beginning if not already
-    currentPanes = currentPanes.filter(p => p.id !== CHATS_PANE_ID);
+    currentPanes = currentPanes.filter((p) => p.id !== CHATS_PANE_ID);
     currentPanes.unshift(chatsPane);
   }
-  return currentPanes.map(p => p.id === CHATS_PANE_ID ? {...p, isActive: true} : p); // Keep chats pane active by default
+  return currentPanes.map((p) =>
+    p.id === CHATS_PANE_ID ? { ...p, isActive: true } : p,
+  ); // Keep chats pane active by default
 }
-
 
 export function openChatPaneAction(
   set: SetPaneStore,
   newChatPaneInput: PaneInput,
-  isCommandKeyHeld: boolean = false
+  isCommandKeyHeld: boolean = false,
 ) {
   set((state: PaneStoreType) => {
     if (!newChatPaneInput.id) {
-      console.error('Chat pane ID is required.');
+      console.error("Chat pane ID is required.");
       return state;
     }
 
     let panes = ensureChatsPaneExists([...state.panes]); // Ensure 'chats' pane exists
 
     // Deactivate all other panes except 'chats' and 'changelog'
-    panes = panes.map(p => ({
+    panes = panes.map((p) => ({
       ...p,
-      isActive: (p.id === CHATS_PANE_ID || p.type === 'changelog') ? p.isActive : false // Keep chats/changelog active status or set to false
+      isActive:
+        p.id === CHATS_PANE_ID || p.type === "changelog" ? p.isActive : false, // Keep chats/changelog active status or set to false
     }));
 
-    const existingChatPaneIndex = panes.findIndex(p => p.id === newChatPaneInput.id && p.type === 'chat');
+    const existingChatPaneIndex = panes.findIndex(
+      (p) => p.id === newChatPaneInput.id && p.type === "chat",
+    );
 
     if (existingChatPaneIndex !== -1) {
       // Chat pane already exists, bring it to front and activate
@@ -769,27 +883,46 @@ export function openChatPaneAction(
       return {
         panes,
         activePaneId: existingPane.id,
-        lastPanePosition: { x: existingPane.x, y: existingPane.y, width: existingPane.width, height: existingPane.height }
+        lastPanePosition: {
+          x: existingPane.x,
+          y: existingPane.y,
+          width: existingPane.width,
+          height: existingPane.height,
+        },
       };
     }
 
     // Determine position and size for the new chat pane
-    const chatPanes = panes.filter(p => p.type === 'chat');
+    const chatPanes = panes.filter((p) => p.type === "chat");
     let positionProps;
 
-    if (chatPanes.length === 0) { // First chat pane
+    if (chatPanes.length === 0) {
+      // First chat pane
       positionProps = {
-        x: (typeof window !== 'undefined' ? window.innerWidth : 1920) / 2 - DEFAULT_PANE_WIDTH / 2 + 100, // Slightly offset from center
-        y: (typeof window !== 'undefined' ? window.innerHeight : 1080) * 0.05,
+        x:
+          (typeof window !== "undefined" ? window.innerWidth : 1920) / 2 -
+          DEFAULT_PANE_WIDTH / 2 +
+          100, // Slightly offset from center
+        y: (typeof window !== "undefined" ? window.innerHeight : 1080) * 0.05,
         width: DEFAULT_PANE_WIDTH * 1.5, // Larger for first chat
-        height: (typeof window !== 'undefined' ? window.innerHeight : 1080) * 0.8,
+        height:
+          (typeof window !== "undefined" ? window.innerHeight : 1080) * 0.8,
       };
-    } else if (chatPanes.length === 1 && !isCommandKeyHeld) { // Replace single existing chat pane
+    } else if (chatPanes.length === 1 && !isCommandKeyHeld) {
+      // Replace single existing chat pane
       const existing = chatPanes[0];
-      positionProps = { x: existing.x, y: existing.y, width: existing.width, height: existing.height };
-      panes = panes.filter(p => p.id !== existing.id); // Remove old chat pane
-    } else { // Tile new chat pane
-      const lastPane = chatPanes[chatPanes.length - 1] || panes.find(p => p.id === CHATS_PANE_ID); // Fallback to chats pane for positioning
+      positionProps = {
+        x: existing.x,
+        y: existing.y,
+        width: existing.width,
+        height: existing.height,
+      };
+      panes = panes.filter((p) => p.id !== existing.id); // Remove old chat pane
+    } else {
+      // Tile new chat pane
+      const lastPane =
+        chatPanes[chatPanes.length - 1] ||
+        panes.find((p) => p.id === CHATS_PANE_ID); // Fallback to chats pane for positioning
       positionProps = {
         x: (lastPane?.x || 0) + PANE_OFFSET,
         y: (lastPane?.y || 0) + PANE_OFFSET,
@@ -799,15 +932,16 @@ export function openChatPaneAction(
     }
 
     const finalPanePosition = ensurePaneIsVisible({
-        ...positionProps,
-        id: newChatPaneInput.id, // temp id for ensurePaneIsVisible
-        type: 'chat', title: '', isActive:true // temp values for ensurePaneIsVisible
+      ...positionProps,
+      id: newChatPaneInput.id, // temp id for ensurePaneIsVisible
+      type: "chat",
+      title: "",
+      isActive: true, // temp values for ensurePaneIsVisible
     });
-
 
     const newPane: Pane = {
       id: newChatPaneInput.id,
-      type: 'chat',
+      type: "chat",
       title: newChatPaneInput.title || `Chat ${newChatPaneInput.id}`,
       x: finalPanePosition.x,
       y: finalPanePosition.y,
@@ -821,28 +955,33 @@ export function openChatPaneAction(
     panes.push(newPane); // Add the new/updated chat pane
 
     // Ensure 'chats' pane is first for rendering order if that's desired, and active
-    const chatsPane = panes.find(p => p.id === CHATS_PANE_ID);
+    const chatsPane = panes.find((p) => p.id === CHATS_PANE_ID);
     if (chatsPane) {
-        panes = panes.filter(p => p.id !== CHATS_PANE_ID);
-        panes.unshift({...chatsPane, isActive: true}); // Keep chats pane active or make it active
+      panes = panes.filter((p) => p.id !== CHATS_PANE_ID);
+      panes.unshift({ ...chatsPane, isActive: true }); // Keep chats pane active or make it active
     }
-
 
     return {
       panes,
       activePaneId: newPane.id,
-      lastPanePosition: { x: newPane.x, y: newPane.y, width: newPane.width, height: newPane.height }
+      lastPanePosition: {
+        x: newPane.x,
+        y: newPane.y,
+        width: newPane.width,
+        height: newPane.height,
+      },
     };
   });
 }
 ```
 
 **File: `store/pane.ts`** (Main store definition)
+
 ```typescript
-import { create } from "zustand"
-import { persist, createJSONStorage } from "zustand/middleware"
-import { Pane, PaneInput } from "@/types/pane" // Assuming types/pane.ts is accessible via @/
-import { PaneStoreType, PaneState } from "./panes/types" // Assuming these are in store/panes/
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { Pane, PaneInput } from "@/types/pane"; // Assuming types/pane.ts is accessible via @/
+import { PaneStoreType, PaneState } from "./panes/types"; // Assuming these are in store/panes/
 import {
   addPaneAction,
   removePaneAction,
@@ -851,9 +990,14 @@ import {
   openChatPaneAction,
   bringPaneToFrontAction,
   setActivePaneAction,
-} from "./panes/actions" // Assuming these are in store/panes/actions
-import { CHATS_PANE_ID, CHANGELOG_PANE_ID, PANE_MARGIN, DEFAULT_PANE_WIDTH, DEFAULT_PANE_HEIGHT } from "./panes/constants";
-
+} from "./panes/actions"; // Assuming these are in store/panes/actions
+import {
+  CHATS_PANE_ID,
+  CHANGELOG_PANE_ID,
+  PANE_MARGIN,
+  DEFAULT_PANE_WIDTH,
+  DEFAULT_PANE_HEIGHT,
+} from "./panes/constants";
 
 // Function to get initial panes, ensuring Chats and Changelog panes are present
 const getInitialPanes = (): Pane[] => {
@@ -862,8 +1006,8 @@ const getInitialPanes = (): Pane[] => {
   // Ensure Chats pane
   initialPanesSetup.push({
     id: CHATS_PANE_ID,
-    type: 'chats',
-    title: 'Chats',
+    type: "chats",
+    title: "Chats",
     x: PANE_MARGIN, // Positioned to the left
     y: PANE_MARGIN,
     width: 300,
@@ -875,8 +1019,8 @@ const getInitialPanes = (): Pane[] => {
   // Ensure Changelog pane
   initialPanesSetup.push({
     id: CHANGELOG_PANE_ID, // Use a unique ID
-    type: 'changelog',
-    title: 'Changelog',
+    type: "changelog",
+    title: "Changelog",
     x: PANE_MARGIN + 300 + PANE_MARGIN, // Positioned next to Chats pane
     y: PANE_MARGIN,
     width: 350,
@@ -886,7 +1030,6 @@ const getInitialPanes = (): Pane[] => {
   });
   return initialPanesSetup;
 };
-
 
 const initialState: PaneState = {
   panes: getInitialPanes(),
@@ -898,17 +1041,21 @@ export const usePaneStore = create<PaneStoreType>()(
   persist(
     (set) => ({
       ...initialState,
-      addPane: (newPaneInput: PaneInput, shouldTile?: boolean) => addPaneAction(set, newPaneInput, shouldTile),
+      addPane: (newPaneInput: PaneInput, shouldTile?: boolean) =>
+        addPaneAction(set, newPaneInput, shouldTile),
       removePane: (id: string) => removePaneAction(set, id),
-      updatePanePosition: (id: string, x: number, y: number) => updatePanePositionAction(set, id, x, y),
-      updatePaneSize: (id: string, width: number, height: number) => updatePaneSizeAction(set, id, width, height),
-      openChatPane: (newPaneInput: PaneInput, isCommandKeyHeld?: boolean) => openChatPaneAction(set, newPaneInput, isCommandKeyHeld),
+      updatePanePosition: (id: string, x: number, y: number) =>
+        updatePanePositionAction(set, id, x, y),
+      updatePaneSize: (id: string, width: number, height: number) =>
+        updatePaneSizeAction(set, id, width, height),
+      openChatPane: (newPaneInput: PaneInput, isCommandKeyHeld?: boolean) =>
+        openChatPaneAction(set, newPaneInput, isCommandKeyHeld),
       bringPaneToFront: (id: string) => bringPaneToFrontAction(set, id),
       setActivePane: (id: string | null) => setActivePaneAction(set, id),
       resetHUDState: () => set(initialState), // Reset to initial state
     }),
     {
-      name: 'openagents-pane-storage', // Changed name to avoid conflicts with old versions
+      name: "openagents-pane-storage", // Changed name to avoid conflicts with old versions
       storage: createJSONStorage(() => localStorage), // For web; Electron might use a different storage adapter if needed
       partialize: (state) => ({
         panes: state.panes,
@@ -917,24 +1064,35 @@ export const usePaneStore = create<PaneStoreType>()(
       }), // Persist only these parts of the state
       // Custom merge function to handle potentially malformed persisted state or ensure defaults
       merge: (persistedState, currentState) => {
-        const merged = { ...currentState, ...(persistedState as Partial<PaneStoreType>) };
+        const merged = {
+          ...currentState,
+          ...(persistedState as Partial<PaneStoreType>),
+        };
         // Ensure critical panes are always present if an empty array was persisted
         if (!merged.panes || merged.panes.length === 0) {
           merged.panes = getInitialPanes();
           merged.activePaneId = CHATS_PANE_ID;
         } else {
           // Ensure 'chats' and 'changelog' panes exist, adding them if missing from persisted state
-          const hasChats = merged.panes.some(p => p.id === CHATS_PANE_ID);
-          const hasChangelog = merged.panes.some(p => p.id === CHANGELOG_PANE_ID);
+          const hasChats = merged.panes.some((p) => p.id === CHATS_PANE_ID);
+          const hasChangelog = merged.panes.some(
+            (p) => p.id === CHANGELOG_PANE_ID,
+          );
           const defaultPanes = getInitialPanes();
 
           if (!hasChats) {
-            merged.panes.unshift(defaultPanes.find(p => p.id === CHATS_PANE_ID)!);
+            merged.panes.unshift(
+              defaultPanes.find((p) => p.id === CHATS_PANE_ID)!,
+            );
           }
           if (!hasChangelog) {
-            const changelogPane = defaultPanes.find(p => p.id === CHANGELOG_PANE_ID)!;
+            const changelogPane = defaultPanes.find(
+              (p) => p.id === CHANGELOG_PANE_ID,
+            )!;
             // Insert changelog after chats pane if chats pane exists
-            const chatsIndex = merged.panes.findIndex(p => p.id === CHATS_PANE_ID);
+            const chatsIndex = merged.panes.findIndex(
+              (p) => p.id === CHATS_PANE_ID,
+            );
             if (chatsIndex !== -1) {
               merged.panes.splice(chatsIndex + 1, 0, changelogPane);
             } else {
@@ -944,24 +1102,27 @@ export const usePaneStore = create<PaneStoreType>()(
         }
         return merged;
       },
-    }
-  )
-)
+    },
+  ),
+);
 ```
+
 **Notes on Pane Store**:
-*   The store is created using Zustand with `persist` middleware for local storage persistence.
-*   `initialPanes` defines the default set of panes when the application starts (e.g., 'chats' and 'changelog' panes).
-*   `activePaneId` keeps track of the ID of the currently focused pane.
-*   The actions (`addPane`, `removePane`, etc.) are now imported from the `store/panes/actions` directory.
-*   The `openChatPaneAction` includes specific logic for how chat panes are added or replace existing ones, considering if the Command/Ctrl key is held.
-*   `resetHUDState` allows resetting the pane layout to its initial configuration.
-*   A `merge` function is added to the `persist` middleware to handle cases where persisted state might be malformed or to ensure default panes are present.
+
+- The store is created using Zustand with `persist` middleware for local storage persistence.
+- `initialPanes` defines the default set of panes when the application starts (e.g., 'chats' and 'changelog' panes).
+- `activePaneId` keeps track of the ID of the currently focused pane.
+- The actions (`addPane`, `removePane`, etc.) are now imported from the `store/panes/actions` directory.
+- The `openChatPaneAction` includes specific logic for how chat panes are added or replace existing ones, considering if the Command/Ctrl key is held.
+- `resetHUDState` allows resetting the pane layout to its initial configuration.
+- A `merge` function is added to the `persist` middleware to handle cases where persisted state might be malformed or to ensure default panes are present.
 
 ### 3.5. Styling and HUD Background
 
 The overall visual appearance of the HUD, including the background grid and pane styling, is important.
 
 **File: `components/home/SimpleGrid.tsx`** (Background grid for the HUD)
+
 ```typescript
 import React from 'react';
 
@@ -997,6 +1158,7 @@ export const SimpleGrid: React.FC = () => {
 ```
 
 **File: `app/[[...rest]]/globals.css` (Relevant parts for HUD theme)**
+
 ```css
 @tailwind base;
 @tailwind components;
@@ -1032,9 +1194,11 @@ export const SimpleGrid: React.FC = () => {
   * {
     @apply border-border; /* Default border color for elements */
   }
-  body { /* Or your main app container in Electron */
+  body {
+    /* Or your main app container in Electron */
     @apply bg-background text-foreground;
-    font-family: 'Inter', sans-serif; /* Example font, choose one for your app */
+    font-family:
+      "Inter", sans-serif; /* Example font, choose one for your app */
     /* Ensure full height/width for the HUD environment */
     height: 100vh;
     width: 100vw;
@@ -1092,17 +1256,20 @@ export const SimpleGrid: React.FC = () => {
   z-index: 51; /* Ensure handles are above pane content but below active pane title bar */
 }
 ```
+
 **Notes on CSS**:
-*   The `:root` variables define the color scheme. Adapt these to your Electron app's theming system.
-*   `body` styles set the global background and text color for the HUD. In Electron, this would apply to your main window's body or a root container div.
-*   Basic pane element styles are provided. These can be adjusted or expanded.
-*   Custom scrollbar styling is optional but can enhance the HUD aesthetic.
+
+- The `:root` variables define the color scheme. Adapt these to your Electron app's theming system.
+- `body` styles set the global background and text color for the HUD. In Electron, this would apply to your main window's body or a root container div.
+- Basic pane element styles are provided. These can be adjusted or expanded.
+- Custom scrollbar styling is optional but can enhance the HUD aesthetic.
 
 ### 3.6. Main Authenticated View (`HomeAuthed.tsx`)
 
 This component sets up the HUD environment by rendering the `SimpleGrid` background and the `PaneManager`.
 
 **File: `components/home/HomeAuthed.tsx`**
+
 ```typescript
 import { PaneManager } from '@/panes/PaneManager' // Assuming panes/PaneManager.tsx
 import { SimpleGrid } from './SimpleGrid' // Assuming components/home/SimpleGrid.tsx
@@ -1122,6 +1289,7 @@ export function HomeAuthed() {
 While `app/[[...rest]]/layout.tsx` is Next.js specific, the concept is to have a root layout that provides a full-screen, fixed container for the HUD.
 
 **Conceptual Electron Root Layout (e.g., in your main App component):**
+
 ```typescript
 // Example: App.tsx or main view component in Electron
 
@@ -1154,6 +1322,7 @@ export default function AppRoot() {
 Each `type` of pane will have a corresponding React component that renders its content. These are passed as children to the `Pane` component by the `PaneManager`.
 
 **Example: `panes/chats/ChatsPane.tsx` (Conceptual Structure)**
+
 ```typescript
 // This is a simplified example of what a content component for a pane might look like.
 // Refer to the original file for full implementation.
@@ -1183,6 +1352,7 @@ export const ChatsPane: React.FC = () => {
 ```
 
 **Example: `panes/chat/Chat.tsx` (Conceptual Structure)**
+
 ```typescript
 // This is a simplified example. Refer to the original file for full implementation.
 import React from 'react';
@@ -1211,6 +1381,7 @@ export const Chat: React.FC<ChatProps> = ({ threadId }) => {
 A utility button to reset the HUD to its default pane layout.
 
 **File: `components/ResetHUDButton.tsx`**
+
 ```typescript
 "use client"; // Remove for Electron
 
@@ -1253,12 +1424,12 @@ export default ResetHUDButton;
 
 This pane system provides a highly flexible and interactive user interface. Key aspects for reimplementation are:
 
-*   **State Management**: A robust way to store and update the array of pane objects and the active pane ID. Zustand is a good choice, but any state management library (Redux, Context API with useReducer) can work.
-*   **Pane Component**: A well-encapsulated component that handles its own rendering, dragging, and resizing based on its props and dispatches updates to the store. `@use-gesture/react` is effective for drag/resize.
-*   **Pane Manager**: A component to iterate through the pane state and render each pane with its appropriate content.
-*   **Styling**: Consistent styling for panes, title bars, and content areas, fitting the HUD aesthetic. Tailwind CSS provides utility classes that can be adapted.
-*   **Coordinate System**: Ensure a consistent coordinate system for pane positions and sizes, typically relative to the main HUD container.
-*   **Z-index Stacking**: A mechanism to bring the clicked pane to the front. Updating `isActive` and using it to set a higher `zIndex` is a common approach.
+- **State Management**: A robust way to store and update the array of pane objects and the active pane ID. Zustand is a good choice, but any state management library (Redux, Context API with useReducer) can work.
+- **Pane Component**: A well-encapsulated component that handles its own rendering, dragging, and resizing based on its props and dispatches updates to the store. `@use-gesture/react` is effective for drag/resize.
+- **Pane Manager**: A component to iterate through the pane state and render each pane with its appropriate content.
+- **Styling**: Consistent styling for panes, title bars, and content areas, fitting the HUD aesthetic. Tailwind CSS provides utility classes that can be adapted.
+- **Coordinate System**: Ensure a consistent coordinate system for pane positions and sizes, typically relative to the main HUD container.
+- **Z-index Stacking**: A mechanism to bring the clicked pane to the front. Updating `isActive` and using it to set a higher `zIndex` is a common approach.
 
 By following this guide, a coding agent should be able to replicate the pane system's functionality in a new Electron application. Remember to adapt Next.js/Convex specific code (like server components, Convex hooks) to Electron-compatible alternatives (e.g., IPC for data fetching if needed, standard React/TypeScript for components).
 
@@ -1266,26 +1437,26 @@ By following this guide, a coding agent should be able to replicate the pane sys
 
 This document includes code snippets from the following conceptual or actual files:
 
-*   `types/pane.ts` (Pane data structure)
-*   `panes/Pane.tsx` (Individual pane component with drag/resize)
-*   `panes/PaneManager.tsx` (Manages rendering of all panes)
-*   `store/panes/types.ts` (Zustand store types)
-*   `store/panes/constants.ts` (Store constants)
-*   `store/panes/utils/calculatePanePosition.ts` (Utility for positioning)
-*   `store/panes/utils/ensurePaneIsVisible.ts` (Utility for bounds checking)
-*   `store/panes/actions/addPane.ts` (Store action)
-*   `store/panes/actions/removePane.ts` (Store action)
-*   `store/panes/actions/updatePanePosition.ts` (Store action)
-*   `store/panes/actions/updatePaneSize.ts` (Store action)
-*   `store/panes/actions/bringPaneToFront.ts` (Store action)
-*   `store/panes/actions/setActivePane.ts` (Store action)
-*   `store/panes/actions/openChatPane.ts` (Store action for chat panes)
-*   `store/pane.ts` (Main Zustand store definition)
-*   `components/home/SimpleGrid.tsx` (HUD background grid)
-*   `app/[[...rest]]/globals.css` (Relevant global styles for theming)
-*   `components/home/HomeAuthed.tsx` (Main authenticated view structure)
-*   Conceptual Electron Root Layout
-*   Example Pane Content Components (`ChatsPane.tsx`, `Chat.tsx`)
-*   `components/ResetHUDButton.tsx` (HUD reset functionality)
+- `types/pane.ts` (Pane data structure)
+- `panes/Pane.tsx` (Individual pane component with drag/resize)
+- `panes/PaneManager.tsx` (Manages rendering of all panes)
+- `store/panes/types.ts` (Zustand store types)
+- `store/panes/constants.ts` (Store constants)
+- `store/panes/utils/calculatePanePosition.ts` (Utility for positioning)
+- `store/panes/utils/ensurePaneIsVisible.ts` (Utility for bounds checking)
+- `store/panes/actions/addPane.ts` (Store action)
+- `store/panes/actions/removePane.ts` (Store action)
+- `store/panes/actions/updatePanePosition.ts` (Store action)
+- `store/panes/actions/updatePaneSize.ts` (Store action)
+- `store/panes/actions/bringPaneToFront.ts` (Store action)
+- `store/panes/actions/setActivePane.ts` (Store action)
+- `store/panes/actions/openChatPane.ts` (Store action for chat panes)
+- `store/pane.ts` (Main Zustand store definition)
+- `components/home/SimpleGrid.tsx` (HUD background grid)
+- `app/[[...rest]]/globals.css` (Relevant global styles for theming)
+- `components/home/HomeAuthed.tsx` (Main authenticated view structure)
+- Conceptual Electron Root Layout
+- Example Pane Content Components (`ChatsPane.tsx`, `Chat.tsx`)
+- `components/ResetHUDButton.tsx` (HUD reset functionality)
 
 The agent should use these snippets as a blueprint, adapting them to the specific context and libraries of the new Electron application.

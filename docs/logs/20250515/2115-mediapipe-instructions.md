@@ -13,59 +13,68 @@ Okay, here are the instructions for a coding agent to add a MediaPipe hand track
     **THIS STEP IS DONE - IGNORE IT**
 
     Open your terminal in the project root and run:
+
     ```bash
     pnpm add @mediapipe/hands @mediapipe/drawing_utils @mediapipe/camera_utils three @react-three/fiber @react-three/drei
     pnpm add -D @types/three
     ```
 
 2.  **Prepare MediaPipe Assets:**
-    *   Create a directory `public/mediapipe/hands`.
-    *   Locate the MediaPipe Hands solution files in your `node_modules/@mediapipe/hands/`. These files typically include:
-        *   `hands_solution_packed.js`
-        *   `hands_solution_simd_wasm_intermediate.js`
-        *   `hands_solution_simd_wasm_worker.js`
-        *   `hands.binarypb`
-        *   (Possibly others, check the `@mediapipe/hands` package contents for files like `hands_LANDMARKS_LITE.binarypb`, `hands_LANDMARKS_FULL.binarypb` etc. if model complexity options are used. For modelComplexity: 1, `hands.binarypb` might be the primary model file).
-    *   Copy these files into the `public/mediapipe/hands/` directory. Vite will serve files from the `public` directory at the root of your application (e.g., `/mediapipe/hands/hands.binarypb`).
+
+    - Create a directory `public/mediapipe/hands`.
+    - Locate the MediaPipe Hands solution files in your `node_modules/@mediapipe/hands/`. These files typically include:
+      - `hands_solution_packed.js`
+      - `hands_solution_simd_wasm_intermediate.js`
+      - `hands_solution_simd_wasm_worker.js`
+      - `hands.binarypb`
+      - (Possibly others, check the `@mediapipe/hands` package contents for files like `hands_LANDMARKS_LITE.binarypb`, `hands_LANDMARKS_FULL.binarypb` etc. if model complexity options are used. For modelComplexity: 1, `hands.binarypb` might be the primary model file).
+    - Copy these files into the `public/mediapipe/hands/` directory. Vite will serve files from the `public` directory at the root of your application (e.g., `/mediapipe/hands/hands.binarypb`).
 
 3.  **Create New Page Component:**
-    *   Create a new file: `src/pages/HandTrackingDemoPage.tsx`.
+
+    - Create a new file: `src/pages/HandTrackingDemoPage.tsx`.
 
 4.  **Create R3F Scene Component:**
-    *   Create a new directory: `src/components/r3f/`.
-    *   Create a new file: `src/components/r3f/InteractiveHandScene.tsx`.
+
+    - Create a new directory: `src/components/r3f/`.
+    - Create a new file: `src/components/r3f/InteractiveHandScene.tsx`.
 
 5.  **Add Route for the New Page:**
-    *   Open `src/routes/routes.tsx`.
-    *   Import the new page: `import HandTrackingDemoPage from "@/pages/HandTrackingDemoPage";` (adjust path if necessary).
-    *   Define a new route:
-        ```typescript
-        export const HandTrackingDemoRoute = createRoute({
-          getParentRoute: () => RootRoute,
-          path: "/hand-tracking-demo",
-          component: HandTrackingDemoPage,
-        });
-        ```
-    *   Add `HandTrackingDemoRoute` to the `rootTree`:
-        ```typescript
-        // In src/routes/routes.tsx
-        // export const rootTree = RootRoute.addChildren([HomeRoute, SecondPageRoute]); // Old
-        export const rootTree = RootRoute.addChildren([HomeRoute, SecondPageRoute, HandTrackingDemoRoute]); // New
-        ```
+
+    - Open `src/routes/routes.tsx`.
+    - Import the new page: `import HandTrackingDemoPage from "@/pages/HandTrackingDemoPage";` (adjust path if necessary).
+    - Define a new route:
+      ```typescript
+      export const HandTrackingDemoRoute = createRoute({
+        getParentRoute: () => RootRoute,
+        path: "/hand-tracking-demo",
+        component: HandTrackingDemoPage,
+      });
+      ```
+    - Add `HandTrackingDemoRoute` to the `rootTree`:
+      ```typescript
+      // In src/routes/routes.tsx
+      // export const rootTree = RootRoute.addChildren([HomeRoute, SecondPageRoute]); // Old
+      export const rootTree = RootRoute.addChildren([
+        HomeRoute,
+        SecondPageRoute,
+        HandTrackingDemoRoute,
+      ]); // New
+      ```
 
 6.  **Add Navigation Link (Temporary):**
-    *   For easy access during development, open `src/pages/HomePage.tsx`.
-    *   Import `Link` from `@tanstack/react-router`: `import { Link } from "@tanstack/react-router";`
-    *   Add a temporary button/link to navigate to the demo page within the JSX of `HomePage`:
-        ```tsx
-        // In HomePage.tsx, within the main div
-        <div className="mt-4">
-          <Link to="/hand-tracking-demo">
-            <Button>Hand Tracking Demo</Button>
-          </Link>
-        </div>
-        ```
-    *(This can be moved to a more permanent navigation component later, like `NavigationMenu.tsx` if desired)*
+    - For easy access during development, open `src/pages/HomePage.tsx`.
+    - Import `Link` from `@tanstack/react-router`: `import { Link } from "@tanstack/react-router";`
+    - Add a temporary button/link to navigate to the demo page within the JSX of `HomePage`:
+      `tsx
+    // In HomePage.tsx, within the main div
+    <div className="mt-4">
+      <Link to="/hand-tracking-demo">
+        <Button>Hand Tracking Demo</Button>
+      </Link>
+    </div>
+    `
+      _(This can be moved to a more permanent navigation component later, like `NavigationMenu.tsx` if desired)_
 
 ---
 
@@ -432,24 +441,24 @@ export default HandTrackingDemoPage;
 **Phase 4: Final Checks and Instructions**
 
 1.  **Styling:**
-    *   The `HandTrackingDemoPage.tsx` includes basic absolute positioning and mirroring via Tailwind's `transform scale-x-[-1]` and inline styles, similar to the example. Ensure these styles correctly overlay the video, landmark canvas, and R3F canvas.
-    *   The main container `div` in `HandTrackingDemoPage.tsx` uses flexbox to center its direct children if any were there, but with absolute positioning for webcam/canvases, this might not be strictly necessary. The `bg-black` is a fallback.
+    - The `HandTrackingDemoPage.tsx` includes basic absolute positioning and mirroring via Tailwind's `transform scale-x-[-1]` and inline styles, similar to the example. Ensure these styles correctly overlay the video, landmark canvas, and R3F canvas.
+    - The main container `div` in `HandTrackingDemoPage.tsx` uses flexbox to center its direct children if any were there, but with absolute positioning for webcam/canvases, this might not be strictly necessary. The `bg-black` is a fallback.
 2.  **Test the Demo:**
-    *   Run `pnpm start`.
-    *   Navigate to the `/hand-tracking-demo` page using the temporary link on the HomePage.
-    *   Allow webcam access when prompted.
-    *   You should see:
-        *   Your mirrored webcam feed.
-        *   Mirrored hand landmarks drawn on top.
-        *   A 3D sphere (also mirrored to align with the hand view) that:
-            *   Changes size when you pinch/spread your right thumb and index finger.
-            *   Changes color when your left index finger is near the center of the screen (placeholder for sphere touch).
-    *   Check the browser console for any errors from MediaPipe, Three.js, or React.
-    *   Check the status message for updates.
+    - Run `pnpm start`.
+    - Navigate to the `/hand-tracking-demo` page using the temporary link on the HomePage.
+    - Allow webcam access when prompted.
+    - You should see:
+      - Your mirrored webcam feed.
+      - Mirrored hand landmarks drawn on top.
+      - A 3D sphere (also mirrored to align with the hand view) that:
+        - Changes size when you pinch/spread your right thumb and index finger.
+        - Changes color when your left index finger is near the center of the screen (placeholder for sphere touch).
+    - Check the browser console for any errors from MediaPipe, Three.js, or React.
+    - Check the status message for updates.
 3.  **Troubleshooting `locateFile`:**
-    *   If MediaPipe fails to load WASM files, double-check the path in `locateFile: (file) => \`/mediapipe/hands/\${file}\`,` and ensure the files were correctly copied to `public/mediapipe/hands/`. Check the network tab in browser dev tools to see where it's trying to load these files from.
+    - If MediaPipe fails to load WASM files, double-check the path in `locateFile: (file) => \`/mediapipe/hands/\${file}\`,`and ensure the files were correctly copied to`public/mediapipe/hands/`. Check the network tab in browser dev tools to see where it's trying to load these files from.
 4.  **Coordinate Systems & Interaction:**
-    *   The interaction logic in `onResults` (calculating pinch distance) and `isPointNearSphere` (for left hand) is adapted from the example. Mapping 2D normalized hand landmarks to interact with a 3D R3F scene can be complex. The provided solution uses a simplified placeholder for the left-hand sphere touch. For a more accurate demo, this interaction logic might need refinement based on how the R3F scene is set up (camera, sphere position/scale). The mirroring of all layers (video, 2D canvas, 3D canvas) is crucial for intuitive control.
+    - The interaction logic in `onResults` (calculating pinch distance) and `isPointNearSphere` (for left hand) is adapted from the example. Mapping 2D normalized hand landmarks to interact with a 3D R3F scene can be complex. The provided solution uses a simplified placeholder for the left-hand sphere touch. For a more accurate demo, this interaction logic might need refinement based on how the R3F scene is set up (camera, sphere position/scale). The mirroring of all layers (video, 2D canvas, 3D canvas) is crucial for intuitive control.
 
 ---
 
@@ -465,52 +474,57 @@ This provides a solid starting point for integrating the MediaPipe hand tracking
 
 1.  **Install Dependencies:**
     Open your terminal in the project root and run:
+
     ```bash
     pnpm add @mediapipe/hands @mediapipe/drawing_utils @mediapipe/camera_utils three @react-three/fiber @react-three/drei
     pnpm add -D @types/three
     ```
 
 2.  **Prepare MediaPipe Assets:**
-    *   Create a new directory: `public/mediapipe/hands`.
-    *   Navigate to `node_modules/@mediapipe/hands/`. You will find several files essential for the Hands solution. Copy the following (or similar, filenames might vary slightly with versions) into your newly created `public/mediapipe/hands/` directory:
-        *   `hands_solution_packed.js`
-        *   `hands_solution_simd_wasm_intermediate.js`
-        *   `hands_solution_simd_wasm_worker.js`
-        *   `hands.binarypb`
-        *   (And any other `.binarypb` or `.tflite` files if present, e.g., `hands_LANDMARKS_LITE.binarypb`, `hands_LANDMARKS_FULL.binarypb`)
-    *   Vite will serve these files from the `/mediapipe/hands/` path at runtime.
+
+    - Create a new directory: `public/mediapipe/hands`.
+    - Navigate to `node_modules/@mediapipe/hands/`. You will find several files essential for the Hands solution. Copy the following (or similar, filenames might vary slightly with versions) into your newly created `public/mediapipe/hands/` directory:
+      - `hands_solution_packed.js`
+      - `hands_solution_simd_wasm_intermediate.js`
+      - `hands_solution_simd_wasm_worker.js`
+      - `hands.binarypb`
+      - (And any other `.binarypb` or `.tflite` files if present, e.g., `hands_LANDMARKS_LITE.binarypb`, `hands_LANDMARKS_FULL.binarypb`)
+    - Vite will serve these files from the `/mediapipe/hands/` path at runtime.
 
 3.  **Create New Page Component:**
-    *   Create `src/pages/HandTrackingDemoPage.tsx`.
+
+    - Create `src/pages/HandTrackingDemoPage.tsx`.
 
 4.  **Create R3F Scene Component:**
-    *   Ensure the directory `src/components/r3f/` exists.
-    *   Create `src/components/r3f/InteractiveHandScene.tsx`.
+
+    - Ensure the directory `src/components/r3f/` exists.
+    - Create `src/components/r3f/InteractiveHandScene.tsx`.
 
 5.  **Add Route for the New Page:**
-    *   Open `src/routes/routes.tsx`.
-    *   Import the new page: `import HandTrackingDemoPage from "@/pages/HandTrackingDemoPage";`
-    *   Define the route:
-        ```typescript
-        export const HandTrackingDemoRoute = createRoute({
-          getParentRoute: () => RootRoute,
-          path: "/hand-tracking-demo",
-          component: HandTrackingDemoPage,
-        });
-        ```
-    *   Add `HandTrackingDemoRoute` to `rootTree`'s children array.
+
+    - Open `src/routes/routes.tsx`.
+    - Import the new page: `import HandTrackingDemoPage from "@/pages/HandTrackingDemoPage";`
+    - Define the route:
+      ```typescript
+      export const HandTrackingDemoRoute = createRoute({
+        getParentRoute: () => RootRoute,
+        path: "/hand-tracking-demo",
+        component: HandTrackingDemoPage,
+      });
+      ```
+    - Add `HandTrackingDemoRoute` to `rootTree`'s children array.
 
 6.  **Add Navigation Link (Temporary):**
-    *   Open `src/pages/HomePage.tsx`.
-    *   Import `Link` from `@tanstack/react-router` and `Button` from ` "@/components/ui/button"`.
-    *   Add a link to the demo page within the JSX of `HomePage`:
-        ```tsx
-        <div className="mt-4">
-          <Link to="/hand-tracking-demo">
-            <Button>Hand Tracking Demo</Button>
-          </Link>
-        </div>
-        ```
+    - Open `src/pages/HomePage.tsx`.
+    - Import `Link` from `@tanstack/react-router` and `Button` from ` "@/components/ui/button"`.
+    - Add a link to the demo page within the JSX of `HomePage`:
+      ```tsx
+      <div className="mt-4">
+        <Link to="/hand-tracking-demo">
+          <Button>Hand Tracking Demo</Button>
+        </Link>
+      </div>
+      ```
 
 ---
 
@@ -787,26 +801,26 @@ export default HandTrackingDemoPage;
 **Phase 4: Final Checks and Instructions**
 
 1.  **Styling and Layout:**
-    *   The provided JSX in `HandTrackingDemoPage.tsx` uses absolute positioning and `scale-x-[-1]` for mirroring, similar to the example `index.html`. Verify that the video feed, landmark canvas, and 3D scene are correctly layered and fill the screen.
-    *   The `z-index` values are set to layer them: video (1), 3D scene (5), landmark canvas (10), status text (30). Adjust if needed.
+    - The provided JSX in `HandTrackingDemoPage.tsx` uses absolute positioning and `scale-x-[-1]` for mirroring, similar to the example `index.html`. Verify that the video feed, landmark canvas, and 3D scene are correctly layered and fill the screen.
+    - The `z-index` values are set to layer them: video (1), 3D scene (5), landmark canvas (10), status text (30). Adjust if needed.
 2.  **MediaPipe `locateFile`:**
-    *   The path `/mediapipe/hands/${file}` in `new Hands({ locateFile: ... })` assumes your WASM and model files are served from the root `public/mediapipe/hands/` directory. Verify this is correct by checking the Network tab in your browser's developer tools when the page loads. It should attempt to fetch files like `/mediapipe/hands/hands.binarypb`.
+    - The path `/mediapipe/hands/${file}` in `new Hands({ locateFile: ... })` assumes your WASM and model files are served from the root `public/mediapipe/hands/` directory. Verify this is correct by checking the Network tab in your browser's developer tools when the page loads. It should attempt to fetch files like `/mediapipe/hands/hands.binarypb`.
 3.  **Test the Demo:**
-    *   Run `pnpm start`.
-    *   Navigate to the `/hand-tracking-demo` page.
-    *   Grant webcam permission if prompted.
-    *   **Expected Behavior:**
-        *   Mirrored webcam feed fills the background.
-        *   Hand landmarks are drawn over your hands, also mirrored.
-        *   A 3D sphere is visible, its view also mirrored to align with your hand movements.
-        *   **Right Hand:** Pinching/spreading your right thumb and index finger should change the sphere's size.
-        *   **Left Hand:** Moving your left index finger to the approximate center of your view should change the sphere's color. (This interaction is simplified; the example's original sphere touch logic was more complex and tied to Three.js world coordinates).
-    *   Check the browser console for any errors.
-    *   The status text should update based on MediaPipe's initialization and hand detection.
+    - Run `pnpm start`.
+    - Navigate to the `/hand-tracking-demo` page.
+    - Grant webcam permission if prompted.
+    - **Expected Behavior:**
+      - Mirrored webcam feed fills the background.
+      - Hand landmarks are drawn over your hands, also mirrored.
+      - A 3D sphere is visible, its view also mirrored to align with your hand movements.
+      - **Right Hand:** Pinching/spreading your right thumb and index finger should change the sphere's size.
+      - **Left Hand:** Moving your left index finger to the approximate center of your view should change the sphere's color. (This interaction is simplified; the example's original sphere touch logic was more complex and tied to Three.js world coordinates).
+    - Check the browser console for any errors.
+    - The status text should update based on MediaPipe's initialization and hand detection.
 4.  **Interaction Refinement (Future):**
-    *   The current left-hand interaction (`isLeftIndexNearCenter`) is a placeholder. For more accurate sphere "touch" detection, you would need to:
-        *   Project the 3D sphere's boundaries into the 2D normalized landmark space, or
-        *   Unproject the 2D landmark coordinates into the 3D R3F scene's world space and perform a 3D collision/distance check. This is more complex and can be a follow-up task.
+    - The current left-hand interaction (`isLeftIndexNearCenter`) is a placeholder. For more accurate sphere "touch" detection, you would need to:
+      - Project the 3D sphere's boundaries into the 2D normalized landmark space, or
+      - Unproject the 2D landmark coordinates into the 3D R3F scene's world space and perform a 3D collision/distance check. This is more complex and can be a follow-up task.
 
 ---
 

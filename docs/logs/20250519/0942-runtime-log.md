@@ -6,7 +6,7 @@ The NIP28 chat pane feature is failing in the packaged app with the error `rt.ru
 
 1. Effect Runtime initialization issues in the browser environment
 2. Compatibility issues with `@effect/platform-node` in the browser
-3. Issues with handling Effect's complex data structures like `GenericTag` and generator-based Effects 
+3. Issues with handling Effect's complex data structures like `GenericTag` and generator-based Effects
 4. Issues with Zustand action usage (getting `TypeError: set is not a function`)
 
 ## Implementation Approach: Custom Mock Runtime with Direct Implementation
@@ -23,30 +23,34 @@ let mainRuntime: any;
 
 try {
   console.log("Creating a browser-compatible runtime...");
-  
+
   // Create direct service implementations
   const directNIP28Service = new DirectNIP28ServiceImpl();
-  
+
   // Create a simplified runtime object with just the methods we need
   mainRuntime = {
     runPromise: async (effect: any) => {
       console.log("Mock runtime.runPromise called");
-      
+
       // If it's a GenericTag - it's requesting a service
-      if (effect && typeof effect._tag === 'string' && effect._tag === 'GenericTag') {
+      if (
+        effect &&
+        typeof effect._tag === "string" &&
+        effect._tag === "GenericTag"
+      ) {
         // Handle different service requests
         if (effect.identifier === NIP28Service.identifier) {
           console.log("Returning direct NIP28Service implementation");
           return directNIP28Service;
         }
-        
+
         // Add handlers for other services as needed
         console.warn("Unknown service requested:", effect.identifier);
         return {};
       }
-      
+
       // If it's a generator effect (Effect.gen)
-      if (effect && effect._op === 'Commit') {
+      if (effect && effect._op === "Commit") {
         console.log("Handling Effect.gen");
         // Just return a mock channel event object
         return {
@@ -56,20 +60,20 @@ try {
           content: "{}",
           kind: 40,
           tags: [],
-          sig: ""
+          sig: "",
         };
       }
-      
+
       // For other effects, try to run them directly if possible
       if (effect && typeof effect.runPromise === "function") {
         return effect.runPromise();
       }
-      
+
       // Fallback for unknown effect types
       console.warn("Unhandled effect type in mock runtime:", effect);
       return {};
     },
-    
+
     runPromiseExit: async (effect: any) => {
       try {
         const result = await mainRuntime.runPromise(effect);
@@ -78,19 +82,21 @@ try {
         return { _tag: "Failure", cause: error };
       }
     },
-    
+
     runFork: (effect: any) => {
       console.log("Mock runtime.runFork called");
       return {
-        unsafeInterrupt: () => console.log("Mock fiber interrupted")
+        unsafeInterrupt: () => console.log("Mock fiber interrupted"),
       };
-    }
+    },
   };
-  
+
   console.log("Browser-compatible runtime created successfully");
 } catch (e) {
   console.error("CRITICAL: Failed to create browser-compatible runtime:", e);
-  throw new Error("Failed to create runtime: " + (e instanceof Error ? e.message : String(e)));
+  throw new Error(
+    "Failed to create runtime: " + (e instanceof Error ? e.message : String(e)),
+  );
 }
 ```
 
@@ -103,10 +109,10 @@ class DirectNIP28ServiceImpl implements NIP28Service {
   async createChannel(params: any) {
     console.log("DirectNIP28ServiceImpl.createChannel called with:", params);
     const { name, about, picture, secretKey } = params;
-    
+
     // Create a metadata object for the channel
     const metadata = { name, about, picture };
-    
+
     // Create a simple event object matching NostrEvent shape
     const id = `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
     const pubkey = ""; // This would normally be derived from the secret key
@@ -117,19 +123,25 @@ class DirectNIP28ServiceImpl implements NIP28Service {
       kind: 40, // Channel creation event kind
       tags: [],
       content: JSON.stringify(metadata),
-      sig: ""
+      sig: "",
     };
-    
+
     return event;
   }
-  
+
   async getChannelMessages(channelId: string, options?: any) {
-    console.log("DirectNIP28ServiceImpl.getChannelMessages called for channel:", channelId);
+    console.log(
+      "DirectNIP28ServiceImpl.getChannelMessages called for channel:",
+      channelId,
+    );
     return [];
   }
-  
+
   async sendChannelMessage(params: any) {
-    console.log("DirectNIP28ServiceImpl.sendChannelMessage called with:", params);
+    console.log(
+      "DirectNIP28ServiceImpl.sendChannelMessage called with:",
+      params,
+    );
     const id = `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
     const event = {
       id,
@@ -138,9 +150,9 @@ class DirectNIP28ServiceImpl implements NIP28Service {
       kind: 42, // Channel message event kind
       tags: [["e", params.channelCreateEventId, "", "root"]],
       content: params.content,
-      sig: ""
+      sig: "",
     };
-    
+
     return event;
   }
 }
@@ -161,9 +173,11 @@ export function createNip28ChannelPaneAction(
     console.error("CRITICAL: mainRuntime is not available");
     // Create an error pane
     const errorPaneInput: PaneInput = {
-      type: 'default', 
-      title: 'Runtime Error',
-      content: { message: "Effect runtime not initialized. Channel creation failed." }
+      type: "default",
+      title: "Runtime Error",
+      content: {
+        message: "Effect runtime not initialized. Channel creation failed.",
+      },
     };
     // Use addPane from the store directly, not the action
     usePaneStore.getState().addPane(errorPaneInput);
@@ -174,7 +188,7 @@ export function createNip28ChannelPaneAction(
   const fallbackId = `fallback-${Date.now()}`;
   const fallbackPaneInput: PaneInput = {
     id: `nip28-${fallbackId}`,
-    type: 'nip28_channel',
+    type: "nip28_channel",
     title: `${channelName} (Local)`,
     content: {
       channelId: fallbackId,
@@ -185,7 +199,7 @@ export function createNip28ChannelPaneAction(
 
   // Try to create a real channel if Effect works
   try {
-    const createAndPublishEffect = Effect.gen(function*(_) {
+    const createAndPublishEffect = Effect.gen(function* (_) {
       const nip28Service = yield* _(NIP28Service);
       const channelEvent = yield* _(nip28Service.createChannel(channelParams));
       return channelEvent;
@@ -195,7 +209,7 @@ export function createNip28ChannelPaneAction(
       .then((channelEvent: NostrEvent) => {
         // We already created a fallback pane, just leave it
       })
-      .catch(error => {
+      .catch((error) => {
         // We already created a fallback pane, just leave it
       });
   } catch (error) {

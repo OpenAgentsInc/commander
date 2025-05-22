@@ -1,11 +1,16 @@
-import { Pane, PaneInput } from '@/types/pane';
-import type { StoreApi } from 'zustand';
-import type { OpenSeedPhraseBackupPaneParams } from './actions/openSeedPhraseBackupPane';
+import { Pane, PaneInput } from "@/types/pane";
+import type { StoreApi } from "zustand";
+import type { OpenSeedPhraseBackupPaneParams } from "./actions/openSeedPhraseBackupPane";
 
 export interface PaneState {
   panes: Pane[];
   activePaneId: string | null; // Tracks the ID of the currently active pane
-  lastPanePosition: { x: number; y: number; width: number; height: number } | null;
+  lastPanePosition: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null;
   // Add any other global state related to panes if needed
 }
 
@@ -26,13 +31,13 @@ export interface PaneStoreType extends PaneState {
   openNip90GlobalFeedPane: () => void; // Open NIP-90 Global Feed pane
   openWalletPane: () => void; // Open Wallet pane
   resetHUDState: () => void;
-  
+
   // New page pane actions
   openSecondPagePane: () => void;
   openWalletSetupPane: () => void;
   openSeedPhraseBackupPane: (params: OpenSeedPhraseBackupPaneParams) => void;
   openRestoreWalletPane: () => void;
-  
+
   // Toggle actions for keyboard shortcuts
   toggleSellComputePane: () => void; // Toggle Sell Compute pane (open if closed, close if open)
   toggleWalletPane: () => void; // Toggle Wallet pane (open if closed, close if open)
@@ -41,7 +46,7 @@ export interface PaneStoreType extends PaneState {
   openAgentChatPane: () => void; // Open Agent Chat pane
 }
 
-export type SetPaneStore = StoreApi<PaneStoreType>['setState'];
+export type SetPaneStore = StoreApi<PaneStoreType>["setState"];
 
 // Add GetPaneStore type for completeness
 export type GetPaneStore = () => PaneStoreType;

@@ -26,7 +26,12 @@ Added a ref to track both the mouse/pointer coordinates and the pane's position 
 
 ```typescript
 // Ref for drag start coordinates (pointer and pane)
-const dragStartRef = useRef<{ x: number, y: number, paneX: number, paneY: number } | null>(null);
+const dragStartRef = useRef<{
+  x: number;
+  y: number;
+  paneX: number;
+  paneY: number;
+} | null>(null);
 ```
 
 This ref acts as a stable reference point throughout the entire drag operation, unaffected by React re-renders or state changes.
@@ -48,11 +53,11 @@ const bindDrag = useDrag(
 
     if (first) {
       // Record the starting positions for the drag
-      dragStartRef.current = { 
-        x: pointerX, 
-        y: pointerY, 
-        paneX: position.x, 
-        paneY: position.y 
+      dragStartRef.current = {
+        x: pointerX,
+        y: pointerY,
+        paneX: position.x,
+        paneY: position.y,
       };
     }
 
@@ -75,14 +80,14 @@ const bindDrag = useDrag(
         updatePanePosition(id, newX, newY);
         dragStartRef.current = null;
       }
-    } else if (!active && dragStartRef.current) { 
+    } else if (!active && dragStartRef.current) {
       // Cleanup if drag ends unexpectedly
       dragStartRef.current = null;
     }
   },
   {
     // No `from` needed here as we manually calculate offset
-  }
+  },
 );
 ```
 
@@ -95,15 +100,27 @@ Updated the `useEffect` hooks in `useResizeHandlers` to add additional checks th
 ```typescript
 useEffect(() => {
   if (!isCurrentlyInteracting) {
-    if (initialPosition.x !== prevPositionRef.current.x || initialPosition.y !== prevPositionRef.current.y) {
+    if (
+      initialPosition.x !== prevPositionRef.current.x ||
+      initialPosition.y !== prevPositionRef.current.y
+    ) {
       // Only call setPosition if the current position is different from initialPosition
-      if (initialPosition.x !== position.x || initialPosition.y !== position.y) {
+      if (
+        initialPosition.x !== position.x ||
+        initialPosition.y !== position.y
+      ) {
         setPosition(initialPosition);
       }
       prevPositionRef.current = initialPosition;
     }
   }
-}, [initialPosition.x, initialPosition.y, isCurrentlyInteracting, position.x, position.y]);
+}, [
+  initialPosition.x,
+  initialPosition.y,
+  isCurrentlyInteracting,
+  position.x,
+  position.y,
+]);
 ```
 
 Similar changes were made to the size effect. This prevents unnecessary state updates that could interfere with ongoing gestures.
@@ -122,7 +139,7 @@ Key improvements:
 ```typescript
 // Reuse objects when possible
 let panesArrayIdentityChanged = false;
-const newPanesArrayWithActivation = state.panes.map(pane => {
+const newPanesArrayWithActivation = state.panes.map((pane) => {
   const shouldBeActive = pane.id === idToBringToFront;
   if (pane.isActive !== shouldBeActive) {
     panesArrayIdentityChanged = true;
@@ -133,11 +150,13 @@ const newPanesArrayWithActivation = state.panes.map(pane => {
 
 // Special case for activation-only changes
 if (panesArrayIdentityChanged && !needsReordering) {
-   return {
-      panes: newPanesArrayWithActivation,
-      activePaneId: idToBringToFront,
-      lastPanePosition: { /* ... */ }
-   };
+  return {
+    panes: newPanesArrayWithActivation,
+    activePaneId: idToBringToFront,
+    lastPanePosition: {
+      /* ... */
+    },
+  };
 }
 ```
 
@@ -159,7 +178,13 @@ type ResizeHandlerParams = {
 };
 
 const makeResizeHandler = (corner: ResizeCorner) => {
-  return ({ active, movement: [deltaX, deltaY], first, last, memo }: ResizeHandlerParams) => {
+  return ({
+    active,
+    movement: [deltaX, deltaY],
+    first,
+    last,
+    memo,
+  }: ResizeHandlerParams) => {
     // ...
   };
 };

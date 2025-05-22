@@ -17,6 +17,7 @@ I've implemented a MediaPipe hand tracking feature that's directly integrated in
 ### 2. Components and Pages
 
 #### HomePage.tsx
+
 - Added hand tracking capabilities with a toggle switch in the top right corner
 - Integrated webcam access and MediaPipe Hands tracking directly in the home page
 - Made webcam video invisible while keeping it functional for tracking
@@ -64,6 +65,7 @@ I've implemented a MediaPipe hand tracking feature that's directly integrated in
 The primary issue was caused by the WebAssembly module's initialization and resource management in Electron.
 
 Key fixes:
+
 1. Removed the EffectComposer from the scene, which was causing conflicts
 2. Simplified the 3D scene to avoid WebGL context sharing issues
 3. Set a global flag to prevent MediaPipe from reinitializing its WebAssembly module
@@ -72,6 +74,7 @@ Key fixes:
 ## Usage
 
 To use the hand tracking feature:
+
 1. Navigate to the home page of the app
 2. Click the "Hand Tracking" toggle switch in the top-right corner to enable it
 3. Allow camera access when prompted

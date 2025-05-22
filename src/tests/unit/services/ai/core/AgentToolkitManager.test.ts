@@ -3,7 +3,7 @@ import { Effect, Layer, Context } from "effect";
 import {
   AgentToolkitManager,
   Tool,
-  AiToolkit
+  AiToolkit,
 } from "@/services/ai/core/AgentToolkitManager";
 
 // Mock Tool implementation for testing
@@ -23,17 +23,26 @@ const createCalculatorTool = (): CalculatorTool => ({
     try {
       return Effect.succeed(eval(args.expression));
     } catch (error) {
-      return Effect.fail(new Error(`Failed to evaluate expression: ${args.expression}`));
+      return Effect.fail(
+        new Error(`Failed to evaluate expression: ${args.expression}`),
+      );
     }
-  }
+  },
 });
 
 // Mock WeatherTool
-interface WeatherTool extends Tool<{ location: string }, { temperature: number, conditions: string }, Error> {
+interface WeatherTool
+  extends Tool<
+    { location: string },
+    { temperature: number; conditions: string },
+    Error
+  > {
   readonly _tag: "WeatherTool";
   readonly name: string;
   readonly description: string;
-  execute(args: { location: string }): Effect.Effect<{ temperature: number, conditions: string }, Error>;
+  execute(args: {
+    location: string;
+  }): Effect.Effect<{ temperature: number; conditions: string }, Error>;
 }
 
 const createWeatherTool = (): WeatherTool => ({
@@ -44,9 +53,9 @@ const createWeatherTool = (): WeatherTool => ({
     // Mock weather data
     return Effect.succeed({
       temperature: 22,
-      conditions: "Sunny"
+      conditions: "Sunny",
     });
-  }
+  },
 });
 
 // Mock implementation of AgentToolkitManager for testing
@@ -55,14 +64,14 @@ class MockAgentToolkitManager implements AgentToolkitManager {
   private tools: Record<string, Tool> = {};
 
   constructor(initialTools: Tool[] = []) {
-    initialTools.forEach(tool => {
+    initialTools.forEach((tool) => {
       this.tools[tool._tag] = tool;
     });
   }
 
   getToolkit = vi.fn(() => {
     return Effect.succeed({
-      tools: this.tools
+      tools: this.tools,
     } as AiToolkit<Tool>);
   });
 
@@ -73,21 +82,21 @@ class MockAgentToolkitManager implements AgentToolkitManager {
 
   executeTool = vi.fn((toolName: string, args: unknown) => {
     const tool = this.tools[toolName];
-    
+
     if (!tool) {
       return Effect.fail(new Error(`Tool not found: ${toolName}`));
     }
-    
+
     // This is a simplification since we can't actually execute the tool
     // in a type-safe way without additional type information
     if (toolName === "CalculatorTool" && args && typeof args === "object") {
       return (tool as CalculatorTool).execute(args as { expression: string });
     }
-    
+
     if (toolName === "WeatherTool" && args && typeof args === "object") {
       return (tool as WeatherTool).execute(args as { location: string });
     }
-    
+
     return Effect.fail(new Error(`Cannot execute tool: ${toolName}`));
   });
 
@@ -106,16 +115,15 @@ describe("AgentToolkitManager Service", () => {
     const calculatorTool = createCalculatorTool();
     const mockService = new MockAgentToolkitManager([calculatorTool]);
     const testLayer = Layer.succeed(AgentToolkitManager, mockService);
-    
-    const program = Effect.flatMap(
-      AgentToolkitManager,
-      (service) => Effect.succeed(service)
+
+    const program = Effect.flatMap(AgentToolkitManager, (service) =>
+      Effect.succeed(service),
     );
 
     const resolvedService = await Effect.runPromise(
-      program.pipe(Effect.provide(testLayer))
+      program.pipe(Effect.provide(testLayer)),
     );
-    
+
     expect(resolvedService).toBe(mockService);
   });
 
@@ -125,13 +133,12 @@ describe("AgentToolkitManager Service", () => {
       const mockService = new MockAgentToolkitManager([calculatorTool]);
       const testLayer = Layer.succeed(AgentToolkitManager, mockService);
 
-      const program = Effect.flatMap(
-        AgentToolkitManager,
-        (service) => service.getToolkit()
+      const program = Effect.flatMap(AgentToolkitManager, (service) =>
+        service.getToolkit(),
       );
 
       const toolkit = await Effect.runPromise(
-        program.pipe(Effect.provide(testLayer))
+        program.pipe(Effect.provide(testLayer)),
       );
 
       expect(mockService.getToolkit).toHaveBeenCalled();
@@ -144,16 +151,14 @@ describe("AgentToolkitManager Service", () => {
       const testLayer = Layer.succeed(AgentToolkitManager, mockService);
       const weatherTool = createWeatherTool();
 
-      const program = Effect.flatMap(
-        AgentToolkitManager,
-        (service) => Effect.flatMap(
-          service.registerTool(weatherTool),
-          () => service.getToolkit()
-        )
+      const program = Effect.flatMap(AgentToolkitManager, (service) =>
+        Effect.flatMap(service.registerTool(weatherTool), () =>
+          service.getToolkit(),
+        ),
       );
 
       const toolkit = await Effect.runPromise(
-        program.pipe(Effect.provide(testLayer))
+        program.pipe(Effect.provide(testLayer)),
       );
 
       expect(mockService.registerTool).toHaveBeenCalledWith(weatherTool);
@@ -166,22 +171,20 @@ describe("AgentToolkitManager Service", () => {
       const mockService = new MockAgentToolkitManager([calculatorTool]);
       const testLayer = Layer.succeed(AgentToolkitManager, mockService);
 
-      const programExists = Effect.flatMap(
-        AgentToolkitManager,
-        (service) => service.hasTool("CalculatorTool")
+      const programExists = Effect.flatMap(AgentToolkitManager, (service) =>
+        service.hasTool("CalculatorTool"),
       );
 
-      const programNotExists = Effect.flatMap(
-        AgentToolkitManager,
-        (service) => service.hasTool("NonExistentTool")
+      const programNotExists = Effect.flatMap(AgentToolkitManager, (service) =>
+        service.hasTool("NonExistentTool"),
       );
 
       const hasCalculator = await Effect.runPromise(
-        programExists.pipe(Effect.provide(testLayer))
+        programExists.pipe(Effect.provide(testLayer)),
       );
 
       const hasNonExistent = await Effect.runPromise(
-        programNotExists.pipe(Effect.provide(testLayer))
+        programNotExists.pipe(Effect.provide(testLayer)),
       );
 
       expect(mockService.hasTool).toHaveBeenCalledWith("CalculatorTool");
@@ -195,19 +198,17 @@ describe("AgentToolkitManager Service", () => {
       const mockService = new MockAgentToolkitManager([calculatorTool]);
       const testLayer = Layer.succeed(AgentToolkitManager, mockService);
 
-      const program = Effect.flatMap(
-        AgentToolkitManager,
-        (service) => service.executeTool("CalculatorTool", { expression: "2 + 3" })
+      const program = Effect.flatMap(AgentToolkitManager, (service) =>
+        service.executeTool("CalculatorTool", { expression: "2 + 3" }),
       );
 
       const result = await Effect.runPromise(
-        program.pipe(Effect.provide(testLayer))
+        program.pipe(Effect.provide(testLayer)),
       );
 
-      expect(mockService.executeTool).toHaveBeenCalledWith(
-        "CalculatorTool", 
-        { expression: "2 + 3" }
-      );
+      expect(mockService.executeTool).toHaveBeenCalledWith("CalculatorTool", {
+        expression: "2 + 3",
+      });
       expect(result).toBe(5);
     });
 
@@ -215,15 +216,12 @@ describe("AgentToolkitManager Service", () => {
       const mockService = new MockAgentToolkitManager();
       const testLayer = Layer.succeed(AgentToolkitManager, mockService);
 
-      const program = Effect.flatMap(
-        AgentToolkitManager,
-        (service) => service.executeTool("NonExistentTool", { arg: "value" })
+      const program = Effect.flatMap(AgentToolkitManager, (service) =>
+        service.executeTool("NonExistentTool", { arg: "value" }),
       );
 
       try {
-        await Effect.runPromise(
-          program.pipe(Effect.provide(testLayer))
-        );
+        await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
         // Should not reach here
         expect(true).toBe(false);
       } catch (error: any) {

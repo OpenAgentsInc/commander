@@ -8,7 +8,9 @@ export class ConfigError extends Data.TaggedError("ConfigError")<{
   readonly context?: Record<string, unknown>;
 }> {}
 
-export class SecretNotFoundError extends Data.TaggedError("SecretNotFoundError")<{
+export class SecretNotFoundError extends Data.TaggedError(
+  "SecretNotFoundError",
+)<{
   readonly message: string;
   readonly keyName: string;
   readonly cause?: unknown;
@@ -28,7 +30,9 @@ export interface ConfigurationService {
    * @param key The secret key
    * @returns Effect with the secret value or a SecretNotFoundError
    */
-  getSecret(key: string): Effect.Effect<string, SecretNotFoundError | ConfigError>;
+  getSecret(
+    key: string,
+  ): Effect.Effect<string, SecretNotFoundError | ConfigError>;
 
   /**
    * Set a configuration value
@@ -47,4 +51,6 @@ export interface ConfigurationService {
 }
 
 // --- Service Tag ---
-export const ConfigurationService = Context.GenericTag<ConfigurationService>("ConfigurationService");
+export const ConfigurationService = Context.GenericTag<ConfigurationService>(
+  "ConfigurationService",
+);

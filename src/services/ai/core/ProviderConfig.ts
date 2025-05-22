@@ -10,7 +10,9 @@ export const BaseProviderConfigSchema = Schema.Struct({
   isEnabled: Schema.Boolean, // To toggle providers on/off
 });
 
-export type BaseProviderConfig = Schema.Schema.Type<typeof BaseProviderConfigSchema>;
+export type BaseProviderConfig = Schema.Schema.Type<
+  typeof BaseProviderConfigSchema
+>;
 
 /**
  * Provider config for services requiring an API key
@@ -20,10 +22,12 @@ export const ApiKeyProviderConfigSchema = Schema.extend(
   BaseProviderConfigSchema,
   Schema.Struct({
     apiKey: Schema.String, // This should represent a secret key
-  })
+  }),
 );
 
-export type ApiKeyProviderConfig = Schema.Schema.Type<typeof ApiKeyProviderConfigSchema>;
+export type ApiKeyProviderConfig = Schema.Schema.Type<
+  typeof ApiKeyProviderConfigSchema
+>;
 
 /**
  * Provider config for services requiring a base URL
@@ -33,10 +37,12 @@ export const UrlProviderConfigSchema = Schema.extend(
   BaseProviderConfigSchema,
   Schema.Struct({
     baseUrl: Schema.String,
-  })
+  }),
 );
 
-export type UrlProviderConfig = Schema.Schema.Type<typeof UrlProviderConfigSchema>;
+export type UrlProviderConfig = Schema.Schema.Type<
+  typeof UrlProviderConfigSchema
+>;
 
 /**
  * Combined config for providers requiring both an API key and an optional URL
@@ -48,10 +54,12 @@ export const OpenAICompatibleProviderConfigSchema = Schema.extend(
     baseUrl: Schema.optional(Schema.String),
     temperature: Schema.optional(Schema.Number),
     maxTokens: Schema.optional(Schema.Number),
-  })
+  }),
 );
 
-export type OpenAICompatibleProviderConfig = Schema.Schema.Type<typeof OpenAICompatibleProviderConfigSchema>;
+export type OpenAICompatibleProviderConfig = Schema.Schema.Type<
+  typeof OpenAICompatibleProviderConfigSchema
+>;
 
 /**
  * Config for Ollama provider
@@ -62,10 +70,12 @@ export const OllamaProviderConfigSchema = Schema.extend(
     baseUrl: Schema.String,
     temperature: Schema.optional(Schema.Number),
     maxTokens: Schema.optional(Schema.Number),
-  })
+  }),
 );
 
-export type OllamaProviderConfig = Schema.Schema.Type<typeof OllamaProviderConfigSchema>;
+export type OllamaProviderConfig = Schema.Schema.Type<
+  typeof OllamaProviderConfigSchema
+>;
 
 /**
  * Config for Anthropic provider
@@ -76,10 +86,12 @@ export const AnthropicProviderConfigSchema = Schema.extend(
     baseUrl: Schema.optional(Schema.String),
     temperature: Schema.optional(Schema.Number),
     maxTokens: Schema.optional(Schema.Number),
-  })
+  }),
 );
 
-export type AnthropicProviderConfig = Schema.Schema.Type<typeof AnthropicProviderConfigSchema>;
+export type AnthropicProviderConfig = Schema.Schema.Type<
+  typeof AnthropicProviderConfigSchema
+>;
 
 /**
  * Union type of all supported provider configurations
@@ -87,7 +99,7 @@ export type AnthropicProviderConfig = Schema.Schema.Type<typeof AnthropicProvide
 export const ProviderConfigSchema = Schema.Union(
   OpenAICompatibleProviderConfigSchema,
   OllamaProviderConfigSchema,
-  AnthropicProviderConfigSchema
+  AnthropicProviderConfigSchema,
 );
 
 export type ProviderConfig = Schema.Schema.Type<typeof ProviderConfigSchema>;
@@ -108,7 +120,9 @@ export const TypedProviderConfigSchema = Schema.Union(
   Schema.Struct({
     type: Schema.Literal("anthropic"),
     config: AnthropicProviderConfigSchema,
-  })
+  }),
 );
 
-export type TypedProviderConfig = Schema.Schema.Type<typeof TypedProviderConfigSchema>;
+export type TypedProviderConfig = Schema.Schema.Type<
+  typeof TypedProviderConfigSchema
+>;

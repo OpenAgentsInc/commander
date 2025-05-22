@@ -1,6 +1,7 @@
 # Fixing the Pinch Coordinates Text Label - 1515 Log
 
 ## Analyzing the Problem
+
 - The issue is still with the green "Pinch: X, Y px" text drawn directly on the canvas
 - The text should:
   1. Be readable (not mirrored/backwards)
@@ -8,12 +9,15 @@
   3. Display the correct coordinate values
 
 ## Previous Attempts Failed Because
+
 - Did not properly calculate the text position in the flipped coordinate system
 - May have had issues with text alignment settings
 - Did not properly isolate the context transformations
 
 ## New Fix Implementation
+
 I've modified `useHandTracking.ts` to properly handle both:
+
 1. Text orientation using ctx.scale(-1, 1)
 2. Text positioning relative to the pinch point in the transformed context
 
@@ -51,10 +55,10 @@ const textHeight = 14;
 // Draw background (using textAlign:right positioning)
 ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
 ctx.fillRect(
-    textAnchorX - textWidth, // Left edge with right alignment 
-    textY - textHeight,
-    textWidth + 4,
-    textHeight + 4
+  textAnchorX - textWidth, // Left edge with right alignment
+  textY - textHeight,
+  textWidth + 4,
+  textHeight + 4,
 );
 
 // Draw text in bright green
@@ -67,21 +71,25 @@ ctx.restore(); // Restore context
 ## Explanation of the Solution
 
 1. **Canvas Context Transformation**:
+
    - Used `ctx.save()` to preserve the original canvas state
    - Applied `ctx.scale(-1, 1)` to flip the drawing context horizontally, which counteracts the CSS `transform: scale-x-[-1]` applied to the canvas
    - This ensures text is drawn readable (not mirrored)
 
 2. **Coordinate Conversion**:
+
    - Calculated the pinch position in the flipped coordinate system:
      `canvasDrawXFlipped = -(canvasWidth - canvasDrawX)`
    - This converts the original canvas X coordinate to the equivalent in our flipped context
 
 3. **Text Positioning Strategy**:
+
    - Set `ctx.textAlign = "right"` which means the X position provided to fillText will be the RIGHT edge of the text
    - Calculated `textAnchorX = canvasDrawXFlipped - circleRadius - padding` to position the right edge of text to the left of the circle in visual space
    - In the flipped context, moving left means SUBTRACTING from X (not adding)
 
 4. **Proper Background Positioning**:
+
    - Adjusted background rectangle to account for right-aligned text
    - Used `textAnchorX - textWidth` as the left edge of the background rectangle
 

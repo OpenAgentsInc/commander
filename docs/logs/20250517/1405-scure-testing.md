@@ -1,7 +1,4 @@
-
 ### **How to test your Effect‑based BIP‑39 / BIP‑32 services with Vitest**
-
-
 
 Below is a **complete** Vitest test‑suite that exercises every operation exposed by the BIP39Service and BIP32Service we created earlier.
 
@@ -10,9 +7,6 @@ Below is a **complete** Vitest test‑suite that exercises every operation expos
 2. **Deterministic vector checks** – verify that the implementation reproduces the official BIP‑39 and BIP‑32 reference vectors (so you know the math is right).
 
 3. **Dependency‑injection demo** – show that the services can be mocked and hot‑swapped through Effect.provideService, proving they are unit‑testable.
-
-
-
 
 > **Folder layout**
 
@@ -142,11 +136,11 @@ describe("Mock injection", () => {
 
 ### **How the tests work**
 
-|**Section**|**What it proves**|**Key points**|
-|---|---|---|
-|**1 Round‑trip**|Your “live” CryptoLayer composes and functions; the flow mnemonic → seed → master → child succeeds in one Effect program.|Uses random generation, then checks invariants (12 words, key sizes).|
-|**2 Reference vectors**|@scure/bip39 and @scure/bip32 reproduce the canonical outputs from the BIPs.|We feed in the official mnemonic / seed and assert exact hex & Base58 strings.|
-|**3 Mock injection**|You can inject alternative implementations via Effect.provideService, which is vital for deterministic unit tests in larger apps.|The live code is never executed; the mock returns canned values.|
+| **Section**             | **What it proves**                                                                                                                | **Key points**                                                                 |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| **1 Round‑trip**        | Your “live” CryptoLayer composes and functions; the flow mnemonic → seed → master → child succeeds in one Effect program.         | Uses random generation, then checks invariants (12 words, key sizes).          |
+| **2 Reference vectors** | @scure/bip39 and @scure/bip32 reproduce the canonical outputs from the BIPs.                                                      | We feed in the official mnemonic / seed and assert exact hex & Base58 strings. |
+| **3 Mock injection**    | You can inject alternative implementations via Effect.provideService, which is vital for deterministic unit tests in larger apps. | The live code is never executed; the mock returns canned values.               |
 
 ### **Running the suite**
 
@@ -155,8 +149,6 @@ pnpm add -D vitest @types/node           # or npm / yarn
 pnpm vitest
 ```
 
-Because everything is pure ESM and uses only @scure/* (which need no Node built‑ins beyond crypto’s RNG that Electron provides), the tests run identically in Node and Electron’s test harness.
-
-
+Because everything is pure ESM and uses only @scure/\* (which need no Node built‑ins beyond crypto’s RNG that Electron provides), the tests run identically in Node and Electron’s test harness.
 
 **All cryptographic constants** (xprv/xpub) were copied verbatim from the Bitcoin wiki’s BIP‑32 test‑vector #1 page.

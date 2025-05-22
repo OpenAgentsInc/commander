@@ -24,7 +24,7 @@ export interface NIP04Service {
   encrypt(
     ourSk: Uint8Array,
     theirPkHex: string,
-    plaintext: string
+    plaintext: string,
   ): Effect.Effect<string, NIP04EncryptError>;
 
   /**
@@ -37,7 +37,7 @@ export interface NIP04Service {
   decrypt(
     ourSk: Uint8Array,
     theirPkHex: string,
-    ciphertextWithIv: string
+    ciphertextWithIv: string,
   ): Effect.Effect<string, NIP04DecryptError>;
 }
 

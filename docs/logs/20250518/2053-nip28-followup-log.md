@@ -20,7 +20,7 @@ After reviewing the implementation files, I found several TypeScript errors that
 
 ## Fixes Applied
 
-### 1. Isolate Telemetry Operations 
+### 1. Isolate Telemetry Operations
 
 I modified the `signAndPublishEvent` helper function and all query methods to properly isolate telemetry operations by:
 
@@ -30,10 +30,10 @@ I modified the `signAndPublishEvent` helper function and all query methods to pr
 ```typescript
 // Create a helper function to safely run telemetry operations
 const runTelemetry = (eventData: TelemetryEvent) =>
-    Effect.provide(
-        Effect.flatMap(TelemetryService, ts => ts.trackEvent(eventData)),
-        TelemetryServiceLive
-    ).pipe(Effect.catchAllCause(() => Effect.void)); // Ignore any telemetry errors
+  Effect.provide(
+    Effect.flatMap(TelemetryService, (ts) => ts.trackEvent(eventData)),
+    TelemetryServiceLive,
+  ).pipe(Effect.catchAllCause(() => Effect.void)); // Ignore any telemetry errors
 ```
 
 This pattern was applied consistently across all methods that needed telemetry, ensuring that telemetry operations were self-contained and didn't affect the type signature of the overall service methods.
@@ -55,16 +55,20 @@ Changed the mutating approach for creating content objects to an immutable sprea
 
 ```typescript
 // Changed from
-const content: Partial<Schema.Schema.Type<typeof ChannelMetadataContentSchema>> = {};
+const content: Partial<
+  Schema.Schema.Type<typeof ChannelMetadataContentSchema>
+> = {};
 if (params.name !== undefined) content.name = params.name;
 if (params.about !== undefined) content.about = params.about;
 // ...
 
 // To
-const content: Partial<Schema.Schema.Type<typeof ChannelMetadataContentSchema>> = {
-    ...(params.name !== undefined ? { name: params.name } : {}),
-    ...(params.about !== undefined ? { about: params.about } : {}),
-    // ...
+const content: Partial<
+  Schema.Schema.Type<typeof ChannelMetadataContentSchema>
+> = {
+  ...(params.name !== undefined ? { name: params.name } : {}),
+  ...(params.about !== undefined ? { about: params.about } : {}),
+  // ...
 };
 ```
 
@@ -76,7 +80,7 @@ Added proper return type signatures to all service methods to ensure they match 
 
 ```typescript
 // For example:
-getChannel: (channelCreateEventId: string): Effect.Effect<Option.Option<NostrEvent>, NIP28FetchError, NostrService> => 
+getChannel: (channelCreateEventId: string): Effect.Effect<Option.Option<NostrEvent>, NIP28FetchError, NostrService> =>
 ```
 
 This ensured that the implementation methods matched the expected signatures in the interface.
@@ -102,16 +106,14 @@ Removed the incorrect dependency on `TelemetryServiceLive` from the `NIP28Servic
 ```typescript
 // Changed from
 export const NIP28ServiceLive = Layer.effect(
-    NIP28Service,
-    Effect.succeed(createNIP28Service())
-).pipe(
-    Layer.provide(TelemetryServiceLive)
-);
+  NIP28Service,
+  Effect.succeed(createNIP28Service()),
+).pipe(Layer.provide(TelemetryServiceLive));
 
 // To
 export const NIP28ServiceLive = Layer.effect(
-    NIP28Service,
-    Effect.succeed(createNIP28Service())
+  NIP28Service,
+  Effect.succeed(createNIP28Service()),
 );
 ```
 
@@ -123,57 +125,58 @@ After multiple attempts to work with Effect's complex typing system for tests, I
 
 ```typescript
 // src/tests/unit/services/nip28/NIP28Service.test.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { NIP28InvalidInputError, createNIP28Service } from '@/services/nip28';
-import { NostrService } from '@/services/nostr';
-import { TelemetryService } from '@/services/telemetry';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NIP28InvalidInputError, createNIP28Service } from "@/services/nip28";
+import { NostrService } from "@/services/nostr";
+import { TelemetryService } from "@/services/telemetry";
 
 // Create mocks
-vi.mock('@/services/nostr', () => ({
-    NostrService: {
-        key: Symbol.for('NostrService')
-    }
+vi.mock("@/services/nostr", () => ({
+  NostrService: {
+    key: Symbol.for("NostrService"),
+  },
 }));
 
-vi.mock('@/services/telemetry', () => ({
-    TelemetryService: {
-        key: Symbol.for('TelemetryService')
-    }
+vi.mock("@/services/telemetry", () => ({
+  TelemetryService: {
+    key: Symbol.for("TelemetryService"),
+  },
 }));
 
 // Mock nostr-tools/pure
-vi.mock('nostr-tools/pure', () => ({
-    finalizeEvent: vi.fn(() => ({
-        id: 'mockeventid-123',
-        pubkey: 'mock-pubkey-123456789',
-        sig: 'mocksig-456',
-        tags: [],
-        content: ''
-    }))
+vi.mock("nostr-tools/pure", () => ({
+  finalizeEvent: vi.fn(() => ({
+    id: "mockeventid-123",
+    pubkey: "mock-pubkey-123456789",
+    sig: "mocksig-456",
+    tags: [],
+    content: "",
+  })),
 }));
 
-describe('NIP28Service validation tests', () => {
-    let service: ReturnType<typeof createNIP28Service>;
-    
-    beforeEach(() => {
-        service = createNIP28Service();
-        vi.clearAllMocks();
-    });
-    
-    it('should validate input for createChannel', () => {
-        expect(() => 
-            service.createChannel({ 
-                name: "", 
-                secretKey: testSk 
-            })
-        ).toThrow(NIP28InvalidInputError);
-    });
-    
-    // Other test cases...
+describe("NIP28Service validation tests", () => {
+  let service: ReturnType<typeof createNIP28Service>;
+
+  beforeEach(() => {
+    service = createNIP28Service();
+    vi.clearAllMocks();
+  });
+
+  it("should validate input for createChannel", () => {
+    expect(() =>
+      service.createChannel({
+        name: "",
+        secretKey: testSk,
+      }),
+    ).toThrow(NIP28InvalidInputError);
+  });
+
+  // Other test cases...
 });
 ```
 
 This approach:
+
 1. Completely mocks the service dependencies instead of trying to provide them at runtime
 2. Tests the validation logic synchronously with simple expect().toThrow() assertions
 3. Avoids all the complexities of Effect's runtime system and context requirements

@@ -5,6 +5,7 @@
 After reviewing the pane dragging issues outlined in 0758-panefix-instructions.md, I've identified two main problems:
 
 1. **Non-active pane drag stops (~20px issue):**
+
    - When a non-active pane is clicked to drag, it becomes active
    - This state change triggers useEffect hooks in useResizeHandlers
    - If the pane position in the store changes as a result, it causes the local state to reset
@@ -37,20 +38,24 @@ The changes will need to be quite extensive, requiring modifications to both the
 I've implemented the fixes to the Pane.tsx component:
 
 1. **Added Interaction State Tracking:**
+
    - Added `isDragging` and `isResizing` states to track when a pane is being manipulated
    - Created an `isInteracting` derived value to simplify conditional logic
 
 2. **Improved useResizeHandlers:**
+
    - Added conditional logic to the useEffect hooks to prevent state resets during interaction
    - Completely refactored the resize handler system to use a factory function pattern
    - Added parameter validation to prevent unwanted coordinate changes during specific resize operations
    - Used a more structured memo approach for tracking initial position and size during resize
 
 3. **Conditional CSS Transitions:**
+
    - Modified the main pane container className to only apply transitions when not interacting
    - This prevents the transition animation from fighting with the direct style changes during drag/resize
 
 4. **Smart bringPaneToFront Logic:**
+
    - Modified the handlePaneMouseDown to only call bringPaneToFront when the pane isn't already active
    - This avoids unnecessary state updates which could interfere with dragging
 
@@ -73,10 +78,12 @@ Testing the implemented changes exposed additional issues:
 I've made more robust fixes to address the remaining issues:
 
 1. **Fixed touch-action warnings:**
+
    - Added `style={{ touchAction: 'none' }}` to all interactive elements (title bar and resize handles)
    - This ensures proper touch behavior and eliminates the console warnings
 
 2. **Enhanced state management:**
+
    - Added refs to track previous position and size values to avoid unnecessary state updates
    - Added activation tracking with `activationPendingRef` to better handle the transition between inactive and active states
    - Added initial grab position tracking for more stable drag operations

@@ -19,6 +19,7 @@ TelemetryServiceImpl.ts:98 [Telemetry] {category: 'log:error', action: 'nip90_pu
 1. **Partial Relay Rejection**: The application is treating a partial relay failure as a complete failure, which is preventing NIP-90 requests from being submitted successfully.
 
 2. **Specific Relay Restrictions**: Some relays in our default relay list have restrictions:
+
    - Purple Pages (`wss://purplepag.es/`) explicitly rejects event kinds outside of 0, 3, and 10002
    - Another relay reported "no active subscription" error
 
@@ -36,20 +37,23 @@ if (failedRelays.length > 0 && failedRelays.length < config.relays.length) {
     category: "log:warn",
     action: "nostr_publish_partial_failure",
     label: `[Nostr] Failed to publish to ${failedRelays.length} relays`,
-    value: failedRelays.map(fr => (fr as PromiseRejectedResult).reason).join(", ")
+    value: failedRelays
+      .map((fr) => (fr as PromiseRejectedResult).reason)
+      .join(", "),
   };
-  
+
   // Fire-and-forget telemetry event
   Effect.gen(function* (_) {
     const telemetryService = yield* _(TelemetryService);
     yield* _(telemetryService.trackEvent(publishWarningEvent));
   }).pipe(/* existing implementation */);
-  
+
   // Continue with success path, don't return failure
 }
 ```
 
 2. **Relay List Filtering**: Consider implementing relay filtering based on event kind:
+
    - Maintain a mapping of known relay restrictions
    - Filter the relay list for each publish operation based on event kind
 

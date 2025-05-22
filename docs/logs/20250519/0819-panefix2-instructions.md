@@ -10,10 +10,14 @@ Here's how to fix it:
 Modify `setActivePaneAction` and `bringPaneToFrontAction` to only create new JavaScript objects for panes whose `isActive` status actually changes. This will prevent unnecessary re-renders of other `Pane` components and stabilize the state of the currently interacting pane.
 
 **File: `src/stores/panes/actions/setActivePane.ts`**
-```typescript
-import { PaneStoreType, SetPaneStore } from '../types';
 
-export function setActivePaneAction(set: SetPaneStore, paneIdToActivate: string | null) {
+```typescript
+import { PaneStoreType, SetPaneStore } from "../types";
+
+export function setActivePaneAction(
+  set: SetPaneStore,
+  paneIdToActivate: string | null,
+) {
   set((state: PaneStoreType) => {
     // If the active pane ID is already the one we want to activate,
     // check if any pane's isActive flag is inconsistent.
@@ -30,7 +34,7 @@ export function setActivePaneAction(set: SetPaneStore, paneIdToActivate: string 
     }
 
     let panesChanged = false;
-    const newPanes = state.panes.map(pane => {
+    const newPanes = state.panes.map((pane) => {
       const shouldBeActive = pane.id === paneIdToActivate;
       if (pane.isActive !== shouldBeActive) {
         panesChanged = true;
@@ -54,31 +58,43 @@ export function setActivePaneAction(set: SetPaneStore, paneIdToActivate: string 
 ```
 
 **File: `src/stores/panes/actions/bringPaneToFront.ts`**
-```typescript
-import { PaneStoreType, SetPaneStore } from '../types';
 
-export function bringPaneToFrontAction(set: SetPaneStore, idToBringToFront: string) {
+```typescript
+import { PaneStoreType, SetPaneStore } from "../types";
+
+export function bringPaneToFrontAction(
+  set: SetPaneStore,
+  idToBringToFront: string,
+) {
   set((state: PaneStoreType) => {
-    const paneIndex = state.panes.findIndex(pane => pane.id === idToBringToFront);
+    const paneIndex = state.panes.findIndex(
+      (pane) => pane.id === idToBringToFront,
+    );
     if (paneIndex === -1) return state; // Pane not found
 
     const paneToMove = state.panes[paneIndex];
 
     // Determine if any isActive flags need to change or if reordering is needed
-    const needsActivation = !paneToMove.isActive || state.activePaneId !== idToBringToFront;
+    const needsActivation =
+      !paneToMove.isActive || state.activePaneId !== idToBringToFront;
     const needsReordering = paneIndex !== state.panes.length - 1;
 
     if (!needsActivation && !needsReordering) {
       // Already frontmost and active, just update lastPanePosition for consistency
       return {
         ...state,
-        lastPanePosition: { x: paneToMove.x, y: paneToMove.y, width: paneToMove.width, height: paneToMove.height }
+        lastPanePosition: {
+          x: paneToMove.x,
+          y: paneToMove.y,
+          width: paneToMove.width,
+          height: paneToMove.height,
+        },
       };
     }
 
     // Create new array, updating isActive flags minimally
     // Only create new objects for panes whose isActive status changes
-    const newPanesArray = state.panes.map(pane => {
+    const newPanesArray = state.panes.map((pane) => {
       const shouldBeActive = pane.id === idToBringToFront;
       if (pane.isActive !== shouldBeActive) {
         return { ...pane, isActive: shouldBeActive };
@@ -87,16 +103,25 @@ export function bringPaneToFrontAction(set: SetPaneStore, idToBringToFront: stri
     });
 
     // The target pane instance in newPanesArray (might be new or old object)
-    const targetPaneInstance = newPanesArray.find(p => p.id === idToBringToFront)!;
+    const targetPaneInstance = newPanesArray.find(
+      (p) => p.id === idToBringToFront,
+    )!;
     // Filter out the target pane to re-insert it at the end
-    const otherPanesInstances = newPanesArray.filter(p => p.id !== idToBringToFront);
+    const otherPanesInstances = newPanesArray.filter(
+      (p) => p.id !== idToBringToFront,
+    );
 
     const finalOrderedPanes = [...otherPanesInstances, targetPaneInstance];
 
     return {
       panes: finalOrderedPanes,
       activePaneId: idToBringToFront,
-      lastPanePosition: { x: targetPaneInstance.x, y: targetPaneInstance.y, width: targetPaneInstance.width, height: targetPaneInstance.height }
+      lastPanePosition: {
+        x: targetPaneInstance.x,
+        y: targetPaneInstance.y,
+        width: targetPaneInstance.width,
+        height: targetPaneInstance.height,
+      },
     };
   });
 }
@@ -106,6 +131,7 @@ export function bringPaneToFrontAction(set: SetPaneStore, idToBringToFront: stri
 Streamline how pane activation is handled on mouse down and during drag initiation. The `bringPaneToFront` action now correctly handles setting the active state, making separate calls to `setActivePane` mostly redundant in `Pane.tsx`.
 
 **File: `src/panes/Pane.tsx`**
+
 ```diff
 --- a/src/panes/Pane.tsx
 +++ b/src/panes/Pane.tsx
@@ -179,11 +205,11 @@ Streamline how pane activation is handled on mouse down and during drag initiati
 
 **3. Regarding the `touch-action` warning:**
 The agent has already added `style={{ touchAction: 'none' }}` to the draggable title bar and resize handles in `src/panes/Pane.tsx`. This is the correct way to address the warning from `@use-gesture`. If the warning persists:
-    *   Ensure it's applied to *all* elements that have `useDrag` or other gestures bound to them.
-    *   The warning might be a one-time development mode message that doesn't reflect an ongoing issue if the style is indeed correctly applied.
-    *   Clear browser/Electron cache or restart the dev server if it's a stale warning.
+* Ensure it's applied to *all* elements that have `useDrag` or other gestures bound to them.
+* The warning might be a one-time development mode message that doesn't reflect an ongoing issue if the style is indeed correctly applied. \* Clear browser/Electron cache or restart the dev server if it's a stale warning.
 
 The provided code for `Pane.tsx` already includes `touchAction: 'none'` on the title bar and resize handles.
+
 ```html
       <div
         {...bindDrag()}
@@ -191,10 +217,13 @@ The provided code for `Pane.tsx` already includes `touchAction: 'none'` on the t
         style={{ touchAction: 'none' }} // Explicit style for good measure
       >...</div>
 ```
+
 And for resize handles:
+
 ```html
 <div {...resizeHandlers.topleft()} style={{ ..., touchAction: 'none' }} ... />
 ```
+
 This should be sufficient. The warning may be spurious or related to a brief moment before styles are fully applied/recognized by the gesture library during development.
 
 The primary fix focuses on store actions and simplifying activation logic in `Pane.tsx` to ensure state consistency during drag operations, especially when activating a pane. These changes should make the dragging behavior more reliable.

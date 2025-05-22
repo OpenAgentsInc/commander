@@ -6,7 +6,7 @@ After implementing the previous three rounds of fixes, the pane dragging issue i
 
 The core problem identified in this round is that the dependency arrays of these `useEffect` hooks include the local state variables (`position` and `size`), which causes them to re-run when these values change during a drag operation. This can lead to competing state updates and interfere with the smooth execution of the drag gesture.
 
-Another issue is that the position for the drag operation was being captured *after* the `bringPaneToFront` call, which could lead to using post-activation state values instead of the pre-activation ones.
+Another issue is that the position for the drag operation was being captured _after_ the `bringPaneToFront` call, which could lead to using post-activation state values instead of the pre-activation ones.
 
 ## Implementation Plan
 
@@ -20,6 +20,7 @@ Another issue is that the position for the drag operation was being captured *af
 ### 1. Refined `useEffect` Hooks in `useResizeHandlers`
 
 Modified the `useEffect` hooks by:
+
 1. Removing local state variables (`position`, `size`) from dependency arrays
 2. Restructuring the conditional logic to be more explicit
 3. Always updating the ref values when not interacting to ensure sync with store
@@ -30,9 +31,11 @@ useEffect(() => {
   if (!isCurrentlyInteracting) {
     // Only update if initialPosition has actually changed from what we already know
     // AND if local position is different from initialPosition
-    if ((initialPosition.x !== prevPositionRef.current.x ||
-         initialPosition.y !== prevPositionRef.current.y) &&
-        (initialPosition.x !== position.x || initialPosition.y !== position.y)) {
+    if (
+      (initialPosition.x !== prevPositionRef.current.x ||
+        initialPosition.y !== prevPositionRef.current.y) &&
+      (initialPosition.x !== position.x || initialPosition.y !== position.y)
+    ) {
       setPosition(initialPosition);
     }
     // Always update prevPositionRef if not interacting, to sync with store if it changed
@@ -45,9 +48,11 @@ useEffect(() => {
   if (!isCurrentlyInteracting) {
     // Only update if initialSize has actually changed from what we already know
     // AND if local size is different from initialSize
-    if ((initialSize.width !== prevSizeRef.current.width || 
-         initialSize.height !== prevSizeRef.current.height) &&
-        (initialSize.width !== size.width || initialSize.height !== size.height)) {
+    if (
+      (initialSize.width !== prevSizeRef.current.width ||
+        initialSize.height !== prevSizeRef.current.height) &&
+      (initialSize.width !== size.width || initialSize.height !== size.height)
+    ) {
       setSize(initialSize);
     }
     // Always update prevSizeRef if not interacting, to sync with store if it changed
@@ -60,20 +65,23 @@ These changes ensure that the effects are not triggered by local state changes d
 
 ### 2. Improved Position Capture in `handlePaneMouseDown`
 
-Modified `handlePaneMouseDown` to store the pane's position in the `dragStartRef` *before* calling `bringPaneToFront`:
+Modified `handlePaneMouseDown` to store the pane's position in the `dragStartRef` _before_ calling `bringPaneToFront`:
 
 ```typescript
 const handlePaneMouseDown = (e: React.MouseEvent) => {
   const target = e.target as HTMLElement;
-  if (target.classList.contains('resize-handle') || target.closest('.title-bar-button-container')) {
-      return;
+  if (
+    target.classList.contains("resize-handle") ||
+    target.closest(".title-bar-button-container")
+  ) {
+    return;
   }
   // Capture pane position *before* store update
   dragStartRef.current = {
     x: 0, // Pointer X will be set by useDrag
     y: 0, // Pointer Y will be set by useDrag
     paneX: position.x,
-    paneY: position.y
+    paneY: position.y,
   };
   // bringPaneToFront will also handle setting it as active and ensures correct z-index.
   bringPaneToFront(id);
@@ -95,7 +103,8 @@ const bindDrag = useDrag(
     if (first) {
       // dragStartRef.current.paneX/Y should already be set by handlePaneMouseDown
       // Only update pointer coordinates here
-      if (dragStartRef.current) { // Should always be true if mousedown happened on title bar
+      if (dragStartRef.current) {
+        // Should always be true if mousedown happened on title bar
         dragStartRef.current.x = pointerX;
         dragStartRef.current.y = pointerY;
       } else {
@@ -104,7 +113,7 @@ const bindDrag = useDrag(
           x: pointerX,
           y: pointerY,
           paneX: position.x, // Current local position
-          paneY: position.y
+          paneY: position.y,
         };
       }
     }
@@ -125,18 +134,19 @@ const bindDrag = useDrag(
         updatePanePosition(id, newX, newY);
         dragStartRef.current = null;
       }
-    } else if (!active && dragStartRef.current) { 
+    } else if (!active && dragStartRef.current) {
       // Cleanup if drag ends unexpectedly
       dragStartRef.current = null;
     }
   },
   {
     filterTaps: true,
-  }
+  },
 );
 ```
 
 Key changes:
+
 1. Split the responsibilities between `handlePaneMouseDown` and `bindDrag.first`
 2. Added a fallback in case `dragStartRef` isn't set by `handlePaneMouseDown`
 3. Added `filterTaps: true` option to better distinguish between taps and drags
@@ -146,7 +156,7 @@ Key changes:
 These changes address the key issues identified in the drag operation:
 
 1. The removal of local state variables from the `useEffect` dependencies prevents unnecessary re-renders that could interfere with the drag operation
-2. Capturing position *before* `bringPaneToFront` ensures we have the correct reference point before any activation-related state changes occur
+2. Capturing position _before_ `bringPaneToFront` ensures we have the correct reference point before any activation-related state changes occur
 3. The improved coordination between `handlePaneMouseDown` and `bindDrag` provides a more reliable drag initialization process
 4. The addition of `filterTaps: true` helps distinguish between tap and drag gestures
 

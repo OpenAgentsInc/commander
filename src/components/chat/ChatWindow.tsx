@@ -17,11 +17,11 @@ export function ChatWindow({
   userInput,
   onUserInputChange,
   onSendMessage,
-  isLoading = false
+  isLoading = false,
 }: ChatWindowProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  
+
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     // Using a slight delay to ensure scroll happens after DOM updates
@@ -29,32 +29,35 @@ export function ChatWindow({
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 10);
   }, [messages]);
-  
+
   // Re-focus the input after sending a message or when loading state changes
   useEffect(() => {
     if (!isLoading) {
       inputRef.current?.focus();
     }
   }, [isLoading]);
-  
+
   // Add a more aggressive focus management strategy
   // This will run on every render to ensure focus is maintained
   useEffect(() => {
     // Store the active element before focus attempt
     const activeElement = document.activeElement;
-    
+
     // Only refocus if we've lost focus to the body or the window
     if (activeElement === document.body || activeElement === null) {
       inputRef.current?.focus();
     }
-    
+
     // Set up an interval to check and restore focus
     const focusInterval = setInterval(() => {
-      if (document.activeElement === document.body || document.activeElement === null) {
+      if (
+        document.activeElement === document.body ||
+        document.activeElement === null
+      ) {
         inputRef.current?.focus();
       }
     }, 200); // Check every 200ms
-    
+
     return () => clearInterval(focusInterval);
   }, []);
 
@@ -69,16 +72,18 @@ export function ChatWindow({
   };
 
   return (
-    <div className="flex flex-col h-full border border-border rounded-md bg-background text-foreground text-xs overflow-hidden">
+    <div className="border-border bg-background text-foreground flex h-full flex-col overflow-hidden rounded-md border text-xs">
       {/* Chat messages area with scrolling */}
-      <div className="flex-1 min-h-0"> {/* min-h-0 is critical for flexbox children to scroll properly */}
+      <div className="min-h-0 flex-1">
+        {" "}
+        {/* min-h-0 is critical for flexbox children to scroll properly */}
         <ScrollArea className="h-full w-full">
-          <div className="p-1.5 space-y-1">
+          <div className="space-y-1 p-1.5">
             {messages.map((message, index) => (
-              <ChatMessage 
-                key={index} 
-                content={message.content} 
-                role={message.role} 
+              <ChatMessage
+                key={index}
+                content={message.content}
+                role={message.role}
                 timestamp={message.timestamp}
                 isStreaming={message.isStreaming}
               />
@@ -87,9 +92,9 @@ export function ChatWindow({
           </div>
         </ScrollArea>
       </div>
-      
+
       {/* Input area */}
-      <div className="border-t border-border p-1.5 flex-shrink-0">
+      <div className="border-border flex-shrink-0 border-t p-1.5">
         <div className="flex gap-1">
           <Textarea
             ref={inputRef}
@@ -97,15 +102,15 @@ export function ChatWindow({
             value={userInput}
             onChange={(e) => onUserInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="min-h-[24px] max-h-[60px] resize-none text-xs py-1 px-2 bg-background text-foreground border-border focus:ring-ring focus:border-border focus:bg-background !bg-background !opacity-100"
-            style={{ 
-              backgroundColor: 'var(--background)',
+            className="bg-background text-foreground border-border focus:ring-ring focus:border-border focus:bg-background !bg-background max-h-[60px] min-h-[24px] resize-none px-2 py-1 text-xs !opacity-100"
+            style={{
+              backgroundColor: "var(--background)",
               // Add higher specificity to prevent style overrides during re-renders
-              zIndex: 20 
+              zIndex: 20,
             }}
             onFocus={(e) => {
               // Prevent focus from being stolen
-              e.currentTarget.setAttribute('data-focused', 'true');
+              e.currentTarget.setAttribute("data-focused", "true");
             }}
             onBlur={(e) => {
               // Only allow intentional blur
@@ -114,24 +119,27 @@ export function ChatWindow({
                 // Re-focus immediately
                 setTimeout(() => {
                   // Check if the element is still in the DOM before accessing properties
-                  if (e.currentTarget && e.currentTarget.getAttribute('data-focused') === 'true') {
+                  if (
+                    e.currentTarget &&
+                    e.currentTarget.getAttribute("data-focused") === "true"
+                  ) {
                     e.currentTarget.focus();
                   }
                 }, 0);
               } else {
                 // Safely set attribute only if the element is still in the DOM
                 if (e.currentTarget) {
-                  e.currentTarget.setAttribute('data-focused', 'false');
+                  e.currentTarget.setAttribute("data-focused", "false");
                 }
               }
             }}
             disabled={isLoading}
             autoFocus
           />
-          <Button 
+          <Button
             onClick={onSendMessage}
-            disabled={isLoading || !userInput.trim()} 
-            className="self-end text-xs h-8 px-2 bg-primary text-primary-foreground hover:bg-primary/80"
+            disabled={isLoading || !userInput.trim()}
+            className="bg-primary text-primary-foreground hover:bg-primary/80 h-8 self-end px-2 text-xs"
             size="sm"
           >
             {isLoading ? "..." : "Send"}

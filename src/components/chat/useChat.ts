@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback } from 'react';
-import { ChatMessageProps } from './ChatMessage';
+import { useState, useRef, useCallback } from "react";
+import { ChatMessageProps } from "./ChatMessage";
 import { type OllamaChatCompletionRequest } from "@/services/ollama/OllamaService";
 
 interface UseChatOptions {
@@ -9,13 +9,13 @@ interface UseChatOptions {
 
 export function useChat({
   initialSystemMessage = "You are an AI agent named 'Agent' inside an app used by a human called Commander. Respond helpfully but concisely, in 2-3 sentences.",
-  model = "gemma3:1b"
+  model = "gemma3:1b",
 }: UseChatOptions = {}) {
   const [messages, setMessages] = useState<ChatMessageProps[]>([
     {
       role: "system",
-      content: initialSystemMessage
-    }
+      content: initialSystemMessage,
+    },
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [userInput, setUserInput] = useState<string>("");
@@ -36,28 +36,30 @@ export function useChat({
     // Add user message to chat
     const userMessage: ChatMessageProps = {
       role: "user",
-      content: userInput.trim()
+      content: userInput.trim(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
 
     // Clear input field
     setUserInput("");
 
     // Get the system message from our messages state or use a default one
-    const systemMessage = messages.find(m => m.role === "system")?.content || initialSystemMessage;
+    const systemMessage =
+      messages.find((m) => m.role === "system")?.content ||
+      initialSystemMessage;
 
     const requestPayload: OllamaChatCompletionRequest = {
       model,
       messages: [
         { role: "system", content: systemMessage },
         ...messages
-          .filter(m => m.role !== "system") // Filter out client-side system messages
-          .map(m => ({ role: m.role, content: m.content })),
-        { role: "user", content: userMessage.content }
+          .filter((m) => m.role !== "system") // Filter out client-side system messages
+          .map((m) => ({ role: m.role, content: m.content })),
+        { role: "user", content: userMessage.content },
       ],
-      stream: useStreaming
+      stream: useStreaming,
     };
 
     if (useStreaming) {
@@ -67,10 +69,13 @@ export function useChat({
     }
   }, [userInput, isLoading, messages, initialSystemMessage, model]);
 
-  const handleNonStreamingRequest = async (requestPayload: OllamaChatCompletionRequest) => {
+  const handleNonStreamingRequest = async (
+    requestPayload: OllamaChatCompletionRequest,
+  ) => {
     try {
       // Call the Ollama service through IPC
-      const result = await window.electronAPI.ollama.generateChatCompletion(requestPayload);
+      const result =
+        await window.electronAPI.ollama.generateChatCompletion(requestPayload);
 
       // Check if we received an error through IPC
       if (result && result.__error) {
@@ -81,30 +86,32 @@ export function useChat({
       if (result.choices && result.choices.length > 0) {
         const assistantMessage: ChatMessageProps = {
           role: "assistant",
-          content: result.choices[0].message.content
+          content: result.choices[0].message.content,
         };
-        setMessages(prev => [...prev, assistantMessage]);
+        setMessages((prev) => [...prev, assistantMessage]);
       } else {
         // Handle empty response
         const errorMessage: ChatMessageProps = {
           role: "system",
-          content: "No response received from the assistant."
+          content: "No response received from the assistant.",
         };
-        setMessages(prev => [...prev, errorMessage]);
+        setMessages((prev) => [...prev, errorMessage]);
       }
     } catch (error: any) {
       // Add error message to chat
       const errorMessage: ChatMessageProps = {
         role: "system",
-        content: `Error: ${error.message || "Unknown error occurred"}`
+        content: `Error: ${error.message || "Unknown error occurred"}`,
       };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleStreamingRequest = async (requestPayload: OllamaChatCompletionRequest) => {
+  const handleStreamingRequest = async (
+    requestPayload: OllamaChatCompletionRequest,
+  ) => {
     // For tracking token count to reduce logging
     let tokenCounter = 0;
 
@@ -119,7 +126,7 @@ export function useChat({
     };
 
     // Add to messages state and store reference
-    setMessages(prevMessages => {
+    setMessages((prevMessages) => {
       const updatedMessages = [...prevMessages, newAssistantMessage];
       // Store a reference to the message for updates
       streamedMessageRef.current = newAssistantMessage;
@@ -151,8 +158,8 @@ export function useChat({
             };
 
             // Update the messages array, replacing the streaming message
-            setMessages(prevMessages => {
-              return prevMessages.map(msg => {
+            setMessages((prevMessages) => {
+              return prevMessages.map((msg) => {
                 // Match by reference to find the streaming message
                 if (msg === streamedMessageRef.current) {
                   // Replace with our updated message
@@ -176,10 +183,10 @@ export function useChat({
         };
 
         // Replace the streaming message with the final version
-        setMessages(prevMessages =>
-          prevMessages.map(msg =>
-            msg === streamedMessageRef.current ? finalMessage : msg
-          )
+        setMessages((prevMessages) =>
+          prevMessages.map((msg) =>
+            msg === streamedMessageRef.current ? finalMessage : msg,
+          ),
         );
 
         // Clean up
@@ -198,14 +205,14 @@ export function useChat({
         // Create error message
         const errorMessage: ChatMessageProps = {
           role: streamedContentRef.current ? "assistant" : "system",
-          content: errorContent
+          content: errorContent,
         };
 
         // Replace streaming message with error message
-        setMessages(prevMessages =>
-          prevMessages.map(msg =>
-            msg === streamedMessageRef.current ? errorMessage : msg
-          )
+        setMessages((prevMessages) =>
+          prevMessages.map((msg) =>
+            msg === streamedMessageRef.current ? errorMessage : msg,
+          ),
         );
 
         // Clean up
@@ -220,26 +227,27 @@ export function useChat({
         requestPayload,
         onChunk,
         onDone,
-        onError
+        onError,
       );
 
       // Save cancel function for cleanup
       streamCancelRef.current = cancelFn;
-
     } catch (error: any) {
       // Add error message to chat
       const errorMessage: ChatMessageProps = {
         role: "system",
-        content: `Error: ${error.message || "Unknown error occurred"}`
+        content: `Error: ${error.message || "Unknown error occurred"}`,
       };
 
       // Replace the streaming message with error or append
       if (streamedMessageRef.current) {
-        setMessages(prev =>
-          prev.map(msg => msg === streamedMessageRef.current ? errorMessage : msg)
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg === streamedMessageRef.current ? errorMessage : msg,
+          ),
         );
       } else {
-        setMessages(prev => [...prev, errorMessage]);
+        setMessages((prev) => [...prev, errorMessage]);
       }
 
       // Reset references
@@ -266,6 +274,6 @@ export function useChat({
     userInput,
     setUserInput,
     sendMessage: handleSendMessage,
-    cleanup
+    cleanup,
   };
 }
