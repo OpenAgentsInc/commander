@@ -136,46 +136,63 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                 })
               );
 
-              const response = await ollamaIPC.generateChatCompletion(ipcParams);
+              try {
+                // Check if the IPC function exists and is callable
+                if (!ollamaIPC || typeof ollamaIPC.generateChatCompletion !== 'function') {
+                  throw new Error("Ollama IPC generateChatCompletion function is not available");
+                }
 
-              if (response && response.__error) {
-                const providerError = new AIProviderError({
-                  message: `Ollama IPC error: ${response.message}`,
-                  provider: "OllamaAdapter(IPC-NonStream)",
-                  cause: response,
-                  context: { model: options.model, originalError: response },
-                });
-                
+                // Call the IPC function and await the response
+                const response = await ollamaIPC.generateChatCompletion(ipcParams);
+
+                // Defensive check for response
+                if (!response) {
+                  throw new Error("Ollama IPC returned null or undefined response");
+                }
+
+                // Check for error in response
+                if (response.__error) {
+                  const providerError = new AIProviderError({
+                    message: `Ollama IPC error: ${response.message || "Unknown error"}`,
+                    provider: "OllamaAdapter(IPC-NonStream)",
+                    cause: response,
+                    context: { model: options.model, originalError: response },
+                  });
+                  
+                  await Effect.runPromise(
+                    telemetry.trackEvent({
+                      category: "ollama_adapter:nonstream:error",
+                      action: "ipc_error",
+                      label: providerError.message,
+                    })
+                  );
+                  
+                  // Create a HttpClientError.ResponseError as expected by the interface
+                  const request = HttpClientRequest.post("ollama-ipc-chat-error");
+                  const webResponse = new Response(JSON.stringify(providerError), { status: 500 });
+                  throw new HttpClientError.ResponseError({
+                    request,
+                    response: HttpClientResponse.fromWeb(request, webResponse),
+                    reason: "StatusCode",
+                    cause: providerError,
+                    description: providerError.message || "Ollama IPC error",
+                  });
+                }
+
                 await Effect.runPromise(
                   telemetry.trackEvent({
-                    category: "ollama_adapter:nonstream:error",
-                    action: "ipc_error",
-                    label: providerError.message,
+                    category: "ollama_adapter:nonstream",
+                    action: "create_success",
+                    label: options.model,
                   })
                 );
                 
-                // Create a HttpClientError.ResponseError as expected by the interface
-                const request = HttpClientRequest.post("ollama-ipc-chat-error");
-                const webResponse = new Response(JSON.stringify(providerError), { status: 500 });
-                throw new HttpClientError.ResponseError({
-                  request,
-                  response: HttpClientResponse.fromWeb(request, webResponse),
-                  reason: "StatusCode",
-                  cause: providerError,
-                  description: providerError.message || "Ollama IPC error",
-                });
+                // Return the response as CreateChatCompletionResponse.Type
+                return response as typeof CreateChatCompletionResponse.Type;
+              } catch (error) {
+                // Rethrow to be caught by the outer catch handler
+                throw error;
               }
-
-              await Effect.runPromise(
-                telemetry.trackEvent({
-                  category: "ollama_adapter:nonstream",
-                  action: "create_success",
-                  label: options.model,
-                })
-              );
-              
-              // Return the response as CreateChatCompletionResponse.Type
-              return response as typeof CreateChatCompletionResponse.Type;
             },
             catch: (error) => {
               // If already an HttpClientError or ParseError, rethrow it.
