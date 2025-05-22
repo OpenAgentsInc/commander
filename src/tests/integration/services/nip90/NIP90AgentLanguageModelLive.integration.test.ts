@@ -1,7 +1,7 @@
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Stream } from "effect";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { AgentLanguageModel } from "@/services/ai/core";
-import { AIProviderError } from "@/services/ai/core/AIError";
+import { AiProviderError } from "@/services/ai/core/AiError";
 import { NIP90Service } from "@/services/nip90";
 import { NostrService } from "@/services/nostr";
 import { NIP04Service } from "@/services/nip04";
@@ -9,7 +9,6 @@ import { TelemetryService } from "@/services/telemetry";
 import { NIP90ProviderConfigTag } from "@/services/ai/providers/nip90/NIP90ProviderConfig";
 import { NIP90AgentLanguageModelLive } from "@/services/ai/providers/nip90/NIP90AgentLanguageModelLive";
 import { generateSecretKey, getPublicKey } from "@/utils/nostr";
-import { Stream } from "effect";
 
 describe("NIP90AgentLanguageModelLive", () => {
   const mockConfig = {
@@ -82,17 +81,23 @@ describe("NIP90AgentLanguageModelLive", () => {
     };
 
     mockTelemetryService = {
-      logEvent: vi.fn().mockImplementation(() => Effect.void),
-      logError: vi.fn().mockImplementation(() => Effect.void),
+      trackEvent: vi.fn().mockImplementation(() => Effect.void),
+      isEnabled: vi.fn().mockImplementation(() => Effect.succeed(true)),
+      setEnabled: vi.fn().mockImplementation(() => Effect.void),
     };
 
-    testLayer = Layer.mergeAll(
+    // Create dependencies layer
+    const dependenciesLayer = Layer.mergeAll(
       Layer.succeed(NIP90ProviderConfigTag, mockConfig),
       Layer.succeed(NIP90Service, mockNIP90Service),
       Layer.succeed(NostrService, mockNostrService),
       Layer.succeed(NIP04Service, mockNIP04Service),
-      Layer.succeed(TelemetryService, mockTelemetryService),
-      NIP90AgentLanguageModelLive
+      Layer.succeed(TelemetryService, mockTelemetryService)
+    );
+
+    // Provide dependencies to the NIP90AgentLanguageModelLive layer
+    testLayer = NIP90AgentLanguageModelLive.pipe(
+      Layer.provide(dependenciesLayer)
     );
   });
 
@@ -109,7 +114,7 @@ describe("NIP90AgentLanguageModelLive", () => {
       expect(response.text).toBe("Mock result");
     });
 
-    await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
+    await Effect.runPromise(program.pipe(Effect.provideLayer(testLayer)));
     expect(mockNIP90Service.createJobRequest).toHaveBeenCalled();
     expect(mockNIP90Service.getJobResult).toHaveBeenCalled();
   });
@@ -125,47 +130,58 @@ describe("NIP90AgentLanguageModelLive", () => {
       );
     });
 
-    await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
+    await Effect.runPromise(program.pipe(Effect.provideLayer(testLayer)));
     expect(mockNIP90Service.createJobRequest).toHaveBeenCalled();
     expect(mockNIP90Service.subscribeToJobUpdates).toHaveBeenCalled();
   });
 
   it("should handle errors in text generation", async () => {
-    const errorLayer = Layer.mergeAll(
+    const mockError = AiProviderError.of({
+      message: "Mock error",
+      provider: "NIP90",
+      isRetryable: false
+    });
+
+    const errorDependenciesLayer = Layer.mergeAll(
       Layer.succeed(NIP90ProviderConfigTag, mockConfig),
       Layer.succeed(
         NIP90Service,
         {
           ...mockNIP90Service,
           createJobRequest: vi.fn().mockImplementation(() =>
-            Effect.fail({
-              _tag: "NIP90RequestError",
-              message: "Mock error",
-            })
+            Effect.fail(mockError)
           ),
         }
       ),
       Layer.succeed(NostrService, mockNostrService),
       Layer.succeed(NIP04Service, mockNIP04Service),
-      Layer.succeed(TelemetryService, mockTelemetryService),
-      NIP90AgentLanguageModelLive
+      Layer.succeed(TelemetryService, mockTelemetryService)
+    );
+
+    const errorLayer = NIP90AgentLanguageModelLive.pipe(
+      Layer.provide(errorDependenciesLayer)
     );
 
     const program = Effect.gen(function* (_) {
       const model = yield* _(AgentLanguageModel);
-      try {
-        yield* _(
+      const result = yield* _(
+        Effect.either(
           model.generateText({
             prompt: "Test error prompt",
           })
-        );
-        throw new Error("Should have failed");
-      } catch (error) {
-        expect(error).toBeInstanceOf(AIProviderError);
-        expect((error as AIProviderError).message).toContain("Mock error");
+        )
+      );
+
+      expect(Effect.isLeft(result)).toBe(true);
+      if (Effect.isLeft(result)) {
+        const error = result.left;
+        expect(error).toBeInstanceOf(AiProviderError);
+        expect(error.message).toBe("Mock error");
+        expect(error.provider).toBe("NIP90");
+        expect(error.isRetryable).toBe(false);
       }
     });
 
-    await Effect.runPromise(program.pipe(Effect.provide(errorLayer)));
+    await Effect.runPromise(program.pipe(Effect.provideLayer(errorLayer)));
   });
 });

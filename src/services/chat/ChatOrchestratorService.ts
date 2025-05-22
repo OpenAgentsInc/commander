@@ -1,7 +1,7 @@
 import { Effect, Stream, pipe } from "effect";
 import { Context } from "effect/Context";
 import { AgentLanguageModel } from "../ai/core/AgentLanguageModel";
-import { AiError } from "../ai/core/AiError";
+import { AiProviderError } from "../ai/core/AiError";
 import { AiResponse, AiTextChunk } from "../ai/core/AiResponse";
 import { ChatMessage } from "./ChatMessage";
 import { ChatSession } from "./ChatSession";
@@ -21,7 +21,7 @@ export interface ChatOrchestratorService {
     sessionId: string,
     message: string,
     signal?: AbortSignal
-  ): Stream.Stream<AiTextChunk, AiError>;
+  ): Stream.Stream<AiTextChunk, AiProviderError>;
 
   /**
    * Generate a chat response
@@ -29,7 +29,7 @@ export interface ChatOrchestratorService {
   generateResponse(
     sessionId: string,
     message: string
-  ): Effect.Effect<AiResponse, AiError>;
+  ): Effect.Effect<AiResponse, AiProviderError>;
 }
 
 /**
@@ -64,7 +64,7 @@ export const ChatOrchestratorServiceLive = Effect.gen(function* (_) {
     sessionId: string,
     message: string,
     signal?: AbortSignal
-  ): Stream.Stream<AiTextChunk, AiError> =>
+  ): Stream.Stream<AiTextChunk, AiProviderError> =>
     pipe(
       Effect.gen(function* (_) {
         const session = yield* _(sessionService.getSession(sessionId));
@@ -92,7 +92,7 @@ export const ChatOrchestratorServiceLive = Effect.gen(function* (_) {
   const generateResponse = (
     sessionId: string,
     message: string
-  ): Effect.Effect<AiResponse, AiError> =>
+  ): Effect.Effect<AiResponse, AiProviderError> =>
     pipe(
       Effect.gen(function* (_) {
         const session = yield* _(sessionService.getSession(sessionId));

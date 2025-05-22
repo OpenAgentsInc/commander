@@ -30,7 +30,7 @@ export const mapErrorToAiError = (error: unknown): AiError => {
 /**
  * Provider-specific error type
  */
-export class AIProviderError extends Data.TaggedError("AIProviderError")<{
+export class AiProviderError extends Data.TaggedError("AiProviderError")<{
   message: string;
   cause?: unknown;
   isRetryable: boolean;
@@ -39,7 +39,7 @@ export class AIProviderError extends Data.TaggedError("AIProviderError")<{
 /**
  * Configuration-related error type
  */
-export class AIConfigurationError extends Data.TaggedError("AIConfigurationError")<{
+export class AiConfigurationError extends Data.TaggedError("AiConfigurationError")<{
   message: string;
   cause?: unknown;
 }> { }
@@ -47,12 +47,12 @@ export class AIConfigurationError extends Data.TaggedError("AIConfigurationError
 /**
  * Maps an error to a provider-specific error
  */
-export const mapToAIProviderError = (
+export const mapToAiProviderError = (
   error: unknown,
   contextAction: string,
   modelName: string,
   isRetryable = false
-): AIProviderError => {
+): AiProviderError => {
   let messageContent = "Unknown provider error";
   let causeContent: unknown = error;
 
@@ -71,7 +71,7 @@ export const mapToAIProviderError = (
     messageContent = String(error);
   }
 
-  return new AIProviderError({
+  return new AiProviderError({
     message: `Provider ${contextAction} error for model ${modelName}: ${messageContent}`,
     cause: causeContent,
     isRetryable
@@ -79,75 +79,33 @@ export const mapToAIProviderError = (
 };
 
 /**
- * Error for issues with AI service or provider configuration
- * Used for missing API keys, invalid URLs, etc.
- */
-export class AIConfigurationError extends AiError {
-  constructor(options: {
-    message: string;
-    cause?: unknown;
-  }) {
-    super(options);
-    this.name = "AIConfigurationError";
-  }
-}
-
-/**
  * Error for issues during tool execution
  * Used when an AI-invoked tool fails
  */
-export class AIToolExecutionError extends AiError {
-  readonly toolName: string;
-
-  constructor(options: {
-    message: string;
-    toolName: string;
-    cause?: unknown;
-  }) {
-    super(options);
-    this.name = "AIToolExecutionError";
-    this.toolName = options.toolName;
-  }
-}
+export class AiToolExecutionError extends Data.TaggedError("AiToolExecutionError")<{
+  message: string;
+  toolName: string;
+  cause?: unknown;
+}> { }
 
 /**
  * Error for issues related to context window limits
  * Used when a prompt or conversation exceeds token limits
  */
-export class AIContextWindowError extends AiError {
-  readonly limit?: number;
-  readonly current?: number;
-
-  constructor(options: {
-    message: string;
-    limit?: number;
-    current?: number;
-    cause?: unknown;
-  }) {
-    super(options);
-    this.name = "AIContextWindowError";
-    this.limit = options.limit;
-    this.current = options.current;
-  }
-}
+export class AiContextWindowError extends Data.TaggedError("AiContextWindowError")<{
+  message: string;
+  limit?: number;
+  current?: number;
+  cause?: unknown;
+}> { }
 
 /**
  * Error for content policy violations
  * Used when AI content is flagged or rejected by provider
  */
-export class AIContentPolicyError extends AiError {
-  readonly provider: string;
-  readonly flaggedContent?: string;
-
-  constructor(options: {
-    message: string;
-    provider: string;
-    flaggedContent?: string;
-    cause?: unknown;
-  }) {
-    super(options);
-    this.name = "AIContentPolicyError";
-    this.provider = options.provider;
-    this.flaggedContent = options.flaggedContent;
-  }
-}
+export class AiContentPolicyError extends Data.TaggedError("AiContentPolicyError")<{
+  message: string;
+  provider: string;
+  flaggedContent?: string;
+  cause?: unknown;
+}> { }

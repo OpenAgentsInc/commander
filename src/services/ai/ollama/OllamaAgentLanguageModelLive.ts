@@ -1,6 +1,6 @@
 import { Effect, Stream, pipe } from "effect";
 import { AgentLanguageModel, makeAgentLanguageModel } from "../core/AgentLanguageModel";
-import { AiError } from "../core/AiError";
+import { AiProviderError } from "../core/AiError";
 import { AiResponse, AiTextChunk } from "../core/AiResponse";
 import { OllamaClient } from "./OllamaClient";
 import { OllamaConfig } from "./OllamaConfig";
@@ -25,9 +25,10 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
         Stream.map((chunk) => ({
           text: chunk.response
         } as AiTextChunk)),
-        Stream.mapError((error) => new AiError({
+        Stream.mapError((error) => new AiProviderError({
           message: "Error streaming from Ollama",
-          cause: error
+          cause: error,
+          isRetryable: true
         }))
       ),
 
@@ -49,9 +50,10 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
             }
           }
         } as AiResponse)),
-        Effect.mapError((error) => new AiError({
+        Effect.mapError((error) => new AiProviderError({
           message: "Error getting completion from Ollama",
-          cause: error
+          cause: error,
+          isRetryable: true
         }))
       )
   };
