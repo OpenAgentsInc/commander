@@ -213,6 +213,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                   : new AiProviderError({
                     message: `Ollama IPC non-stream request failed: ${error instanceof Error ? error.message : String(error)}`,
                     cause: error,
+                    isRetryable: true,
                   });
 
               // Log telemetry only if it wasn't an AiProviderError initially (to avoid double logging if it was already logged)
@@ -423,6 +424,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                     const err = new AiProviderError({
                       message:
                         "Ollama IPC stream received unexpected chunk format",
+                      isRetryable: false,
                     });
 
                     const request = HttpClientRequest.post("ollama-ipc-stream-chunk-error");
@@ -470,6 +472,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                   const providerError = new AiProviderError({
                     message: `Ollama IPC stream error: ${ipcError.message || "Unknown error"}`,
                     cause: error,
+                    isRetryable: true,
                   });
 
                   const request = HttpClientRequest.post("ollama-ipc-stream-error");
@@ -501,6 +504,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
               const setupError = new AiProviderError({
                 message: errorMsg,
                 cause: e,
+                isRetryable: false,
               });
 
               const request = HttpClientRequest.post("ollama-ipc-stream-setup-error");
@@ -546,6 +550,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
             reason: "StatusCode",
             cause: new AiProviderError({
               message: "OllamaAdapter: streamRequest not implemented directly",
+              isRetryable: false,
             }),
             description: "OllamaAdapter: streamRequest not implemented directly",
           })
