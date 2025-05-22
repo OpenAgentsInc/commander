@@ -8,10 +8,10 @@ import {
   GenerateTextOptions,
   StreamTextOptions,
 } from "@/services/ai/core";
-import type { Provider as AiProvider } from "@effect/ai";
 import { ConfigurationService } from "@/services/configuration";
 import { TelemetryService } from "@/services/telemetry";
-import { AiPlan } from "@effect/ai";
+import { OpenAiLanguageModel } from "@effect/ai-openai";
+import type { AiModel } from "@effect/ai/AiModel";
 
 export interface PreferredProviderConfig {
   key: string;
@@ -47,25 +47,44 @@ export const ChatOrchestratorServiceLive = Layer.effect(
       streamConversation: ({ messages, preferredProvider, options }) => {
         runTelemetry({ category: "orchestrator", action: "stream_conversation_start", label: preferredProvider.key });
 
-        // Simplified plan: Use the single active AgentLanguageModel
-        const plan = AiPlan.make({
-          model: Effect.succeed(activeAgentLM as AiProvider.Provider<AgentLanguageModel>),
-          attempts: 3,
-          schedule: Schedule.exponential("100 millis").pipe(Schedule.jittered, Schedule.recurs(2)),
-          while: (err: AIProviderError | AIConfigurationError) =>
-            err._tag === "AIProviderError" && err.isRetryable === true,
-        });
+        // Create an AiModel that will provide AgentLanguageModel
+        const aiModel = OpenAiLanguageModel.model(preferredProvider.modelName || "gpt-4o");
 
-        const streamOptions: StreamTextOptions = {
-          ...options,
-          prompt: JSON.stringify({ messages }),
-          model: preferredProvider.modelName,
-        };
+        // Build a plan for retrying the model with exponential backoff
+        const plan = Effect.gen(function* (_) {
+          // Build the AiModel into a Provider
+          const provider = yield* _(aiModel);
+          let attempts = 3;
+          let result = null;
+
+          while (attempts > 0) {
+            try {
+              const streamOptions: StreamTextOptions = {
+                ...options,
+                prompt: JSON.stringify({ messages }),
+                model: preferredProvider.modelName,
+              };
+
+              result = yield* _(provider.streamText(streamOptions));
+              break;
+            } catch (err) {
+              if (attempts === 1 || !(err instanceof AIProviderError) || !err.isRetryable) {
+                throw err;
+              }
+              attempts--;
+              yield* _(Effect.sleep(Schedule.exponential("100 millis")));
+            }
+          }
+          return result!;
+        });
 
         return Stream.unwrap(
           plan.pipe(
-            Effect.flatMap(builtPlan => builtPlan.streamText(streamOptions)),
-            Effect.tapError((err) => runTelemetry({ category: "orchestrator", action: "ai_plan_execution_error", label: (err as Error).message }))
+            Effect.tapError((err) => runTelemetry({
+              category: "orchestrator",
+              action: "ai_plan_execution_error",
+              label: (err as Error).message
+            }))
           )
         );
       },
