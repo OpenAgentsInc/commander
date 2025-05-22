@@ -178,9 +178,9 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
               return response as typeof CreateChatCompletionResponse.Type;
             },
             catch: (error) => {
-              // If already an HttpClientError or ParseError, return it
-              if (isHttpClientError(error) || (error as any)?._tag === "ParseError") {
-                return error as HttpClientError.HttpClientError | ParseError;
+              // If already an HttpClientError, return it
+              if (isHttpClientError(error)) {
+                return error;
               }
 
               // Ensure any other caught error is wrapped in AIProviderError then HttpClientError
@@ -518,7 +518,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
             }),
             description: "OllamaAdapter: streamRequest not implemented directly",
           })
-        ) as Stream.Stream<A, HttpClientError.HttpClientError | ParseError>;
+        ) as Stream.Stream<A, HttpClientError.HttpClientError>;
       },
     });
   }),
