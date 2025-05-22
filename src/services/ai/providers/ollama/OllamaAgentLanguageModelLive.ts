@@ -9,12 +9,11 @@ import {
 } from "@/services/ai/core";
 import { AiProviderError, mapToAiProviderError } from "@/services/ai/core/AiError";
 import { AiResponse, AiTextChunk } from "@/services/ai/core/AiResponse";
-import { OllamaOpenAIClientTag } from "./OllamaAsOpenAIClientLive";
-import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
+import { OpenAiClient } from "@effect/ai-openai";
 import { ConfigurationService } from "@/services/configuration";
 import { TelemetryService } from "@/services/telemetry";
-import type { AiLanguageModel } from "@effect/ai/AiLanguageModel";
-import type { AiResponse as OpenAiResponse } from "@effect/ai/AiResponse";
+import { OllamaOpenAIClientTag } from "./OllamaAsOpenAIClientLive";
+import { AiLanguageModel } from "@effect/ai";
 
 console.log(
   "Loading OllamaAgentLanguageModelLive module (Proper Effect Pattern)",
@@ -42,18 +41,58 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
     )
   );
 
-  // Step 1: Get the AiModel definition Effect
-  const aiModelEffectDefinition = OpenAiLanguageModel.model(modelName);
+  // Create the language model implementation
+  const languageModel = AiLanguageModel.make({
+    generateText: (options) =>
+      Effect.tryPromise({
+        try: () =>
+          ollamaClient.createChatCompletion({
+            model: options.model || modelName,
+            messages: [{ role: "user", content: options.prompt }],
+            temperature: options.temperature,
+            max_tokens: options.maxTokens,
+            stop: options.stopSequences
+          }),
+        catch: (error) => mapToAiProviderError(error, "generateText", modelName, true)
+      }).pipe(
+        Effect.map(response => new AiResponse({
+          text: response.choices?.[0]?.message?.content || "",
+          metadata: {
+            usage: response.usage && {
+              promptTokens: response.usage.prompt_tokens,
+              completionTokens: response.usage.completion_tokens,
+              totalTokens: response.usage.total_tokens
+            }
+          }
+        }))
+      ),
 
-  // Step 2: Provide the client dependency to get the AiModel instance
-  const configuredAiModelEffect = Effect.provideService(
-    aiModelEffectDefinition,
-    OpenAiClient.OpenAiClient,
-    ollamaClient
-  );
-
-  // Step 3: Get the provider
-  const provider = yield* _(configuredAiModelEffect) as unknown as AiLanguageModel;
+    streamText: (options) =>
+      Stream.fromEffect(
+        Effect.tryPromise({
+          try: () =>
+            ollamaClient.createChatCompletionStream({
+              model: options.model || modelName,
+              messages: [{ role: "user", content: options.prompt }],
+              temperature: options.temperature,
+              max_tokens: options.maxTokens,
+              stop: options.stopSequences,
+              stream: true
+            }),
+          catch: (error) => mapToAiProviderError(error, "streamText", modelName, true)
+        })
+      ).pipe(
+        Stream.flatMap(response =>
+          Stream.fromAsyncIterable(
+            response.data,
+            { onError: error => mapToAiProviderError(error, "streamText", modelName, true) }
+          )
+        ),
+        Stream.map(chunk => new AiTextChunk({
+          text: chunk.choices?.[0]?.delta?.content || ""
+        }))
+      )
+  });
 
   // Log successful model creation
   yield* _(
@@ -64,45 +103,10 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
     })
   );
 
-  // Create our AgentLanguageModel implementation using the provider
+  // Create our AgentLanguageModel implementation
   return makeAgentLanguageModel({
-    generateText: (options: GenerateTextOptions) =>
-      Effect.gen(function* (_) {
-        const response = yield* _(Effect.promise(() =>
-          provider.generateText({
-            prompt: options.prompt,
-            model: options.model,
-            temperature: options.temperature,
-            maxTokens: options.maxTokens,
-            stopSequences: options.stopSequences
-          })
-        ));
-        return new AiResponse({
-          text: response.text,
-          metadata: {
-            usage: response.usage
-          }
-        });
-      }).pipe(
-        Effect.mapError(error => mapToAiProviderError(error, "generateText", modelName, true))
-      ),
-
-    streamText: (options: StreamTextOptions) =>
-      Stream.fromEffect(
-        Effect.promise(() =>
-          provider.streamText({
-            prompt: options.prompt,
-            model: options.model,
-            temperature: options.temperature,
-            maxTokens: options.maxTokens,
-            signal: options.signal
-          })
-        )
-      ).pipe(
-        Stream.map((chunk: OpenAiResponse) => new AiTextChunk({ text: chunk.text })),
-        Stream.mapError(error => mapToAiProviderError(error, "streamText", modelName, true))
-      ),
-
+    generateText: (options) => languageModel.generateText(options),
+    streamText: (options) => languageModel.streamText(options),
     generateStructured: (options: GenerateStructuredOptions) =>
       Effect.fail(
         new AiProviderError({
