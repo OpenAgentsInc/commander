@@ -93,131 +93,202 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
 
     // Implement the OpenAiClient interface
     return OllamaOpenAIClientTag.of({
-      // client property containing methods like chat.completions.create
+      // client property that adapts to the OpenAI client interface
       client: {
-        chat: {
-          completions: {
-            create: (params: ChatCompletionCreateParams) => {
-              // Ensure stream is explicitly false for this path
-              const nonStreamingParams = { ...params, stream: false };
+        // Direct implementation of createChatCompletion method required by the Client interface
+        createChatCompletion: (params: ChatCompletionCreateParams) => {
+          // Ensure stream is explicitly false for this path
+          const nonStreamingParams = { ...params, stream: false };
 
-              return Effect.tryPromise({
-                try: async () => {
-                  await Effect.runPromise(
-                    telemetry.trackEvent({
-                      category: "ollama_adapter:nonstream",
-                      action: "create_start",
-                      label: params.model,
-                    }),
-                  );
+          return Effect.tryPromise({
+            try: async () => {
+              await Effect.runPromise(
+                telemetry.trackEvent({
+                  category: "ollama_adapter:nonstream",
+                  action: "create_start",
+                  label: params.model,
+                }),
+              );
 
-                  const response =
-                    await ollamaIPC.generateChatCompletion(nonStreamingParams);
+              const response =
+                await ollamaIPC.generateChatCompletion(nonStreamingParams);
 
-                  if (response && response.__error) {
-                    const providerError = new AIProviderError({
-                      message: `Ollama IPC error: ${response.message}`,
+              if (response && response.__error) {
+                const providerError = new AIProviderError({
+                  message: `Ollama IPC error: ${response.message}`,
+                  provider: "OllamaAdapter(IPC-NonStream)",
+                  cause: response,
+                  context: { model: params.model, originalError: response },
+                });
+
+                await Effect.runPromise(
+                  telemetry.trackEvent({
+                    category: "ollama_adapter:nonstream:error",
+                    action: "ipc_error",
+                    label: providerError.message,
+                  }),
+                );
+
+                throw providerError;
+              }
+
+              await Effect.runPromise(
+                telemetry.trackEvent({
+                  category: "ollama_adapter:nonstream",
+                  action: "create_success",
+                  label: params.model,
+                }),
+              );
+
+              // Return OpenAI-compatible response
+              return response as ChatCompletion;
+            },
+            catch: (error) => {
+              const providerError =
+                error instanceof AIProviderError
+                  ? error
+                  : new AIProviderError({
+                      message: `Ollama IPC non-stream request failed: ${error instanceof Error ? error.message : String(error)}`,
                       provider: "OllamaAdapter(IPC-NonStream)",
-                      cause: response,
-                      context: { model: params.model, originalError: response },
+                      cause: error,
+                      context: { model: params.model },
                     });
 
-                    await Effect.runPromise(
-                      telemetry.trackEvent({
-                        category: "ollama_adapter:nonstream:error",
-                        action: "ipc_error",
-                        label: providerError.message,
-                      }),
-                    );
+              if (!(error instanceof AIProviderError)) {
+                Effect.runFork(
+                  telemetry.trackEvent({
+                    category: "ollama_adapter:nonstream:error",
+                    action: "request_exception",
+                    label: providerError.message,
+                  }),
+                );
+              }
 
-                    throw providerError;
-                  }
-
-                  await Effect.runPromise(
-                    telemetry.trackEvent({
-                      category: "ollama_adapter:nonstream",
-                      action: "create_success",
-                      label: params.model,
-                    }),
-                  );
-
-                  // Return OpenAI-compatible response
-                  return response as ChatCompletion;
-                },
-                catch: (error) => {
-                  const providerError =
-                    error instanceof AIProviderError
-                      ? error
-                      : new AIProviderError({
-                          message: `Ollama IPC non-stream request failed: ${error instanceof Error ? error.message : String(error)}`,
-                          provider: "OllamaAdapter(IPC-NonStream)",
-                          cause: error,
-                          context: { model: params.model },
-                        });
-
-                  if (!(error instanceof AIProviderError)) {
-                    Effect.runFork(
-                      telemetry.trackEvent({
-                        category: "ollama_adapter:nonstream:error",
-                        action: "request_exception",
-                        label: providerError.message,
-                      }),
-                    );
-                  }
-
-                  // Use HttpClientError for compatibility with OpenAiClient interface
-                  const request = HttpClientRequest.get("ollama-ipc-nonstream");
-                  const webResponse = new Response("", { status: 500 });
-                  return new HttpClientError.ResponseError({
-                    request,
-                    response: HttpClientResponse.fromWeb(request, webResponse),
-                    reason: "StatusCode",
-                    cause: providerError,
-                    description: String(providerError.message),
-                  });
-                },
+              // Use HttpClientError for compatibility with OpenAiClient interface
+              const request = HttpClientRequest.get("ollama-ipc-nonstream");
+              const webResponse = new Response("", { status: 500 });
+              return new HttpClientError.ResponseError({
+                request,
+                response: HttpClientResponse.fromWeb(request, webResponse),
+                reason: "StatusCode",
+                cause: providerError,
+                description: String(providerError.message),
               });
             },
-          },
+          });
         },
-        embeddings: {
-          create: (_params: any) =>
-            Effect.fail(
-              (() => {
-                const request = HttpClientRequest.get("ollama-ipc-embeddings");
-                const webResponse = new Response("", { status: 501 });
-                return new HttpClientError.ResponseError({
-                  request,
-                  response: HttpClientResponse.fromWeb(request, webResponse),
-                  reason: "StatusCode",
-                  cause: new AIProviderError({
-                    message: "OllamaAdapter: embeddings.create not implemented",
-                    provider: "OllamaAdapter",
-                  }),
-                  description: "OllamaAdapter: embeddings.create not implemented",
-                });
-              })(),
-            ),
-        },
-        models: {
-          list: () =>
-            Effect.fail(
-              (() => {
-                const request = HttpClientRequest.get("ollama-ipc-models");
-                const webResponse = new Response("", { status: 501 });
-                return new HttpClientError.ResponseError({
-                  request,
-                  response: HttpClientResponse.fromWeb(request, webResponse),
-                  reason: "StatusCode",
-                  cause: new AIProviderError({
-                    message: "OllamaAdapter: models.list not implemented",
-                    provider: "OllamaAdapter",
-                  }),
-                  description: "OllamaAdapter: models.list not implemented",
-                });
-              })(),
-            ),
-        },
+        
+        // Stub for createEmbedding method required by the Client interface
+        createEmbedding: (_params: any) =>
+          Effect.fail(
+            (() => {
+              const request = HttpClientRequest.get("ollama-ipc-embeddings");
+              const webResponse = new Response(null, { status: 501 });
+              return new HttpClientError.ResponseError({
+                request,
+                response: HttpClientResponse.fromWeb(request, webResponse),
+                reason: "StatusCode",
+                cause: new AIProviderError({
+                  message: "OllamaAdapter: embeddings.create not implemented",
+                  provider: "OllamaAdapter",
+                }),
+                description: "OllamaAdapter: embeddings.create not implemented",
+              });
+            })()
+          ),
+          
+        // Stub for listModels method required by the Client interface
+        listModels: () =>
+          Effect.fail(
+            (() => {
+              const request = HttpClientRequest.get("ollama-ipc-models");
+              const webResponse = new Response("", { status: 501 });
+              return new HttpClientError.ResponseError({
+                request,
+                response: HttpClientResponse.fromWeb(request, webResponse),
+                reason: "StatusCode",
+                cause: new AIProviderError({
+                  message: "OllamaAdapter: models.list not implemented",
+                  provider: "OllamaAdapter",
+                }),
+                description: "OllamaAdapter: models.list not implemented",
+              });
+            })()
+          ),
+          
+        // Add minimal stubs for other required Client methods
+        listAssistants: (_options: any) => Effect.fail(
+          (() => {
+            const request = HttpClientRequest.get("ollama-not-implemented");
+            const webResponse = new Response(null, { status: 501 });
+            return new HttpClientError.ResponseError({
+              request,
+              response: HttpClientResponse.fromWeb(request, webResponse),
+              reason: "StatusCode",
+              description: "Not implemented in Ollama adapter",
+            });
+          })()
+        ),
+        createAssistant: (_options: any) => Effect.fail(
+          (() => {
+            const request = HttpClientRequest.get("ollama-not-implemented");
+            const webResponse = new Response(null, { status: 501 });
+            return new HttpClientError.ResponseError({
+              request,
+              response: HttpClientResponse.fromWeb(request, webResponse),
+              reason: "StatusCode",
+              description: "Not implemented in Ollama adapter",
+            });
+          })()
+        ),
+        getAssistant: (_assistantId: string) => Effect.fail(
+          (() => {
+            const request = HttpClientRequest.get("ollama-not-implemented");
+            const webResponse = new Response(null, { status: 501 });
+            return new HttpClientError.ResponseError({
+              request,
+              response: HttpClientResponse.fromWeb(request, webResponse),
+              reason: "StatusCode",
+              description: "Not implemented in Ollama adapter",
+            });
+          })()
+        ),
+        modifyAssistant: (_assistantId: string, _options: any) => Effect.fail(
+          (() => {
+            const request = HttpClientRequest.get("ollama-not-implemented");
+            const webResponse = new Response(null, { status: 501 });
+            return new HttpClientError.ResponseError({
+              request,
+              response: HttpClientResponse.fromWeb(request, webResponse),
+              reason: "StatusCode",
+              description: "Not implemented in Ollama adapter",
+            });
+          })()
+        ),
+        deleteAssistant: (_assistantId: string) => Effect.fail(
+          (() => {
+            const request = HttpClientRequest.get("ollama-not-implemented");
+            const webResponse = new Response(null, { status: 501 });
+            return new HttpClientError.ResponseError({
+              request,
+              response: HttpClientResponse.fromWeb(request, webResponse),
+              reason: "StatusCode",
+              description: "Not implemented in Ollama adapter",
+            });
+          })()
+        ),
+        createCompletion: (_options: any) => Effect.fail(
+          (() => {
+            const request = HttpClientRequest.get("ollama-not-implemented");
+            const webResponse = new Response(null, { status: 501 });
+            return new HttpClientError.ResponseError({
+              request,
+              response: HttpClientResponse.fromWeb(request, webResponse),
+              reason: "StatusCode",
+              description: "Not implemented in Ollama adapter",
+            });
+          })()
+        ),
       },
 
       // Top-level stream method for streaming chat completions
