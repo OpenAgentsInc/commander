@@ -41,7 +41,7 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
   // Step 1: Get the AiModel definition Effect  
   const aiModelEffectDefinition = OpenAiLanguageModel.model(modelName, {
     temperature: 0.7,
-    maxTokens: 2048
+    max_tokens: 2048
   });
 
   // Step 2: Provide the client dependency to get the AiModel instance
