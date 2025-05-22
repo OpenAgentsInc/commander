@@ -15,6 +15,7 @@ import {
 } from "@/services/ai/core/AIError";
 import { OllamaOpenAIClientTag } from "./OllamaAsOpenAIClientLive";
 import { TelemetryService } from "@/services/telemetry";
+import { TypeId } from "@effect/ai/AiResponse";
 import type { AiResponse } from "@effect/ai/AiResponse";
 
 // Mock implementation for OpenAiLanguageModel since the package structure might be different
@@ -28,19 +29,17 @@ const OpenAiLanguageModel = {
           Effect.succeed({
             text: "Not implemented in mock",
             usage: { total_tokens: 0 },
-            imageUrl: "",
-            content: [],
             role: "assistant",
-            parts: [{ _tag: "text", content: "Not implemented in mock" } as const],
+            parts: [{ _tag: "Text", content: "Not implemented in mock" } as const],
+            [TypeId]: Symbol.for("@effect/ai/AiResponse"),
             withToolCallsJson: () =>
               ({
-                text: "",
+                text: "Not implemented in mock",
                 usage: { total_tokens: 0 },
-                imageUrl: "",
-                content: [],
                 role: "assistant",
-                parts: [{ _tag: "text", content: "" } as const],
-                withToolCallsJson: () => ({} as unknown as AiResponse),
+                parts: [{ _tag: "Text", content: "Not implemented in mock" } as const],
+                [TypeId]: Symbol.for("@effect/ai/AiResponse"),
+                withToolCallsJson: () => Effect.succeed({} as unknown as AiResponse),
                 withToolCallsUnknown: () => ({} as unknown as AiResponse),
                 concat: () => ({} as unknown as AiResponse),
                 [Symbol.for("@effect/data/Equal")]: () => false,
@@ -48,13 +47,12 @@ const OpenAiLanguageModel = {
               }) as unknown as AiResponse,
             withToolCallsUnknown: () =>
               ({
-                text: "",
+                text: "Not implemented in mock",
                 usage: { total_tokens: 0 },
-                imageUrl: "",
-                content: [],
                 role: "assistant",
-                parts: [{ _tag: "text", content: "" } as const],
-                withToolCallsJson: () => ({} as unknown as AiResponse),
+                parts: [{ _tag: "Text", content: "Not implemented in mock" } as const],
+                [TypeId]: Symbol.for("@effect/ai/AiResponse"),
+                withToolCallsJson: () => Effect.succeed({} as unknown as AiResponse),
                 withToolCallsUnknown: () => ({} as unknown as AiResponse),
                 concat: () => ({} as unknown as AiResponse),
                 [Symbol.for("@effect/data/Equal")]: () => false,
@@ -62,13 +60,12 @@ const OpenAiLanguageModel = {
               }) as unknown as AiResponse,
             concat: (_other: AiResponse) =>
               ({
-                text: "",
+                text: "Not implemented in mock",
                 usage: { total_tokens: 0 },
-                imageUrl: "",
-                content: [],
                 role: "assistant",
-                parts: [{ _tag: "text", content: "" } as const],
-                withToolCallsJson: () => ({} as unknown as AiResponse),
+                parts: [{ _tag: "Text", content: "Not implemented in mock" } as const],
+                [TypeId]: Symbol.for("@effect/ai/AiResponse"),
+                withToolCallsJson: () => Effect.succeed({} as unknown as AiResponse),
                 withToolCallsUnknown: () => ({} as unknown as AiResponse),
                 concat: () => ({} as unknown as AiResponse),
                 [Symbol.for("@effect/data/Equal")]: () => false,
@@ -87,19 +84,18 @@ const OpenAiLanguageModel = {
             text: "{}",
             structured: {},
             usage: { total_tokens: 0 },
-            imageUrl: "",
-            content: [],
             role: "assistant",
-            parts: [{ _tag: "text", content: "{}" } as const],
+            parts: [{ _tag: "Text", content: "{}" } as const],
+            [TypeId]: Symbol.for("@effect/ai/AiResponse"),
             withToolCallsJson: () =>
               ({
-                text: "",
+                text: "{}",
+                structured: {},
                 usage: { total_tokens: 0 },
-                imageUrl: "",
-                content: [],
                 role: "assistant",
-                parts: [{ _tag: "text", content: "" } as const],
-                withToolCallsJson: () => ({} as unknown as AiResponse),
+                parts: [{ _tag: "Text", content: "{}" } as const],
+                [TypeId]: Symbol.for("@effect/ai/AiResponse"),
+                withToolCallsJson: () => Effect.succeed({} as unknown as AiResponse),
                 withToolCallsUnknown: () => ({} as unknown as AiResponse),
                 concat: () => ({} as unknown as AiResponse),
                 [Symbol.for("@effect/data/Equal")]: () => false,
@@ -107,13 +103,13 @@ const OpenAiLanguageModel = {
               }) as unknown as AiResponse,
             withToolCallsUnknown: () =>
               ({
-                text: "",
+                text: "{}",
+                structured: {},
                 usage: { total_tokens: 0 },
-                imageUrl: "",
-                content: [],
                 role: "assistant",
-                parts: [{ _tag: "text", content: "" } as const],
-                withToolCallsJson: () => ({} as unknown as AiResponse),
+                parts: [{ _tag: "Text", content: "{}" } as const],
+                [TypeId]: Symbol.for("@effect/ai/AiResponse"),
+                withToolCallsJson: () => Effect.succeed({} as unknown as AiResponse),
                 withToolCallsUnknown: () => ({} as unknown as AiResponse),
                 concat: () => ({} as unknown as AiResponse),
                 [Symbol.for("@effect/data/Equal")]: () => false,
@@ -121,13 +117,13 @@ const OpenAiLanguageModel = {
               }) as unknown as AiResponse,
             concat: (_other: AiResponse) =>
               ({
-                text: "",
+                text: "{}",
+                structured: {},
                 usage: { total_tokens: 0 },
-                imageUrl: "",
-                content: [],
                 role: "assistant",
-                parts: [{ _tag: "text", content: "" } as const],
-                withToolCallsJson: () => ({} as unknown as AiResponse),
+                parts: [{ _tag: "Text", content: "{}" } as const],
+                [TypeId]: Symbol.for("@effect/ai/AiResponse"),
+                withToolCallsJson: () => Effect.succeed({} as unknown as AiResponse),
                 withToolCallsUnknown: () => ({} as unknown as AiResponse),
                 concat: () => ({} as unknown as AiResponse),
                 [Symbol.for("@effect/data/Equal")]: () => false,
