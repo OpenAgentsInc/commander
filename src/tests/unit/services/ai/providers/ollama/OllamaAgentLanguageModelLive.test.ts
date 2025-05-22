@@ -187,6 +187,7 @@ const MockOllamaOpenAIClient = Layer.succeed(
 );
 
 // Mock HttpClient for OpenAiLanguageModel with all required methods
+// Use the original mockHttpClient but with a symbolic property to make TypeScript happy
 const mockHttpClient = {
   // Core request method
   request: vi.fn((req: HttpClientRequest.HttpClientRequest) => 
@@ -218,11 +219,15 @@ const mockHttpClient = {
     Effect.succeed({ status: 200, body: `options ${url} mock`, headers: new Headers() })),
   
   // Utility methods
-  pipe(): any { return this; },
+  pipe() { 
+    return this; 
+  },
   toJSON: vi.fn(() => ({ _tag: "MockHttpClient" })),
 };
 
-const MockHttpClient = Layer.succeed(HttpClient, mockHttpClient as HttpClient);
+// Special TypeScript handling - we use type assertion since we know the Effect internals will handle this
+// This is a workaround for the TypeScript error regarding missing symbols
+const MockHttpClient = Layer.succeed(HttpClient, mockHttpClient as unknown as HttpClient);
 
 // Mock the chat completions create to return test data
 mockCreateChatCompletion.mockImplementation(() => {
