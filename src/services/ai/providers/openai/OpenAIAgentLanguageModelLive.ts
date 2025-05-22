@@ -8,7 +8,7 @@ import {
   type GenerateStructuredOptions,
 } from "@/services/ai/core";
 import { AiProviderError, mapToAiProviderError } from "@/services/ai/core/AiError";
-import { AiResponse, AiTextChunk, mapProviderResponseToAiResponse } from "@/services/ai/core/AiResponse";
+import { AiResponse, mapProviderResponseToAiResponse } from "@/services/ai/core/AiResponse";
 import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
 import type { Provider } from "@effect/ai/AiPlan";
 import { AiLanguageModel } from "@effect/ai/AiLanguageModel";
@@ -78,21 +78,24 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
       provider.use(
         Effect.gen(function* (_) {
           const languageModel = yield* _(AiLanguageModel);
-          return yield* _(languageModel.generateText({
+          const effectAiResponse = yield* _(languageModel.generateText({
             prompt: options.prompt,
-            model: options.model,
             temperature: options.temperature,
             maxTokens: options.maxTokens,
             stopSequences: options.stopSequences
-          }).pipe(
-            Effect.mapError((error) => new AiProviderError({
-              message: `OpenAI generateText error: ${error instanceof Error ? error.message : String(error)}`,
-              provider: "OpenAI",
-              isRetryable: true,
-              cause: error
-            }))
-          ));
+          }));
+          // Map @effect/ai's AiResponse to our core AiResponse
+          return new AiResponse({
+            parts: effectAiResponse.parts
+          });
         })
+      ).pipe(
+        Effect.mapError((error) => new AiProviderError({
+          message: `OpenAI generateText error: ${error instanceof Error ? error.message : String(error)}`,
+          provider: "OpenAI",
+          isRetryable: true,
+          cause: error
+        }))
       ),
 
     streamText: (options: StreamTextOptions) =>
@@ -107,7 +110,7 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
               maxTokens: options.maxTokens,
               signal: options.signal
             }).pipe(
-              Stream.map((aiResponse) => new AiTextChunk({ text: aiResponse.text })),
+              Stream.map((effectAiResponse) => new AiResponse({ parts: effectAiResponse.parts })),
               Stream.mapError((error) => new AiProviderError({
                 message: `OpenAI streamText error: ${error instanceof Error ? error.message : String(error)}`,
                 provider: "OpenAI",

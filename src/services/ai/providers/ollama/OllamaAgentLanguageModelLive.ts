@@ -8,7 +8,7 @@ import {
   type GenerateStructuredOptions,
 } from "@/services/ai/core";
 import { AiProviderError, mapToAiProviderError } from "@/services/ai/core/AiError";
-import { AiResponse, AiTextChunk } from "@/services/ai/core/AiResponse";
+import { AiResponse } from "@/services/ai/core/AiResponse";
 import { OpenAiLanguageModel } from "@effect/ai-openai";
 import { OpenAiClient } from "@effect/ai-openai";
 import type { Provider } from "@effect/ai/AiPlan";
@@ -88,21 +88,9 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
             maxTokens: options.maxTokens,
             stopSequences: options.stopSequences
           }));
-          // Map @effect/ai AiResponse to our custom AiResponse
-          return AiResponse.fromSimple({
-            text: effectAiResponse.text,
-            toolCalls: effectAiResponse.toolCalls?.map(tc => ({
-              id: tc.id,
-              name: tc.name,
-              arguments: tc.params as Record<string, unknown>
-            })),
-            metadata: {
-              usage: {
-                promptTokens: effectAiResponse.getProviderMetadata ? 0 : 0, // TODO: Extract from metadata
-                completionTokens: effectAiResponse.text.length,
-                totalTokens: effectAiResponse.text.length
-              }
-            }
+          // Map @effect/ai's AiResponse to our core AiResponse
+          return new AiResponse({
+            parts: effectAiResponse.parts
           });
         })
       ).pipe(
@@ -128,21 +116,7 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
               maxTokens: options.maxTokens,
               signal: options.signal
             }).pipe(
-              Stream.map((effectAiResponse) => AiResponse.fromSimple({
-                text: effectAiResponse.text,
-                toolCalls: effectAiResponse.toolCalls?.map(tc => ({
-                  id: tc.id,
-                  name: tc.name,
-                  arguments: tc.params as Record<string, unknown>
-                })),
-                metadata: {
-                  usage: {
-                    promptTokens: 0,
-                    completionTokens: effectAiResponse.text.length,
-                    totalTokens: effectAiResponse.text.length
-                  }
-                }
-              })),
+              Stream.map((effectAiResponse) => new AiResponse({ parts: effectAiResponse.parts })),
               Stream.mapError((error) =>
                 new AiProviderError({
                   message: `Ollama streamText error: ${error instanceof Error ? error.message : String(error)}`,
