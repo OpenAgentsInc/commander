@@ -1,7 +1,7 @@
 // src/services/ai/core/AgentChatSession.ts
 import { Context, Effect } from "effect";
 import type { AgentChatMessage } from "./AgentChatMessage";
-import { AIContextWindowError } from "./AIError";
+import { AiContextWindowError } from "./AIError";
 
 /**
  * Interface for managing conversation history and context
@@ -17,7 +17,7 @@ export interface AgentChatSession {
    */
   addMessage(
     message: AgentChatMessage,
-  ): Effect.Effect<void, AIContextWindowError>;
+  ): Effect.Effect<void, AiContextWindowError>;
 
   /**
    * Retrieve conversation history
@@ -42,7 +42,7 @@ export interface AgentChatSession {
     maxTokens?: number;
     includeSystemMessage?: boolean;
     systemMessage?: string;
-  }): Effect.Effect<AgentChatMessage[], AIContextWindowError>;
+  }): Effect.Effect<AgentChatMessage[], AiContextWindowError>;
 
   /**
    * Get the total estimated token count for the current conversation

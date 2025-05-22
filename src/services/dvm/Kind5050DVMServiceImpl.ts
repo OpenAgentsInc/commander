@@ -23,7 +23,7 @@ import {
   AgentLanguageModel,
   type GenerateTextOptions,
 } from "@/services/ai/core";
-import { AIProviderError } from "@/services/ai/core/AIError";
+import { AiProviderError } from "@/services/ai/core/AIError";
 import {
   SparkService,
   type CreateLightningInvoiceParams,
@@ -92,9 +92,9 @@ function createNip90FeedbackEvent(
     // Only include substantial content if it's a partial result or a long error message
     content:
       status === "partial" ||
-      (status === "error" &&
-        contentOrExtraInfo &&
-        contentOrExtraInfo.length > 256)
+        (status === "error" &&
+          contentOrExtraInfo &&
+          contentOrExtraInfo.length > 256)
         ? contentOrExtraInfo || ""
         : "",
   };
@@ -165,7 +165,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
     const config = yield* _(Kind5050DVMServiceConfigTag); // For default fallbacks
     const telemetry = yield* _(TelemetryService);
     const nostr = yield* _(NostrService);
-    const agentLanguageModel = yield* _(AgentLanguageModel);
+    const agentLanguageModel = yield* _(AgentLanguageModel.Tag);
     const spark = yield* _(SparkService);
     const nip04 = yield* _(NIP04Service);
 
@@ -1165,7 +1165,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
     ): Effect.Effect<
       string,
       | DVMError
-      | AIProviderError
+      | AiProviderError
       | SparkError
       | NIP04EncryptError
       | NIP04DecryptError,

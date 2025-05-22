@@ -1,4 +1,6 @@
 // src/services/ai/providers/index.ts
 export * as OpenAIProvider from "./openai";
-// export * as AnthropicProvider from "./anthropic"; // Placeholder for Phase 5
-export * as OllamaProvider from "./ollama"; // Added for Phase 4
+export * as OllamaProvider from "./ollama";
+export * as NIP90Provider from "./nip90";
+// TODO: Phase 5 - Implement Anthropic provider
+// export * as AnthropicProvider from "./anthropic";

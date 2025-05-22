@@ -2,9 +2,9 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { Effect, Stream, Cause } from "effect";
 import {
   AgentLanguageModel,
-  type AiTextChunk,
+  type AiResponse,
   type AgentChatMessage,
-  type AIProviderError,
+  type AiProviderError,
   type StreamTextOptions,
 } from "@/services/ai/core";
 import { getMainRuntime } from "@/services/runtime";
@@ -21,6 +21,16 @@ export interface UIAgentChatMessage extends AgentChatMessage {
   _updateId?: number; // Force re-render for streaming updates
   isStreaming?: boolean; // Indicates if the message is currently being streamed
   timestamp: number; // Client-side timestamp for ordering and display
+  providerInfo?: {
+    name: string;
+    type: "local" | "network";
+    model?: string;
+  };
+  nip90EventData?: {
+    request?: any;
+    result?: any;
+    feedback?: any[];
+  };
 }
 
 export function useAgentChat(options: UseAgentChatOptions = {}) {
@@ -38,7 +48,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
   ]);
   const [currentInput, setCurrentInput] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<AIProviderError | null>(null);
+  const [error, setError] = useState<AiProviderError | null>(null);
 
   const runtimeRef = useRef(getMainRuntime()); // Capture runtime instance
   const streamAbortControllerRef = useRef<AbortController | null>(null);
@@ -130,7 +140,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
       };
 
       const program = Effect.gen(function* (_) {
-        const agentLM = yield* _(AgentLanguageModel);
+        const agentLM = yield* _(AgentLanguageModel.Tag);
         console.log("[useAgentChat] Starting stream for message:", assistantMsgId, "Current signal state:", {
           aborted: signal.aborted,
           controller: streamAbortControllerRef.current ? "present" : "null"
@@ -138,7 +148,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
         const textStream = agentLM.streamText(streamTextOptions);
 
         yield* _(
-          Stream.runForEach(textStream, (chunk: AiTextChunk) =>
+          Stream.runForEach(textStream, (chunk: AiResponse) =>
             Effect.sync(() => {
               console.log("[useAgentChat runForEach] Processing chunk:", JSON.stringify(chunk), "Abort signal status:", signal.aborted);
               if (signal.aborted) {
@@ -198,7 +208,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
                 { isAbort, isInterrupted: Cause.isInterruptedOnly(cause) }
               );
             } else {
-              const squashedError = Cause.squash(cause) as AIProviderError;
+              const squashedError = Cause.squash(cause) as AiProviderError;
               console.error("[useAgentChat] Stream error:", {
                 messageId: assistantMsgId,
                 error: squashedError,

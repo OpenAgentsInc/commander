@@ -1,76 +1,80 @@
 // src/services/ai/core/AgentLanguageModel.ts
 import { Context, Effect, Stream } from "effect";
+import { AiLanguageModel } from "@effect/ai";
+import { AiError, AiProviderError } from "./AIError";
+import { AiResponse } from "./AiResponse";
 
-// Import from @effect/ai package, but not AiError since we're using our own error types
-import type { AiResponse } from "@effect/ai/AiResponse";
-
-// Import our custom error type
-import type { AIProviderError } from "./AIError";
-
-// Define the types we need based on Effect AI's interface
-export type AiTextChunk = {
-  text: string;
-};
-
-export type GenerateTextOptions = {
-  prompt: string;
-  model?: string;
-  temperature?: number;
-  maxTokens?: number;
-};
-
-export type StreamTextOptions = {
-  prompt: string;
-  model?: string;
-  temperature?: number;
-  maxTokens?: number;
-};
-
-export type GenerateStructuredOptions = {
-  prompt: string;
-  model?: string;
-  temperature?: number;
-  maxTokens?: number;
-  schema?: unknown;
-};
+// Import from @effect/ai package
+import type { AiResponse as AiResponseEffect } from "@effect/ai/AiResponse";
 
 /**
- * Interface for a provider-agnostic language model service
- * This abstraction allows different LLM providers to be used interchangeably
+ * Options for generating text
+ */
+export interface GenerateTextOptions {
+  prompt: string;
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+  stopSequences?: string[];
+}
+
+/**
+ * Options for streaming text
+ */
+export interface StreamTextOptions extends GenerateTextOptions {
+  signal?: AbortSignal;
+}
+
+/**
+ * Options for generating structured output
+ */
+export interface GenerateStructuredOptions extends GenerateTextOptions {
+  schema?: unknown;
+}
+
+/**
+ * Our AgentLanguageModel interface
  */
 export interface AgentLanguageModel {
   readonly _tag: "AgentLanguageModel";
 
   /**
-   * Generates text completion in a single request
-   * @param params Options for text generation including prompt
-   * @returns Effect wrapping the AI response
+   * Generate text using a language model
    */
-  generateText(
-    params: GenerateTextOptions,
-  ): Effect.Effect<AiResponse, AIProviderError>;
-
+  generateText(options: GenerateTextOptions): Effect.Effect<AiResponse, AiProviderError, never>;
+  
   /**
-   * Streams text completion chunks as they're generated
-   * @param params Options for text streaming including prompt
-   * @returns Stream of text chunks from the AI model
+   * Stream text using a language model
    */
-  streamText(
-    params: StreamTextOptions,
-  ): Stream.Stream<AiTextChunk, AIProviderError>;
-
+  streamText(options: StreamTextOptions): Stream.Stream<AiResponse, AiProviderError, never>;
+  
   /**
-   * Generates structured output (for future tool use)
-   * @param params Options for structured generation including prompt and output schema
-   * @returns Effect wrapping the AI response
+   * Generate structured output using a language model
    */
-  generateStructured(
-    params: GenerateStructuredOptions,
-  ): Effect.Effect<AiResponse, AIProviderError>;
+  generateStructured(options: GenerateStructuredOptions): Effect.Effect<AiResponse, AiProviderError, never>;
 }
 
 /**
- * Context tag for accessing the AgentLanguageModel service
+ * Tag for AgentLanguageModel
  */
-export const AgentLanguageModel =
-  Context.GenericTag<AgentLanguageModel>("AgentLanguageModel");
+export const AgentLanguageModel = {
+  Tag: Context.GenericTag<AgentLanguageModel>("AgentLanguageModel")
+};
+
+/**
+ * Helper to create an AgentLanguageModel implementation
+ */
+export const makeAgentLanguageModel = (
+  impl: {
+    streamText: (options: StreamTextOptions) => Stream.Stream<AiResponse, AiProviderError>;
+    generateText: (options: GenerateTextOptions) => Effect.Effect<AiResponse, AiProviderError>;
+    generateStructured: (options: GenerateStructuredOptions) => Effect.Effect<AiResponse, AiProviderError>;
+  }
+): AgentLanguageModel => {
+  return {
+    _tag: "AgentLanguageModel",
+    streamText: impl.streamText,
+    generateText: impl.generateText,
+    generateStructured: impl.generateStructured
+  };
+};

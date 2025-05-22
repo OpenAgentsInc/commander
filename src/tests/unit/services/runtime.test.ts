@@ -120,7 +120,7 @@ describe("Effect Runtime Initialization", () => {
 
   it.skip("should successfully resolve AgentLanguageModel from FullAppLayer", async () => {
     // This program attempts to extract the AgentLanguageModel from the full runtime
-    const program = Effect.flatMap(AgentLanguageModel, (service) =>
+    const program = Effect.flatMap(AgentLanguageModel.Tag, (service) =>
       Effect.succeed(service),
     );
 

@@ -2,7 +2,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { Effect, Layer } from "effect";
 import { ConfigurationService } from "@/services/configuration";
-import { AIConfigurationError } from "@/services/ai/core/AIError";
+import { AiConfigurationError } from "@/services/ai/core/AIError";
 
 // Create a placeholder test that passes
 // We would need to restructure the entire approach to mocking

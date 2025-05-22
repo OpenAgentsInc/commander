@@ -1,63 +1,65 @@
 import { describe, it, expect, vi } from "vitest";
 import { Effect, Layer, Context, Stream, Chunk } from "effect";
-import type { AiError } from "@effect/ai/AiError";
-import type { AiResponse } from "@effect/ai/AiResponse";
+import type { AiError as EffectAiError } from "@effect/ai/AiError";
 import {
   AgentLanguageModel,
-  type AiTextChunk,
   type GenerateTextOptions,
   type StreamTextOptions,
   type GenerateStructuredOptions,
 } from "@/services/ai/core/AgentLanguageModel";
-import { AIGenericError } from "@/services/ai/core/AIError";
+import { AiError, AiProviderError } from "@/services/ai/core/AIError";
+import { AiResponse } from "@/services/ai/core/AiResponse";
 
-// Create a type that mimics AiResponse but has only what we need for testing
-interface MockAiResponse {
-  text: string;
-}
-
-// Create a mock error for testing without trying to implement the full AiError interface
-class MockAiError extends AIGenericError {
-  name: string;
-  provider: string;
-
+// Create a mock error for testing using the proper Data.TaggedError pattern
+class MockAiError extends AiProviderError {
   constructor() {
     super({
       message: "Mock AI Error",
+      provider: "MockProvider",
+      isRetryable: false,
     });
-    this.name = "AiProviderError";
-    this._tag = "AiProviderError";
-    this.provider = "MockProvider";
   }
 }
 
-// Define this type to avoid having to implement the strict AiResponse interface
-// Explicitly make the mock service implementation compatible with AgentLanguageModel
+// Mock service implementation compatible with AgentLanguageModel
 class MockAgentLanguageModel implements AgentLanguageModel {
   readonly _tag = "AgentLanguageModel";
 
-  // Using 'any' type for the error channel to allow our mock errors to work
   generateText = vi.fn(
     (_params: GenerateTextOptions) =>
-      Effect.succeed({
+      Effect.succeed(AiResponse.fromSimple({
         text: "Mock generated text response",
-      } as MockAiResponse as AiResponse) as any,
-  );
+        metadata: {
+          usage: {
+            promptTokens: 10,
+            completionTokens: 20,
+            totalTokens: 30,
+          },
+        },
+      })),
+  ) as any;
 
   streamText = vi.fn((_params: StreamTextOptions) =>
     Stream.fromIterable([
-      { text: "Mock " },
-      { text: "stream " },
-      { text: "response" },
-    ] as AiTextChunk[]),
-  );
+      AiResponse.fromSimple({ text: "Mock " }),
+      AiResponse.fromSimple({ text: "stream " }),
+      AiResponse.fromSimple({ text: "response" }),
+    ]),
+  ) as any;
 
   generateStructured = vi.fn(
     (_params: GenerateStructuredOptions) =>
-      Effect.succeed({
+      Effect.succeed(AiResponse.fromSimple({
         text: "Mock structured response",
-      } as MockAiResponse as AiResponse) as any,
-  );
+        metadata: {
+          usage: {
+            promptTokens: 5,
+            completionTokens: 10,
+            totalTokens: 15,
+          },
+        },
+      })),
+  ) as any;
 }
 
 describe("AgentLanguageModel Service", () => {
@@ -68,9 +70,9 @@ describe("AgentLanguageModel Service", () => {
 
   it("should resolve a mock implementation via Effect context", async () => {
     const mockService = new MockAgentLanguageModel();
-    const testLayer = Layer.succeed(AgentLanguageModel, mockService);
+    const testLayer = Layer.succeed(AgentLanguageModel.Tag, mockService);
 
-    const program = Effect.flatMap(AgentLanguageModel, (service) =>
+    const program = Effect.flatMap(AgentLanguageModel.Tag, (service) =>
       Effect.succeed(service),
     );
 
@@ -84,10 +86,10 @@ describe("AgentLanguageModel Service", () => {
   describe("Service methods", () => {
     it("generateText should be callable and return mock response", async () => {
       const mockService = new MockAgentLanguageModel();
-      const testLayer = Layer.succeed(AgentLanguageModel, mockService);
+      const testLayer = Layer.succeed(AgentLanguageModel.Tag, mockService);
       const params: GenerateTextOptions = { prompt: "Test prompt" };
 
-      const program = Effect.flatMap(AgentLanguageModel, (service) =>
+      const program = Effect.flatMap(AgentLanguageModel.Tag, (service) =>
         service.generateText(params),
       );
 
@@ -96,7 +98,8 @@ describe("AgentLanguageModel Service", () => {
       );
 
       expect(mockService.generateText).toHaveBeenCalledWith(params);
-      expect(result).toEqual({ text: "Mock generated text response" });
+      expect(result).toBeInstanceOf(AiResponse);
+      expect((result as AiResponse).text).toBe("Mock generated text response");
     });
 
     it("generateText should properly propagate errors", async () => {
@@ -106,10 +109,10 @@ describe("AgentLanguageModel Service", () => {
       // we can simply use Effect.fail without additional type assertions
       mockService.generateText.mockReturnValueOnce(Effect.fail(mockError));
 
-      const testLayer = Layer.succeed(AgentLanguageModel, mockService);
+      const testLayer = Layer.succeed(AgentLanguageModel.Tag, mockService);
       const params: GenerateTextOptions = { prompt: "Test prompt" };
 
-      const program = Effect.flatMap(AgentLanguageModel, (service) =>
+      const program = Effect.flatMap(AgentLanguageModel.Tag, (service) =>
         service.generateText(params),
       );
 
@@ -126,24 +129,24 @@ describe("AgentLanguageModel Service", () => {
     it("streamText should be callable and provide stream", async () => {
       const mockService = new MockAgentLanguageModel();
 
-      // Create test data
+      // Create test data using proper AiResponse instances
       const testChunks = [
-        { text: "Mock " },
-        { text: "stream " },
-        { text: "response" },
-      ] as AiTextChunk[];
+        AiResponse.fromSimple({ text: "Mock " }),
+        AiResponse.fromSimple({ text: "stream " }),
+        AiResponse.fromSimple({ text: "response" }),
+      ];
 
       // Use a simpler approach - directly mock the implementation
       mockService.streamText.mockImplementation(() => {
         return Stream.fromIterable(testChunks);
       });
 
-      const testLayer = Layer.succeed(AgentLanguageModel, mockService);
+      const testLayer = Layer.succeed(AgentLanguageModel.Tag, mockService);
       const params: StreamTextOptions = { prompt: "Test prompt" };
 
       // Use Effect.gen to get the stream and collect it
       const program = Effect.gen(function* ($) {
-        const model = yield* $(AgentLanguageModel);
+        const model = yield* $(AgentLanguageModel.Tag);
         const stream = model.streamText(params);
         const chunks = yield* $(Stream.runCollect(stream));
         return chunks;
@@ -162,13 +165,13 @@ describe("AgentLanguageModel Service", () => {
 
     it("generateStructured should be callable and return mock response", async () => {
       const mockService = new MockAgentLanguageModel();
-      const testLayer = Layer.succeed(AgentLanguageModel, mockService);
+      const testLayer = Layer.succeed(AgentLanguageModel.Tag, mockService);
       const params: GenerateStructuredOptions = {
         prompt: "Test prompt",
         schema: { type: "object", properties: { name: { type: "string" } } },
       };
 
-      const program = Effect.flatMap(AgentLanguageModel, (service) =>
+      const program = Effect.flatMap(AgentLanguageModel.Tag, (service) =>
         service.generateStructured(params),
       );
 
@@ -177,7 +180,8 @@ describe("AgentLanguageModel Service", () => {
       );
 
       expect(mockService.generateStructured).toHaveBeenCalledWith(params);
-      expect(result).toEqual({ text: "Mock structured response" });
+      expect(result).toBeInstanceOf(AiResponse);
+      expect((result as AiResponse).text).toBe("Mock structured response");
     });
   });
 });

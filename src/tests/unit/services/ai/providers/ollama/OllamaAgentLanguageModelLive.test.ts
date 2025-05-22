@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Effect, Layer, Stream } from "effect";
 import { TelemetryService } from "@/services/telemetry";
 import { ConfigurationService } from "@/services/configuration";
-import { AgentLanguageModel, AiTextChunk } from "@/services/ai/core";
-import { AIProviderError } from "@/services/ai/core/AIError";
-import { OllamaAgentLanguageModelLive } from "@/services/ai/providers/ollama/OllamaAgentLanguageModelLive";
+import { AgentLanguageModel, AiResponse as CoreAiResponse } from "@/services/ai/core";
+import { AiProviderError } from "@/services/ai/core/AIError";
+import { OllamaAgentLanguageModelLiveLayer } from "@/services/ai/providers/ollama/OllamaAgentLanguageModelLive";
 import { OllamaOpenAIClientTag } from "@/services/ai/providers/ollama/OllamaAsOpenAIClientLive";
 import { HttpClient } from "@effect/platform/HttpClient";
 import * as HttpClientRequest from "@effect/platform/HttpClientRequest";
@@ -24,14 +24,14 @@ import type { AiResponse } from "@effect/ai/AiResponse";
 
 /**
  * NOTE: These tests are currently skipped due to the complexity of mocking Effect.ts components.
- * 
+ *
  * The issues encountered are:
  * 1. TypeError: Cannot read properties of undefined (reading 'pipe')
  * 2. RuntimeException: Not a valid effect: undefined
- * 
+ *
  * These errors occur because the SUT's complex Effect.ts operations are difficult to properly mock.
  * A better approach would be to use integration tests instead of unit tests with complex mocks.
- * 
+ *
  * TODO: Revisit these tests with a proper testing strategy for Effect.ts components.
  */
 
@@ -39,11 +39,11 @@ import type { AiResponse } from "@effect/ai/AiResponse";
 class StreamChunk {
   parts: Array<{ _tag: string, content: string }>;
   text: { getOrElse: () => string };
-  
+
   constructor(options: { parts: Array<{ _tag: string, content: string }> }) {
     this.parts = options.parts;
-    this.text = { 
-      getOrElse: () => this.parts.filter(p => p._tag === "Content").map(p => p.content).join("") 
+    this.text = {
+      getOrElse: () => this.parts.filter(p => p._tag === "Content").map(p => p.content).join("")
     };
   }
 }
@@ -55,8 +55,13 @@ const mockStreamRequest = vi.fn();
 
 // Create a complete mock for OpenAiClient
 const mockOpenAiClient = {
-  client: { 
+  client: {
     createChatCompletion: mockCreateChatCompletion,
+    // Add the missing chat completion methods
+    listChatCompletions: vi.fn(),
+    getChatCompletion: vi.fn(),
+    updateChatCompletion: vi.fn(),
+    deleteChatCompletion: vi.fn(),
     // Add stubs for all the methods from Generated.Client interface
     listAssistants: vi.fn(),
     createAssistant: vi.fn(),
@@ -151,6 +156,36 @@ const mockOpenAiClient = {
     getVectorStoreFileBatch: vi.fn(),
     cancelVectorStoreFileBatch: vi.fn(),
     listFilesInVectorStoreBatch: vi.fn(),
+    // Add the missing methods from the error message
+    getChatCompletionMessages: vi.fn(),
+    listFineTuningCheckpointPermissions: vi.fn(),
+    createFineTuningCheckpointPermission: vi.fn(),
+    deleteFineTuningCheckpointPermission: vi.fn(),
+    adminApiKeysList: vi.fn(),
+    adminApiKeysCreate: vi.fn(),
+    adminApiKeysGet: vi.fn(),
+    adminApiKeysDelete: vi.fn(),
+    usageCosts: vi.fn(),
+    listProjectRateLimits: vi.fn(),
+    updateProjectRateLimits: vi.fn(),
+    usageAudioSpeeches: vi.fn(),
+    usageAudioTranscriptions: vi.fn(),
+    usageAudioTranslations: vi.fn(),
+    usageCodeInterpreterSessions: vi.fn(),
+    usageCompletions: vi.fn(),
+    usageEmbeddings: vi.fn(),
+    usageImages: vi.fn(),
+    usageModerations: vi.fn(),
+    usageVectorStores: vi.fn(),
+    createRealtimeSession: vi.fn(),
+    createRealtimeTranscriptionSession: vi.fn(),
+    createResponse: vi.fn(),
+    getResponse: vi.fn(),
+    deleteResponse: vi.fn(),
+    listInputItems: vi.fn(),
+    updateVectorStoreFileAttributes: vi.fn(),
+    retrieveVectorStoreFileContent: vi.fn(),
+    searchVectorStore: vi.fn(),
   },
   stream: mockStream,
   streamRequest: mockStreamRequest,
@@ -200,7 +235,7 @@ describe("OllamaAgentLanguageModelLive", () => {
   it.skip("should successfully build the layer and provide AgentLanguageModel", async () => {
     // This test is skipped until a proper testing strategy for Effect.ts components is established
     const program = Effect.gen(function* (_) {
-      const agentLM = yield* _(AgentLanguageModel);
+      const agentLM = yield* _(AgentLanguageModel.Tag);
       expect(agentLM).toBeDefined();
       expect(agentLM._tag).toBe("AgentLanguageModel");
       expect(typeof agentLM.generateText).toBe("function");
@@ -209,21 +244,20 @@ describe("OllamaAgentLanguageModelLive", () => {
       return true;
     });
 
-    const result = await Effect.runPromise(
-      program.pipe(
-        Effect.provide(
-          OllamaAgentLanguageModelLive.pipe(
-            Layer.provide(
-              Layer.mergeAll(
-                MockOllamaOpenAIClient,
-                MockConfigurationService,
-                MockTelemetryService,
-                MockHttpClient,
-              ),
-            ),
-          ),
+    // Create a proper test layer composition
+    const TestLayer = OllamaAgentLanguageModelLiveLayer.pipe(
+      Layer.provide(
+        Layer.mergeAll(
+          MockOllamaOpenAIClient,
+          MockConfigurationService,
+          MockTelemetryService,
+          MockHttpClient,
         ),
       ),
+    );
+
+    const result = await Effect.runPromise(
+      program.pipe(Effect.provide(TestLayer))
     );
 
     expect(result).toBe(true);
