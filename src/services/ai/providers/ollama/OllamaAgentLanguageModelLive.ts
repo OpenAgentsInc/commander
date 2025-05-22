@@ -19,32 +19,63 @@ import type { AiResponse } from "@effect/ai/AiResponse";
 
 // Mock implementation for OpenAiLanguageModel - we need this because it's not correctly
 // importable from @effect/ai-openai as seen in other parts of the codebase
-// This improved implementation returns Effects with appropriate type structure
+// This implementation follows the two-step structure of the real library
 const OpenAiLanguageModel = {
-  model: (modelName: string) =>
-    Effect.succeed({
-      generateText: (
-        params: GenerateTextOptions,
-      ): Effect.Effect<AiResponse, AIProviderError> =>
-        Effect.succeed({ 
-          text: "Not implemented", 
-          usage: { total_tokens: 0 } 
+  model: (modelName: string): Effect.Effect<
+    // This is the Effect that AiModel resolves to, which is Provider<Service>
+    Effect.Effect<{
+      generateText: (params: GenerateTextOptions) => Effect.Effect<AiResponse, AIProviderError>;
+      streamText: (params: StreamTextOptions) => Stream.Stream<AiTextChunk, AIProviderError>;
+      generateStructured: (params: GenerateStructuredOptions) => Effect.Effect<AiResponse, AIProviderError>;
+    }, never, never>,
+    ConfigError, 
+    never        
+  > => {
+    // Define the provider instance with concrete methods
+    // Using type annotations to ensure TypeScript understands the structure
+    const mockProviderInstance: {
+      generateText: (params: GenerateTextOptions) => Effect.Effect<AiResponse, AIProviderError>;
+      streamText: (params: StreamTextOptions) => Stream.Stream<AiTextChunk, AIProviderError>;
+      generateStructured: (params: GenerateStructuredOptions) => Effect.Effect<AiResponse, AIProviderError>;
+    } = {
+      // Directly define the functions to return Effect/Stream
+      generateText: (params: GenerateTextOptions): Effect.Effect<AiResponse, AIProviderError> =>
+        Effect.succeed({
+          text: `SUT Mock: generateText for ${modelName}, prompt: "${params.prompt}"`,
+          usage: { total_tokens: 10, prompt_tokens: 5, completion_tokens: 5 },
+          role: "assistant",
+          parts: [{ _tag: "Text", content: `SUT Mock: generateText for ${modelName}` } as const],
+          imageUrl: null,
+          withToolCallsJson: () => Effect.succeed({} as unknown as AiResponse),
+          withToolCallsUnknown: () => Effect.succeed({} as unknown as AiResponse),
+          concat: () => Effect.succeed({} as unknown as AiResponse),
         } as unknown as AiResponse),
-      streamText: (
-        params: StreamTextOptions,
-      ): Stream.Stream<AiTextChunk, AIProviderError> =>
-        Stream.fromEffect(Effect.succeed({ 
-          text: "Not implemented", 
-          index: 0 
-        } as unknown as AiTextChunk)),
-      generateStructured: (
-        params: GenerateStructuredOptions,
-      ): Effect.Effect<AiResponse, AIProviderError> =>
-        Effect.succeed({ 
-          text: "Not implemented", 
-          usage: { total_tokens: 0 } 
+
+      streamText: (params: StreamTextOptions): Stream.Stream<AiTextChunk, AIProviderError> =>
+        Stream.fromIterable([
+          { text: `SUT Mock: Stream chunk 1 for ${modelName} (${params.prompt?.substring(0,10) || ""}...) ` } as AiTextChunk,
+          { text: `SUT Mock: Stream chunk 2` } as AiTextChunk
+        ]),
+
+      generateStructured: (params: GenerateStructuredOptions): Effect.Effect<AiResponse, AIProviderError> =>
+        Effect.succeed({
+          text: `SUT Mock: {"model": "${modelName}", "structure": "mock", "prompt": "${params.prompt}"}`,
+          structured: { model: modelName, structure: "mock", prompt: params.prompt },
+          usage: { total_tokens: 15, prompt_tokens: 7, completion_tokens: 8 },
+          role: "assistant",
+          parts: [{ _tag: "Text", content: `SUT Mock: {"model": "${modelName}"}` } as const],
+          imageUrl: null,
+          withToolCallsJson: () => Effect.succeed({} as unknown as AiResponse),
+          withToolCallsUnknown: () => Effect.succeed({} as unknown as AiResponse),
+          concat: () => Effect.succeed({} as unknown as AiResponse),
         } as unknown as AiResponse),
-    }),
+    };
+
+    // The actual @effect/ai-openai OpenAiLanguageModel.model returns Effect<AiModel<...>>
+    // AiModel<...> is itself an Effect<Provider<...>>
+    // To mock this two-step process correctly:
+    return Effect.succeed(Effect.succeed(mockProviderInstance));
+  }
 };
 
 export const OllamaAgentLanguageModelLive = Layer.effect(
@@ -55,107 +86,97 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
     const telemetry = yield* _(TelemetryService);
 
     // Get the Ollama model name from config, with a default fallback
-    // In the test environment, we'll simplify this to avoid the pipe error issues
-    // In a real environment with Effect-TS, this would use the proper pipe operations
     let modelName = "gemma3:1b"; // Default model
-    try {
-      // Try to get from config, fallback to default if not found
-      const configResult = yield* _(Effect.either(configService.get("OLLAMA_MODEL_NAME")));
-      if (configResult._tag === 'Right') {
-        modelName = configResult.right;
-      } else {
-        // Track the error through telemetry
-        yield* _(
-          telemetry
-            .trackEvent({
-              category: "ai:config:error",
-              action: "ollama_model_name_fetch_failed_raw",
-              label: "OLLAMA_MODEL_NAME",
-              value: String(configResult.left),
-            })
-        );
-      }
-    } catch (e) {
-      // This shouldn't happen in practice, but handle it just in case
-      console.error("Error fetching Ollama Model Name config:", e);
+    const configGetEffect = configService.get("OLLAMA_MODEL_NAME");
+    const configResult = yield* _(Effect.either(configGetEffect));
+
+    if (configResult._tag === 'Right') {
+      modelName = configResult.right;
+    } else {
+      yield* _(
+        telemetry.trackEvent({
+          category: "ai:config:error",
+          action: "ollama_model_name_fetch_failed_raw",
+          label: "OLLAMA_MODEL_NAME",
+          value: String(configResult.left?.message || configResult.left),
+        }).pipe(Effect.ignoreLogged)
+      );
     }
-    
-    // Log that we resolved the model name
+
     yield* _(
-      telemetry
-        .trackEvent({
-          category: "ai:config",
-          action: "ollama_model_name_resolved",
-          value: modelName,
-        })
+      telemetry.trackEvent({
+        category: "ai:config",
+        action: "ollama_model_name_resolved",
+        value: modelName,
+      }).pipe(Effect.ignoreLogged)
     );
 
     // Get the AiModel definition for the specified model
-    // This directly returns an Effect with the provider rather than an Effect of an Effect
     const aiModelEffectDefinition = OpenAiLanguageModel.model(modelName);
-
-    // We need to provide the ollamaAdaptedClient to the AiModel definition to get the provider
-    // But in our mock implementation, we don't actually need to provide it, since our mock
-    // already has all the methods we need. In a real implementation with @effect/ai-openai,
-    // this would be necessary.
     
-    // Execute the effect to get the provider directly
-    const provider = yield* _(aiModelEffectDefinition);
+    // Provide the ollamaAdaptedClient to the AiModel definition
+    const configuredAiModelEffect = Effect.provideService(
+      aiModelEffectDefinition,
+      OpenAiClient.OpenAiClient,
+      ollamaAdaptedClient
+    );
+    
+    // First yield gets the AiModel, which is an Effect of a Provider
+    const aiModel_from_effect = yield* _(configuredAiModelEffect);
+    
+    // Second yield resolves the Provider from the AiModel
+    const provider = yield* _(aiModel_from_effect);
 
     yield* _(
-      telemetry
-        .trackEvent({
-          category: "ai:config",
-          action: "ollama_language_model_provider_created",
-          value: modelName,
-        })
+      telemetry.trackEvent({
+        category: "ai:config",
+        action: "ollama_language_model_provider_created",
+        value: modelName,
+      }).pipe(Effect.ignoreLogged)
     );
 
     // Create and return the AgentLanguageModel implementation
-    // TypeScript requires exactly "AgentLanguageModel" as the tag value, not just a string
-    return {
-      _tag: "AgentLanguageModel" as const, // Use const assertion to make TypeScript recognize the exact string literal
+    const serviceImplementation: AgentLanguageModel = {
+      _tag: "AgentLanguageModel" as const,
       
       // Generate text (non-streaming)
-      generateText: (
-        params: GenerateTextOptions,
-      ): Effect.Effect<AiResponse, AIProviderError> => {
+      generateText: (params: GenerateTextOptions): Effect.Effect<AiResponse, AIProviderError> => {
         try {
-          // In a test environment, we have to handle the pipe manually
-          // In a real environment, this would use the proper pipe with Effect.mapError
-          const effect = provider.generateText(params);
-          
-          // Add custom error mapping for tests
-          if (effect && typeof effect === 'object' && 'pipe' in effect) {
-            return effect.pipe(
-              Effect.mapError((err) => {
-                // Safely check for Error type
-                const errMessage =
-                  typeof err === "object" && err !== null && "message" in err
-                    ? String(err.message)
-                    : String(err) || "Unknown provider error";
-
-                return new AIProviderError({
-                  message: `Ollama generateText error for model ${modelName}: ${errMessage}`,
-                  cause: err,
-                  provider: "Ollama",
-                  context: {
-                    model: modelName,
-                    params,
-                    originalErrorTag:
-                      typeof err === "object" && err !== null && "_tag" in err
-                        ? err._tag
-                        : undefined,
-                  },
-                });
-              })
-            );
+          // Check if provider is defined
+          if (!provider) {
+            console.error("SUT Error: provider is undefined");
+            return Effect.die(new TypeError("SUT Error: provider is undefined"));
           }
           
-          // If pipe is not available, just return the effect directly
-          return effect;
+          // Check if generateText method exists
+          if (typeof provider.generateText !== 'function') {
+            console.error("SUT Error: provider.generateText is not a function. Provider:", provider);
+            return Effect.die(new TypeError("SUT Error: provider.generateText is not a function"));
+          }
+
+          const effect = provider.generateText(params);
+          
+          // Check if effect is a valid Effect with pipe method
+          if (!effect || typeof effect.pipe !== 'function') {
+            console.error("SUT Error: provider.generateText did not return a valid Effect. Provider:", provider, "Params:", params);
+            return Effect.die(new TypeError("SUT Error: generateText is not a valid Effect from provider"));
+          }
+          
+          return effect.pipe(
+            Effect.mapError((err: any) => new AIProviderError({
+              message: `Ollama generateText error: ${err?.message || String(err) || "Unknown"}`,
+              cause: err,
+              provider: "Ollama",
+              context: {
+                model: modelName,
+                params,
+                originalErrorTag: err && typeof err === 'object' && '_tag' in err ? err._tag : undefined
+              }
+            }))
+          );
         } catch (err) {
           // If something goes wrong, return a failed effect with AIProviderError
+          console.error("SUT Exception in generateText:", err);
           return Effect.fail(new AIProviderError({
             message: `Ollama generateText error for model ${modelName}: ${String(err)}`,
             cause: err,
@@ -169,45 +190,43 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
       },
 
       // Stream text
-      streamText: (
-        params: StreamTextOptions,
-      ): Stream.Stream<AiTextChunk, AIProviderError> => {
+      streamText: (params: StreamTextOptions): Stream.Stream<AiTextChunk, AIProviderError> => {
         try {
-          // In a test environment, we have to handle the pipe manually
-          // In a real environment, this would use the proper pipe with Stream.mapError
-          const stream = provider.streamText(params);
-          
-          // Add custom error mapping for tests
-          if (stream && typeof stream === 'object' && 'pipe' in stream) {
-            return stream.pipe(
-              Stream.mapError((err) => {
-                // Safely check for Error type
-                const errMessage =
-                  typeof err === "object" && err !== null && "message" in err
-                    ? String(err.message)
-                    : String(err) || "Unknown provider error";
-
-                return new AIProviderError({
-                  message: `Ollama streamText error for model ${modelName}: ${errMessage}`,
-                  cause: err,
-                  provider: "Ollama",
-                  context: {
-                    model: modelName,
-                    params,
-                    originalErrorTag:
-                      typeof err === "object" && err !== null && "_tag" in err
-                        ? err._tag
-                        : undefined,
-                  },
-                });
-              })
-            );
+          // Check if provider is defined
+          if (!provider) {
+            console.error("SUT Error: provider is undefined");
+            return Stream.die(new TypeError("SUT Error: provider is undefined"));
           }
           
-          // If pipe is not available, just return the stream directly
-          return stream;
+          // Check if streamText method exists
+          if (typeof provider.streamText !== 'function') {
+            console.error("SUT Error: provider.streamText is not a function. Provider:", provider);
+            return Stream.die(new TypeError("SUT Error: provider.streamText is not a function"));
+          }
+
+          const stream = provider.streamText(params);
+          
+          // Check if stream is a valid Stream with pipe method
+          if (!stream || typeof stream.pipe !== 'function') {
+            console.error("SUT Error: provider.streamText did not return a valid Stream. Provider:", provider, "Params:", params);
+            return Stream.die(new TypeError("SUT Error: streamText is not a valid Stream from provider"));
+          }
+          
+          return stream.pipe(
+            Stream.mapError((err: any) => new AIProviderError({
+              message: `Ollama streamText error: ${err?.message || String(err) || "Unknown"}`,
+              cause: err,
+              provider: "Ollama",
+              context: {
+                model: modelName,
+                params,
+                originalErrorTag: err && typeof err === 'object' && '_tag' in err ? err._tag : undefined
+              }
+            }))
+          );
         } catch (err) {
           // If something goes wrong, return a failed stream with AIProviderError
+          console.error("SUT Exception in streamText:", err);
           return Stream.fail(new AIProviderError({
             message: `Ollama streamText error for model ${modelName}: ${String(err)}`,
             cause: err,
@@ -221,45 +240,43 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
       },
 
       // Generate structured output
-      generateStructured: (
-        params: GenerateStructuredOptions,
-      ): Effect.Effect<AiResponse, AIProviderError> => {
+      generateStructured: (params: GenerateStructuredOptions): Effect.Effect<AiResponse, AIProviderError> => {
         try {
-          // In a test environment, we have to handle the pipe manually
-          // In a real environment, this would use the proper pipe with Effect.mapError
-          const effect = provider.generateStructured(params);
-          
-          // Add custom error mapping for tests
-          if (effect && typeof effect === 'object' && 'pipe' in effect) {
-            return effect.pipe(
-              Effect.mapError((err) => {
-                // Safely check for Error type
-                const errMessage =
-                  typeof err === "object" && err !== null && "message" in err
-                    ? String(err.message)
-                    : String(err) || "Unknown provider error";
-
-                return new AIProviderError({
-                  message: `Ollama generateStructured error for model ${modelName}: ${errMessage}`,
-                  cause: err,
-                  provider: "Ollama",
-                  context: {
-                    model: modelName,
-                    params,
-                    originalErrorTag:
-                      typeof err === "object" && err !== null && "_tag" in err
-                        ? err._tag
-                        : undefined,
-                  },
-                });
-              })
-            );
+          // Check if provider is defined
+          if (!provider) {
+            console.error("SUT Error: provider is undefined");
+            return Effect.die(new TypeError("SUT Error: provider is undefined"));
           }
           
-          // If pipe is not available, just return the effect directly
-          return effect;
+          // Check if generateStructured method exists
+          if (typeof provider.generateStructured !== 'function') {
+            console.error("SUT Error: provider.generateStructured is not a function. Provider:", provider);
+            return Effect.die(new TypeError("SUT Error: provider.generateStructured is not a function"));
+          }
+
+          const effect = provider.generateStructured(params);
+          
+          // Check if effect is a valid Effect with pipe method
+          if (!effect || typeof effect.pipe !== 'function') {
+            console.error("SUT Error: provider.generateStructured did not return a valid Effect. Provider:", provider, "Params:", params);
+            return Effect.die(new TypeError("SUT Error: generateStructured is not a valid Effect from provider"));
+          }
+          
+          return effect.pipe(
+            Effect.mapError((err: any) => new AIProviderError({
+              message: `Ollama generateStructured error: ${err?.message || String(err) || "Unknown"}`,
+              cause: err, 
+              provider: "Ollama", 
+              context: {
+                model: modelName,
+                params,
+                originalErrorTag: err && typeof err === 'object' && '_tag' in err ? err._tag : undefined
+              }
+            }))
+          );
         } catch (err) {
           // If something goes wrong, return a failed effect with AIProviderError
+          console.error("SUT Exception in generateStructured:", err);
           return Effect.fail(new AIProviderError({
             message: `Ollama generateStructured error for model ${modelName}: ${String(err)}`,
             cause: err,
@@ -271,6 +288,8 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
           }));
         }
       },
-    } as AgentLanguageModel; // Explicitly cast to AgentLanguageModel to satisfy TypeScript
+    };
+    
+    return serviceImplementation;
   }),
 );
