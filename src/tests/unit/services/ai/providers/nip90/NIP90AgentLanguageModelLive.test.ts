@@ -29,14 +29,7 @@ describe("NIP90AgentLanguageModelLive", () => {
   const mockNIP90Service = {
     createJobRequest: vi.fn().mockImplementation(() => Effect.succeed({ id: "job-123" })),
     getJobResult: vi.fn().mockImplementation(() => Effect.succeed({ content: "Test response" })),
-    subscribeToJobUpdates: vi.fn().mockImplementation((params) => Effect.succeed(() => {
-      // Simulate feedback events
-      params.onFeedback({ status: "partial", content: "First" });
-      params.onFeedback({ status: "partial", content: "Second" });
-      params.onFeedback({ status: "completed", content: "Final" });
-      params.onDone();
-      return () => { }; // Cleanup function
-    })),
+    subscribeToJobUpdates: vi.fn(),
     listJobFeedback: vi.fn(),
     listPublicEvents: vi.fn(),
   };
@@ -119,7 +112,7 @@ describe("NIP90AgentLanguageModelLive", () => {
     });
 
     it("should handle errors from NIP-90 service", async () => {
-      mockNIP90Service.createJobRequest.mockImplementation(() => Effect.fail(new Error("NIP-90 error")));
+      mockNIP90Service.createJobRequest.mockImplementationOnce(() => Effect.fail(new Error("NIP-90 error")));
 
       const program = Effect.gen(function* (_) {
         const model = yield* _(AgentLanguageModel);
@@ -134,35 +127,80 @@ describe("NIP90AgentLanguageModelLive", () => {
   });
 
   describe("streamText", () => {
+    beforeEach(() => {
+      // Reset the mock implementation for each test
+      mockNIP90Service.subscribeToJobUpdates.mockReset();
+    });
+
     it("should handle streaming text generation", async () => {
-      const updates: string[] = [];
+      // Setup mock to emit chunks synchronously
+      mockNIP90Service.subscribeToJobUpdates.mockImplementation((params) =>
+        Effect.sync(() => {
+          params.onFeedback({ status: "partial", content: "First" });
+          params.onFeedback({ status: "partial", content: "Second" });
+          params.onFeedback({ status: "partial", content: "Final" });
+          params.onResult({ content: "" }); // This will end the stream
+          return () => { }; // Cleanup function
+        })
+      );
 
       const program = Effect.gen(function* (_) {
         const model = yield* _(AgentLanguageModel);
         const stream = model.streamText({ prompt: "Test prompt" });
+        const chunks = yield* _(Stream.runCollect(stream));
 
-        yield* _(
-          pipe(
-            stream,
-            Stream.tap((chunk: { text: string }) => Effect.sync(() => updates.push(chunk.text))),
-            Stream.runDrain
-          )
-        );
+        expect(Array.from(chunks).map(chunk => chunk.text)).toEqual([
+          "First",
+          "Second",
+          "Final"
+        ]);
       });
 
       await Effect.runPromise(Effect.provide(program, TestLayer));
-
-      expect(updates).toEqual(["First", "Second", "Final"]);
     });
 
     it("should handle streaming errors", async () => {
-      mockNIP90Service.createJobRequest.mockImplementation(() => Effect.fail(new Error("Streaming error")));
+      // Setup mock to emit error
+      mockNIP90Service.subscribeToJobUpdates.mockImplementation((params) =>
+        Effect.sync(() => {
+          params.onFeedback({ status: "error", content: "Streaming error" });
+          return () => { }; // Cleanup function
+        })
+      );
 
       const program = Effect.gen(function* (_) {
         const model = yield* _(AgentLanguageModel);
         const stream = model.streamText({ prompt: "Test prompt" });
         const result = yield* _(Effect.either(Stream.runCollect(stream)));
+
         expect(result._tag).toBe("Left");
+        if (result._tag === "Left") {
+          expect(result.left.message).toContain("Streaming error");
+        }
+      });
+
+      await Effect.runPromise(Effect.provide(program, TestLayer));
+    });
+
+    it("should handle normal completion", async () => {
+      // Setup mock to emit chunks and complete normally
+      mockNIP90Service.subscribeToJobUpdates.mockImplementation((params) =>
+        Effect.sync(() => {
+          params.onFeedback({ status: "partial", content: "Content" });
+          params.onResult({ content: "Final content" }); // This will emit final content and end the stream
+          return () => { }; // Cleanup function
+        })
+      );
+
+      const program = Effect.gen(function* (_) {
+        const model = yield* _(AgentLanguageModel);
+        const stream = model.streamText({ prompt: "Test prompt" });
+        const chunks = yield* _(Stream.runCollect(stream));
+
+        expect(Array.from(chunks).map(chunk => chunk.text)).toEqual([
+          "Content",
+          "Final content"
+        ]);
       });
 
       await Effect.runPromise(Effect.provide(program, TestLayer));
