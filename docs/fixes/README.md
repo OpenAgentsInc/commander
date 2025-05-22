@@ -48,6 +48,11 @@ As we work with Effect's sophisticated type system, we encounter various TypeScr
 **Solution**: Extend @effect/ai's AiResponse with factory methods and proper provider response mapping  
 **Affects**: All AI providers and response handling when upgrading @effect/ai versions
 
+### 008 - [Streaming Type Unification Pattern](./008-streaming-type-unification.md)
+**Problem**: Custom streaming chunk types (AiTextChunk) create widespread conflicts with library's AiResponse  
+**Solution**: Eliminate custom chunk types and unify on the standard library type for all operations  
+**Affects**: All streaming operations, provider implementations, and consumer interfaces (high-impact batch fix)
+
 ## Fix Documentation Template
 
 When adding new fixes, please follow this structure:
@@ -104,12 +109,14 @@ When you solve a tricky TypeScript issue with Effect:
 ### High-Impact Batch Fixes
 - [003 - Service Tag Access Patterns](./003-service-tag-access-patterns.md) (48+ errors eliminated)
 - [005 - Effect.provideLayer Migration](./005-effect-providelayer-migration.md) (10+ errors eliminated)
+- [008 - Streaming Type Unification Pattern](./008-streaming-type-unification.md) (15+ errors eliminated)
 
 ### AI/Provider Integration
 - [001 - AiModel to Provider Type Inference](./001-aimodel-provider-type-inference.md)
 - [002 - Provider Service Access Pattern](./002-provider-service-access-pattern.md)
 - [004 - AiResponse Type Conflicts](./004-airesponse-type-conflicts.md)
 - [007 - Response Type Mapping Pattern](./007-response-type-mapping-pattern.md)
+- [008 - Streaming Type Unification Pattern](./008-streaming-type-unification.md)
 
 ## Quick Reference
 
@@ -120,12 +127,14 @@ Common patterns that often need fixes:
 3. **Provider Methods**: Calling methods directly on Provider instead of using `.use()` ([002](./002-provider-service-access-pattern.md))
 4. **Type Conflicts**: Mixing different library types with same names ([004](./004-airesponse-type-conflicts.md))
 5. **API Migrations**: Deprecated methods in newer library versions ([005](./005-effect-providelayer-migration.md))
-6. **Generator Syntax**: When `yield* _()` doesn't infer as expected
-7. **Stream vs Effect**: Using Effect retry patterns on Streams instead of Stream retry
+6. **Streaming Type Conflicts**: Custom chunk types conflicting with library response types ([008](./008-streaming-type-unification.md))
+7. **Generator Syntax**: When `yield* _()` doesn't infer as expected
+8. **Stream vs Effect**: Using Effect retry patterns on Streams instead of Stream retry
 
 ### High-Impact Fixes (Batch Applicable)
 - **Service Tag Access**: `yield* _(ServiceName)` → `yield* _(ServiceName.Tag)` 
 - **Effect API Migration**: `Effect.provideLayer(layer)` → `Effect.provide(layer)`
+- **Streaming Type Unification**: Remove custom chunk types, unify on library response type
 - **Error Constructors**: Missing required properties in error constructors ([006](./006-error-constructor-migration.md))
 
 ## Resources
