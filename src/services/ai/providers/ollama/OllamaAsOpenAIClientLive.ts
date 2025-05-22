@@ -60,7 +60,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
     }
 
     const ollamaIPC = window.electronAPI.ollama;
-    
+
     // Helper function to generate stub implementations for all the required methods
     const stubMethod = (methodName: string) => {
       const request = HttpClientRequest.get(`ollama-ipc-${methodName}`);
@@ -71,7 +71,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
           response: HttpClientResponse.fromWeb(request, webResponse),
           reason: "StatusCode",
           cause: new AIProviderError({
-            message: `Not implemented in Ollama adapter: ${methodName}`, 
+            message: `Not implemented in Ollama adapter: ${methodName}`,
             provider: "OllamaAdapter"
           }),
           description: `OllamaAdapter: ${methodName} not implemented`,
@@ -103,18 +103,18 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
               } else {
                 contentString = ""; // Handle null or other cases
               }
-              
+
               // Create a basic message object with required fields
               const message: { role: string; content: string; name?: string } = {
                 role: msg.role,
                 content: contentString,
               };
-              
+
               // Only add name if present in the message and not for role 'tool'
               if (msg.role !== 'tool' && 'name' in msg && msg.name) {
                 message.name = msg.name;
               }
-              
+
               return message;
             }),
             temperature: options.temperature,
@@ -158,7 +158,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                     cause: response,
                     context: { model: options.model, originalError: response },
                   });
-                  
+
                   await Effect.runPromise(
                     telemetry.trackEvent({
                       category: "ollama_adapter:nonstream:error",
@@ -166,7 +166,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                       label: providerError.message,
                     })
                   );
-                  
+
                   // Create a HttpClientError.ResponseError as expected by the interface
                   const request = HttpClientRequest.post("ollama-ipc-chat-error");
                   const webResponse = new Response(JSON.stringify(providerError), { status: 500 });
@@ -186,7 +186,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                     label: options.model,
                   })
                 );
-                
+
                 // Return the response as CreateChatCompletionResponse.Type
                 return response as typeof CreateChatCompletionResponse.Type;
               } catch (error) {
@@ -212,11 +212,11 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                 error instanceof AIProviderError
                   ? error
                   : new AIProviderError({
-                      message: `Ollama IPC non-stream request failed: ${error instanceof Error ? error.message : String(error)}`,
-                      provider: "OllamaAdapter(IPC-NonStream)",
-                      cause: error,
-                      context: { model: options.model },
-                    });
+                    message: `Ollama IPC non-stream request failed: ${error instanceof Error ? error.message : String(error)}`,
+                    provider: "OllamaAdapter(IPC-NonStream)",
+                    cause: error,
+                    context: { model: options.model },
+                  });
 
               // Log telemetry only if it wasn't an AIProviderError initially (to avoid double logging if it was already logged)
               if (!(error instanceof AIProviderError)) {
@@ -228,8 +228,8 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                   })
                 );
               }
-              
-              const request = HttpClientRequest.post(options.model); 
+
+              const request = HttpClientRequest.post(options.model);
               const webResponse = new Response(JSON.stringify(providerError.message), { status: 500 });
               return new HttpClientError.ResponseError({
                 request,
@@ -241,39 +241,39 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
             },
           });
         },
-        
+
         // Core methods
         createEmbedding: (_options: typeof CreateEmbeddingRequest.Encoded) => stubMethod("createEmbedding"),
         listModels: () => stubMethod("listModels"),
-        
+
         // Assistant methods
         listAssistants: (_options: any) => stubMethod("listAssistants"),
         createAssistant: (_options: any) => stubMethod("createAssistant"),
         getAssistant: (_assistantId: string) => stubMethod("getAssistant"),
         modifyAssistant: (_assistantId: string, _options: any) => stubMethod("modifyAssistant"),
         deleteAssistant: (_assistantId: string) => stubMethod("deleteAssistant"),
-        
+
         // Speech/Audio methods
         createSpeech: (_options: any) => stubMethod("createSpeech"),
         createTranscription: (_options: any) => stubMethod("createTranscription"),
         createTranslation: (_options: any) => stubMethod("createTranslation"),
-        
+
         // Batch methods
         listBatches: (_options: any) => stubMethod("listBatches"),
         createBatch: (_options: any) => stubMethod("createBatch"),
         retrieveBatch: (_batchId: string) => stubMethod("retrieveBatch"),
         cancelBatch: (_batchId: string) => stubMethod("cancelBatch"),
-        
+
         // Legacy completions
         createCompletion: (_options: any) => stubMethod("createCompletion"),
-        
+
         // File methods
         listFiles: (_options: any) => stubMethod("listFiles"),
         createFile: (_options: any) => stubMethod("createFile"),
         retrieveFile: (_fileId: string) => stubMethod("retrieveFile"),
         deleteFile: (_fileId: string) => stubMethod("deleteFile"),
         downloadFile: (_fileId: string) => stubMethod("downloadFile"),
-        
+
         // Fine-tuning methods
         listPaginatedFineTuningJobs: (_options: any) => stubMethod("listPaginatedFineTuningJobs"),
         createFineTuningJob: (_options: any) => stubMethod("createFineTuningJob"),
@@ -281,28 +281,28 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
         cancelFineTuningJob: (_fineTuningJobId: string) => stubMethod("cancelFineTuningJob"),
         listFineTuningJobCheckpoints: (_fineTuningJobId: string, _options: any) => stubMethod("listFineTuningJobCheckpoints"),
         listFineTuningEvents: (_fineTuningJobId: string, _options: any) => stubMethod("listFineTuningEvents"),
-        
+
         // Image methods
         createImageEdit: (_options: any) => stubMethod("createImageEdit"),
         createImage: (_options: any) => stubMethod("createImage"),
         createImageVariation: (_options: any) => stubMethod("createImageVariation"),
-        
+
         // Model methods
         retrieveModel: (_model: string) => stubMethod("retrieveModel"),
         deleteModel: (_model: string) => stubMethod("deleteModel"),
-        
+
         // Moderation methods
         createModeration: (_options: any) => stubMethod("createModeration"),
-        
+
         // Audit logs methods
         listAuditLogs: (_options: any) => stubMethod("listAuditLogs"),
-        
+
         // Invite methods
         listInvites: (_options: any) => stubMethod("listInvites"),
         inviteUser: (_options: any) => stubMethod("inviteUser"),
         retrieveInvite: (_inviteId: string) => stubMethod("retrieveInvite"),
         deleteInvite: (_inviteId: string) => stubMethod("deleteInvite"),
-        
+
         // Project methods
         listProjects: (_options: any) => stubMethod("listProjects"),
         createProject: (_options: any) => stubMethod("createProject"),
@@ -316,33 +316,33 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
         createProjectServiceAccount: (_projectId: string, _options: any) => stubMethod("createProjectServiceAccount"),
         retrieveProjectServiceAccount: (_projectId: string, _serviceAccountId: string) => stubMethod("retrieveProjectServiceAccount"),
         deleteProjectServiceAccount: (_projectId: string, _serviceAccountId: string) => stubMethod("deleteProjectServiceAccount"),
-        
+
         // Project User methods
         listProjectUsers: (_projectId: string, _options: any) => stubMethod("listProjectUsers"),
         createProjectUser: (_projectId: string, _options: any) => stubMethod("createProjectUser"),
         retrieveProjectUser: (_projectId: string, _userId: string) => stubMethod("retrieveProjectUser"),
         modifyProjectUser: (_projectId: string, _userId: string, _options: any) => stubMethod("modifyProjectUser"),
         deleteProjectUser: (_projectId: string, _userId: string) => stubMethod("deleteProjectUser"),
-        
+
         // User methods
         listUsers: (_options: any) => stubMethod("listUsers"),
         retrieveUser: (_userId: string) => stubMethod("retrieveUser"),
         modifyUser: (_userId: string, _options: any) => stubMethod("modifyUser"),
         deleteUser: (_userId: string) => stubMethod("deleteUser"),
-        
+
         // Thread methods
         createThread: (_options: any) => stubMethod("createThread"),
         getThread: (_threadId: string) => stubMethod("getThread"),
         modifyThread: (_threadId: string, _options: any) => stubMethod("modifyThread"),
         deleteThread: (_threadId: string) => stubMethod("deleteThread"),
-        
+
         // Message methods
         createMessage: (_threadId: string, _options: any) => stubMethod("createMessage"),
         getMessage: (_threadId: string, _messageId: string) => stubMethod("getMessage"),
         modifyMessage: (_threadId: string, _messageId: string, _options: any) => stubMethod("modifyMessage"),
         deleteMessage: (_threadId: string, _messageId: string) => stubMethod("deleteMessage"),
         listMessages: (_threadId: string, _options: any) => stubMethod("listMessages"),
-        
+
         // Run methods
         createRun: (_threadId: string, _options: any) => stubMethod("createRun"),
         getRun: (_threadId: string, _runId: string) => stubMethod("getRun"),
@@ -353,13 +353,13 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
         listRunSteps: (_threadId: string, _runId: string, _options: any) => stubMethod("listRunSteps"),
         getRunStep: (_threadId: string, _runId: string, _stepId: string, _options: any) => stubMethod("getRunStep"),
         createThreadAndRun: (_options: any) => stubMethod("createThreadAndRun"),
-        
+
         // Upload methods
         createUpload: (_options: any) => stubMethod("createUpload"),
         addUploadPart: (_uploadId: string, _options: any) => stubMethod("addUploadPart"),
         completeUpload: (_uploadId: string, _options: any) => stubMethod("completeUpload"),
         cancelUpload: (_uploadId: string) => stubMethod("cancelUpload"),
-        
+
         // Vector store methods
         createVectorStore: (_options: any) => stubMethod("createVectorStore"),
         getVectorStore: (_vectorStoreId: string) => stubMethod("getVectorStore"),
@@ -381,6 +381,8 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
         // Ensure stream parameter is set to true
         const streamingParams = { ...params, stream: true };
 
+        console.log(`[OllamaAsOpenAIClientLive] Starting stream for ${params.model} with params:`, JSON.stringify(streamingParams, null, 2));
+
         return Stream.async<StreamChunk, HttpClientError.HttpClientError>(
           (emit) => {
             Effect.runFork(
@@ -394,9 +396,13 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
             let ipcStreamCancel: (() => void) | undefined;
 
             try {
+              console.log(`[OllamaAsOpenAIClientLive] Setting up IPC stream for ${params.model}`);
+
               ipcStreamCancel = ollamaIPC.generateChatCompletionStream(
                 streamingParams,
                 (chunk) => {
+                  console.log(`[OllamaAsOpenAIClientLive] IPC onChunk received for ${params.model}:`, JSON.stringify(chunk).substring(0, 100));
+
                   if (
                     chunk &&
                     typeof chunk === "object" &&
@@ -412,17 +418,20 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                         },
                       ],
                     });
+                    console.log(`[OllamaAsOpenAIClientLive] Emitting StreamChunk to effect stream for ${params.model}:`, JSON.stringify(streamChunk));
                     emit.single(streamChunk);
                   } else {
+                    console.error(`[OllamaAsOpenAIClientLive] Invalid chunk format for ${params.model}:`, chunk);
                     const err = new AIProviderError({
                       message:
                         "Ollama IPC stream received unexpected chunk format",
                       provider: "OllamaAdapter(IPC-Stream)",
                       context: { chunk },
                     });
-                    
+
                     const request = HttpClientRequest.post("ollama-ipc-stream-chunk-error");
                     const webResponse = new Response(JSON.stringify(err), { status: 500 });
+                    console.log(`[OllamaAsOpenAIClientLive] Calling emit.fail() for ${params.model} due to invalid chunk format`);
                     emit.fail(
                       new HttpClientError.ResponseError({
                         request,
@@ -435,6 +444,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                   }
                 },
                 () => {
+                  console.log(`[OllamaAsOpenAIClientLive] IPC onDone received for ${params.model}. Calling emit.end().`);
                   Effect.runFork(
                     telemetry.trackEvent({
                       category: "ollama_adapter:stream",
@@ -445,10 +455,11 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                   emit.end();
                 },
                 (error) => {
+                  console.error(`[OllamaAsOpenAIClientLive] IPC onError received for ${params.model}:`, error);
                   const ipcError =
                     error &&
-                    typeof error === "object" &&
-                    error.hasOwnProperty("__error")
+                      typeof error === "object" &&
+                      error.hasOwnProperty("__error")
                       ? (error as { __error: true; message: string })
                       : { __error: true, message: String(error) };
 
@@ -469,6 +480,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
 
                   const request = HttpClientRequest.post("ollama-ipc-stream-error");
                   const webResponse = new Response(JSON.stringify(providerError), { status: 500 });
+                  console.log(`[OllamaAsOpenAIClientLive] Calling emit.fail() for ${params.model} due to IPC error`);
                   emit.fail(
                     new HttpClientError.ResponseError({
                       request,
@@ -481,6 +493,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                 },
               );
             } catch (e) {
+              console.error(`[OllamaAsOpenAIClientLive] Failed to setup IPC stream for ${params.model}:`, e);
               const errorMsg = `Failed to setup Ollama IPC stream: ${e instanceof Error ? e.message : String(e)}`;
 
               Effect.runFork(
@@ -499,6 +512,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
 
               const request = HttpClientRequest.post("ollama-ipc-stream-setup-error");
               const webResponse = new Response(JSON.stringify(setupError), { status: 500 });
+              console.log(`[OllamaAsOpenAIClientLive] Calling emit.fail() for ${params.model} due to setup error`);
               emit.fail(
                 new HttpClientError.ResponseError({
                   request,
@@ -513,6 +527,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
             // Return a cancellation function
             return Effect.sync(() => {
               if (ipcStreamCancel) {
+                console.log(`[OllamaAsOpenAIClientLive] Cancellation function executed for IPC stream with ${params.model}. ipcStreamCancel called.`);
                 Effect.runFork(
                   telemetry.trackEvent({
                     category: "ollama_adapter:stream",

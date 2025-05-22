@@ -104,36 +104,36 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
         .pipe(Effect.ignoreLogged),
     );
 
-    const mapErrorToAIProviderError = (
-      err: unknown,
-      contextAction: string,
-      params: any,
-    ): AIProviderError => {
-      const detail = (err as any)?.error || (err as any)?.cause || err;
-      let message = `Ollama ${contextAction} error for model ${modelName}: ${detail?.message || String(detail) || "Unknown provider error"}`;
+    const mapErrorToAIProviderError = (err: unknown, contextAction: string, params: any): AIProviderError => {
+      let messageContent = "Unknown provider error";
+      let causeContent: unknown = err;
 
-      if (
-        typeof err === "object" &&
-        err !== null &&
-        "_tag" in err &&
-        (err as any)._tag === "ResponseError"
-      ) {
-        const responseStatus = (err as any).response?.status;
-        if (responseStatus) {
-          message = `Ollama ${contextAction} HTTP error ${responseStatus} for model ${modelName}: ${detail?.message || String(detail) || "Unknown provider error"}`;
+      if (typeof err === 'object' && err !== null) {
+        if ('_tag' in err && (err as any)._tag === "ResponseError") { // HttpClientError.ResponseError
+          const responseError = err as any;
+          messageContent = `HTTP error ${responseError.response?.status}: ${responseError.response?.body || responseError.message || String(err)}`;
+          causeContent = responseError.cause || err;
+        } else if (err instanceof Error) {
+          messageContent = err.message;
+          causeContent = err.cause || err;
+        } else {
+          messageContent = String(err);
         }
+      } else {
+        messageContent = String(err);
       }
 
+      const finalMessage = `Ollama ${contextAction} error for model ${modelName}: ${messageContent}`;
       return new AIProviderError({
-        message: message,
-        cause: detail,
+        message: finalMessage,
+        cause: causeContent,
         provider: "Ollama",
         context: {
           model: modelName,
           params,
-          originalErrorTag: (detail as any)?._tag,
-          originalErrorMessage: detail?.message,
-        },
+          originalErrorTag: (err as any)?._tag,
+          originalErrorMessage: typeof err === 'object' && err !== null ? (err as any)?.message : undefined
+        }
       });
     };
 
@@ -145,65 +145,37 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
         }
       } catch (e) {
         // Not a JSON string of messages, or malformed
+        console.warn("[OllamaAgentLanguageModelLive] Failed to parse prompt as JSON messages:", e);
       }
+      // Fallback: treat the prompt string as a single user message
       return [{ role: "user", content: promptString, timestamp: Date.now() }];
     };
 
-    const mapToOpenAIMessages = (
-      messages: AgentChatMessage[],
-    ): OpenAIMessageTuple => {
-      // Ensure at least one system message exists
-      const systemMessage: OpenAISystemMessage = {
-        role: "system",
-        content: "You are a helpful AI assistant.",
+    const mapToOpenAIMessages = (messages: AgentChatMessage[]): OpenAIMessageTuple => {
+      // Find system message or create default one
+      const foundSystemMessage = messages.find(msg => msg.role === "system");
+      const systemMessage: OpenAISystemMessage = foundSystemMessage ? {
+        role: "system" as const,
+        content: foundSystemMessage.content || "",
+        name: foundSystemMessage.name
+      } : {
+        role: "system" as const,
+        content: "You are a helpful AI assistant."
       };
 
-      const mappedMessages = messages.map((msg) => {
-        switch (msg.role) {
-          case "system":
-            return {
-              role: "system",
-              content: msg.content || "",
-              name: msg.name || null,
-            } as OpenAISystemMessage;
-          case "user":
-            return {
-              role: "user",
-              content: msg.content || "",
-              name: msg.name || null,
-            } as OpenAIUserMessage;
-          case "assistant":
-            return {
-              role: "assistant",
-              content: msg.content || "",
-              name: msg.name || null,
-              tool_calls: msg.tool_calls as readonly any[] | undefined,
-            } as OpenAIAssistantMessage;
-          case "tool":
-            return {
-              role: "tool",
-              content: msg.content || "",
-              tool_call_id: msg.tool_call_id || "",
-            } as OpenAIToolMessage;
-          default:
-            return {
-              role: "user",
-              content: msg.content || "",
-              name: msg.name || null,
-            } as OpenAIUserMessage;
-        }
-      });
+      // Map all non-system messages
+      const otherMessages = messages
+        .filter(msg => msg.role !== "system")
+        .map(msg => ({
+          role: msg.role as "user" | "assistant" | "tool",
+          content: msg.content || "",
+          name: msg.name,
+          tool_calls: msg.tool_calls as any,
+          tool_call_id: msg.tool_call_id,
+        }));
 
-      // Ensure first message is system message
-      const hasSystemMessage = mappedMessages.some(
-        (msg) => msg.role === "system",
-      );
-      const finalMessages = hasSystemMessage
-        ? mappedMessages
-        : [systemMessage, ...mappedMessages];
-
-      // Type assertion here is safe because we ensure there's always a system message first
-      return finalMessages as unknown as OpenAIMessageTuple;
+      // Combine with system message first
+      return [systemMessage, ...otherMessages] as unknown as OpenAIMessageTuple;
     };
 
     const createAiResponse = (text: string): AiResponse => {
@@ -286,11 +258,9 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
         });
       },
 
-      streamText: (
-        params: StreamTextOptions,
-      ): Stream.Stream<AiTextChunk, AIProviderError> => {
-        const messagesPayload = parsePromptMessages(params.prompt);
-        const openAiMessages = mapToOpenAIMessages(messagesPayload);
+      streamText: (params: StreamTextOptions): Stream.Stream<AiTextChunk, AIProviderError> => {
+        const messagesFromPrompt = parsePromptMessages(params.prompt);
+        const openAiMessages = mapToOpenAIMessages(messagesFromPrompt);
 
         const streamRequest: StreamCompletionRequest = {
           model: params.model || modelName,
@@ -305,20 +275,34 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
         );
 
         return ollamaAdaptedClient.stream(streamRequest).pipe(
+          Stream.tap(chunk => Effect.sync(() =>
+            console.log("[OllamaAgentLanguageModelLive streamText] Pre-transform chunk:", JSON.stringify(chunk))
+          )),
           Stream.map(
-            (chunk) =>
-              ({
-                text: chunk.text ? Option.getOrUndefined(chunk.text) || "" : "",
-              }) as AiTextChunk,
+            (chunk) => {
+              const text = chunk.text ? Option.getOrUndefined(chunk.text) || "" : "";
+              console.log("[OllamaAgentLanguageModelLive streamText] Transformed chunk text:", text);
+              return { text } as AiTextChunk;
+            }
           ),
           Stream.tapError((err) =>
-            Effect.sync(() =>
-              console.error("Ollama streamText internal error:", err),
-            ),
+            Effect.sync(() => {
+              console.error("[OllamaAgentLanguageModelLive streamText] Stream error:", err);
+              console.error("[OllamaAgentLanguageModelLive streamText] Error details:", {
+                message: err.message,
+                cause: err.cause,
+                stack: err.stack,
+                httpStatus: (err as any).response?.status,
+                responseBody: (err as any).response?.body
+              });
+            })
           ),
           Stream.mapError((err) =>
             mapErrorToAIProviderError(err, "streamText", params),
           ),
+          Stream.tap(chunk => Effect.sync(() =>
+            console.log("[OllamaAgentLanguageModelLive streamText] Yielding chunk:", JSON.stringify(chunk))
+          ))
         );
       },
 
