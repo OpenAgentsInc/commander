@@ -4,11 +4,8 @@ import { AiLanguageModel } from "@effect/ai";
 import { AiError, AiProviderError } from "./AiError";
 import { AiResponse, AiTextChunk } from "./AiResponse";
 
-// Import from @effect/ai package, but not AiError since we're using our own error types
+// Import from @effect/ai package
 import type { AiResponse as AiResponseEffect } from "@effect/ai/AiResponse";
-
-// Import our custom error type
-import type { AiProviderError } from "./AiError";
 
 /**
  * Options for generating text
@@ -36,21 +33,33 @@ export interface GenerateStructuredOptions extends GenerateTextOptions {
 }
 
 /**
- * Our AgentLanguageModel interface that extends AiLanguageModel
+ * Our AgentLanguageModel interface
  */
-export interface AgentLanguageModel extends AiLanguageModel.Service<never> {
+export interface AgentLanguageModel {
   readonly _tag: "AgentLanguageModel";
 
-  // Legacy methods for backward compatibility
-  streamText(options: StreamTextOptions): Stream.Stream<AiTextChunk, AiProviderError>;
-  generateText(options: GenerateTextOptions): Effect.Effect<AiResponse, AiProviderError>;
-  generateStructured(options: GenerateStructuredOptions): Effect.Effect<AiResponse, AiProviderError>;
+  /**
+   * Generate text using a language model
+   */
+  generateText(options: GenerateTextOptions): Effect.Effect<AiResponse, AiProviderError, never>;
+  
+  /**
+   * Stream text using a language model
+   */
+  streamText(options: StreamTextOptions): Stream.Stream<AiTextChunk, AiProviderError, never>;
+  
+  /**
+   * Generate structured output using a language model
+   */
+  generateStructured(options: GenerateStructuredOptions): Effect.Effect<AiResponse, AiProviderError, never>;
 }
 
 /**
- * Context tag for AgentLanguageModel
+ * Tag for AgentLanguageModel
  */
-export const AgentLanguageModel = Context.GenericTag<AgentLanguageModel>("AgentLanguageModel");
+export const AgentLanguageModel = {
+  Tag: Context.GenericTag<AgentLanguageModel>("AgentLanguageModel")
+};
 
 /**
  * Helper to create an AgentLanguageModel implementation
@@ -61,36 +70,11 @@ export const makeAgentLanguageModel = (
     generateText: (options: GenerateTextOptions) => Effect.Effect<AiResponse, AiProviderError>;
     generateStructured: (options: GenerateStructuredOptions) => Effect.Effect<AiResponse, AiProviderError>;
   }
-): Effect.Effect<AgentLanguageModel> =>
-  Effect.gen(function* (_) {
-    // Create base AiLanguageModel implementation
-    const base = yield* _(AiLanguageModel.make({
-      generateText: (options) => impl.generateText({
-        prompt: options.prompt,
-        model: options.model,
-        temperature: options.temperature,
-        maxTokens: options.maxTokens,
-        stopSequences: options.stopSequences
-      }),
-      streamText: (options) => impl.streamText({
-        prompt: options.prompt,
-        model: options.model,
-        temperature: options.temperature,
-        maxTokens: options.maxTokens,
-        signal: options.signal
-      }),
-      generateObject: (options) => Effect.fail(new AiProviderError({
-        message: "generateObject not implemented",
-        isRetryable: false
-      }))
-    }));
-
-    // Combine with our legacy interface
-    return {
-      _tag: "AgentLanguageModel",
-      ...base,
-      streamText: impl.streamText,
-      generateText: impl.generateText,
-      generateStructured: impl.generateStructured
-    };
-  });
+): AgentLanguageModel => {
+  return {
+    _tag: "AgentLanguageModel",
+    streamText: impl.streamText,
+    generateText: impl.generateText,
+    generateStructured: impl.generateStructured
+  };
+};

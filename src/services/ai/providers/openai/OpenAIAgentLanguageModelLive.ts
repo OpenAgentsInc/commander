@@ -99,6 +99,6 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
 });
 
 export const OpenAIAgentLanguageModelLiveLayer = Layer.succeed(
-  AgentLanguageModel,
+  AgentLanguageModel.Tag,
   OpenAIAgentLanguageModelLive
 );

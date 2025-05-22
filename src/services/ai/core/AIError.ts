@@ -1,4 +1,4 @@
-// src/services/ai/core/AIError.ts
+// src/services/ai/core/AiError.ts
 import { Data } from "effect";
 
 /**

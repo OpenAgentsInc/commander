@@ -141,7 +141,7 @@ describe("AgentChatSession Service", () => {
       expect(history).toContainEqual(mockUserMessage);
     });
 
-    it("addMessage should fail with AIContextWindowError when limit exceeded", async () => {
+    it("addMessage should fail with AiContextWindowError when limit exceeded", async () => {
       const mockService = new MockAgentChatSession();
       const testLayer = Layer.succeed(AgentChatSession, mockService);
 

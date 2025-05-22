@@ -17,7 +17,7 @@ export interface AgentChatSession {
    */
   addMessage(
     message: AgentChatMessage,
-  ): Effect.Effect<void, AIContextWindowError>;
+  ): Effect.Effect<void, AiContextWindowError>;
 
   /**
    * Retrieve conversation history
@@ -42,7 +42,7 @@ export interface AgentChatSession {
     maxTokens?: number;
     includeSystemMessage?: boolean;
     systemMessage?: string;
-  }): Effect.Effect<AgentChatMessage[], AIContextWindowError>;
+  }): Effect.Effect<AgentChatMessage[], AiContextWindowError>;
 
   /**
    * Get the total estimated token count for the current conversation

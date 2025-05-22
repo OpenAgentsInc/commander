@@ -69,7 +69,7 @@ describe("OpenAIAgentLanguageModelLive", () => {
   describe("generateText", () => {
     it("should generate text successfully", async () => {
       const program = Effect.gen(function* (_) {
-        const model = yield* _(AgentLanguageModel);
+        const model = yield* _(AgentLanguageModel.Tag);
         const response = yield* _(
           model.generateText({
             prompt: "Test prompt",
@@ -96,7 +96,7 @@ describe("OpenAIAgentLanguageModelLive", () => {
       );
 
       const program = Effect.gen(function* (_) {
-        const model = yield* _(AgentLanguageModel);
+        const model = yield* _(AgentLanguageModel.Tag);
         const response = yield* _(
           model.generateText({
             prompt: "Test prompt",
@@ -124,7 +124,7 @@ describe("OpenAIAgentLanguageModelLive", () => {
   describe("streamText", () => {
     it("should stream text chunks successfully", async () => {
       const program = Effect.gen(function* (_) {
-        const model = yield* _(AgentLanguageModel);
+        const model = yield* _(AgentLanguageModel.Tag);
         const chunks: AiTextChunk[] = [];
 
         yield* _(
@@ -160,7 +160,7 @@ describe("OpenAIAgentLanguageModelLive", () => {
       );
 
       const program = Effect.gen(function* (_) {
-        const model = yield* _(AgentLanguageModel);
+        const model = yield* _(AgentLanguageModel.Tag);
         yield* _(
           model
             .streamText({

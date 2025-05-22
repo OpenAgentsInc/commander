@@ -20,4 +20,4 @@ export * from "./AgentChatMessage";
 export * from "./ProviderConfig";
 
 // Error handling
-export * from "./AIError";
+export * from "./AiError";

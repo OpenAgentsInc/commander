@@ -8,6 +8,7 @@ import {
   AiContextWindowError,
   AiContentPolicyError,
   mapToAiProviderError,
+  mapErrorToAiError,
 } from "@/services/ai/core/AiError";
 
 describe("AI Error Types", () => {

@@ -26,7 +26,7 @@ const nostrToolsImport = async () => {
 };
 
 export const NIP90AgentLanguageModelLive = Layer.effect(
-  AgentLanguageModel,
+  AgentLanguageModel.Tag,
   Effect.gen(function* (_) {
     // Get required services
     const nip90Service = yield* _(NIP90Service);
@@ -101,7 +101,7 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
       return { sk: skBytes, pk: pkHex };
     };
 
-    return AgentLanguageModel.of({
+    return AgentLanguageModel.Tag.of({
       _tag: "AgentLanguageModel",
 
       generateText: (params: GenerateTextOptions): Effect.Effect<AiResponse, AiProviderError> => {
@@ -269,6 +269,6 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
 );
 
 export const NIP90AgentLanguageModelLiveLayer = Layer.succeed(
-  AgentLanguageModel,
+  AgentLanguageModel.Tag,
   NIP90AgentLanguageModelLive
 );
