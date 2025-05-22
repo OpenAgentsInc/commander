@@ -2,31 +2,22 @@ import { Effect, Stream, pipe, Layer, Context } from "effect";
 import { AgentLanguageModel } from "../ai/core/AgentLanguageModel";
 import { AiProviderError } from "../ai/core/AiError";
 import { AiResponse } from "../ai/core/AiResponse";
+import { AgentChatMessage, AgentChatSession } from "../ai/core";
 
-// Temporary stubs for missing chat modules
-interface ChatMessage {
-  role: "user" | "assistant" | "system";
-  content: string;
+// Simple session service interface - can be implemented later
+interface SessionService {
+  readonly _tag: "SessionService";
+  getSession(id: string): Effect.Effect<AgentChatSession, Error>;
 }
 
-interface ChatSession {
-  id: string;
-  messages: ChatMessage[];
-}
-
-interface ChatSessionService {
-  readonly _tag: "ChatSessionService";
-  getSession(id: string): Effect.Effect<ChatSession, Error>;
-  updateSession(id: string, messages: ChatMessage[]): Effect.Effect<void, Error>;
-}
-
+// Simple prompt service interface - can be implemented later  
 interface PromptService {
   readonly _tag: "PromptService";
-  buildPrompt(messages: ChatMessage[]): Effect.Effect<string, Error>;
+  buildPrompt(messages: AgentChatMessage[]): Effect.Effect<string, Error>;
 }
 
-// Context tags for the stubbed services
-const ChatSessionService = Context.GenericTag<ChatSessionService>("ChatSessionService");
+// Context tags for the services
+const SessionService = Context.GenericTag<SessionService>("SessionService");
 const PromptService = Context.GenericTag<PromptService>("PromptService");
 
 /**
@@ -65,27 +56,41 @@ export const ChatOrchestratorService = {
  */
 export const ChatOrchestratorServiceLive = Effect.gen(function* (_) {
   const languageModel = yield* _(AgentLanguageModel.Tag);
-  const sessionService = yield* _(ChatSessionService);
+  const sessionService = yield* _(SessionService);
   const promptService = yield* _(PromptService);
 
-  const buildPrompt = (session: ChatSession, message: string) =>
-    promptService.buildPrompt(session.messages.concat([{
-      role: "user",
-      content: message
-    }]));
+  const buildPrompt = (session: AgentChatSession, message: string) => {
+    return Effect.gen(function* (_) {
+      const history = yield* _(session.getHistory());
+      const messages: AgentChatMessage[] = [...history, {
+        role: "user",
+        content: message,
+        timestamp: Date.now()
+      }];
+      return yield* _(promptService.buildPrompt(messages));
+    });
+  };
 
-  const updateSession = (session: ChatSession, message: string, response: string) =>
-    sessionService.updateSession(session.id, [
-      ...session.messages,
-      { role: "user", content: message },
-      { role: "assistant", content: response }
-    ]);
+  const updateSession = (session: AgentChatSession, message: string, response: string) => {
+    return Effect.gen(function* (_) {
+      yield* _(session.addMessage({
+        role: "user",
+        content: message,
+        timestamp: Date.now()
+      }));
+      yield* _(session.addMessage({
+        role: "assistant", 
+        content: response,
+        timestamp: Date.now()
+      }));
+    });
+  };
 
   const streamResponse = (
     sessionId: string,
     message: string,
     signal?: AbortSignal
-  ): Stream.Stream<AiTextChunk, AiProviderError> =>
+  ): Stream.Stream<AiResponse, AiProviderError> =>
     pipe(
       Effect.gen(function* (_) {
         const session = yield* _(sessionService.getSession(sessionId));
@@ -101,7 +106,7 @@ export const ChatOrchestratorServiceLive = Effect.gen(function* (_) {
           Stream.tap((chunk) =>
             Effect.sync(() => {
               if (chunk.text.trim()) {
-                updateSession(session, message, chunk.text);
+                Effect.runFork(updateSession(session, message, chunk.text));
               }
             })
           )
@@ -135,7 +140,7 @@ export const ChatOrchestratorServiceLive = Effect.gen(function* (_) {
   };
 });
 
-export const ChatOrchestratorServiceLiveLayer = Layer.succeed(
-  ChatOrchestratorService,
+export const ChatOrchestratorServiceLiveLayer = Layer.effect(
+  ChatOrchestratorService.Tag,
   ChatOrchestratorServiceLive
 );
