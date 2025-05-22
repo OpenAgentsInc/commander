@@ -136,7 +136,7 @@ describe("NIP90AgentLanguageModelLive", () => {
   });
 
   it("should handle errors in text generation", async () => {
-    const mockError = AiProviderError.of({
+    const mockError = new AiProviderError({
       message: "Mock error",
       provider: "NIP90",
       isRetryable: false

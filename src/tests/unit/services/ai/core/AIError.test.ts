@@ -49,6 +49,7 @@ describe("AI Error Types", () => {
       const error = new AiProviderError({
         message: "Provider API error",
         provider: "OpenAI",
+        isRetryable: true,
       });
 
       expect(error).toBeInstanceOf(Data.TaggedError);
@@ -220,7 +221,7 @@ describe("AI Error Types", () => {
   describe("mapToAiProviderError", () => {
     it("should convert an Error to AiProviderError", () => {
       const originalError = new Error("API connection timeout");
-      const providerError = mapToAiProviderError(originalError, "Ollama", true);
+      const providerError = mapToAiProviderError(originalError, "Ollama", "test-model", true);
 
       expect(providerError).toBeInstanceOf(AiProviderError);
       expect(providerError.message).toBe("API connection timeout");
@@ -231,7 +232,7 @@ describe("AI Error Types", () => {
 
     it("should handle non-Error objects", () => {
       const nonErrorObj = { status: 429, message: "Too many requests" };
-      const providerError = mapToAiProviderError(nonErrorObj, "Anthropic", true);
+      const providerError = mapToAiProviderError(nonErrorObj, "Anthropic", "test-model", true);
 
       expect(providerError).toBeInstanceOf(AiProviderError);
       expect(providerError.message).toBe("[object Object]"); // Default string conversion

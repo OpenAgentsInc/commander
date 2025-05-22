@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Effect, Layer, Stream } from "effect";
 import { TelemetryService } from "@/services/telemetry";
 import { ConfigurationService } from "@/services/configuration";
-import { AgentLanguageModel, AiResponse } from "@/services/ai/core";
+import { AgentLanguageModel, AiResponse as CoreAiResponse } from "@/services/ai/core";
 import { AiProviderError } from "@/services/ai/core/AiError";
-import { OllamaAgentLanguageModelLive } from "@/services/ai/providers/ollama/OllamaAgentLanguageModelLive";
+import { OllamaAgentLanguageModelLiveLayer } from "@/services/ai/providers/ollama/OllamaAgentLanguageModelLive";
 import { OllamaOpenAIClientTag } from "@/services/ai/providers/ollama/OllamaAsOpenAIClientLive";
 import { HttpClient } from "@effect/platform/HttpClient";
 import * as HttpClientRequest from "@effect/platform/HttpClientRequest";
@@ -57,6 +57,11 @@ const mockStreamRequest = vi.fn();
 const mockOpenAiClient = {
   client: {
     createChatCompletion: mockCreateChatCompletion,
+    // Add the missing chat completion methods
+    listChatCompletions: vi.fn(),
+    getChatCompletion: vi.fn(),
+    updateChatCompletion: vi.fn(),
+    deleteChatCompletion: vi.fn(),
     // Add stubs for all the methods from Generated.Client interface
     listAssistants: vi.fn(),
     createAssistant: vi.fn(),
@@ -151,6 +156,36 @@ const mockOpenAiClient = {
     getVectorStoreFileBatch: vi.fn(),
     cancelVectorStoreFileBatch: vi.fn(),
     listFilesInVectorStoreBatch: vi.fn(),
+    // Add the missing methods from the error message
+    getChatCompletionMessages: vi.fn(),
+    listFineTuningCheckpointPermissions: vi.fn(),
+    createFineTuningCheckpointPermission: vi.fn(),
+    deleteFineTuningCheckpointPermission: vi.fn(),
+    adminApiKeysList: vi.fn(),
+    adminApiKeysCreate: vi.fn(),
+    adminApiKeysGet: vi.fn(),
+    adminApiKeysDelete: vi.fn(),
+    usageCosts: vi.fn(),
+    listProjectRateLimits: vi.fn(),
+    updateProjectRateLimits: vi.fn(),
+    usageAudioSpeeches: vi.fn(),
+    usageAudioTranscriptions: vi.fn(),
+    usageAudioTranslations: vi.fn(),
+    usageCodeInterpreterSessions: vi.fn(),
+    usageCompletions: vi.fn(),
+    usageEmbeddings: vi.fn(),
+    usageImages: vi.fn(),
+    usageModerations: vi.fn(),
+    usageVectorStores: vi.fn(),
+    createRealtimeSession: vi.fn(),
+    createRealtimeTranscriptionSession: vi.fn(),
+    createResponse: vi.fn(),
+    getResponse: vi.fn(),
+    deleteResponse: vi.fn(),
+    listInputItems: vi.fn(),
+    updateVectorStoreFileAttributes: vi.fn(),
+    retrieveVectorStoreFileContent: vi.fn(),
+    searchVectorStore: vi.fn(),
   },
   stream: mockStream,
   streamRequest: mockStreamRequest,
@@ -209,21 +244,20 @@ describe("OllamaAgentLanguageModelLive", () => {
       return true;
     });
 
-    const result = await Effect.runPromise(
-      program.pipe(
-        Effect.provide(
-          OllamaAgentLanguageModelLive.pipe(
-            Layer.provide(
-              Layer.mergeAll(
-                MockOllamaOpenAIClient,
-                MockConfigurationService,
-                MockTelemetryService,
-                MockHttpClient,
-              ),
-            ),
-          ),
+    // Create a proper test layer composition
+    const TestLayer = OllamaAgentLanguageModelLiveLayer.pipe(
+      Layer.provide(
+        Layer.mergeAll(
+          MockOllamaOpenAIClient,
+          MockConfigurationService,
+          MockTelemetryService,
+          MockHttpClient,
         ),
       ),
+    );
+
+    const result = await Effect.runPromise(
+      program.pipe(Effect.provide(TestLayer))
     );
 
     expect(result).toBe(true);

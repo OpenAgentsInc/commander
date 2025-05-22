@@ -116,4 +116,5 @@ export class AiContentPolicyError extends Data.TaggedError("AiContentPolicyError
   provider: string;
   flaggedContent?: string;
   cause?: unknown;
+  context?: Record<string, any>;
 }> { }
