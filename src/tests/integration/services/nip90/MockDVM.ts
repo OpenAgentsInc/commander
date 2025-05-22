@@ -1,6 +1,6 @@
 import { EventEmitter } from "events";
-import { generateSecretKey, getPublicKey } from "@/utils/nostr";
-import type { NIP90JobResult, NIP90JobFeedback } from "@/services/nip90";
+import { generateSecretKey, getPublicKey, bytesToHex } from "@/utils/nostr";
+import type { NIP90JobResult, NIP90JobFeedback, NIP90JobFeedbackStatus } from "@/services/nip90";
 
 export interface MockDVMConfig {
   streamingDelay?: number;
@@ -10,15 +10,15 @@ export interface MockDVMConfig {
 }
 
 export class MockDVM extends EventEmitter {
-  private readonly privateKey: Uint8Array;
+  private readonly privateKeyBytes: Uint8Array;
   public readonly publicKey: string;
   private readonly config: Required<MockDVMConfig>;
   private activeJobs: Map<string, NodeJS.Timeout>;
 
   constructor(config: MockDVMConfig = {}) {
     super();
-    this.privateKey = generateSecretKey();
-    this.publicKey = getPublicKey(this.privateKey);
+    this.privateKeyBytes = generateSecretKey();
+    this.publicKey = getPublicKey(this.privateKeyBytes);
     this.activeJobs = new Map();
 
     // Set default config values
