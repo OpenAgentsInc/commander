@@ -97,7 +97,7 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
     };
 
     // Create the service implementation
-    return AgentLanguageModel.of({
+    return {
       _tag: "AgentLanguageModel" as const,
 
       generateText: (params: GenerateTextOptions) => {
@@ -135,6 +135,6 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
           catch: (error) => mapErrorToAIProviderError(error, "generateStructured", params)
         });
       }
-    });
+    } as const;
   })
 );
