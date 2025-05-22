@@ -53,17 +53,11 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
     ollamaClient
   );
 
-  // Step 3: Get the AiModel instance
+  // Step 3: Get the AiModel instance (which is already a Provider)
   const aiModel = yield* _(configuredAiModelEffect);
 
-  // Step 4: Build the provider with type cast
-  const provider = yield* _(
-    aiModel as Effect.Effect<
-      Provider<AiLanguageModel>,
-      never,
-      never
-    >
-  );
+  // Step 4: Extract the language model from the provider
+  const languageModel = aiModel.languageModel;
 
   // Log successful model creation
   yield* _(
@@ -77,7 +71,7 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
   // Create our AgentLanguageModel implementation using the provider
   return makeAgentLanguageModel({
     generateText: (options: GenerateTextOptions) =>
-      provider.generateText({
+      languageModel.generateText({
         prompt: options.prompt,
         model: options.model,
         temperature: options.temperature,
@@ -94,7 +88,7 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
       ),
 
     streamText: (options: StreamTextOptions) =>
-      provider.streamText({
+      languageModel.streamText({
         prompt: options.prompt,
         model: options.model,
         temperature: options.temperature,
