@@ -70,7 +70,7 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
     };
 
     const createAiResponse = (text: string): AiResponse => {
-      return new AiResponse({
+      return AiResponse.fromSimple({
         text,
         metadata: {
           usage: {

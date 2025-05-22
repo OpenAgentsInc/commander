@@ -104,6 +104,7 @@ export class AiContextWindowError extends Data.TaggedError("AiContextWindowError
   limit?: number;
   current?: number;
   cause?: unknown;
+  context?: Record<string, any>;
 }> { }
 
 /**
