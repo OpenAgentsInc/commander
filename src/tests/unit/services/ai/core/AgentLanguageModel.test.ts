@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { Effect, Layer, Context, Stream, Chunk } from "effect";
-import type { AiError } from "@effect/ai/AiError";
+import type { AiError as EffectAiError } from "@effect/ai/AiError";
 import type { AiResponse } from "@effect/ai/AiResponse";
 import {
   AgentLanguageModel,
@@ -8,25 +8,34 @@ import {
   type StreamTextOptions,
   type GenerateStructuredOptions,
 } from "@/services/ai/core/AgentLanguageModel";
-import { AiError } from "@/services/ai/core/AiError";
+import { AiError, AiProviderError } from "@/services/ai/core/AiError";
 
-// Create a type that mimics AiResponse but has only what we need for testing
+// Create a type that mimics AiResponse with all required properties
 interface MockAiResponse {
   text: string;
+  toolCalls?: Array<{
+    id: string;
+    name: string;
+    arguments: Record<string, unknown>;
+  }>;
+  metadata?: {
+    usage?: {
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+    };
+    finishReason?: string;
+  };
 }
 
-// Create a mock error for testing without trying to implement the full AiError interface
-class MockAiError extends AiError {
-  name: string;
-  provider: string;
-
+// Create a mock error for testing using the proper Data.TaggedError pattern
+class MockAiError extends AiProviderError {
   constructor() {
     super({
       message: "Mock AI Error",
+      provider: "MockProvider",
+      isRetryable: false,
     });
-    this.name = "AiProviderError";
-    this._tag = "AiProviderError";
-    this.provider = "MockProvider";
   }
 }
 
@@ -35,19 +44,27 @@ class MockAiError extends AiError {
 class MockAgentLanguageModel implements AgentLanguageModel {
   readonly _tag = "AgentLanguageModel";
 
-  // Using 'any' type for the error channel to allow our mock errors to work
   generateText = vi.fn(
     (_params: GenerateTextOptions) =>
       Effect.succeed({
         text: "Mock generated text response",
-      } as MockAiResponse as AiResponse) as any,
+        toolCalls: [],
+        metadata: {
+          usage: {
+            promptTokens: 10,
+            completionTokens: 20,
+            totalTokens: 30,
+          },
+          finishReason: "stop",
+        },
+      } as MockAiResponse as AiResponse),
   );
 
   streamText = vi.fn((_params: StreamTextOptions) =>
     Stream.fromIterable([
-      { text: "Mock " },
-      { text: "stream " },
-      { text: "response" },
+      { text: "Mock ", toolCalls: [], metadata: undefined },
+      { text: "stream ", toolCalls: [], metadata: undefined },
+      { text: "response", toolCalls: [], metadata: undefined },
     ] as AiResponse[]),
   );
 
@@ -55,7 +72,16 @@ class MockAgentLanguageModel implements AgentLanguageModel {
     (_params: GenerateStructuredOptions) =>
       Effect.succeed({
         text: "Mock structured response",
-      } as MockAiResponse as AiResponse) as any,
+        toolCalls: [],
+        metadata: {
+          usage: {
+            promptTokens: 5,
+            completionTokens: 10,
+            totalTokens: 15,
+          },
+          finishReason: "stop",
+        },
+      } as MockAiResponse as AiResponse),
   );
 }
 
