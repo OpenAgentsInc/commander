@@ -63,6 +63,16 @@ As we work with Effect's sophisticated type system, we encounter various TypeScr
 **Solution**: Systematic stubbing pattern for all 96+ Generated.Client methods with meaningful error responses  
 **Affects**: All custom OpenAI client adapters (Ollama, Anthropic, etc.)
 
+### 011 - [Test Layer Composition Pattern](./011-test-layer-composition-pattern.md)
+**Problem**: Using implementation functions instead of Layer exports in tests causes complex type inference failures  
+**Solution**: Always import and use `XxxLiveLayer` exports in tests, not implementation functions  
+**Affects**: All Effect service testing when Layer patterns are used (critical for proper test isolation)
+
+### 012 - [Strategic Test Type Casting](./012-strategic-test-type-casting.md)
+**Problem**: Complex Effect/Stream type inference creates "test type hell" that blocks test execution  
+**Solution**: Strategic `as any` casting at execution boundaries with type restoration for assertions  
+**Affects**: All complex Effect testing scenarios with deep generic types and mocks
+
 ## Fix Documentation Template
 
 When adding new fixes, please follow this structure:
@@ -131,6 +141,8 @@ When you solve a tricky TypeScript issue with Effect:
 
 ### Testing Patterns
 - [009 - Test Type Import Conflicts](./009-test-type-import-conflicts.md)
+- [011 - Test Layer Composition Pattern](./011-test-layer-composition-pattern.md)
+- [012 - Strategic Test Type Casting](./012-strategic-test-type-casting.md)
 
 ## Quick Reference
 
@@ -152,6 +164,8 @@ Common patterns that often need fixes:
 - **Error Constructors**: Missing required properties in error constructors ([006](./006-error-constructor-migration.md))
 - **Generated.Client Completion**: Systematic stubbing of all OpenAI client interface methods ([010](./010-generated-client-interface-completion.md))
 - **Test Import Conflicts**: Alias library types to avoid duplicate identifiers in tests ([009](./009-test-type-import-conflicts.md))
+- **Test Layer Imports**: Use `XxxLiveLayer` imports in tests, not implementation functions ([011](./011-test-layer-composition-pattern.md))
+- **Strategic Test Casting**: Apply `as any` at Effect.runPromise boundaries in tests ([012](./012-strategic-test-type-casting.md))
 
 ## Resources
 
