@@ -81,7 +81,7 @@ describe("OpenAIAgentLanguageModelLive", () => {
       });
 
       const result = await Effect.runPromise(
-        program.pipe(Effect.provideLayer(TestLayers))
+        program.pipe(Effect.provide(TestLayers))
       );
 
       expect(result).toBeInstanceOf(AiResponse);
@@ -108,7 +108,7 @@ describe("OpenAIAgentLanguageModelLive", () => {
       const result = await Effect.runPromise(
         program.pipe(
           Effect.either,
-          Effect.provideLayer(TestLayers)
+          Effect.provide(TestLayers)
         )
       );
 
@@ -144,7 +144,7 @@ describe("OpenAIAgentLanguageModelLive", () => {
       });
 
       const result = await Effect.runPromise(
-        program.pipe(Effect.provideLayer(TestLayers))
+        program.pipe(Effect.provide(TestLayers))
       );
 
       expect(result).toHaveLength(2);
@@ -173,7 +173,7 @@ describe("OpenAIAgentLanguageModelLive", () => {
       const result = await Effect.runPromise(
         program.pipe(
           Effect.either,
-          Effect.provideLayer(TestLayers)
+          Effect.provide(TestLayers)
         )
       );
 

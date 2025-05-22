@@ -12,7 +12,8 @@ import { AiResponse, AiTextChunk } from "@/services/ai/core/AiResponse";
 import { OpenAiLanguageModel } from "@effect/ai-openai";
 import { OpenAiClient } from "@effect/ai-openai";
 import type { Provider } from "@effect/ai/AiPlan";
-import type { AiLanguageModel } from "@effect/ai/AiLanguageModel";
+import { AiLanguageModel } from "@effect/ai/AiLanguageModel";
+import { Tokenizer } from "@effect/ai/Tokenizer";
 import { ConfigurationService } from "@/services/configuration";
 import { TelemetryService } from "@/services/telemetry";
 import { OllamaOpenAIClientTag } from "./OllamaAsOpenAIClientLive";
@@ -53,11 +54,17 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
     ollamaClient
   );
 
-  // Step 3: Get the AiModel instance (which is already a Provider)
+  // Step 3: Get the AiModel instance
   const aiModel = yield* _(configuredAiModelEffect);
 
-  // Step 4: Extract the language model from the provider
-  const languageModel = aiModel.languageModel;
+  // Step 4: Build the provider with type cast to help TypeScript inference
+  const provider = yield* _(
+    (aiModel as unknown) as Effect.Effect<
+      Provider<AiLanguageModel | Tokenizer>,
+      never,
+      never
+    >
+  );
 
   // Log successful model creation
   yield* _(
@@ -71,36 +78,40 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
   // Create our AgentLanguageModel implementation using the provider
   return makeAgentLanguageModel({
     generateText: (options: GenerateTextOptions) =>
-      languageModel.generateText({
-        prompt: options.prompt,
-        model: options.model,
-        temperature: options.temperature,
-        maxTokens: options.maxTokens,
-        stopSequences: options.stopSequences
-      }).pipe(
-        Effect.mapError((error) =>
-          new AiProviderError({
-            message: `Ollama generateText error: ${error instanceof Error ? error.message : String(error)}`,
-            isRetryable: true,
-            cause: error
-          })
+      provider.use(
+        AiLanguageModel.generateText({
+          prompt: options.prompt,
+          model: options.model,
+          temperature: options.temperature,
+          maxTokens: options.maxTokens,
+          stopSequences: options.stopSequences
+        }).pipe(
+          Effect.mapError((error) =>
+            new AiProviderError({
+              message: `Ollama generateText error: ${error instanceof Error ? error.message : String(error)}`,
+              isRetryable: true,
+              cause: error
+            })
+          )
         )
       ),
 
     streamText: (options: StreamTextOptions) =>
-      languageModel.streamText({
-        prompt: options.prompt,
-        model: options.model,
-        temperature: options.temperature,
-        maxTokens: options.maxTokens,
-        signal: options.signal
-      }).pipe(
-        Stream.mapError((error) =>
-          new AiProviderError({
-            message: `Ollama streamText error: ${error instanceof Error ? error.message : String(error)}`,
-            isRetryable: true,
-            cause: error
-          })
+      provider.use(
+        AiLanguageModel.streamText({
+          prompt: options.prompt,
+          model: options.model,
+          temperature: options.temperature,
+          maxTokens: options.maxTokens,
+          signal: options.signal
+        }).pipe(
+          Stream.mapError((error) =>
+            new AiProviderError({
+              message: `Ollama streamText error: ${error instanceof Error ? error.message : String(error)}`,
+              isRetryable: true,
+              cause: error
+            })
+          )
         )
       ),
 
