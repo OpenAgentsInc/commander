@@ -53,6 +53,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
         Effect.die(
           new AiProviderError({
             message: errorMsg,
+            provider: "Ollama",
             isRetryable: false,
           }),
         ),
@@ -72,6 +73,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
           reason: "StatusCode",
           cause: new AiProviderError({
             message: `Not implemented in Ollama adapter: ${methodName}`,
+            provider: "Ollama",
             isRetryable: false,
           }),
           description: `OllamaAdapter: ${methodName} not implemented`,
@@ -154,6 +156,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                 if (response.__error) {
                   const providerError = new AiProviderError({
                     message: `Ollama IPC error: ${response.message || "Unknown error"}`,
+                    provider: "Ollama",
                     cause: response,
                     isRetryable: true,
                   });
@@ -212,6 +215,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                   ? error
                   : new AiProviderError({
                     message: `Ollama IPC non-stream request failed: ${error instanceof Error ? error.message : String(error)}`,
+                    provider: "Ollama",
                     cause: error,
                     isRetryable: true,
                   });
@@ -426,6 +430,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                     const err = new AiProviderError({
                       message:
                         "Ollama IPC stream received unexpected chunk format",
+                      provider: "Ollama",
                       isRetryable: false,
                     });
 
@@ -473,6 +478,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
 
                   const providerError = new AiProviderError({
                     message: `Ollama IPC stream error: ${ipcError.message || "Unknown error"}`,
+                    provider: "Ollama",
                     cause: error,
                     isRetryable: true,
                   });
@@ -505,6 +511,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
 
               const setupError = new AiProviderError({
                 message: errorMsg,
+                provider: "Ollama",
                 cause: e,
                 isRetryable: false,
               });
@@ -552,6 +559,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
             reason: "StatusCode",
             cause: new AiProviderError({
               message: "OllamaAdapter: streamRequest not implemented directly",
+              provider: "Ollama",
               isRetryable: false,
             }),
             description: "OllamaAdapter: streamRequest not implemented directly",

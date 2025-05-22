@@ -154,7 +154,7 @@ export const mapProviderResponseToAiResponse = (
 ): AiResponse => {
   const finishReason = response.choices?.[0]?.finish_reason as FinishReason || "unknown";
   
-  return new AiResponse({
+  return AiResponse.fromSimple({
     text: response.choices?.[0]?.message?.content || "",
     toolCalls: response.choices?.[0]?.message?.tool_calls?.map(call => ({
       id: call.id,

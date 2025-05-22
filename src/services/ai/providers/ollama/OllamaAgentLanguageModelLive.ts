@@ -91,6 +91,7 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
             Effect.mapError((error) =>
               new AiProviderError({
                 message: `Ollama generateText error: ${error instanceof Error ? error.message : String(error)}`,
+                provider: "Ollama",
                 isRetryable: true,
                 cause: error
               })
@@ -115,6 +116,7 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
               Stream.mapError((error) =>
                 new AiProviderError({
                   message: `Ollama streamText error: ${error instanceof Error ? error.message : String(error)}`,
+                  provider: "Ollama",
                   isRetryable: true,
                   cause: error
                 })
@@ -128,6 +130,7 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
       Effect.fail(
         new AiProviderError({
           message: "generateStructured not supported by Ollama provider",
+          provider: "Ollama",
           isRetryable: false
         })
       )
