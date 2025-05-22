@@ -7,6 +7,12 @@ import {
 } from "@/services/ai/providers/ollama/OllamaAsOpenAIClientLive";
 import * as HttpClientError from "@effect/platform/HttpClientError";
 
+// Import types for CreateChatCompletionRequest and CreateChatCompletionResponse
+import type {
+  CreateChatCompletionRequest,
+  CreateChatCompletionResponse
+} from "@effect/ai-openai/Generated";
+
 // Mock imports
 vi.mock("@effect/ai-openai", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@effect/ai-openai")>();
@@ -23,11 +29,17 @@ const mockGenerateChatCompletionStream = vi.fn();
 const mockTelemetryTrackEvent = vi
   .fn()
   .mockImplementation(() => Effect.succeed(undefined));
-const MockTelemetryService = Layer.succeed(TelemetryService, {
+const mockTelemetryServiceImpl = {
   trackEvent: mockTelemetryTrackEvent,
   isEnabled: vi.fn().mockImplementation(() => Effect.succeed(true)),
   setEnabled: vi.fn().mockImplementation(() => Effect.succeed(undefined)),
-});
+};
+const MockTelemetryService = Layer.succeed(TelemetryService, mockTelemetryServiceImpl);
+
+// Define test layer with mocked dependencies
+const TestOllamaClientLayer = OllamaAsOpenAIClientLive.pipe(
+  Layer.provide(MockTelemetryService)
+);
 
 describe("OllamaAsOpenAIClientLive", () => {
   beforeEach(() => {
@@ -57,14 +69,23 @@ describe("OllamaAsOpenAIClientLive", () => {
       const resolvedClient = yield* _(OllamaOpenAIClientTag);
       expect(resolvedClient).toBeDefined();
 
-      // Use runtime type checking instead of static typing
-      // Check client structure according to OpenAiClient.Service interface
+      // Check client structure according to the flat OpenAiClient.Service interface
       expect(resolvedClient).toHaveProperty("client");
-      expect(resolvedClient.client).toHaveProperty("chat");
-      expect(resolvedClient.client.chat).toHaveProperty("completions");
-      expect(resolvedClient.client.chat.completions).toHaveProperty("create");
-      expect(typeof resolvedClient.client.chat.completions.create).toBe("function");
-
+      
+      // Assert direct methods on client (flat structure)
+      expect(resolvedClient.client).toHaveProperty("createChatCompletion");
+      expect(typeof resolvedClient.client.createChatCompletion).toBe("function");
+      
+      // Assert other methods expected by the Generated.Client interface
+      expect(resolvedClient.client).toHaveProperty("createEmbedding");
+      expect(typeof resolvedClient.client.createEmbedding).toBe("function");
+      expect(resolvedClient.client).toHaveProperty("listModels");
+      expect(typeof resolvedClient.client.listModels).toBe("function");
+      
+      // Check some of the assistants methods
+      expect(resolvedClient.client).toHaveProperty("listAssistants");
+      expect(resolvedClient.client).toHaveProperty("createAssistant");
+      
       // Check the top-level stream method
       expect(resolvedClient).toHaveProperty("stream");
       expect(typeof resolvedClient.stream).toBe("function");
@@ -78,9 +99,7 @@ describe("OllamaAsOpenAIClientLive", () => {
 
     const result = await Effect.runPromise(
       program.pipe(
-        Effect.provide(
-          OllamaAsOpenAIClientLive.pipe(Layer.provide(MockTelemetryService)),
-        ),
+        Effect.provide(TestOllamaClientLayer),
       ),
     );
 
@@ -103,9 +122,7 @@ describe("OllamaAsOpenAIClientLive", () => {
     await expect(
       Effect.runPromise(
         program.pipe(
-          Effect.provide(
-            OllamaAsOpenAIClientLive.pipe(Layer.provide(MockTelemetryService)),
-          ),
+          Effect.provide(TestOllamaClientLayer),
         ),
       ),
     ).rejects.toThrow();
@@ -136,28 +153,26 @@ describe("OllamaAsOpenAIClientLive", () => {
         completion_tokens: 5,
         total_tokens: 15,
       },
-    };
+    } as typeof CreateChatCompletionResponse.Type;
 
     mockGenerateChatCompletion.mockResolvedValue(mockResponse);
 
     const program = Effect.gen(function* (_) {
       const resolvedClient = yield* _(OllamaOpenAIClientTag);
-      // Access the create method via the client.client.chat.completions path
+      // Access the createChatCompletion method directly on the client object
       const result = yield* _(
-        resolvedClient.client.chat.completions.create({
+        resolvedClient.client.createChatCompletion({
           model: "test-model",
           messages: [{ role: "user", content: "Test prompt" }],
           stream: false,
-        }),
+        } as typeof CreateChatCompletionRequest.Encoded),
       );
       return result;
     });
 
     const result = await Effect.runPromise(
       program.pipe(
-        Effect.provide(
-          OllamaAsOpenAIClientLive.pipe(Layer.provide(MockTelemetryService)),
-        ),
+        Effect.provide(TestOllamaClientLayer),
       ),
     );
 
