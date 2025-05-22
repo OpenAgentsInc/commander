@@ -48,21 +48,144 @@ class StreamChunk {
   }
 }
 
-// Minimal mocks to avoid syntax errors
+// Create a more complete mock client with all required methods
 const mockCreateChatCompletion = vi.fn();
 const mockStream = vi.fn();
+const mockStreamRequest = vi.fn();
+
+// Create a complete mock for OpenAiClient
+const mockOpenAiClient = {
+  client: { 
+    createChatCompletion: mockCreateChatCompletion,
+    // Add stubs for all the methods from Generated.Client interface
+    listAssistants: vi.fn(),
+    createAssistant: vi.fn(),
+    getAssistant: vi.fn(),
+    modifyAssistant: vi.fn(),
+    deleteAssistant: vi.fn(),
+    createEmbedding: vi.fn(),
+    listModels: vi.fn(),
+    createSpeech: vi.fn(),
+    createTranscription: vi.fn(),
+    createTranslation: vi.fn(),
+    listBatches: vi.fn(),
+    createBatch: vi.fn(),
+    retrieveBatch: vi.fn(),
+    cancelBatch: vi.fn(),
+    createCompletion: vi.fn(),
+    listFiles: vi.fn(),
+    createFile: vi.fn(),
+    retrieveFile: vi.fn(),
+    deleteFile: vi.fn(),
+    downloadFile: vi.fn(),
+    listPaginatedFineTuningJobs: vi.fn(),
+    createFineTuningJob: vi.fn(),
+    retrieveFineTuningJob: vi.fn(),
+    cancelFineTuningJob: vi.fn(),
+    listFineTuningJobCheckpoints: vi.fn(),
+    listFineTuningEvents: vi.fn(),
+    createImageEdit: vi.fn(),
+    createImage: vi.fn(),
+    createImageVariation: vi.fn(),
+    retrieveModel: vi.fn(),
+    deleteModel: vi.fn(),
+    createModeration: vi.fn(),
+    listAuditLogs: vi.fn(),
+    listInvites: vi.fn(),
+    inviteUser: vi.fn(),
+    retrieveInvite: vi.fn(),
+    deleteInvite: vi.fn(),
+    listProjects: vi.fn(),
+    createProject: vi.fn(),
+    retrieveProject: vi.fn(),
+    modifyProject: vi.fn(),
+    listProjectApiKeys: vi.fn(),
+    retrieveProjectApiKey: vi.fn(),
+    deleteProjectApiKey: vi.fn(),
+    archiveProject: vi.fn(),
+    listProjectServiceAccounts: vi.fn(),
+    createProjectServiceAccount: vi.fn(),
+    retrieveProjectServiceAccount: vi.fn(),
+    deleteProjectServiceAccount: vi.fn(),
+    listProjectUsers: vi.fn(),
+    createProjectUser: vi.fn(),
+    retrieveProjectUser: vi.fn(),
+    modifyProjectUser: vi.fn(),
+    deleteProjectUser: vi.fn(),
+    listUsers: vi.fn(),
+    retrieveUser: vi.fn(),
+    modifyUser: vi.fn(),
+    deleteUser: vi.fn(),
+    createThread: vi.fn(),
+    getThread: vi.fn(),
+    modifyThread: vi.fn(),
+    deleteThread: vi.fn(),
+    createMessage: vi.fn(),
+    getMessage: vi.fn(),
+    modifyMessage: vi.fn(),
+    deleteMessage: vi.fn(),
+    listMessages: vi.fn(),
+    createRun: vi.fn(),
+    getRun: vi.fn(),
+    modifyRun: vi.fn(),
+    cancelRun: vi.fn(),
+    submitToolOuputsToRun: vi.fn(),
+    listRuns: vi.fn(),
+    listRunSteps: vi.fn(),
+    getRunStep: vi.fn(),
+    createThreadAndRun: vi.fn(),
+    createUpload: vi.fn(),
+    addUploadPart: vi.fn(),
+    completeUpload: vi.fn(),
+    cancelUpload: vi.fn(),
+    createVectorStore: vi.fn(),
+    getVectorStore: vi.fn(),
+    modifyVectorStore: vi.fn(),
+    deleteVectorStore: vi.fn(),
+    listVectorStores: vi.fn(),
+    createVectorStoreFile: vi.fn(),
+    getVectorStoreFile: vi.fn(),
+    deleteVectorStoreFile: vi.fn(),
+    listVectorStoreFiles: vi.fn(),
+    createVectorStoreFileBatch: vi.fn(),
+    getVectorStoreFileBatch: vi.fn(),
+    cancelVectorStoreFileBatch: vi.fn(),
+    listFilesInVectorStoreBatch: vi.fn(),
+  },
+  stream: mockStream,
+  streamRequest: mockStreamRequest,
+};
 
 const MockOllamaOpenAIClient = Layer.succeed(
   OllamaOpenAIClientTag,
-  {
-    client: { createChatCompletion: mockCreateChatCompletion },
-    stream: mockStream,
-  }
+  mockOpenAiClient
 );
 
+// Use any to bypass TypeScript checks since tests are skipped
 const MockHttpClient = Layer.succeed(HttpClient, {} as any);
-const MockTelemetryService = Layer.succeed(TelemetryService, {} as any);
-const MockConfigurationService = Layer.succeed(ConfigurationService, {} as any);
+
+// Mock TelemetryService
+const mockTelemetryServiceImpl = {
+  trackEvent: vi.fn().mockImplementation(() => Effect.succeed(undefined)),
+  isEnabled: vi.fn().mockImplementation(() => Effect.succeed(true)),
+  setEnabled: vi.fn().mockImplementation(() => Effect.succeed(undefined)),
+};
+const MockTelemetryService = Layer.succeed(TelemetryService, mockTelemetryServiceImpl);
+
+// Mock ConfigurationService - using any to bypass TypeScript
+const mockConfigServiceImpl: any = {
+  get: vi.fn().mockImplementation((key) => {
+    if (key === "OLLAMA_MODEL_NAME") {
+      return Effect.succeed("gemma3:1b");
+    }
+    return Effect.fail(new Error(`Config key not found: ${key}`));
+  }),
+  set: vi.fn().mockImplementation(() => Effect.succeed(undefined)),
+  // Add missing methods to conform to interface
+  getSecret: vi.fn().mockImplementation(() => Effect.succeed("mock-secret")),
+  delete: vi.fn().mockImplementation(() => Effect.succeed(undefined)),
+};
+const MockConfigurationService = Layer.succeed(ConfigurationService, mockConfigServiceImpl);
 
 describe("OllamaAgentLanguageModelLive", () => {
   beforeEach(() => {
