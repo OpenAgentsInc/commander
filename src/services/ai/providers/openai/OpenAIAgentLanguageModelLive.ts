@@ -75,33 +75,46 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
   // Create our AgentLanguageModel implementation using the provider
   return makeAgentLanguageModel({
     generateText: (options: GenerateTextOptions) =>
-      provider.generateText({
-        prompt: options.prompt,
-        model: options.model,
-        temperature: options.temperature,
-        maxTokens: options.maxTokens,
-        stopSequences: options.stopSequences
-      }).pipe(
-        Effect.mapError((error) => new AiProviderError({
-          message: `OpenAI generateText error: ${error instanceof Error ? error.message : String(error)}`,
-          isRetryable: true,
-          cause: error
-        }))
+      provider.use(
+        Effect.gen(function* (_) {
+          const languageModel = yield* _(AiLanguageModel);
+          return yield* _(languageModel.generateText({
+            prompt: options.prompt,
+            model: options.model,
+            temperature: options.temperature,
+            maxTokens: options.maxTokens,
+            stopSequences: options.stopSequences
+          }).pipe(
+            Effect.mapError((error) => new AiProviderError({
+              message: `OpenAI generateText error: ${error instanceof Error ? error.message : String(error)}`,
+              isRetryable: true,
+              cause: error
+            }))
+          ));
+        })
       ),
 
     streamText: (options: StreamTextOptions) =>
-      provider.streamText({
-        prompt: options.prompt,
-        model: options.model,
-        temperature: options.temperature,
-        maxTokens: options.maxTokens,
-        signal: options.signal
-      }).pipe(
-        Stream.mapError((error) => new AiProviderError({
-          message: `OpenAI streamText error: ${error instanceof Error ? error.message : String(error)}`,
-          isRetryable: true,
-          cause: error
-        }))
+      Stream.unwrap(
+        provider.use(
+          Effect.gen(function* (_) {
+            const languageModel = yield* _(AiLanguageModel);
+            return languageModel.streamText({
+              prompt: options.prompt,
+              model: options.model,
+              temperature: options.temperature,
+              maxTokens: options.maxTokens,
+              signal: options.signal
+            }).pipe(
+              Stream.map((aiResponse) => new AiTextChunk({ text: aiResponse.text })),
+              Stream.mapError((error) => new AiProviderError({
+                message: `OpenAI streamText error: ${error instanceof Error ? error.message : String(error)}`,
+                isRetryable: true,
+                cause: error
+              }))
+            );
+          })
+        )
       ),
 
     generateStructured: (options: GenerateStructuredOptions) =>
