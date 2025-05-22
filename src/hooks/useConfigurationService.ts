@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ConfigurationService } from "@/services/configuration/ConfigurationService";
 import { getMainRuntime } from "@/services/runtime";
 import { Runtime } from "effect/Runtime";
+import * as Context from "effect/Context";
 import { FullAppContext } from "@/services/runtime";
 
 export function useConfigurationService(): ConfigurationService {
@@ -9,7 +10,7 @@ export function useConfigurationService(): ConfigurationService {
 
   useEffect(() => {
     const runtime: Runtime<FullAppContext> = getMainRuntime();
-    const service = runtime.context.get(ConfigurationService);
+    const service = Context.get(runtime.context, ConfigurationService);
     setConfigService(service);
   }, []);
 
