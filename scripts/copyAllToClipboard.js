@@ -18,7 +18,7 @@ const { execSync } = require("child_process");
 // In CommonJS, __dirname is available globally
 
 // Directories to recursively scan
-const dirsToScan = ["docs", "src"];
+const dirsToScan = ["docs", "src", "node_modules/@effect/ai-openai/dist/dts/"];
 
 // Directories to exclude
 const dirsToExclude = [
@@ -39,6 +39,7 @@ const dirsToExclude = [
 
 // Files to explicitly include from root
 const rootFilesToInclude = [
+  // "node_modules/@effect/ai-openai/dist/dts/OpenAiClient.d.ts",
   // "node_modules/@buildonspark/spark-sdk/src/spark-wallet.ts",
   // "node_modules/@buildonspark/spark-sdk/src/nice-grpc-web.ts",
   // "node_modules/@buildonspark/spark-sdk/src/errors/base.ts",
@@ -121,11 +122,11 @@ const getLanguage = (ext) => {
 const runCommand = (command) => {
   try {
     console.log(`Running: ${command}`);
-    return execSync(command, { encoding: 'utf8' });
+    return execSync(command, { encoding: "utf8" });
   } catch (error) {
     console.error(`Error running ${command}:`, error.message);
     // Return both stdout and stderr from the error
-    return `Command failed with exit code ${error.status}:\n\n${error.stdout || ''}\n${error.stderr || ''}\n`;
+    return `Command failed with exit code ${error.status}:\n\n${error.stdout || ""}\n${error.stderr || ""}\n`;
   }
 };
 
@@ -238,13 +239,13 @@ const main = () => {
   allFiles.sort();
 
   let processedCount = 0;
-  
+
   // Add a description if running TypeScript checks or tests
   if (runTypes || runTests) {
     clipboardContent += "# Code Quality Report\n\n";
     clipboardContent += "Generated on: " + new Date().toISOString() + "\n\n";
   }
-  
+
   // Run TypeScript checks if requested
   if (runTypes) {
     console.log("🔍 Running TypeScript checks with 'pnpm run t'...");
@@ -253,14 +254,14 @@ const main = () => {
     clipboardContent += "```\n";
     clipboardContent += typeCheckOutput;
     clipboardContent += "```\n\n";
-    
+
     if (!typeCheckOutput.includes("Command failed")) {
       console.log("✅ TypeScript check completed");
     } else {
       console.log("⚠️ TypeScript check completed with issues");
     }
   }
-  
+
   // Run tests if requested
   if (runTests) {
     console.log("🧪 Running tests with 'pnpm test'...");
@@ -269,7 +270,7 @@ const main = () => {
     clipboardContent += "```\n";
     clipboardContent += testOutput;
     clipboardContent += "```\n\n";
-    
+
     if (!testOutput.includes("Command failed")) {
       console.log("✅ Tests completed");
     } else {
