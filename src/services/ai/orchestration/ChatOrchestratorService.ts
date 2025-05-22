@@ -10,8 +10,6 @@ import {
 } from "@/services/ai/core";
 import { ConfigurationService } from "@/services/configuration";
 import { TelemetryService } from "@/services/telemetry";
-import { OpenAiLanguageModel } from "@effect/ai-openai";
-import type { AiModel } from "@effect/ai/AiModel";
 
 export interface PreferredProviderConfig {
   key: string;
@@ -47,42 +45,28 @@ export const ChatOrchestratorServiceLive = Layer.effect(
       streamConversation: ({ messages, preferredProvider, options }) => {
         runTelemetry({ category: "orchestrator", action: "stream_conversation_start", label: preferredProvider.key });
 
-        // Create an AiModel that will provide AgentLanguageModel
-        const aiModel = OpenAiLanguageModel.model(preferredProvider.modelName || "gpt-4o");
+        const streamOptions: StreamTextOptions = {
+          ...options,
+          prompt: JSON.stringify({ messages }),
+          model: preferredProvider.modelName,
+        };
 
-        // Build a plan for retrying the model with exponential backoff
-        const plan = Effect.gen(function* (_) {
-          // Build the AiModel into a Provider
-          const provider = yield* _(aiModel);
-          let attempts = 3;
-          let result = null;
-
-          while (attempts > 0) {
-            try {
-              const streamOptions: StreamTextOptions = {
-                ...options,
-                prompt: JSON.stringify({ messages }),
-                model: preferredProvider.modelName,
-              };
-
-              result = yield* _(provider.streamText(streamOptions));
-              break;
-            } catch (err) {
-              if (attempts === 1 || !(err instanceof AIProviderError) || !err.isRetryable) {
-                throw err;
-              }
-              attempts--;
-              yield* _(Effect.sleep(Schedule.exponential("100 millis")));
-            }
-          }
-          return result!;
-        });
-
+        // Use Effect.retry with exponential backoff for retryable errors
         return Stream.unwrap(
-          plan.pipe(
+          Effect.retry(
+            activeAgentLM.streamText(streamOptions),
+            Schedule.intersect(
+              Schedule.recurs(preferredProvider.key === "ollama" ? 2 : 0),
+              Schedule.exponential("100 millis")
+            ).pipe(
+              Schedule.whileInput((err: AIProviderError | AIConfigurationError) =>
+                err._tag === "AIProviderError" && err.isRetryable === true
+              )
+            )
+          ).pipe(
             Effect.tapError((err) => runTelemetry({
               category: "orchestrator",
-              action: "ai_plan_execution_error",
+              action: "stream_error",
               label: (err as Error).message
             }))
           )
@@ -97,9 +81,24 @@ export const ChatOrchestratorServiceLive = Layer.effect(
           model: preferredProvider.modelName,
         };
 
-        return activeAgentLM.generateText(generateOptions).pipe(
-          Effect.map(aiResponse => aiResponse.text),
-          Effect.tapError((err) => runTelemetry({ category: "orchestrator", action: "generate_conversation_error", label: (err as Error).message }))
+        return Effect.retry(
+          activeAgentLM.generateText(generateOptions).pipe(
+            Effect.map(aiResponse => aiResponse.text)
+          ),
+          Schedule.intersect(
+            Schedule.recurs(preferredProvider.key === "ollama" ? 2 : 0),
+            Schedule.exponential("100 millis")
+          ).pipe(
+            Schedule.whileInput((err: AIProviderError | AIConfigurationError) =>
+              err._tag === "AIProviderError" && err.isRetryable === true
+            )
+          )
+        ).pipe(
+          Effect.tapError((err) => runTelemetry({
+            category: "orchestrator",
+            action: "generate_conversation_error",
+            label: (err as Error).message
+          }))
         );
       },
     });
