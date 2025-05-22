@@ -4,7 +4,7 @@ import {
   AgentLanguageModel,
   type AiTextChunk,
   type AgentChatMessage,
-  type AIProviderError,
+  type AiProviderError,
   type StreamTextOptions,
 } from "@/services/ai/core";
 import { getMainRuntime } from "@/services/runtime";
@@ -48,7 +48,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
   ]);
   const [currentInput, setCurrentInput] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<AIProviderError | null>(null);
+  const [error, setError] = useState<AiProviderError | null>(null);
 
   const runtimeRef = useRef(getMainRuntime()); // Capture runtime instance
   const streamAbortControllerRef = useRef<AbortController | null>(null);
@@ -140,7 +140,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
       };
 
       const program = Effect.gen(function* (_) {
-        const agentLM = yield* _(AgentLanguageModel);
+        const agentLM = yield* _(AgentLanguageModel.Tag);
         console.log("[useAgentChat] Starting stream for message:", assistantMsgId, "Current signal state:", {
           aborted: signal.aborted,
           controller: streamAbortControllerRef.current ? "present" : "null"
@@ -208,7 +208,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
                 { isAbort, isInterrupted: Cause.isInterruptedOnly(cause) }
               );
             } else {
-              const squashedError = Cause.squash(cause) as AIProviderError;
+              const squashedError = Cause.squash(cause) as AiProviderError;
               console.error("[useAgentChat] Stream error:", {
                 messageId: assistantMsgId,
                 error: squashedError,

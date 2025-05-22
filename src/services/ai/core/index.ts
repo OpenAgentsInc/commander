@@ -19,5 +19,8 @@ export * from "./AgentToolkitManager";
 export * from "./AgentChatMessage";
 export * from "./ProviderConfig";
 
+// Response types
+export * from "./AiResponse";
+
 // Error handling
 export * from "./AiError";
