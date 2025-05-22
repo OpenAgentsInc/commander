@@ -9,7 +9,7 @@ import {
   type GenerateStructuredOptions,
 } from "@/services/ai/core/AgentLanguageModel";
 import { AiError, AiProviderError } from "@/services/ai/core/AiError";
-import { AiResponse as CoreAiResponse } from "@/services/ai/core/AiResponse";
+import { AiResponse as CoreAiResponse, AiResponse } from "@/services/ai/core/AiResponse";
 
 // Create a mock error for testing using the proper Data.TaggedError pattern
 class MockAiError extends AiProviderError {
@@ -99,7 +99,8 @@ describe("AgentLanguageModel Service", () => {
       );
 
       expect(mockService.generateText).toHaveBeenCalledWith(params);
-      expect(result).toEqual({ text: "Mock generated text response" });
+      expect(result).toBeInstanceOf(AiResponse);
+      expect((result as AiResponse).text).toBe("Mock generated text response");
     });
 
     it("generateText should properly propagate errors", async () => {
@@ -180,7 +181,8 @@ describe("AgentLanguageModel Service", () => {
       );
 
       expect(mockService.generateStructured).toHaveBeenCalledWith(params);
-      expect(result).toEqual({ text: "Mock structured response" });
+      expect(result).toBeInstanceOf(AiResponse);
+      expect((result as AiResponse).text).toBe("Mock structured response");
     });
   });
 });

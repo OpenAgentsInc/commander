@@ -134,12 +134,26 @@ describe("NIP90AgentLanguageModelLive", () => {
 
     it("should handle streaming text generation", async () => {
       // Setup mock to emit chunks synchronously
-      mockNIP90Service.subscribeToJobUpdates.mockImplementation((params) =>
+      mockNIP90Service.subscribeToJobUpdates.mockImplementation((jobRequestEventId, dvmPubkeyHex, decryptionKey, onUpdate) =>
         Effect.sync(() => {
-          params.onFeedback({ status: "partial", content: "First" });
-          params.onFeedback({ status: "partial", content: "Second" });
-          params.onFeedback({ status: "partial", content: "Final" });
-          params.onResult({ content: "" }); // This will end the stream
+          // Simulate feedback events (kind 7000)
+          onUpdate({ 
+            kind: 7000, 
+            content: "First", 
+            tags: [["status", "partial"]] 
+          } as any);
+          onUpdate({ 
+            kind: 7000, 
+            content: "Second", 
+            tags: [["status", "partial"]] 
+          } as any);
+          onUpdate({ 
+            kind: 7000, 
+            content: "Final", 
+            tags: [["status", "partial"]] 
+          } as any);
+          // Simulate result event (kind 6000-6999)
+          onUpdate({ kind: 6000, content: "" } as any); // This will end the stream
           return () => { }; // Cleanup function
         })
       );
@@ -161,9 +175,13 @@ describe("NIP90AgentLanguageModelLive", () => {
 
     it("should handle streaming errors", async () => {
       // Setup mock to emit error
-      mockNIP90Service.subscribeToJobUpdates.mockImplementation((params) =>
+      mockNIP90Service.subscribeToJobUpdates.mockImplementation((jobRequestEventId, dvmPubkeyHex, decryptionKey, onUpdate) =>
         Effect.sync(() => {
-          params.onFeedback({ status: "error", content: "Streaming error" });
+          onUpdate({ 
+            kind: 7000, 
+            content: "Streaming error", 
+            tags: [["status", "error"]] 
+          } as any);
           return () => { }; // Cleanup function
         })
       );
@@ -184,10 +202,14 @@ describe("NIP90AgentLanguageModelLive", () => {
 
     it("should handle normal completion", async () => {
       // Setup mock to emit chunks and complete normally
-      mockNIP90Service.subscribeToJobUpdates.mockImplementation((params) =>
+      mockNIP90Service.subscribeToJobUpdates.mockImplementation((jobRequestEventId, dvmPubkeyHex, decryptionKey, onUpdate) =>
         Effect.sync(() => {
-          params.onFeedback({ status: "partial", content: "Content" });
-          params.onResult({ content: "Final content" }); // This will emit final content and end the stream
+          onUpdate({ 
+            kind: 7000, 
+            content: "Content", 
+            tags: [["status", "partial"]] 
+          } as any);
+          onUpdate({ kind: 6000, content: "Final content" } as any); // This will emit final content and end the stream
           return () => { }; // Cleanup function
         })
       );

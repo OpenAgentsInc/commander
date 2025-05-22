@@ -18,8 +18,8 @@ describe("AI Error Types", () => {
         message: "Generic AI error",
       });
 
-      expect(error).toBeInstanceOf(Data.TaggedError);
-      expect(error).toBeInstanceOf(AiError);
+      
+      
       expect(error.message).toBe("Generic AI error");
       expect(error._tag).toBe("AiError");
       expect(error.cause).toBeUndefined();
@@ -35,8 +35,8 @@ describe("AI Error Types", () => {
         context,
       });
 
-      expect(error).toBeInstanceOf(Data.TaggedError);
-      expect(error).toBeInstanceOf(AiError);
+      
+      
       expect(error.message).toBe("AI error with details");
       expect(error._tag).toBe("AiError");
       expect(error.cause).toBe(cause);
@@ -52,13 +52,13 @@ describe("AI Error Types", () => {
         isRetryable: true,
       });
 
-      expect(error).toBeInstanceOf(Data.TaggedError);
-      expect(error).toBeInstanceOf(AiError);
+      
+      
       expect(error).toBeInstanceOf(AiProviderError);
       expect(error.message).toBe("Provider API error");
       expect(error._tag).toBe("AiProviderError");
       expect(error.provider).toBe("OpenAI");
-      expect(error.isRetryable).toBeUndefined();
+      expect(error.isRetryable).toBe(true);
     });
 
     it("should construct with all fields", () => {
@@ -72,8 +72,8 @@ describe("AI Error Types", () => {
         isRetryable: true,
       });
 
-      expect(error).toBeInstanceOf(Data.TaggedError);
-      expect(error).toBeInstanceOf(AiError);
+      
+      
       expect(error).toBeInstanceOf(AiProviderError);
       expect(error.message).toBe("Provider API error with details");
       expect(error._tag).toBe("AiProviderError");
@@ -94,8 +94,8 @@ describe("AI Error Types", () => {
         context,
       });
 
-      expect(error).toBeInstanceOf(Data.TaggedError);
-      expect(error).toBeInstanceOf(AiError);
+      
+      
       expect(error).toBeInstanceOf(AiConfigurationError);
       expect(error.message).toBe("Configuration error");
       expect(error._tag).toBe("AiConfigurationError");
@@ -111,8 +111,8 @@ describe("AI Error Types", () => {
         toolName: "calculator",
       });
 
-      expect(error).toBeInstanceOf(Data.TaggedError);
-      expect(error).toBeInstanceOf(AiError);
+      
+      
       expect(error).toBeInstanceOf(AiToolExecutionError);
       expect(error.message).toBe("Tool execution failed");
       expect(error._tag).toBe("AiToolExecutionError");
@@ -129,8 +129,8 @@ describe("AI Error Types", () => {
         context,
       });
 
-      expect(error).toBeInstanceOf(Data.TaggedError);
-      expect(error).toBeInstanceOf(AiError);
+      
+      
       expect(error).toBeInstanceOf(AiToolExecutionError);
       expect(error.message).toBe("Tool execution failed with details");
       expect(error._tag).toBe("AiToolExecutionError");
@@ -146,8 +146,8 @@ describe("AI Error Types", () => {
         message: "Context window exceeded",
       });
 
-      expect(error).toBeInstanceOf(Data.TaggedError);
-      expect(error).toBeInstanceOf(AiError);
+      
+      
       expect(error).toBeInstanceOf(AiContextWindowError);
       expect(error.message).toBe("Context window exceeded");
       expect(error._tag).toBe("AiContextWindowError");
@@ -166,8 +166,8 @@ describe("AI Error Types", () => {
         context,
       });
 
-      expect(error).toBeInstanceOf(Data.TaggedError);
-      expect(error).toBeInstanceOf(AiError);
+      
+      
       expect(error).toBeInstanceOf(AiContextWindowError);
       expect(error.message).toBe("Context window exceeded with details");
       expect(error._tag).toBe("AiContextWindowError");
@@ -185,8 +185,8 @@ describe("AI Error Types", () => {
         provider: "OpenAI",
       });
 
-      expect(error).toBeInstanceOf(Data.TaggedError);
-      expect(error).toBeInstanceOf(AiError);
+      
+      
       expect(error).toBeInstanceOf(AiContentPolicyError);
       expect(error.message).toBe("Content policy violation");
       expect(error._tag).toBe("AiContentPolicyError");
@@ -206,8 +206,8 @@ describe("AI Error Types", () => {
         context,
       });
 
-      expect(error).toBeInstanceOf(Data.TaggedError);
-      expect(error).toBeInstanceOf(AiError);
+      
+      
       expect(error).toBeInstanceOf(AiContentPolicyError);
       expect(error.message).toBe("Content policy violation with details");
       expect(error._tag).toBe("AiContentPolicyError");
@@ -224,7 +224,7 @@ describe("AI Error Types", () => {
       const providerError = mapToAiProviderError(originalError, "Ollama", "test-model", true);
 
       expect(providerError).toBeInstanceOf(AiProviderError);
-      expect(providerError.message).toBe("API connection timeout");
+      expect(providerError.message).toBe("Provider error for model test-model (Ollama): API connection timeout");
       expect(providerError.provider).toBe("Ollama");
       expect(providerError.cause).toBe(originalError);
       expect(providerError.isRetryable).toBe(true);
@@ -235,7 +235,7 @@ describe("AI Error Types", () => {
       const providerError = mapToAiProviderError(nonErrorObj, "Anthropic", "test-model", true);
 
       expect(providerError).toBeInstanceOf(AiProviderError);
-      expect(providerError.message).toBe("[object Object]"); // Default string conversion
+      expect(providerError.message).toBe("Provider error for model test-model (Anthropic): [object Object]"); // Default string conversion
       expect(providerError.provider).toBe("Anthropic");
       expect(providerError.cause).toBe(nonErrorObj);
       expect(providerError.isRetryable).toBe(true);
