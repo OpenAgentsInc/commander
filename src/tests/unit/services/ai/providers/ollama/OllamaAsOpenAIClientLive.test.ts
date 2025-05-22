@@ -133,6 +133,9 @@ describe("OllamaAsOpenAIClientLive", () => {
 
   it("should call IPC generateChatCompletion for non-streaming requests", async () => {
     // Setup mock response
+    // Setup a mock response that matches the shape expected by CreateChatCompletionResponse
+    // but doesn't need to match the exact type - it's just a test value that
+    // matches what our adapter implementation returns
     const mockResponse = {
       id: "test-id",
       object: "chat.completion",
@@ -146,6 +149,8 @@ describe("OllamaAsOpenAIClientLive", () => {
             content: "Test response",
           },
           finish_reason: "stop",
+          // Add logprobs (missing field) required by the type definition
+          logprobs: null,
         },
       ],
       usage: {
@@ -153,7 +158,7 @@ describe("OllamaAsOpenAIClientLive", () => {
         completion_tokens: 5,
         total_tokens: 15,
       },
-    } as typeof CreateChatCompletionResponse.Type;
+    } as unknown as typeof CreateChatCompletionResponse.Type;
 
     mockGenerateChatCompletion.mockResolvedValue(mockResponse);
 
