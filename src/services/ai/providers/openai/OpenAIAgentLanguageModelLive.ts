@@ -5,6 +5,7 @@ import {
   makeAgentLanguageModel,
   type GenerateTextOptions,
   type StreamTextOptions,
+  type GenerateStructuredOptions,
 } from "@/services/ai/core";
 import { AiProviderError, mapToAiProviderError } from "@/services/ai/core/AiError";
 import { AiResponse, AiTextChunk, mapProviderResponseToAiResponse } from "@/services/ai/core/AiResponse";
@@ -34,15 +35,24 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
     )
   );
 
-  // Create the OpenAI language model
-  const openAiModel = yield* _(OpenAiLanguageModel.make({
-    client: openAiClient,
-    model: modelName,
-    defaultOptions: {
-      temperature: 0.7,
-      maxTokens: 2048
-    }
-  }));
+  // Step 1: Get the AiModel definition Effect  
+  const aiModelEffectDefinition = OpenAiLanguageModel.model(modelName, {
+    temperature: 0.7,
+    maxTokens: 2048
+  });
+
+  // Step 2: Provide the client dependency to get the AiModel instance
+  const configuredAiModelEffect = Effect.provideService(
+    aiModelEffectDefinition,
+    OpenAiClient.OpenAiClient,
+    openAiClient
+  );
+
+  // Step 3: Get the AiModel instance
+  const aiModel = yield* _(configuredAiModelEffect);
+
+  // Step 4: Build the provider from the AiModel
+  const provider = yield* _(aiModel);
 
   // Log successful model creation
   yield* _(
@@ -53,52 +63,49 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
     })
   );
 
-  // Create our implementation
-  const impl = {
-    streamText: (options: StreamTextOptions) =>
-      openAiModel.streamText({
-        prompt: options.prompt,
-        temperature: options.temperature,
-        maxTokens: options.maxTokens,
-        stopSequences: options.stopSequences,
-        signal: options.signal
-      }).pipe(
-        Stream.map((chunk) => new AiTextChunk({
-          text: chunk.text
-        })),
-        Stream.mapError((error) =>
-          mapToAiProviderError(
-            error,
-            "streamText",
-            modelName,
-            error instanceof Error && error.name === "AbortError"
-          )
-        )
-      ),
-
+  // Create our AgentLanguageModel implementation using the provider
+  return makeAgentLanguageModel({
     generateText: (options: GenerateTextOptions) =>
-      openAiModel.generateText({
+      provider.generateText({
         prompt: options.prompt,
+        model: options.model,
         temperature: options.temperature,
         maxTokens: options.maxTokens,
         stopSequences: options.stopSequences
       }).pipe(
-        Effect.map(mapProviderResponseToAiResponse),
-        Effect.mapError((error) =>
-          mapToAiProviderError(
-            error,
-            "generateText",
-            modelName,
-            error instanceof Error && error.name === "AbortError"
-          )
-        )
-      )
-  };
+        Effect.mapError((error) => new AiProviderError({
+          message: `OpenAI generateText error: ${error instanceof Error ? error.message : String(error)}`,
+          isRetryable: true,
+          cause: error
+        }))
+      ),
 
-  return yield* _(makeAgentLanguageModel(impl));
+    streamText: (options: StreamTextOptions) =>
+      provider.streamText({
+        prompt: options.prompt,
+        model: options.model,
+        temperature: options.temperature,
+        maxTokens: options.maxTokens,
+        signal: options.signal
+      }).pipe(
+        Stream.mapError((error) => new AiProviderError({
+          message: `OpenAI streamText error: ${error instanceof Error ? error.message : String(error)}`,
+          isRetryable: true,
+          cause: error
+        }))
+      ),
+
+    generateStructured: (options: GenerateStructuredOptions) =>
+      Effect.fail(
+        new AiProviderError({
+          message: "generateStructured not yet implemented for OpenAI provider",
+          isRetryable: false
+        })
+      )
+  });
 });
 
-export const OpenAIAgentLanguageModelLiveLayer = Layer.succeed(
+export const OpenAIAgentLanguageModelLiveLayer = Layer.effect(
   AgentLanguageModel.Tag,
   OpenAIAgentLanguageModelLive
 );
