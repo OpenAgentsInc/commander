@@ -200,7 +200,7 @@ describe("OllamaAgentLanguageModelLive", () => {
   it.skip("should successfully build the layer and provide AgentLanguageModel", async () => {
     // This test is skipped until a proper testing strategy for Effect.ts components is established
     const program = Effect.gen(function* (_) {
-      const agentLM = yield* _(AgentLanguageModel);
+      const agentLM = yield* _(AgentLanguageModel.Tag);
       expect(agentLM).toBeDefined();
       expect(agentLM._tag).toBe("AgentLanguageModel");
       expect(typeof agentLM.generateText).toBe("function");

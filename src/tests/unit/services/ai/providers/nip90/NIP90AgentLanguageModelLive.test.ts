@@ -81,7 +81,7 @@ describe("NIP90AgentLanguageModelLive", () => {
   describe("generateText", () => {
     it("should handle simple text generation", async () => {
       const program = Effect.gen(function* (_) {
-        const model = yield* _(AgentLanguageModel);
+        const model = yield* _(AgentLanguageModel.Tag);
         const response = yield* _(model.generateText({ prompt: "Test prompt" }));
         expect(response.text).toBe("Test response");
       });
@@ -94,7 +94,7 @@ describe("NIP90AgentLanguageModelLive", () => {
 
     it("should handle chat message format", async () => {
       const program = Effect.gen(function* (_) {
-        const model = yield* _(AgentLanguageModel);
+        const model = yield* _(AgentLanguageModel.Tag);
         const response = yield* _(
           model.generateText({
             prompt: JSON.stringify({
@@ -115,7 +115,7 @@ describe("NIP90AgentLanguageModelLive", () => {
       mockNIP90Service.createJobRequest.mockImplementationOnce(() => Effect.fail(new Error("NIP-90 error")));
 
       const program = Effect.gen(function* (_) {
-        const model = yield* _(AgentLanguageModel);
+        const model = yield* _(AgentLanguageModel.Tag);
         const result = yield* _(
           Effect.either(model.generateText({ prompt: "Test prompt" })),
         );
@@ -145,7 +145,7 @@ describe("NIP90AgentLanguageModelLive", () => {
       );
 
       const program = Effect.gen(function* (_) {
-        const model = yield* _(AgentLanguageModel);
+        const model = yield* _(AgentLanguageModel.Tag);
         const stream = model.streamText({ prompt: "Test prompt" });
         const chunks = yield* _(Stream.runCollect(stream));
 
@@ -169,7 +169,7 @@ describe("NIP90AgentLanguageModelLive", () => {
       );
 
       const program = Effect.gen(function* (_) {
-        const model = yield* _(AgentLanguageModel);
+        const model = yield* _(AgentLanguageModel.Tag);
         const stream = model.streamText({ prompt: "Test prompt" });
         const result = yield* _(Effect.either(Stream.runCollect(stream)));
 
@@ -193,7 +193,7 @@ describe("NIP90AgentLanguageModelLive", () => {
       );
 
       const program = Effect.gen(function* (_) {
-        const model = yield* _(AgentLanguageModel);
+        const model = yield* _(AgentLanguageModel.Tag);
         const stream = model.streamText({ prompt: "Test prompt" });
         const chunks = yield* _(Stream.runCollect(stream));
 
@@ -210,7 +210,7 @@ describe("NIP90AgentLanguageModelLive", () => {
   describe("generateStructured", () => {
     it("should return error for unsupported operation", async () => {
       const program = Effect.gen(function* (_) {
-        const model = yield* _(AgentLanguageModel);
+        const model = yield* _(AgentLanguageModel.Tag);
         const result = yield* _(
           Effect.either(
             model.generateStructured({

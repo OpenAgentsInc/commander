@@ -43,7 +43,7 @@ export const ChatOrchestratorService = Context.GenericTag<ChatOrchestratorServic
  * Live implementation of ChatOrchestratorService
  */
 export const ChatOrchestratorServiceLive = Effect.gen(function* (_) {
-  const languageModel = yield* _(AgentLanguageModel);
+  const languageModel = yield* _(AgentLanguageModel.Tag);
   const sessionService = yield* _(ChatSessionService);
   const promptService = yield* _(PromptService);
 
