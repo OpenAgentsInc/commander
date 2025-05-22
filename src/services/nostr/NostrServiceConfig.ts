@@ -1,13 +1,13 @@
 import { Schema } from "effect";
 import { Context, Layer } from "effect";
 
-export const NostrServiceConfigSchema = Schema.struct({
-  relays: Schema.array(Schema.string),
-  defaultPublicKey: Schema.optional(Schema.string),
-  defaultPrivateKey: Schema.optional(Schema.string),
+export const NostrServiceConfigSchema = Schema.Struct({
+  relays: Schema.Array(Schema.String),
+  defaultPublicKey: Schema.optional(Schema.String),
+  defaultPrivateKey: Schema.optional(Schema.String),
 });
 
-export type NostrServiceConfig = Schema.Schema.To<typeof NostrServiceConfigSchema>;
+export type NostrServiceConfig = Schema.Schema.Type<typeof NostrServiceConfigSchema>;
 
 export const NostrServiceConfig = Context.GenericTag<NostrServiceConfig>("NostrServiceConfig");
 
