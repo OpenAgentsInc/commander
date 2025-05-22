@@ -103,7 +103,7 @@ describe("NIP90AgentLanguageModelLive", () => {
 
   it("should handle text generation", async () => {
     const program = Effect.gen(function* (_) {
-      const model = yield* _(AgentLanguageModel);
+      const model = yield* _(AgentLanguageModel.Tag);
       const response = yield* _(
         model.generateText({
           prompt: "Test prompt",
@@ -123,7 +123,7 @@ describe("NIP90AgentLanguageModelLive", () => {
     const updates: string[] = [];
 
     const program = Effect.gen(function* (_) {
-      const model = yield* _(AgentLanguageModel);
+      const model = yield* _(AgentLanguageModel.Tag);
       const stream = model.streamText({ prompt: "Test stream prompt" });
       yield* _(
         Stream.runForEach(stream, (chunk) => Effect.sync(() => updates.push(chunk.text)))
@@ -163,7 +163,7 @@ describe("NIP90AgentLanguageModelLive", () => {
     );
 
     const program = Effect.gen(function* (_) {
-      const model = yield* _(AgentLanguageModel);
+      const model = yield* _(AgentLanguageModel.Tag);
       const result = yield* _(
         Effect.either(
           model.generateText({
