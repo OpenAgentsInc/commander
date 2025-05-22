@@ -3,9 +3,9 @@ import { Effect, Layer, Context } from "effect";
 /**
  * Helper for providing layers in tests - replaces Effect.provideLayer
  */
-export const runTest = <A, E>(
-  effect: Effect.Effect<A, E, any>,
-  layer: Layer.Layer<any, any, any>
+export const runTest = <A, E, ROut, E2>(
+  effect: Effect.Effect<A, E, ROut>,
+  layer: Layer.Layer<ROut, E2, never>
 ) => Effect.runPromise(effect.pipe(Effect.provide(layer)));
 
 /**
