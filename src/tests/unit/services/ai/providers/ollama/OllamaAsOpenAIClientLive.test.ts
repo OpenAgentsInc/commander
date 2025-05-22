@@ -160,7 +160,11 @@ describe("OllamaAsOpenAIClientLive", () => {
       },
     } as unknown as typeof CreateChatCompletionResponse.Type;
 
-    mockGenerateChatCompletion.mockResolvedValue(mockResponse);
+    // Make sure the mock resolves to a plain object, not an Effect
+    mockGenerateChatCompletion.mockImplementation(async (ipcParams) => {
+      // Return a plain Promise that resolves to a simple object, not an Effect
+      return Promise.resolve(mockResponse);
+    });
 
     const program = Effect.gen(function* (_) {
       const resolvedClient = yield* _(OllamaOpenAIClientTag);

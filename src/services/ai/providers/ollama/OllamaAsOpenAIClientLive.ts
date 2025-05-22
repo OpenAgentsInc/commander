@@ -178,9 +178,16 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
               return response as typeof CreateChatCompletionResponse.Type;
             },
             catch: (error) => {
-              // If already an HttpClientError, return it
-              if (isHttpClientError(error)) {
-                return error;
+              // If already an HttpClientError or ParseError, rethrow it.
+              if (HttpClientError.isHttpClientError(error) || (error as any)?._tag === "ParseError") {
+                return error as HttpClientError.HttpClientError | ParseError;
+              }
+
+              // Check if the error is an Effect instance (should never happen, but might in tests)
+              if (error && typeof error === 'object' && '_op' in error) {
+                console.warn('Detected an Effect instance being thrown as an error. This is likely a mistake in test mocking.');
+                // Create a plain object error instead
+                error = new Error(`Unexpected Effect in error path: ${JSON.stringify({ _tag: (error as any)._tag })}`);
               }
 
               // Ensure any other caught error is wrapped in AIProviderError then HttpClientError
@@ -205,14 +212,14 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                 );
               }
               
-              const request = HttpClientRequest.post("ollama-ipc-chat-exception");
-              const webResponse = new Response(JSON.stringify(providerError), { status: 500 });
+              const request = HttpClientRequest.post(options.model); 
+              const webResponse = new Response(JSON.stringify(providerError.message), { status: 500 });
               return new HttpClientError.ResponseError({
                 request,
                 response: HttpClientResponse.fromWeb(request, webResponse),
                 reason: "StatusCode",
-                cause: providerError,
-                description: providerError.message || "Ollama IPC request failed",
+                description: providerError.message,
+                cause: providerError // The 'cause' here is AIProviderError
               });
             },
           });
