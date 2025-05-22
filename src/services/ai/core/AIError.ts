@@ -53,7 +53,7 @@ export class AiConfigurationError extends Data.TaggedError("AiConfigurationError
  */
 export const mapToAiProviderError = (
   error: unknown,
-  contextAction: string,
+  providerName: string,
   modelName: string,
   isRetryable = false
 ): AiProviderError => {
@@ -76,9 +76,11 @@ export const mapToAiProviderError = (
   }
 
   return new AiProviderError({
-    message: `Provider ${contextAction} error for model ${modelName}: ${messageContent}`,
+    message: `Provider error for model ${modelName} (${providerName}): ${messageContent}`,
+    provider: providerName,
     cause: causeContent,
-    isRetryable
+    isRetryable,
+    context: { model: modelName, originalError: String(error) }
   });
 };
 
@@ -90,6 +92,7 @@ export class AiToolExecutionError extends Data.TaggedError("AiToolExecutionError
   message: string;
   toolName: string;
   cause?: unknown;
+  context?: Record<string, any>;
 }> { }
 
 /**
