@@ -51,10 +51,9 @@ export const ChatOrchestratorServiceLive = Layer.effect(
           model: preferredProvider.modelName,
         };
 
-        // Use Effect.retry with exponential backoff for retryable errors
-        return Stream.unwrap(
-          Effect.retry(
-            activeAgentLM.streamText(streamOptions),
+        // Use Stream.retry instead of Effect.retry for streams
+        return activeAgentLM.streamText(streamOptions).pipe(
+          Stream.retry(
             Schedule.intersect(
               Schedule.recurs(preferredProvider.key === "ollama" ? 2 : 0),
               Schedule.exponential("100 millis")
@@ -63,13 +62,12 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                 err._tag === "AiProviderError" && err.isRetryable === true
               )
             )
-          ).pipe(
-            Effect.tapError((err) => runTelemetry({
-              category: "orchestrator",
-              action: "stream_error",
-              label: (err as Error).message
-            }))
-          )
+          ),
+          Stream.tapError((err) => runTelemetry({
+            category: "orchestrator",
+            action: "stream_error",
+            label: (err as Error).message
+          }))
         );
       },
       generateConversationResponse: ({ messages, preferredProvider, options }) => {
