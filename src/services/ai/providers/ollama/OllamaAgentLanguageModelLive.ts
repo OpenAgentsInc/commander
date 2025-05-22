@@ -7,12 +7,14 @@ import {
   type StreamTextOptions,
   type GenerateStructuredOptions,
 } from "@/services/ai/core";
-import { AiProviderError } from "@/services/ai/core/AiError";
+import { AiProviderError, mapToAiProviderError } from "@/services/ai/core/AiError";
 import { AiResponse, AiTextChunk } from "@/services/ai/core/AiResponse";
 import { OllamaOpenAIClientTag } from "./OllamaAsOpenAIClientLive";
 import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
 import { ConfigurationService } from "@/services/configuration";
 import { TelemetryService } from "@/services/telemetry";
+import type { AiLanguageModel } from "@effect/ai/AiLanguageModel";
+import type { AiResponse as OpenAiResponse } from "@effect/ai/AiResponse";
 
 console.log(
   "Loading OllamaAgentLanguageModelLive module (Proper Effect Pattern)",
@@ -29,7 +31,7 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
   // Get model name from config or use default
   const modelName = yield* _(
     configService.get("OLLAMA_MODEL_NAME").pipe(
-      Effect.orElseSucceed(() => "gemma3:1b"),
+      Effect.orElseSucceed(() => "gemma:3b"),
       Effect.tap(() =>
         telemetry.trackEvent({
           category: "ai:config",
@@ -50,11 +52,8 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
     ollamaClient
   );
 
-  // Step 3: Get the AiModel instance
-  const aiModel = yield* _(configuredAiModelEffect);
-
-  // Step 4: Build the provider from the AiModel
-  const provider = yield* _(aiModel);
+  // Step 3: Get the provider
+  const provider = yield* _(configuredAiModelEffect) as unknown as AiLanguageModel;
 
   // Log successful model creation
   yield* _(
@@ -68,49 +67,53 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
   // Create our AgentLanguageModel implementation using the provider
   return makeAgentLanguageModel({
     generateText: (options: GenerateTextOptions) =>
-      provider.generateText({
-        prompt: options.prompt,
-        model: options.model,
-        temperature: options.temperature,
-        maxTokens: options.maxTokens,
-        stopSequences: options.stopSequences
-      }).pipe(
-        Effect.mapError((error) =>
-          new AiProviderError({
-            message: `Ollama generateText error: ${error instanceof Error ? error.message : String(error)}`,
-            isRetryable: true,
-            cause: error
+      Effect.gen(function* (_) {
+        const response = yield* _(Effect.promise(() =>
+          provider.generateText({
+            prompt: options.prompt,
+            model: options.model,
+            temperature: options.temperature,
+            maxTokens: options.maxTokens,
+            stopSequences: options.stopSequences
           })
-        )
+        ));
+        return new AiResponse({
+          text: response.text,
+          metadata: {
+            usage: response.usage
+          }
+        });
+      }).pipe(
+        Effect.mapError(error => mapToAiProviderError(error, "generateText", modelName, true))
       ),
 
     streamText: (options: StreamTextOptions) =>
-      provider.streamText({
-        prompt: options.prompt,
-        model: options.model,
-        temperature: options.temperature,
-        maxTokens: options.maxTokens,
-        signal: options.signal
-      }).pipe(
-        Stream.mapError((error) =>
-          new AiProviderError({
-            message: `Ollama streamText error: ${error instanceof Error ? error.message : String(error)}`,
-            isRetryable: true,
-            cause: error
+      Stream.fromEffect(
+        Effect.promise(() =>
+          provider.streamText({
+            prompt: options.prompt,
+            model: options.model,
+            temperature: options.temperature,
+            maxTokens: options.maxTokens,
+            signal: options.signal
           })
         )
+      ).pipe(
+        Stream.map((chunk: OpenAiResponse) => new AiTextChunk({ text: chunk.text })),
+        Stream.mapError(error => mapToAiProviderError(error, "streamText", modelName, true))
       ),
 
     generateStructured: (options: GenerateStructuredOptions) =>
       Effect.fail(
         new AiProviderError({
-          message: "generateStructured not supported by Ollama provider",
+          message: "generateStructured not yet implemented for Ollama provider",
           isRetryable: false
         })
       )
   });
 });
 
+// Create the Layer by providing the implementation
 export const OllamaAgentLanguageModelLiveLayer = Layer.effect(
   AgentLanguageModel.Tag,
   OllamaAgentLanguageModelLive
