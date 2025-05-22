@@ -7,6 +7,16 @@ import { AIProviderError } from "@/services/ai/core/AIError";
 import { OllamaAgentLanguageModelLive } from "@/services/ai/providers/ollama/OllamaAgentLanguageModelLive";
 import { OllamaOpenAIClientTag } from "@/services/ai/providers/ollama/OllamaAsOpenAIClientLive";
 import { HttpClient } from "@effect/platform/HttpClient";
+import * as HttpClientRequest from "@effect/platform/HttpClientRequest";
+import * as HttpClientResponse from "@effect/platform/HttpClientResponse";
+import * as HttpClientError from "@effect/platform/HttpClientError";
+import type {
+  CreateChatCompletionRequest,
+  CreateChatCompletionResponse,
+  CreateEmbeddingRequest,
+  CreateEmbeddingResponse,
+  ListModelsResponse
+} from "@effect/ai-openai/Generated";
 
 // Mock the @effect/ai-openai imports
 vi.mock("@effect/ai-openai", async (importOriginal) => {
@@ -17,25 +27,154 @@ vi.mock("@effect/ai-openai", async (importOriginal) => {
 });
 
 // Mock the OpenAI client
-const mockChatCompletionsCreate = vi.fn();
+const mockCreateChatCompletion = vi.fn();
+const mockCreateEmbedding = vi.fn(() => Effect.die("mock createEmbedding not implemented"));
+const mockListModels = vi.fn(() => Effect.die("mock listModels not implemented"));
 const mockStream = vi.fn();
 
-// Create a properly typed mock client that matches OpenAiClient.Service
+// Helper function to create stub methods that return Effect.die
+const createStubMethod = (methodName: string) => 
+  vi.fn((_options: any) => Effect.die(`Not implemented in mock: ${methodName}`));
+
+// Create mock client with flat structure that matches OpenAiClient.Service
 const mockClientService = {
   client: {
-    chat: {
-      completions: {
-        create: mockChatCompletionsCreate,
-      },
-    },
-    embeddings: {
-      create: vi.fn(() => Effect.die("mock embeddings not implemented")),
-    },
-    models: {
-      list: vi.fn(() => Effect.die("mock models.list not implemented")),
-    },
+    // Core methods that we implement for tests
+    createChatCompletion: mockCreateChatCompletion,
+    createEmbedding: mockCreateEmbedding,
+    listModels: mockListModels,
+    
+    // Assistant methods
+    listAssistants: createStubMethod("listAssistants"),
+    createAssistant: createStubMethod("createAssistant"),
+    getAssistant: createStubMethod("getAssistant"),
+    modifyAssistant: createStubMethod("modifyAssistant"),
+    deleteAssistant: createStubMethod("deleteAssistant"),
+    
+    // Speech/Audio methods
+    createSpeech: createStubMethod("createSpeech"),
+    createTranscription: createStubMethod("createTranscription"),
+    createTranslation: createStubMethod("createTranslation"),
+    
+    // Batch methods
+    listBatches: createStubMethod("listBatches"),
+    createBatch: createStubMethod("createBatch"),
+    retrieveBatch: createStubMethod("retrieveBatch"),
+    cancelBatch: createStubMethod("cancelBatch"),
+    
+    // Legacy completions
+    createCompletion: createStubMethod("createCompletion"),
+    
+    // File methods
+    listFiles: createStubMethod("listFiles"),
+    createFile: createStubMethod("createFile"),
+    retrieveFile: createStubMethod("retrieveFile"),
+    deleteFile: createStubMethod("deleteFile"),
+    downloadFile: createStubMethod("downloadFile"),
+    
+    // Fine-tuning methods
+    listPaginatedFineTuningJobs: createStubMethod("listPaginatedFineTuningJobs"),
+    createFineTuningJob: createStubMethod("createFineTuningJob"),
+    retrieveFineTuningJob: createStubMethod("retrieveFineTuningJob"),
+    cancelFineTuningJob: createStubMethod("cancelFineTuningJob"),
+    listFineTuningJobCheckpoints: createStubMethod("listFineTuningJobCheckpoints"),
+    listFineTuningEvents: createStubMethod("listFineTuningEvents"),
+    
+    // Image methods
+    createImageEdit: createStubMethod("createImageEdit"),
+    createImage: createStubMethod("createImage"),
+    createImageVariation: createStubMethod("createImageVariation"),
+    
+    // Model methods
+    retrieveModel: createStubMethod("retrieveModel"),
+    deleteModel: createStubMethod("deleteModel"),
+    
+    // Moderation methods
+    createModeration: createStubMethod("createModeration"),
+    
+    // Audit logs methods
+    listAuditLogs: createStubMethod("listAuditLogs"),
+    
+    // Invite methods
+    listInvites: createStubMethod("listInvites"),
+    inviteUser: createStubMethod("inviteUser"),
+    retrieveInvite: createStubMethod("retrieveInvite"),
+    deleteInvite: createStubMethod("deleteInvite"),
+    
+    // Project methods
+    listProjects: createStubMethod("listProjects"),
+    createProject: createStubMethod("createProject"),
+    retrieveProject: createStubMethod("retrieveProject"),
+    modifyProject: createStubMethod("modifyProject"),
+    listProjectApiKeys: createStubMethod("listProjectApiKeys"),
+    retrieveProjectApiKey: createStubMethod("retrieveProjectApiKey"),
+    deleteProjectApiKey: createStubMethod("deleteProjectApiKey"),
+    archiveProject: createStubMethod("archiveProject"),
+    listProjectServiceAccounts: createStubMethod("listProjectServiceAccounts"),
+    createProjectServiceAccount: createStubMethod("createProjectServiceAccount"),
+    retrieveProjectServiceAccount: createStubMethod("retrieveProjectServiceAccount"),
+    deleteProjectServiceAccount: createStubMethod("deleteProjectServiceAccount"),
+    
+    // Project User methods
+    listProjectUsers: createStubMethod("listProjectUsers"),
+    createProjectUser: createStubMethod("createProjectUser"),
+    retrieveProjectUser: createStubMethod("retrieveProjectUser"),
+    modifyProjectUser: createStubMethod("modifyProjectUser"),
+    deleteProjectUser: createStubMethod("deleteProjectUser"),
+    
+    // User methods
+    listUsers: createStubMethod("listUsers"),
+    retrieveUser: createStubMethod("retrieveUser"),
+    modifyUser: createStubMethod("modifyUser"),
+    deleteUser: createStubMethod("deleteUser"),
+    
+    // Thread methods
+    createThread: createStubMethod("createThread"),
+    getThread: createStubMethod("getThread"),
+    modifyThread: createStubMethod("modifyThread"),
+    deleteThread: createStubMethod("deleteThread"),
+    
+    // Message methods
+    createMessage: createStubMethod("createMessage"),
+    getMessage: createStubMethod("getMessage"),
+    modifyMessage: createStubMethod("modifyMessage"),
+    deleteMessage: createStubMethod("deleteMessage"),
+    listMessages: createStubMethod("listMessages"),
+    
+    // Run methods
+    createRun: createStubMethod("createRun"),
+    getRun: createStubMethod("getRun"),
+    modifyRun: createStubMethod("modifyRun"),
+    cancelRun: createStubMethod("cancelRun"),
+    submitToolOuputsToRun: createStubMethod("submitToolOuputsToRun"),
+    listRuns: createStubMethod("listRuns"),
+    listRunSteps: createStubMethod("listRunSteps"),
+    getRunStep: createStubMethod("getRunStep"),
+    createThreadAndRun: createStubMethod("createThreadAndRun"),
+    
+    // Upload methods
+    createUpload: createStubMethod("createUpload"),
+    addUploadPart: createStubMethod("addUploadPart"),
+    completeUpload: createStubMethod("completeUpload"),
+    cancelUpload: createStubMethod("cancelUpload"),
+    
+    // Vector store methods
+    createVectorStore: createStubMethod("createVectorStore"),
+    getVectorStore: createStubMethod("getVectorStore"),
+    modifyVectorStore: createStubMethod("modifyVectorStore"),
+    deleteVectorStore: createStubMethod("deleteVectorStore"),
+    listVectorStores: createStubMethod("listVectorStores"),
+    createVectorStoreFile: createStubMethod("createVectorStoreFile"),
+    getVectorStoreFile: createStubMethod("getVectorStoreFile"),
+    deleteVectorStoreFile: createStubMethod("deleteVectorStoreFile"),
+    listVectorStoreFiles: createStubMethod("listVectorStoreFiles"),
+    createVectorStoreFileBatch: createStubMethod("createVectorStoreFileBatch"),
+    getVectorStoreFileBatch: createStubMethod("getVectorStoreFileBatch"),
+    cancelVectorStoreFileBatch: createStubMethod("cancelVectorStoreFileBatch"),
+    listFilesInVectorStoreBatch: createStubMethod("listFilesInVectorStoreBatch"),
   },
-  streamRequest: vi.fn(() => Stream.die("mock streamRequest not implemented")),
+  streamRequest: vi.fn((request: HttpClientRequest.HttpClientRequest) => 
+    Stream.die("mock streamRequest not implemented")),
   stream: mockStream,
 };
 
@@ -44,14 +183,46 @@ const MockOllamaOpenAIClient = Layer.succeed(
   mockClientService,
 );
 
-// Mock HttpClient for OpenAiLanguageModel
+// Mock HttpClient for OpenAiLanguageModel with all required methods
 const mockHttpClient = {
-  request: vi.fn(() => Effect.succeed({ status: 200, body: {} })),
+  // Core request method
+  request: vi.fn((req: HttpClientRequest.HttpClientRequest) => 
+    Effect.succeed({ status: 200, body: {}, headers: new Headers() })),
+  
+  // HTTP method shortcuts
+  execute: vi.fn((req: HttpClientRequest.HttpClientRequest) => 
+    Effect.succeed({ status: 200, body: "execute mock", headers: new Headers() })),
+  
+  get: vi.fn((url: string | URL, options?: HttpClientRequest.Options.NoBody) => 
+    Effect.succeed({ status: 200, body: `get ${url} mock`, headers: new Headers() })),
+  
+  post: vi.fn((url: string | URL, options?: any) => 
+    Effect.succeed({ status: 200, body: `post ${url} mock`, headers: new Headers() })),
+  
+  put: vi.fn((url: string | URL, options?: any) => 
+    Effect.succeed({ status: 200, body: `put ${url} mock`, headers: new Headers() })),
+  
+  patch: vi.fn((url: string | URL, options?: any) => 
+    Effect.succeed({ status: 200, body: `patch ${url} mock`, headers: new Headers() })),
+  
+  del: vi.fn((url: string | URL, options?: any) => 
+    Effect.succeed({ status: 200, body: `delete ${url} mock`, headers: new Headers() })),
+  
+  head: vi.fn((url: string | URL, options?: HttpClientRequest.Options.NoBody) => 
+    Effect.succeed({ status: 200, body: `head ${url} mock`, headers: new Headers() })),
+  
+  options: vi.fn((url: string | URL, options?: HttpClientRequest.Options.NoBody) => 
+    Effect.succeed({ status: 200, body: `options ${url} mock`, headers: new Headers() })),
+  
+  // Utility methods
+  pipe(): any { return this; },
+  toJSON: vi.fn(() => ({ _tag: "MockHttpClient" })),
 };
-const MockHttpClient = Layer.succeed(HttpClient, mockHttpClient);
+
+const MockHttpClient = Layer.succeed(HttpClient, mockHttpClient as HttpClient);
 
 // Mock the chat completions create to return test data
-mockChatCompletionsCreate.mockImplementation(() =>
+mockCreateChatCompletion.mockImplementation(() =>
   Effect.succeed({
     id: "test-id",
     object: "chat.completion",
@@ -62,6 +233,7 @@ mockChatCompletionsCreate.mockImplementation(() =>
         index: 0,
         message: { role: "assistant", content: "Test response" },
         finish_reason: "stop",
+        logprobs: null, // Required by the type
       },
     ],
     usage: {
@@ -69,7 +241,7 @@ mockChatCompletionsCreate.mockImplementation(() =>
       completion_tokens: 5,
       total_tokens: 15,
     },
-  }),
+  } as typeof CreateChatCompletionResponse.Type),
 );
 
 // Mock the stream to return a Stream of chunks
@@ -119,45 +291,27 @@ describe("OllamaAgentLanguageModelLive", () => {
     });
 
     // Mock successful response from Ollama
-    mockChatCompletionsCreate.mockImplementation((params) => {
-      if (params.stream) {
-        // Return a Stream for streaming requests
-        return Stream.fromIterable([
+    mockCreateChatCompletion.mockImplementation((params) => {
+      // Return an Effect for non-streaming requests
+      return Effect.succeed({
+        id: "test-id",
+        object: "chat.completion",
+        created: Date.now(),
+        model: params.model,
+        choices: [
           {
-            id: "test-id",
-            object: "chat.completion.chunk",
-            created: Date.now(),
-            model: params.model,
-            choices: [
-              {
-                index: 0,
-                delta: { content: "Test response" },
-                finish_reason: null,
-              },
-            ],
+            index: 0,
+            message: { role: "assistant", content: "Test response" },
+            finish_reason: "stop",
+            logprobs: null, // Required by the type
           },
-        ]);
-      } else {
-        // Return an Effect for non-streaming requests
-        return Effect.succeed({
-          id: "test-id",
-          object: "chat.completion",
-          created: Date.now(),
-          model: params.model,
-          choices: [
-            {
-              index: 0,
-              message: { role: "assistant", content: "Test response" },
-              finish_reason: "stop",
-            },
-          ],
-          usage: {
-            prompt_tokens: 10,
-            completion_tokens: 5,
-            total_tokens: 15,
-          },
-        });
-      }
+        ],
+        usage: {
+          prompt_tokens: 10,
+          completion_tokens: 5,
+          total_tokens: 15,
+        },
+      } as typeof CreateChatCompletionResponse.Type);
     });
   });
 
@@ -228,7 +382,7 @@ describe("OllamaAgentLanguageModelLive", () => {
     );
 
     // Verify the default model was used
-    expect(mockChatCompletionsCreate).toHaveBeenCalledWith(
+    expect(mockCreateChatCompletion).toHaveBeenCalledWith(
       expect.objectContaining({
         model: "gemma3:1b", // This is the default in OllamaAgentLanguageModelLive
       }),
@@ -265,7 +419,7 @@ describe("OllamaAgentLanguageModelLive", () => {
       ),
     );
 
-    expect(mockChatCompletionsCreate).toHaveBeenCalledWith(
+    expect(mockCreateChatCompletion).toHaveBeenCalledWith(
       expect.objectContaining({
         model: "gemma3:1b",
         messages: expect.arrayContaining([
@@ -283,7 +437,7 @@ describe("OllamaAgentLanguageModelLive", () => {
 
   it("should properly map errors from the client to AIProviderError", async () => {
     // Mock an error response
-    mockChatCompletionsCreate.mockImplementation(() =>
+    mockCreateChatCompletion.mockImplementation(() =>
       Effect.fail({ message: "Test error" }),
     );
 
