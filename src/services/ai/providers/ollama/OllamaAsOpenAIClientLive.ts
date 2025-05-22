@@ -53,6 +53,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
         Effect.die(
           new AiProviderError({
             message: errorMsg,
+            isRetryable: false,
           }),
         ),
       );
@@ -71,6 +72,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
           reason: "StatusCode",
           cause: new AiProviderError({
             message: `Not implemented in Ollama adapter: ${methodName}`,
+            isRetryable: false,
           }),
           description: `OllamaAdapter: ${methodName} not implemented`,
         })
@@ -153,6 +155,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
                   const providerError = new AiProviderError({
                     message: `Ollama IPC error: ${response.message || "Unknown error"}`,
                     cause: response,
+                    isRetryable: true,
                   });
 
                   await Effect.runPromise(

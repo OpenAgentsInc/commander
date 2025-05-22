@@ -114,7 +114,7 @@ describe("NIP90AgentLanguageModelLive", () => {
       expect(response.text).toBe("Mock result");
     });
 
-    await Effect.runPromise(program.pipe(Effect.provideLayer(testLayer)));
+    await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
     expect(mockNIP90Service.createJobRequest).toHaveBeenCalled();
     expect(mockNIP90Service.getJobResult).toHaveBeenCalled();
   });
@@ -130,7 +130,7 @@ describe("NIP90AgentLanguageModelLive", () => {
       );
     });
 
-    await Effect.runPromise(program.pipe(Effect.provideLayer(testLayer)));
+    await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
     expect(mockNIP90Service.createJobRequest).toHaveBeenCalled();
     expect(mockNIP90Service.subscribeToJobUpdates).toHaveBeenCalled();
   });
@@ -182,6 +182,6 @@ describe("NIP90AgentLanguageModelLive", () => {
       }
     });
 
-    await Effect.runPromise(program.pipe(Effect.provideLayer(errorLayer)));
+    await Effect.runPromise(program.pipe(Effect.provide(errorLayer)));
   });
 });
