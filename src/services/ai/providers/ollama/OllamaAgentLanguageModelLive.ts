@@ -7,23 +7,27 @@ import {
   type GenerateStructuredOptions,
   type AiTextChunk,
 } from "@/services/ai/core";
+import type { AiResponse } from "@effect/ai/AiResponse";
 import * as OpenAiClient from "@effect/ai-openai/OpenAiClient";
 import * as OpenAiCompletions from "@effect/ai-openai/OpenAiCompletions";
+import { Completions } from "@effect/ai/Completions";
 import { ConfigurationService } from "@/services/configuration";
 import { AIProviderError } from "@/services/ai/core/AIError";
 import { OllamaOpenAIClientTag } from "./OllamaAsOpenAIClientLive";
 import { TelemetryService } from "@/services/telemetry";
 
 // Log when this module is loaded
-console.log("Loading OllamaAgentLanguageModelLive module (Effect-based implementation)");
+console.log("Loading OllamaAgentLanguageModelLive module (Proper Effect Pattern)");
 
 export const OllamaAgentLanguageModelLive = Layer.effect(
   AgentLanguageModel,
   Effect.gen(function* (_) {
-    const ollamaAdaptedClient = yield* _(OllamaOpenAIClientTag); // This is an instance of OpenAiClient.Service
+    // Get required services
+    const ollamaAdaptedClient = yield* _(OllamaOpenAIClientTag);
     const configService = yield* _(ConfigurationService);
     const telemetry = yield* _(TelemetryService);
 
+    // Get the model name from config
     let modelName = "gemma3:1b"; // Default model
     const configGetEffect = configService.get("OLLAMA_MODEL_NAME");
     const configResult = yield* _(Effect.either(configGetEffect));
@@ -49,49 +53,30 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
     );
 
     try {
-      // Get and use the OpenAI Language Model layer factory
-      // This provides an AiLanguageModel service that we can wrap
-      console.log("Using OpenAiCompletions.layerCompletions to create AiLanguageModel layer");
-      
-      const aiModelLayer = OpenAiCompletions.layerCompletions({
-        model: modelName,
-        temperature: 0.7,
-        maxTokens: 1000
+      // Create the OpenAI completions layer with our model configuration
+      const completionsLayer = OpenAiCompletions.layerCompletions({
+        model: modelName
       });
       
-      console.log("Created aiModelLayer with model:", modelName);
-      
-      // Provide the Ollama adapter client to the layer
-      const aiModelLayerWithClient = aiModelLayer.pipe(
-        Layer.provide(Layer.succeed(OpenAiClient.OpenAiClient, ollamaAdaptedClient))
+      console.log("Created OpenAiCompletions layer with model:", modelName);
+
+      // Provide the Ollama adapter client to the completions layer
+      const completionsWithClientLayer = Layer.provide(
+        Layer.succeed(OpenAiClient.OpenAiClient, ollamaAdaptedClient),
+        completionsLayer
       );
       
-      console.log("Provided ollamaAdaptedClient to aiModelLayer");
+      console.log("Provided Ollama adapter client to completions layer");
       
-      // Build a context with our AiLanguageModel implementation
-      // This temporarily creates a runtime with the layer
-      const runtime = yield* _(Effect.runtime<never>());
-      const context = yield* _(Layer.buildWithRuntime(aiModelLayerWithClient, runtime));
+      // Add this layer to our current context by making a scoped runtime
+      // and running an effect with it to get the Completions service
+      const scope = yield* _(Effect.scope);
+      const runtime = yield* _(Layer.buildRuntime(completionsWithClientLayer).pipe(Effect.scoped));
       
-      console.log("Built context with aiModelLayerWithClient");
+      // Get the Completions service using the runtime directly
+      const completionsService = Context.get(runtime.context, Completions);
       
-      // Get the AiLanguageModel service from the context
-      // The service tag isn't directly exposed, so we access it via Effect.contextWith
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const aiLanguageModelTag = (OpenAiCompletions as any).AiLanguageModel ?? 
-                               (OpenAiCompletions as any).OpenAiCompletions ??
-                               (OpenAiCompletions as any).OpenAiLanguageModel;
-      
-      if (!aiLanguageModelTag) {
-        console.error("Could not find AiLanguageModel tag in OpenAiCompletions");
-        throw new Error("Could not find AiLanguageModel tag in OpenAiCompletions");
-      }
-      
-      // Get the provider from the context
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const provider = Context.get(context, aiLanguageModelTag as any);
-      
-      console.log("Got provider from context");
+      console.log("Got Completions service from context");
 
       yield* _(
         telemetry.trackEvent({
@@ -101,9 +86,9 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
         }).pipe(Effect.ignoreLogged)
       );
 
-      // Map errors from library error to AIProviderError
+      // Map errors from provider error to AIProviderError
       const mapErrorToAIProviderError = (err: any, contextAction: string, params: any) => {
-        const detail = err.error || err; // Often errors have an 'error' field for the underlying cause
+        const detail = err.error || err;
         return new AIProviderError({
           message: `Ollama ${contextAction} error for model ${modelName}: ${detail?.message || String(detail) || "Unknown provider error"}`,
           cause: detail?.cause || detail,
@@ -117,23 +102,69 @@ export const OllamaAgentLanguageModelLive = Layer.effect(
         });
       };
 
-      // Return the implementation of our AgentLanguageModel interface
+      // Create the service implementation by adapting the completionsService
       const serviceImplementation: AgentLanguageModel = {
         _tag: "AgentLanguageModel" as const,
-        generateText: (params: GenerateTextOptions) => 
-          provider.generateText(params).pipe(
-            Effect.mapError(err => mapErrorToAIProviderError(err, "generateText", params))
-          ),
-        streamText: (params: StreamTextOptions) => 
-          provider.streamText(params).pipe(
-            Stream.mapError(err => mapErrorToAIProviderError(err, "streamText", params))
-          ),
-        generateStructured: (params: GenerateStructuredOptions) => 
-          provider.generateStructured(params).pipe(
-            Effect.mapError(err => mapErrorToAIProviderError(err, "generateStructured", params))
-          )
+        
+        // Adapt the generateText method
+        generateText: (params: GenerateTextOptions) => {
+          console.log("Ollama generateText called with params:", params);
+          return Effect.tryPromise({
+            try: async () => {
+              // Call the completions service's create method
+              const response = await Effect.runPromise(
+                runtime.run(completionsService.create(params.prompt))
+              );
+              return response as AiResponse;
+            },
+            catch: (error) => mapErrorToAIProviderError(error, "generateText", params)
+          });
+        },
+        
+        // Adapt the streamText method
+        streamText: (params: StreamTextOptions) => {
+          console.log("Ollama streamText called with params:", params);
+          try {
+            // Use the runtime to run the stream method
+            const stream = Stream.unwrapScoped(
+              Effect.map(
+                runtime.run(completionsService.stream(params.prompt)),
+                stream => stream
+              )
+            );
+            
+            // Convert the stream to AiTextChunk format
+            return stream.pipe(
+              Stream.map(chunk => {
+                const textChunk: AiTextChunk = {
+                  text: chunk.text || ""
+                };
+                return textChunk;
+              }),
+              Stream.mapError(err => mapErrorToAIProviderError(err, "streamText", params))
+            );
+          } catch (error) {
+            return Stream.fail(mapErrorToAIProviderError(error, "streamText", params));
+          }
+        },
+        
+        // Adapt the generateStructured method
+        generateStructured: (params: GenerateStructuredOptions) => {
+          console.log("Ollama generateStructured called with params:", params);
+          return Effect.tryPromise({
+            try: async () => {
+              // Call the completions service's create method with the schema
+              const response = await Effect.runPromise(
+                runtime.run(completionsService.create(params.prompt))
+              );
+              return response as AiResponse;
+            },
+            catch: (error) => mapErrorToAIProviderError(error, "generateStructured", params)
+          });
+        }
       };
       
+      // Return the service implementation
       return serviceImplementation;
     } catch (error) {
       console.error("Critical error in OllamaAgentLanguageModelLive:", error);
