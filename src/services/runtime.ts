@@ -129,7 +129,7 @@ const kind5050DVMLayer = Kind5050DVMServiceLive.pipe(
       sparkLayer,
       nip04Layer,
       telemetryLayer,
-      ollamaLanguageModelLayer, // Explicitly provide the language model layer
+      ollamaLanguageModelLayer,
     ),
   ),
 );
