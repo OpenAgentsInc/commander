@@ -48,7 +48,7 @@ class MockAgentLanguageModel implements AgentLanguageModel {
       { text: "Mock " },
       { text: "stream " },
       { text: "response" },
-    ] as AiTextChunk[]),
+    ] as AiResponse[]),
   );
 
   generateStructured = vi.fn(
@@ -67,9 +67,9 @@ describe("AgentLanguageModel Service", () => {
 
   it("should resolve a mock implementation via Effect context", async () => {
     const mockService = new MockAgentLanguageModel();
-    const testLayer = Layer.succeed(AgentLanguageModel, mockService);
+    const testLayer = Layer.succeed(AgentLanguageModel.Tag, mockService);
 
-    const program = Effect.flatMap(AgentLanguageModel, (service) =>
+    const program = Effect.flatMap(AgentLanguageModel.Tag, (service) =>
       Effect.succeed(service),
     );
 

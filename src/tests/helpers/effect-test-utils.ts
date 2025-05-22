@@ -21,4 +21,6 @@ export const mockService = <I, S>(
  * Helper for service access in tests
  */
 export const getService = <I, S>(tag: Context.Tag<I, S>) =>
-  Effect.service(tag);
+  Effect.gen(function* (_) {
+    return yield* _(tag);
+  });
