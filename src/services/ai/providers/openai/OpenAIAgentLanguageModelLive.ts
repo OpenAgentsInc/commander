@@ -87,6 +87,7 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
           }).pipe(
             Effect.mapError((error) => new AiProviderError({
               message: `OpenAI generateText error: ${error instanceof Error ? error.message : String(error)}`,
+              provider: "OpenAI",
               isRetryable: true,
               cause: error
             }))
@@ -109,6 +110,7 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
               Stream.map((aiResponse) => new AiTextChunk({ text: aiResponse.text })),
               Stream.mapError((error) => new AiProviderError({
                 message: `OpenAI streamText error: ${error instanceof Error ? error.message : String(error)}`,
+                provider: "OpenAI",
                 isRetryable: true,
                 cause: error
               }))
@@ -121,6 +123,7 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
       Effect.fail(
         new AiProviderError({
           message: "generateStructured not yet implemented for OpenAI provider",
+          provider: "OpenAI",
           isRetryable: false
         })
       )

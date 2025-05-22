@@ -46,7 +46,7 @@ export interface AgentLanguageModel {
   /**
    * Stream text using a language model
    */
-  streamText(options: StreamTextOptions): Stream.Stream<AiTextChunk, AiProviderError, never>;
+  streamText(options: StreamTextOptions): Stream.Stream<AiResponse, AiProviderError, never>;
   
   /**
    * Generate structured output using a language model
@@ -66,7 +66,7 @@ export const AgentLanguageModel = {
  */
 export const makeAgentLanguageModel = (
   impl: {
-    streamText: (options: StreamTextOptions) => Stream.Stream<AiTextChunk, AiProviderError>;
+    streamText: (options: StreamTextOptions) => Stream.Stream<AiResponse, AiProviderError>;
     generateText: (options: GenerateTextOptions) => Effect.Effect<AiResponse, AiProviderError>;
     generateStructured: (options: GenerateStructuredOptions) => Effect.Effect<AiResponse, AiProviderError>;
   }

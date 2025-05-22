@@ -81,23 +81,39 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
       provider.use(
         Effect.gen(function* (_) {
           const languageModel = yield* _(AiLanguageModel);
-          return yield* _(languageModel.generateText({
+          const effectAiResponse = yield* _(languageModel.generateText({
             prompt: options.prompt,
             model: options.model,
             temperature: options.temperature,
             maxTokens: options.maxTokens,
             stopSequences: options.stopSequences
-          }).pipe(
-            Effect.mapError((error) =>
-              new AiProviderError({
-                message: `Ollama generateText error: ${error instanceof Error ? error.message : String(error)}`,
-                provider: "Ollama",
-                isRetryable: true,
-                cause: error
-              })
-            )
-          ));
+          }));
+          // Map @effect/ai AiResponse to our custom AiResponse
+          return AiResponse.fromSimple({
+            text: effectAiResponse.text,
+            toolCalls: effectAiResponse.toolCalls?.map(tc => ({
+              id: tc.id,
+              name: tc.name,
+              arguments: tc.params as Record<string, unknown>
+            })),
+            metadata: {
+              usage: {
+                promptTokens: effectAiResponse.getProviderMetadata ? 0 : 0, // TODO: Extract from metadata
+                completionTokens: effectAiResponse.text.length,
+                totalTokens: effectAiResponse.text.length
+              }
+            }
+          });
         })
+      ).pipe(
+        Effect.mapError((error) =>
+          new AiProviderError({
+            message: `Ollama generateText error: ${error instanceof Error ? error.message : String(error)}`,
+            provider: "Ollama",
+            isRetryable: true,
+            cause: error
+          })
+        )
       ),
 
     streamText: (options: StreamTextOptions) =>
@@ -112,7 +128,21 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
               maxTokens: options.maxTokens,
               signal: options.signal
             }).pipe(
-              Stream.map((aiResponse) => new AiTextChunk({ text: aiResponse.text })),
+              Stream.map((effectAiResponse) => AiResponse.fromSimple({
+                text: effectAiResponse.text,
+                toolCalls: effectAiResponse.toolCalls?.map(tc => ({
+                  id: tc.id,
+                  name: tc.name,
+                  arguments: tc.params as Record<string, unknown>
+                })),
+                metadata: {
+                  usage: {
+                    promptTokens: 0,
+                    completionTokens: effectAiResponse.text.length,
+                    totalTokens: effectAiResponse.text.length
+                  }
+                }
+              })),
               Stream.mapError((error) =>
                 new AiProviderError({
                   message: `Ollama streamText error: ${error instanceof Error ? error.message : String(error)}`,
