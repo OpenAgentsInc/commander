@@ -98,6 +98,11 @@ As we work with Effect's sophisticated type system, we encounter various TypeScr
 **Solution**: Systematic dependency discovery through runtime testing and complete service provision patterns  
 **Affects**: All Effect service integrations, library upgrades, and service layer completeness validation
 
+### 018 - [Runtime Initialization Resilience](./018-runtime-initialization-resilience.md)
+**Problem**: Effect runtime initialization fails completely when any service Layer uses Effect.die() during construction  
+**Solution**: Deferred initialization pattern - move environment checks from Layer construction to method invocation  
+**Affects**: All services with environment dependencies, runtime startup reliability, cross-platform compatibility
+
 ## Fix Documentation Template
 
 When adding new fixes, please follow this structure:
@@ -155,6 +160,7 @@ When you solve a tricky TypeScript issue with Effect:
 - [003 - Service Tag Access Patterns](./003-service-tag-access-patterns.md) (48+ errors eliminated)
 - [005 - Effect.provideLayer Migration](./005-effect-providelayer-migration.md) (10+ errors eliminated)
 - [008 - Streaming Type Unification Pattern](./008-streaming-type-unification.md) (15+ errors eliminated)
+- [018 - Runtime Initialization Resilience](./018-runtime-initialization-resilience.md) (prevents total app failure)
 
 ### AI/Provider Integration
 - [001 - AiModel to Provider Type Inference](./001-aimodel-provider-type-inference.md)
@@ -181,6 +187,7 @@ When you solve a tricky TypeScript issue with Effect:
 - [013 - Runtime Error Detection Testing](./013-runtime-error-detection-testing.md)
 - [016 - ECC Library Testing Workaround](./016-ecc-library-testing-workaround.md)
 - [017 - Effect Service Dependency Analysis](./017-effect-service-dependency-analysis.md)
+- [018 - Runtime Initialization Resilience](./018-runtime-initialization-resilience.md)
 
 ## Quick Reference
 
@@ -199,6 +206,7 @@ Common patterns that often need fixes:
 11. **Documentation Accuracy**: Documentation patterns that compile but fail at runtime ([015](./015-documentation-runtime-validation.md))
 12. **ECC Library Dependencies**: Cryptocurrency/bitcoin library dependencies causing test failures ([016](./016-ecc-library-testing-workaround.md))
 13. **Hidden Service Dependencies**: Effect services requiring dependencies not obvious from API surface ([017](./017-effect-service-dependency-analysis.md))
+14. **Runtime Initialization Failures**: Effect.die() in Layer construction preventing app startup ([018](./018-runtime-initialization-resilience.md))
 
 ### High-Impact Fixes (Batch Applicable)
 - **Service Tag Access**: `yield* _(ServiceName)` → `yield* _(ServiceName.Tag)` 
@@ -214,6 +222,7 @@ Common patterns that often need fixes:
 - **Documentation Validation**: Add runtime tests for all documented patterns before publishing ([015](./015-documentation-runtime-validation.md))
 - **ECC Library Testing**: Create mock service implementations for cryptocurrency dependencies ([016](./016-ecc-library-testing-workaround.md))
 - **Service Dependency Discovery**: Use runtime testing to discover all required services ([017](./017-effect-service-dependency-analysis.md))
+- **Deferred Initialization**: Replace Effect.die() in Layers with lazy checks in methods ([018](./018-runtime-initialization-resilience.md))
 
 ## Resources
 
