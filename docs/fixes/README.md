@@ -83,6 +83,11 @@ As we work with Effect's sophisticated type system, we encounter various TypeScr
 **Solution**: Eliminate double yield by getting provider directly from configured Effect  
 **Affects**: AI provider implementations, service layer setup, and Effect generator patterns with providers
 
+### 015 - [Documentation Runtime Validation](./015-documentation-runtime-validation.md)
+**Problem**: Documentation can contain incorrect patterns that cause runtime failures despite TypeScript compilation  
+**Solution**: Establish documentation validation protocol with mandatory runtime tests  
+**Affects**: All fix documentation, development practices, and pattern validation across the codebase
+
 ## Fix Documentation Template
 
 When adding new fixes, please follow this structure:
@@ -156,6 +161,9 @@ When you solve a tricky TypeScript issue with Effect:
 - [013 - Runtime Error Detection Testing](./013-runtime-error-detection-testing.md)
 - [014 - Double Yield Provider Error](./014-double-yield-provider-error.md)
 
+### Documentation & Development Practices
+- [015 - Documentation Runtime Validation](./015-documentation-runtime-validation.md)
+
 ## Quick Reference
 
 Common patterns that often need fixes:
@@ -170,6 +178,7 @@ Common patterns that often need fixes:
 8. **Stream vs Effect**: Using Effect retry patterns on Streams instead of Stream retry
 9. **Runtime Generator Errors**: "yield* not iterable" errors that pass TypeScript compilation ([013](./013-runtime-error-detection-testing.md))
 10. **Double Yield Pattern**: Yielding provider instances as Effects in generators ([014](./014-double-yield-provider-error.md))
+11. **Documentation Accuracy**: Documentation patterns that compile but fail at runtime ([015](./015-documentation-runtime-validation.md))
 
 ### High-Impact Fixes (Batch Applicable)
 - **Service Tag Access**: `yield* _(ServiceName)` → `yield* _(ServiceName.Tag)` 
@@ -182,6 +191,7 @@ Common patterns that often need fixes:
 - **Strategic Test Casting**: Apply `as any` at Effect.runPromise boundaries in tests ([012](./012-strategic-test-type-casting.md))
 - **Runtime Error Testing**: Add Effect.runPromise tests to catch "yield* not iterable" errors ([013](./013-runtime-error-detection-testing.md))
 - **Provider Double Yield**: Replace `yield* _(provider as Effect)` with direct provider extraction ([014](./014-double-yield-provider-error.md))
+- **Documentation Validation**: Add runtime tests for all documented patterns before publishing ([015](./015-documentation-runtime-validation.md))
 
 ## Resources
 
