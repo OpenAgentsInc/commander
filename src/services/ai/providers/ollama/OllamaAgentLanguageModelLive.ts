@@ -27,40 +27,31 @@ console.log(
  */
 export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
   const ollamaClient = yield* _(OllamaOpenAIClientTag);
-  const configService = yield* _(ConfigurationService);
   const telemetry = yield* _(TelemetryService);
+  // Expect OpenAiLanguageModel.Config to be in context
+  const modelConfig = yield* _(OpenAiLanguageModel.Config);
 
-  // Get model name from config or use default
-  const modelName = yield* _(
-    configService.get("OLLAMA_MODEL_NAME").pipe(
-      Effect.orElseSucceed(() => "gemma3:1b"),
-      Effect.tap((name) =>
-        telemetry.trackEvent({
-          category: "ai:config",
-          action: "ollama_model_name_resolved",
-          value: name,
-        })
-      )
-    )
+  const modelName = modelConfig.model;
+
+  yield* _(
+    telemetry.trackEvent({
+      category: "ai:config",
+      action: "ollama_model_from_provided_config_service",
+      value: modelName,
+    })
   );
 
-  // Step 1: Get the AiModel definition Effect
+  // Step 1: Get the AiModel definition Effect  
   const aiModelEffectDefinition = OpenAiLanguageModel.model(modelName, {
-    temperature: 0.7,
-    max_tokens: 2048
+    temperature: modelConfig.temperature,
+    max_tokens: modelConfig.max_tokens
   });
 
-  // Step 2: Provide the required configuration and client services
+  // Step 2: Provide only the client service (Config is already in context)
   const configuredAiModelEffect = Effect.provideService(
     aiModelEffectDefinition,
-    OpenAiLanguageModel.Config,
-    { 
-      model: modelName, 
-      temperature: 0.7, 
-      max_tokens: 2048 
-    }
-  ).pipe(
-    Effect.provideService(OpenAiClient.OpenAiClient, ollamaClient)
+    OpenAiClient.OpenAiClient, 
+    ollamaClient
   );
 
   // Step 3: Get the AiModel instance (this is the provider, not an Effect)
@@ -70,7 +61,7 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
   yield* _(
     telemetry.trackEvent({
       category: "ai:config",
-      action: "ollama_language_model_created",
+      action: "ollama_language_model_provider_ready",
       value: modelName,
     })
   );
@@ -144,5 +135,34 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
 // Create the Layer by providing the implementation
 export const OllamaAgentLanguageModelLiveLayer = Layer.effect(
   AgentLanguageModel.Tag,
-  OllamaAgentLanguageModelLive
+  Effect.gen(function* (_) {
+    const configService = yield* _(ConfigurationService);
+    const telemetry = yield* _(TelemetryService);
+
+    const modelName = yield* _(
+      configService.get("OLLAMA_MODEL_NAME").pipe(Effect.orElseSucceed(() => "gemma3:1b"))
+    );
+
+    const openAiModelConfigServiceValue: OpenAiLanguageModel.Config.Service = {
+      model: modelName,
+      temperature: 0.7,
+      max_tokens: 2048,
+    };
+
+    yield* _(
+      telemetry.trackEvent({
+        category: "ai:config",
+        action: "ollama_provider_config_service_created",
+        value: JSON.stringify(openAiModelConfigServiceValue),
+      })
+    );
+
+    return yield* _(
+      Effect.provideService(
+        OllamaAgentLanguageModelLive,
+        OpenAiLanguageModel.Config,
+        openAiModelConfigServiceValue
+      )
+    );
+  })
 );

@@ -21,40 +21,31 @@ import { TelemetryService } from "@/services/telemetry";
  */
 export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
   const openAiClient = yield* _(OpenAiClient.OpenAiClient);
-  const configService = yield* _(ConfigurationService);
   const telemetry = yield* _(TelemetryService);
+  // Expect OpenAiLanguageModel.Config to be in context
+  const modelConfig = yield* _(OpenAiLanguageModel.Config);
 
-  // Fetch model name
-  const modelName = yield* _(
-    configService.get("OPENAI_MODEL_NAME").pipe(
-      Effect.orElseSucceed(() => "gpt-4"),
-      Effect.tap(() =>
-        telemetry.trackEvent({
-          category: "ai:config",
-          action: "openai_model_name_resolved",
-          value: modelName,
-        })
-      )
-    )
+  const modelName = modelConfig.model;
+
+  yield* _(
+    telemetry.trackEvent({
+      category: "ai:config",
+      action: "openai_model_from_provided_config_service",
+      value: modelName,
+    })
   );
 
   // Step 1: Get the AiModel definition Effect  
   const aiModelEffectDefinition = OpenAiLanguageModel.model(modelName, {
-    temperature: 0.7,
-    max_tokens: 2048
+    temperature: modelConfig.temperature,
+    max_tokens: modelConfig.max_tokens
   });
 
-  // Step 2: Provide the required configuration and client services
+  // Step 2: Provide only the client service (Config is already in context)
   const configuredAiModelEffect = Effect.provideService(
     aiModelEffectDefinition,
-    OpenAiLanguageModel.Config,
-    { 
-      model: modelName, 
-      temperature: 0.7, 
-      max_tokens: 2048 
-    }
-  ).pipe(
-    Effect.provideService(OpenAiClient.OpenAiClient, openAiClient)
+    OpenAiClient.OpenAiClient,
+    openAiClient
   );
 
   // Step 3: Get the AiModel instance (this is the provider, not an Effect)
@@ -64,7 +55,7 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
   yield* _(
     telemetry.trackEvent({
       category: "ai:config",
-      action: "openai_language_model_created",
+      action: "openai_language_model_provider_ready",
       value: modelName,
     })
   );
@@ -132,5 +123,34 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
 
 export const OpenAIAgentLanguageModelLiveLayer = Layer.effect(
   AgentLanguageModel.Tag,
-  OpenAIAgentLanguageModelLive
+  Effect.gen(function* (_) {
+    const configService = yield* _(ConfigurationService);
+    const telemetry = yield* _(TelemetryService);
+
+    const modelName = yield* _(
+      configService.get("OPENAI_MODEL_NAME").pipe(Effect.orElseSucceed(() => "gpt-4o"))
+    );
+
+    const openAiModelConfigServiceValue: OpenAiLanguageModel.Config.Service = {
+      model: modelName,
+      temperature: 0.7,
+      max_tokens: 2048,
+    };
+
+    yield* _(
+      telemetry.trackEvent({
+        category: "ai:config",
+        action: "openai_provider_config_service_created",
+        value: JSON.stringify(openAiModelConfigServiceValue),
+      })
+    );
+
+    return yield* _(
+      Effect.provideService(
+        OpenAIAgentLanguageModelLive,
+        OpenAiLanguageModel.Config,
+        openAiModelConfigServiceValue
+      )
+    );
+  })
 );
