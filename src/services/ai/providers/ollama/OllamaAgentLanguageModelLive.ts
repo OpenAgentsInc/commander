@@ -47,9 +47,13 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
     max_tokens: modelConfig.max_tokens
   });
 
-  // Step 2: Provide only the client service (Config is already in context)
+  // Step 2: Provide both the client service AND Config service to the model effect
   const configuredAiModelEffect = Effect.provideService(
-    aiModelEffectDefinition,
+    Effect.provideService(
+      aiModelEffectDefinition,
+      OpenAiLanguageModel.Config,
+      modelConfig
+    ),
     OpenAiClient.OpenAiClient, 
     ollamaClient
   );
