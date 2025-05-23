@@ -366,7 +366,7 @@ export function useNip90ConsumerChat({
 
       // Use NostrService for publishing instead of SimplePool
       const nostrService = Context.get(currentRuntime.context, NostrService);
-      const publishEffect = nostrService.publishEvent(signedEvent, DEFAULT_RELAYS);
+      const publishEffect = nostrService.publishEvent(signedEvent);
       await Effect.runPromise(
         publishEffect.pipe(Effect.provide(currentRuntime))
       );
