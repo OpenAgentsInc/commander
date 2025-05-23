@@ -110,7 +110,7 @@ export const DefaultDevConfigLayer = Layer.effect(
     yield* _(configService.set("OLLAMA_MODEL_ENABLED", "true"));
 
     // NIP-90 Devstral DVM configuration
-    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_DVM_PUBKEY", "YOUR_DEVSTRAL_DVM_PUBKEY_HEX")); // Replace with actual DVM pubkey
+    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_DVM_PUBKEY", "74601f385c819159754da72f85c553142116f67c6c3684d2f0abcec55b4d3c5e")); // Real provider pubkey from telemetry
     yield* _(configService.set("AI_PROVIDER_DEVSTRAL_RELAYS", JSON.stringify(["wss://relay.damus.io", "wss://relay.nostr.band"])));
     yield* _(configService.set("AI_PROVIDER_DEVSTRAL_REQUEST_KIND", "5050")); // Text-to-text kind
     yield* _(configService.set("AI_PROVIDER_DEVSTRAL_REQUIRES_ENCRYPTION", "true")); // Enable encryption for privacy

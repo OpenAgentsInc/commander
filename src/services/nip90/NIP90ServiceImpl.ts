@@ -300,11 +300,9 @@ export const NIP90ServiceLive = Layer.effect(
               limit: 1,
             };
 
-            // TEMP FIX: Skip author filter to allow ANY DVM to respond
-            // This fixes the issue where placeholder DVM pubkey prevents responses
-            // if (dvmPubkeyHex) {
-            //   filter.authors = [dvmPubkeyHex];
-            // }
+            if (dvmPubkeyHex) {
+              filter.authors = [dvmPubkeyHex];
+            }
 
             // Fetch events
             const events = yield* _(nostr.listEvents([filter]));
@@ -472,11 +470,9 @@ export const NIP90ServiceLive = Layer.effect(
               "#e": [jobRequestEventId],
             };
 
-            // TEMP FIX: Skip author filter to allow ANY DVM to respond
-            // This fixes the issue where placeholder DVM pubkey prevents responses
-            // if (dvmPubkeyHex) {
-            //   filter.authors = [dvmPubkeyHex];
-            // }
+            if (dvmPubkeyHex) {
+              filter.authors = [dvmPubkeyHex];
+            }
 
             // Fetch events
             const events = yield* _(nostr.listEvents([filter]));
@@ -640,16 +636,13 @@ export const NIP90ServiceLive = Layer.effect(
             const resultFilter: NostrFilter = {
               kinds: Array.from({ length: 1000 }, (_, i) => 6000 + i), // 6000-6999
               "#e": [jobRequestEventId],
-              // TEMP FIX: Remove author filter to allow ANY DVM to respond
-              // This fixes the issue where placeholder DVM pubkey prevents responses
-              // authors: [dvmPubkeyHex],
+              authors: [dvmPubkeyHex],
             };
 
             const feedbackFilter: NostrFilter = {
               kinds: [7000],
               "#e": [jobRequestEventId],
-              // TEMP FIX: Remove author filter to allow ANY DVM to respond
-              // authors: [dvmPubkeyHex],
+              authors: [dvmPubkeyHex],
             };
 
             // Subscribe to both event types

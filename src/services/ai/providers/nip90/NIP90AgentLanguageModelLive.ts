@@ -115,6 +115,16 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
             paramsForNip90.push(["param", "max_tokens", params.maxTokens.toString()]);
           }
 
+          // Log the target DVM pubkey for debugging
+          yield* _(
+            telemetry.trackEvent({
+              category: "nip90:consumer",
+              action: "target_dvm_pubkey",
+              label: dvmConfig.dvmPubkey,
+              value: `Ephemeral: ${dvmConfig.useEphemeralRequests}, Encrypted: ${dvmConfig.requiresEncryption}`,
+            })
+          );
+
           // Create job request
           const jobRequest = yield* _(
             nip90Service.createJobRequest({

@@ -67,12 +67,12 @@ export const DefaultNostrServiceConfigLayer = Layer.succeed(
   NostrServiceConfigTag,
   {
     relays: [
-      "wss://purplepag.es/",
+      // "wss://purplepag.es/", // Blocked: only accepts kinds 0, 1, 3 and 10002
       "wss://nos.lol/",
       "wss://relay.damus.io/",
       "wss://relay.snort.social/",
-      "wss://offchain.pub/",
-      "wss://nostr-pub.wellorder.net/",
+      // "wss://offchain.pub/", // Failed: no active subscription
+      // "wss://nostr-pub.wellorder.net/", // Failed: connection issues
     ],
     requestTimeoutMs: 10000, // 10 seconds
   },
