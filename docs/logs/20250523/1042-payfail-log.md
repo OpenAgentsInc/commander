@@ -83,3 +83,14 @@ After this fix:
 3. Send job request to DVM requiring payment
 4. Verify payment completes successfully
 5. Check telemetry for proper payment events
+
+## Fix Verification
+
+- ✅ All unit tests pass (279 passed, 14 skipped)
+- ✅ TypeScript compilation successful
+- ✅ Removed all stale runtime references
+- ✅ Applied consistent pattern across all Effect executions in the hook
+
+## Key Lesson Learned
+
+**Never capture Effect runtime in React component state or refs**. The runtime can be reinitialized (e.g., after wallet setup), and captured references become stale. Always call `getMainRuntime()` at the point of Effect execution to ensure you're using the current runtime with the latest service configuration.
