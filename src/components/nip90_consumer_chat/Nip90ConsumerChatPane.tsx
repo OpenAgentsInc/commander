@@ -41,7 +41,6 @@ import {
 import { ChatContainer } from "@/components/chat";
 import { hexToBytes, bytesToHex } from "@noble/hashes/utils";
 import { useNip90ConsumerChat } from "@/hooks/useNip90ConsumerChat";
-import { getMainRuntime } from "@/services/runtime";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface ConsumerWalletState {
@@ -70,8 +69,6 @@ const Nip90ConsumerChatPane: React.FC = () => {
   });
   const [showSensitive, setShowSensitive] = useState(false);
   const [targetDvmInput, setTargetDvmInput] = useState<string>(""); // Renamed for clarity
-
-  const runtime = getMainRuntime(); // Get the main app runtime
 
   const initializeWallet = useCallback(async () => {
     setWalletState((prev) => ({ ...prev, isLoading: true, error: null }));
@@ -210,7 +207,6 @@ const Nip90ConsumerChatPane: React.FC = () => {
     nostrPrivateKeyHex: walletState.privateKeyHex,
     nostrPublicKeyHex: walletState.publicKeyHex,
     targetDvmPubkeyHex: targetDvmInput.trim() || undefined, // Pass the raw input to the hook
-    runtime,
   });
 
   const handleSendMessage = () => {
