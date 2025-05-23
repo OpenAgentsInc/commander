@@ -283,9 +283,9 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
                     } else if (status === "payment-required") {
                       // Handle payment required
                       const amountTag = feedbackEvent.tags.find(t => t[0] === "amount");
-                      if (amountTag && amountTag[1]) {
-                        const invoice = amountTag[1];
-                        const amountSats = 3; // TODO: Extract from bolt11 invoice
+                      if (amountTag && amountTag[2]) {  // FIX: Invoice is at position 2, not 1!
+                        const invoice = amountTag[2];  // FIX: Per NIP-90 spec: ["amount", "millisats", "invoice"]
+                        const amountSats = Math.ceil(parseInt(amountTag[1]) / 1000); // Convert millisats to sats
                         
                         // Track telemetry (fire and forget)
                         const runtime = getMainRuntime();
