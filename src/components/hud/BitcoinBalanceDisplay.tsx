@@ -5,12 +5,14 @@ import { Effect, Exit, Cause } from "effect";
 import { SparkService, type BalanceInfo } from "@/services/spark";
 import { getMainRuntime } from "@/services/runtime";
 import { usePaneStore } from "@/stores/pane";
+import { useWalletStore } from "@/stores/walletStore";
 import { Button } from "@/components/ui/button";
 import { Bitcoin, RefreshCw, AlertTriangle, Loader2 } from "lucide-react";
 
 const BitcoinBalanceDisplay: React.FC = () => {
   const runtime = getMainRuntime();
   const openWalletPane = usePaneStore((state) => state.openWalletPane);
+  const walletIsInitialized = useWalletStore((state) => state.isInitialized);
 
   const {
     data: balanceData,
@@ -33,6 +35,7 @@ const BitcoinBalanceDisplay: React.FC = () => {
     // TODO: Aggressive 1s balance refresh. Monitor performance and API rate limits. Consider websockets or longer intervals for production.
     refetchInterval: 1000,
     refetchIntervalInBackground: true,
+    enabled: walletIsInitialized, // Only fetch if wallet is initialized
   });
 
   const handleDisplayClick = () => {
@@ -40,7 +43,9 @@ const BitcoinBalanceDisplay: React.FC = () => {
   };
 
   let displayContent;
-  if (isLoading && !balanceData) {
+  if (!walletIsInitialized) {
+    displayContent = "No wallet";
+  } else if (isLoading && !balanceData) {
     displayContent = (
       <>
         <Loader2 className="mr-1 h-3 w-3 animate-spin" /> Loading...
