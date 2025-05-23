@@ -5,10 +5,9 @@ import {
 } from "@/components/chat/ChatMessage";
 import { Effect, Exit, Cause, Layer, Runtime, Option, Context } from "effect";
 import { NIP04Service, NIP04ServiceLive } from "@/services/nip04";
-import { NostrEvent, NostrFilter } from "@/services/nostr";
+import { NostrEvent, NostrFilter, NostrService } from "@/services/nostr";
 import { createNip90JobRequest } from "@/helpers/nip90/event_creation";
 import { decryptNip04Content } from "@/helpers/nip90/event_decryption";
-import { SimplePool } from "nostr-tools";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
 import { NIP90_CONSUMER_RELAYS_ARRAY } from "@/services/relays";
 import {
@@ -54,7 +53,6 @@ export function useNip90ConsumerChat({
     required: false,
     status: 'none'
   });
-  const poolRef = useRef<SimplePool | null>(null);
   const activeSubsRef = useRef<Map<string, any>>(new Map());
 
   const addMessage = useCallback(
@@ -92,7 +90,6 @@ export function useNip90ConsumerChat({
 
   useEffect(() => {
     const currentRuntime = getMainRuntime();
-    poolRef.current = new SimplePool();
     Effect.runFork(
       Effect.flatMap(TelemetryService, (ts) =>
         ts.trackEvent({
@@ -103,12 +100,12 @@ export function useNip90ConsumerChat({
       ).pipe(Effect.provide(currentRuntime)),
     );
     return () => {
-      activeSubsRef.current.forEach((sub) => sub.close());
+      activeSubsRef.current.forEach((sub) => {
+        if (sub && typeof sub.unsub === 'function') {
+          sub.unsub();
+        }
+      });
       activeSubsRef.current.clear();
-      if (poolRef.current) {
-        // poolRef.current.close(DEFAULT_RELAYS); // Consider if closing all relays is always desired
-        poolRef.current = null;
-      }
       const cleanupRuntime = getMainRuntime();
       Effect.runFork(
         Effect.flatMap(TelemetryService, (ts) =>
@@ -266,15 +263,6 @@ export function useNip90ConsumerChat({
       });
       return;
     }
-    if (!poolRef.current) {
-      addMessage("system", "Error: Nostr connection pool not initialized.");
-      telemetry.trackEvent({
-        category: "nip90_consumer",
-        action: "send_job_error",
-        label: "nostr_pool_not_ready",
-      });
-      return;
-    }
 
     const prompt = userInput.trim();
     addMessage("user", prompt);
@@ -376,11 +364,12 @@ export function useNip90ConsumerChat({
         jobRequestWithNip04.pipe(Effect.provide(currentRuntime))
       );
 
-      const publishPromises = poolRef.current.publish(
-        DEFAULT_RELAYS,
-        signedEvent,
+      // Use NostrService for publishing instead of SimplePool
+      const nostrService = Context.get(currentRuntime.context, NostrService);
+      const publishEffect = nostrService.publishEvent(signedEvent, DEFAULT_RELAYS);
+      await Effect.runPromise(
+        publishEffect.pipe(Effect.provide(currentRuntime))
       );
-      await Promise.any(publishPromises);
 
       telemetry.trackEvent({
         category: "nip90_consumer",
@@ -531,8 +520,8 @@ export function useNip90ConsumerChat({
             if (activeSubsRef.current.has(signedEvent.id)) {
               const resultSub = activeSubsRef.current.get(signedEvent.id + "_result");
               const feedbackSub = activeSubsRef.current.get(signedEvent.id + "_feedback");
-              resultSub?.close();
-              feedbackSub?.close();
+              if (resultSub && typeof resultSub.unsub === 'function') resultSub.unsub();
+              if (feedbackSub && typeof feedbackSub.unsub === 'function') feedbackSub.unsub();
               activeSubsRef.current.delete(signedEvent.id + "_result");
               activeSubsRef.current.delete(signedEvent.id + "_feedback");
             }
@@ -556,8 +545,8 @@ export function useNip90ConsumerChat({
           if (activeSubsRef.current.has(signedEvent.id)) {
             const resultSub = activeSubsRef.current.get(signedEvent.id + "_result");
             const feedbackSub = activeSubsRef.current.get(signedEvent.id + "_feedback");
-            resultSub?.close();
-            feedbackSub?.close();
+            if (resultSub && typeof resultSub.unsub === 'function') resultSub.unsub();
+            if (feedbackSub && typeof feedbackSub.unsub === 'function') feedbackSub.unsub();
             activeSubsRef.current.delete(signedEvent.id + "_result");
             activeSubsRef.current.delete(signedEvent.id + "_feedback");
           }
@@ -574,30 +563,32 @@ export function useNip90ConsumerChat({
         });
       };
 
-      // Use separate subscribe() calls for each filter (matching NostrServiceImpl pattern)
-      // Subscribe to job results (kind 6xxx)
-      const resultSub = poolRef.current.subscribe(
-        DEFAULT_RELAYS,
-        filters[0], // Result filter
-        {
-          onevent: handleEvent,
-          oneose: () => handleEose("result")
-        }
-      );
-      
-      // Subscribe to job feedback (kind 7000)
-      const feedbackSub = poolRef.current.subscribe(
-        DEFAULT_RELAYS,
-        filters[1], // Feedback filter  
-        {
-          onevent: handleEvent,
-          oneose: () => handleEose("feedback")
-        }
+      // Use NostrService for subscriptions (same infrastructure that works for publishing)
+      const subscribeEffect = Effect.gen(function* () {
+        const resultSub = yield* nostrService.subscribeToEvents(
+          [filters[0]], // Result filter
+          handleEvent,
+          DEFAULT_RELAYS,
+          () => handleEose("result")
+        );
+        
+        const feedbackSub = yield* nostrService.subscribeToEvents(
+          [filters[1]], // Feedback filter  
+          handleEvent,
+          DEFAULT_RELAYS,
+          () => handleEose("feedback")
+        );
+        
+        return { resultSub, feedbackSub };
+      });
+
+      const subscriptions = await Effect.runPromise(
+        subscribeEffect.pipe(Effect.provide(currentRuntime))
       );
       
       // Store both subscriptions for cleanup
-      activeSubsRef.current.set(signedEvent.id + "_result", resultSub);
-      activeSubsRef.current.set(signedEvent.id + "_feedback", feedbackSub);
+      activeSubsRef.current.set(signedEvent.id + "_result", subscriptions.resultSub);
+      activeSubsRef.current.set(signedEvent.id + "_feedback", subscriptions.feedbackSub);
     } catch (error: any) {
       addMessage(
         "system",
