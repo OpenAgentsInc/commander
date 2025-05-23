@@ -115,7 +115,7 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
             paramsForNip90.push(["param", "max_tokens", params.maxTokens.toString()]);
           }
 
-          // Log the target DVM pubkey for debugging
+          // Log the target DVM pubkey and requester pubkey for debugging
           yield* _(
             telemetry.trackEvent({
               category: "nip90:consumer",
@@ -124,6 +124,27 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
               value: `Ephemeral: ${dvmConfig.useEphemeralRequests}, Encrypted: ${dvmConfig.requiresEncryption}`,
             })
           );
+          
+          // Log the requester pubkey
+          if (requestPkHex) {
+            yield* _(
+              telemetry.trackEvent({
+                category: "nip90:consumer",
+                action: "requester_pubkey",
+                label: requestPkHex,
+                value: "Ephemeral key",
+              })
+            );
+          } else {
+            yield* _(
+              telemetry.trackEvent({
+                category: "nip90:consumer",
+                action: "requester_pubkey",
+                label: "NOT SET",
+                value: "No key configured - requests will fail!",
+              })
+            );
+          }
 
           // Create job request
           const jobRequest = yield* _(
@@ -190,6 +211,27 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
             }
             if (params.maxTokens) {
               paramsForNip90.push(["param", "max_tokens", params.maxTokens.toString()]);
+            }
+
+            // Log requester pubkey for streaming
+            if (requestPkHex) {
+              yield* _(
+                telemetry.trackEvent({
+                  category: "nip90:consumer",
+                  action: "requester_pubkey_stream",
+                  label: requestPkHex,
+                  value: "Ephemeral key",
+                })
+              );
+            } else {
+              yield* _(
+                telemetry.trackEvent({
+                  category: "nip90:consumer",
+                  action: "requester_pubkey_stream",
+                  label: "NOT SET",
+                  value: "No key configured - requests will fail!",
+                })
+              );
             }
 
             // Create job request
