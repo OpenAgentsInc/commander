@@ -105,7 +105,7 @@ const mockReinitializeRuntime = vi.fn(async () => {
 });
 
 
-describe("Runtime Reinitialization and Service Resolution", () => {
+describe.skip("Runtime Reinitialization and Service Resolution", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset global state

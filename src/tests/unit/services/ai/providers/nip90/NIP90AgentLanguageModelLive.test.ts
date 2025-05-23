@@ -90,7 +90,7 @@ describe.skip("NIP90AgentLanguageModelLive", () => {
         expect(response.text).toBe("Test response");
       });
 
-      await Effect.runPromise(Effect.provide(program, TestLayer));
+      await Effect.runPromise(Effect.provide(program, TestLayer) as any);
 
       expect(mockNIP90Service.createJobRequest).toHaveBeenCalled();
       expect(mockNIP90Service.getJobResult).toHaveBeenCalled();
@@ -112,7 +112,7 @@ describe.skip("NIP90AgentLanguageModelLive", () => {
         expect(response.text).toBe("Test response");
       });
 
-      await Effect.runPromise(Effect.provide(program, TestLayer));
+      await Effect.runPromise(Effect.provide(program, TestLayer) as any);
     });
 
     it("should handle errors from NIP-90 service", async () => {
@@ -126,7 +126,7 @@ describe.skip("NIP90AgentLanguageModelLive", () => {
         expect(result._tag).toBe("Left");
       });
 
-      await Effect.runPromise(Effect.provide(program, TestLayer));
+      await Effect.runPromise(Effect.provide(program, TestLayer) as any);
     });
   });
 
@@ -174,7 +174,7 @@ describe.skip("NIP90AgentLanguageModelLive", () => {
         ]);
       });
 
-      await Effect.runPromise(Effect.provide(program, TestLayer));
+      await Effect.runPromise(Effect.provide(program, TestLayer) as any);
     });
 
     it("should handle streaming errors", async () => {
@@ -201,7 +201,7 @@ describe.skip("NIP90AgentLanguageModelLive", () => {
         }
       });
 
-      await Effect.runPromise(Effect.provide(program, TestLayer));
+      await Effect.runPromise(Effect.provide(program, TestLayer) as any);
     });
 
     it("should handle normal completion", async () => {
@@ -229,7 +229,7 @@ describe.skip("NIP90AgentLanguageModelLive", () => {
         ]);
       });
 
-      await Effect.runPromise(Effect.provide(program, TestLayer));
+      await Effect.runPromise(Effect.provide(program, TestLayer) as any);
     });
   });
 
@@ -248,7 +248,7 @@ describe.skip("NIP90AgentLanguageModelLive", () => {
         expect(result._tag).toBe("Left");
       });
 
-      await Effect.runPromise(Effect.provide(program, TestLayer));
+      await Effect.runPromise(Effect.provide(program, TestLayer) as any);
     });
   });
 });

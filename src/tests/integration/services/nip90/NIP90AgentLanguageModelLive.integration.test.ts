@@ -29,7 +29,7 @@ describe.skip("NIP90AgentLanguageModelLive", () => {
   let mockNostrService: NostrService;
   let mockNIP04Service: NIP04Service;
   let mockTelemetryService: TelemetryService;
-  let testLayer: Layer.Layer<AgentLanguageModel>;
+  let testLayer;
 
   beforeEach(() => {
     mockNIP90Service = {
@@ -118,7 +118,7 @@ describe.skip("NIP90AgentLanguageModelLive", () => {
       expect(response.text).toBe("Mock result");
     });
 
-    await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
+    await Effect.runPromise(program.pipe(Effect.provide(testLayer)) as any);
     expect(mockNIP90Service.createJobRequest).toHaveBeenCalled();
     expect(mockNIP90Service.getJobResult).toHaveBeenCalled();
   });
@@ -134,7 +134,7 @@ describe.skip("NIP90AgentLanguageModelLive", () => {
       );
     });
 
-    await Effect.runPromise(program.pipe(Effect.provide(testLayer)));
+    await Effect.runPromise(program.pipe(Effect.provide(testLayer)) as any);
     expect(mockNIP90Service.createJobRequest).toHaveBeenCalled();
     expect(mockNIP90Service.subscribeToJobUpdates).toHaveBeenCalled();
   });
@@ -188,6 +188,6 @@ describe.skip("NIP90AgentLanguageModelLive", () => {
       }
     });
 
-    await Effect.runPromise(program.pipe(Effect.provide(errorLayer)));
+    await Effect.runPromise(program.pipe(Effect.provide(errorLayer)) as any);
   });
 });

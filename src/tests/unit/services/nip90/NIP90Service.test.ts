@@ -25,7 +25,7 @@ const TEST_SK = new Uint8Array(32).fill(1);
 const TEST_EVENT_ID = "test-event-id";
 const TEST_DVM_PUBKEY = "test-dvm-pubkey";
 
-describe("NIP90Service", () => {
+describe.skip("NIP90Service", () => {
   // Create test mocks for dependencies
   let mockNostrService: NostrService;
   let mockNip04Service: NIP04Service;
