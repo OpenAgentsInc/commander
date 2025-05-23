@@ -2,7 +2,7 @@ import { Context, Effect, Data, Schema, Layer } from "effect";
 import { TelemetryService } from "@/services/telemetry";
 import { TrackEventError } from "@/services/telemetry/TelemetryService";
 import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
-import { bytesToHex } from "@noble/hashes/utils";
+import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
 import type { JobHistoryEntry, JobStatistics } from "@/types/dvm";
 import { OllamaError } from "@/services/ollama";
 import { SparkError } from "@/services/spark";
