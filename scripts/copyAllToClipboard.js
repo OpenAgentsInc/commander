@@ -24,6 +24,7 @@ const dirsToScan = ["docs", "src", "node_modules/@effect/ai-openai/dist/dts/"];
 const dirsToExclude = [
   // "src/components",
   "src/localization/",
+  "src/services/ai/providers",
   // "src/stores/panes/",
   "src/assets/fonts",
   "docs/logs/20250514",

@@ -19,7 +19,7 @@ const BitcoinBalanceDisplay: React.FC = () => {
     refetch,
     isFetching,
   } = useQuery<BalanceInfo, Error>({
-    queryKey: ["bitcoinBalance"],
+    queryKey: ["walletBalance"],
     queryFn: async () => {
       const program = Effect.flatMap(SparkService, (s) => s.getBalance());
       const exitResult = await Effect.runPromiseExit(
@@ -30,7 +30,8 @@ const BitcoinBalanceDisplay: React.FC = () => {
       }
       throw Cause.squash(exitResult.cause);
     },
-    refetchInterval: 30000, // Refetch every 30 seconds
+    // TODO: Aggressive 1s balance refresh. Monitor performance and API rate limits. Consider websockets or longer intervals for production.
+    refetchInterval: 1000,
     refetchIntervalInBackground: true,
   });
 

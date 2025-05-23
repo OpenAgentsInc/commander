@@ -51,7 +51,7 @@ const WalletPane: React.FC = () => {
     error: balanceError,
     refetch: refetchBalance,
   } = useQuery<BalanceInfo, Error>({
-    queryKey: ["walletPaneBitcoinBalance"],
+    queryKey: ["walletBalance"],
     queryFn: async () => {
       const program = Effect.flatMap(SparkService, (s) => s.getBalance());
       const exitResult = await Effect.runPromiseExit(
@@ -60,7 +60,8 @@ const WalletPane: React.FC = () => {
       if (Exit.isSuccess(exitResult)) return exitResult.value;
       throw Cause.squash(exitResult.cause);
     },
-    refetchInterval: 60000,
+    // TODO: Aggressive 1s balance refresh. Monitor performance and API rate limits. Consider websockets or longer intervals for production.
+    refetchInterval: 1000,
   });
 
   // --- Lightning Invoice Generation State ---
