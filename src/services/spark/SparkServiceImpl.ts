@@ -48,6 +48,9 @@ export const SparkServiceLive = Layer.scoped(
     const sparkConfig = yield* _(SparkServiceConfigTag);
     const telemetry = yield* _(TelemetryService);
 
+    // Log initialization without exposing sensitive mnemonic data
+    console.log(`[SparkService] Initializing wallet for network: ${sparkConfig.network}`);
+
     // Track wallet initialization start in telemetry
     yield* _(
       telemetry.trackEvent({

@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Bitcoin, RefreshCw, AlertTriangle, Loader2 } from "lucide-react";
 
 const BitcoinBalanceDisplay: React.FC = () => {
-  const runtime = getMainRuntime();
   const queryClient = useQueryClient();
   const openWalletPane = usePaneStore((state) => state.openWalletPane);
   const openWalletSetupPane = usePaneStore((state) => state.openWalletSetupPane);
@@ -33,6 +32,7 @@ const BitcoinBalanceDisplay: React.FC = () => {
   } = useQuery<BalanceInfo, Error>({
     queryKey: ["walletBalance"],
     queryFn: async () => {
+      const runtime = getMainRuntime(); // Get fresh runtime each time
       const program = Effect.flatMap(SparkService, (s) => s.getBalance());
       const exitResult = await Effect.runPromiseExit(
         Effect.provide(program, runtime),

@@ -126,10 +126,11 @@ export const SparkServiceTestLive = Layer.effect(
             })
           );
 
-          // Mock balance
+          // Mock balance - return 0 if no real wallet initialized
+          const isNoWallet = sparkConfig.mnemonicOrSeed === "mock_no_wallet";
           const mockBalance: BalanceInfo = {
-            balance: BigInt(100000), // 100k sats
-            tokenBalances: new Map([
+            balance: isNoWallet ? BigInt(0) : BigInt(100000), // 0 for no wallet, 100k for tests
+            tokenBalances: isNoWallet ? new Map() : new Map([
               ["mock_token_1", {
                 balance: BigInt(50000),
                 tokenInfo: {
@@ -146,7 +147,7 @@ export const SparkServiceTestLive = Layer.effect(
             telemetry.trackEvent({
               category: "spark:balance",
               action: "get_balance_success",
-              label: `Balance: ${mockBalance.balance} sats`,
+              label: `Balance: ${mockBalance.balance} sats${isNoWallet ? ' (no wallet)' : ''}`,
               value: `Token count: ${mockBalance.tokenBalances.size}`,
             })
           );
