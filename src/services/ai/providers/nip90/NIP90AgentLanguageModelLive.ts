@@ -32,7 +32,7 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
     const nip90Service = yield* _(NIP90Service);
     const nostrService = yield* _(NostrService);
     const nip04Service = yield* _(NIP04Service);
-    const telemetry = yield* _(TelemetryService);
+    // TelemetryService will be accessed from runtime when needed
     // SparkService will be accessed from runtime when needed
     const dvmConfig = yield* _(NIP90ProviderConfigTag);
 
@@ -119,33 +119,34 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
           }
 
           // Log the target DVM pubkey and requester pubkey for debugging
-          yield* _(
-            telemetry.trackEvent({
+          const runtime = getMainRuntime();
+          Effect.runFork(
+            Effect.flatMap(TelemetryService, ts => ts.trackEvent({
               category: "nip90:consumer",
               action: "target_dvm_pubkey",
               label: dvmConfig.dvmPubkey,
               value: `Ephemeral: ${dvmConfig.useEphemeralRequests}, Encrypted: ${dvmConfig.requiresEncryption}`,
-            })
+            })).pipe(Effect.provide(runtime))
           );
           
           // Log the requester pubkey
           if (requestPkHex) {
-            yield* _(
-              telemetry.trackEvent({
+            Effect.runFork(
+              Effect.flatMap(TelemetryService, ts => ts.trackEvent({
                 category: "nip90:consumer",
                 action: "requester_pubkey",
                 label: requestPkHex,
                 value: "Ephemeral key",
-              })
+              })).pipe(Effect.provide(runtime))
             );
           } else {
-            yield* _(
-              telemetry.trackEvent({
+            Effect.runFork(
+              Effect.flatMap(TelemetryService, ts => ts.trackEvent({
                 category: "nip90:consumer",
                 action: "requester_pubkey",
                 label: "NOT SET",
                 value: "No key configured - requests will fail!",
-              })
+              })).pipe(Effect.provide(runtime))
             );
           }
 
@@ -217,23 +218,24 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
             }
 
             // Log requester pubkey for streaming
+            const runtime = getMainRuntime();
             if (requestPkHex) {
-              yield* _(
-                telemetry.trackEvent({
+              Effect.runFork(
+                Effect.flatMap(TelemetryService, ts => ts.trackEvent({
                   category: "nip90:consumer",
                   action: "requester_pubkey_stream",
                   label: requestPkHex,
                   value: "Ephemeral key",
-                })
+                })).pipe(Effect.provide(runtime))
               );
             } else {
-              yield* _(
-                telemetry.trackEvent({
+              Effect.runFork(
+                Effect.flatMap(TelemetryService, ts => ts.trackEvent({
                   category: "nip90:consumer",
                   action: "requester_pubkey_stream",
                   label: "NOT SET",
                   value: "No key configured - requests will fail!",
-                })
+                })).pipe(Effect.provide(runtime))
               );
             }
 
