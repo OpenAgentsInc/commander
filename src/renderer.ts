@@ -49,13 +49,25 @@ async function startApp() {
       initializationError,
     );
 
+    // Check if it's a service dependency issue
+    const errorMessage = initializationError instanceof Error ? initializationError.message : String(initializationError);
+    const isServiceIssue = errorMessage.includes("Service not found") || errorMessage.includes("Layer") || errorMessage.includes("Effect");
+
     const body = document.querySelector("body");
     if (body) {
       body.innerHTML = `
         <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #1a1a1a; color: #ffcccc; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: sans-serif; padding: 20px; box-sizing: border-box; z-index: 9999; text-align: center;">
           <h1 style="font-size: 1.5em; color: #ff6666; margin-bottom: 15px;">Application Startup Failed</h1>
-          <p style="font-size: 1em; margin-bottom: 10px;">A critical error occurred while initializing essential services, and the application cannot continue.</p>
-          <p style="font-size: 0.9em; margin-bottom: 20px;">Please report this issue. More details can be found in the developer console (usually accessible via Ctrl+Shift+I or Cmd+Opt+I).</p>
+          <p style="font-size: 1em; margin-bottom: 10px;">
+            ${isServiceIssue 
+              ? "A service dependency issue occurred during runtime initialization." 
+              : "A critical error occurred while initializing essential services."}
+          </p>
+          <p style="font-size: 0.9em; margin-bottom: 20px;">
+            ${isServiceIssue
+              ? "This may indicate a configuration or environment issue. Please check the developer console for details."
+              : "Please report this issue. More details can be found in the developer console (usually accessible via Ctrl+Shift+I or Cmd+Opt+I)."}
+          </p>
           ${
             initializationError instanceof Error
               ? `<div style="background-color: #330000; border: 1px solid #660000; padding: 10px; border-radius: 4px; max-width: 80%; max-height: 50vh; overflow: auto; text-align: left;">

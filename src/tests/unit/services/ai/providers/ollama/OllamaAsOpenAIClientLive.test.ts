@@ -106,7 +106,7 @@ describe("OllamaAsOpenAIClientLive", () => {
     expect(result).toBe(true);
   });
 
-  it("should fail if IPC bridge is not available", async () => {
+  it("should succeed in layer construction but fail when methods are called without IPC", async () => {
     // Temporarily remove the ollama property
     const originalElectronAPI = (globalThis as any).window.electronAPI;
     (globalThis as any).window.electronAPI = {
@@ -114,18 +114,31 @@ describe("OllamaAsOpenAIClientLive", () => {
     };
     delete ((globalThis as any).window.electronAPI as any).ollama;
 
+    // Layer construction should now succeed
     const program = Effect.gen(function* (_) {
       const client = yield* _(OllamaOpenAIClientTag);
       return client;
     });
 
-    await expect(
-      Effect.runPromise(
-        program.pipe(
-          Effect.provide(TestOllamaClientLayer),
-        ),
+    const client = await Effect.runPromise(
+      program.pipe(
+        Effect.provide(TestOllamaClientLayer),
       ),
-    ).rejects.toThrow();
+    );
+
+    // Client should exist
+    expect(client).toBeDefined();
+    expect(client.client).toBeDefined();
+
+    // But calling methods should fail with appropriate error
+    const result = await Effect.runPromiseExit(
+      client.client.createChatCompletion({
+        model: "test",
+        messages: [{ role: "user", content: "test" }]
+      })
+    );
+
+    expect(result._tag).toBe("Failure");
 
     // Restore electronAPI
     (globalThis as any).window.electronAPI = originalElectronAPI;

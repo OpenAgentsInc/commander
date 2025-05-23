@@ -141,6 +141,17 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
 
       const program = Effect.gen(function* (_) {
         const agentLM = yield* _(AgentLanguageModel.Tag);
+        // Log successful service resolution
+        yield* _(
+          Effect.flatMap(TelemetryService, (ts) =>
+            ts.trackEvent({
+              category: "agent_chat",
+              action: "agent_language_model_resolved_successfully",
+              label: "AgentLanguageModel.Tag resolved from runtime",
+              value: assistantMsgId,
+            })
+          )
+        );
         console.log("[useAgentChat] Starting stream for message:", assistantMsgId, "Current signal state:", {
           aborted: signal.aborted,
           controller: streamAbortControllerRef.current ? "present" : "null"
@@ -253,7 +264,9 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
         ),
       );
 
-      Effect.runFork(program);
+      Effect.runFork(
+        Effect.provide(program, runtimeRef.current)
+      );
     },
     [messages, initialSystemMessage, runTelemetry],
   );
