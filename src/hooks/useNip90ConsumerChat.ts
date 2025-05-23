@@ -10,6 +10,7 @@ import { createNip90JobRequest } from "@/helpers/nip90/event_creation";
 import { decryptNip04Content } from "@/helpers/nip90/event_decryption";
 import { SimplePool } from "nostr-tools";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
+import { NIP90_CONSUMER_RELAYS_ARRAY } from "@/services/relays";
 import {
   TelemetryService,
   TelemetryServiceLive,
@@ -39,9 +40,7 @@ interface UseNip90ConsumerChatParams {
   targetDvmPubkeyHex?: string; // This prop will now be treated as explicitly hex OR npub
 }
 
-const DEFAULT_RELAYS = [
-  "wss://nos.lol",
-];
+const DEFAULT_RELAYS = NIP90_CONSUMER_RELAYS_ARRAY;
 
 export function useNip90ConsumerChat({
   nostrPrivateKeyHex,

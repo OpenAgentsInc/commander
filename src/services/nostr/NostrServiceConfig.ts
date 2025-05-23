@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 import { Context, Layer } from "effect";
+import { RELAY_CONFIGS } from "@/services/relays";
 
 export const RelayConfigSchema = Schema.Struct({
   url: Schema.String,
@@ -25,14 +26,7 @@ export const NostrServiceConfigLive = Layer.succeed(
   NostrServiceConfig,
   {
     relays: [], // Legacy - use relayConfigs instead
-    relayConfigs: [
-      { url: "wss://nostr.mom" }, // Public relay, no PoW
-      { url: "wss://relay.primal.net" }, // Primal's public relay, no PoW
-      { url: "wss://offchain.pub" }, // Public relay, no PoW
-      // { url: "wss://nos.lol" }, // Unexpectedly requires PoW now
-      // { url: "wss://relay.damus.io", powRequirement: 28 }, // Requires 28-bit PoW
-      // { url: "wss://relay.nostr.band", powRequirement: 28 }, // Requires 28-bit PoW
-    ],
+    relayConfigs: [...RELAY_CONFIGS], // Use centralized relay configuration
     defaultPublicKey: undefined,
     defaultPrivateKey: undefined,
     enablePoW: true,
