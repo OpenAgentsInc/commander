@@ -416,6 +416,16 @@ export function useNip90ConsumerChat({
           value: `Kind: ${event.kind}`,
         });
 
+        // Special telemetry for Kind 7000 events
+        if (event.kind === 7000) {
+          telemetryForEvent.trackEvent({
+            category: "nip90_consumer", 
+            action: "kind_7000_feedback_received",
+            label: event.id,
+            value: `Feedback event received! Content: ${event.content.substring(0, 50)}`,
+          });
+        }
+
         let content = event.content;
         const isEncrypted = event.tags.some((t) => t[0] === "encrypted");
 
@@ -563,8 +573,32 @@ export function useNip90ConsumerChat({
         });
       };
 
+      // Add detailed telemetry for subscription filters
+      telemetry.trackEvent({
+        category: "nip90_consumer",
+        action: "subscription_filters_debug", 
+        label: `Job ${signedEvent.id}`,
+        value: `Result filter kinds: [${filters[0].kinds}] | Feedback filter kinds: [${filters[1].kinds}]`,
+      });
+
+      telemetry.trackEvent({
+        category: "nip90_consumer",
+        action: "kind_7000_subscription_confirmed",
+        label: signedEvent.id,
+        value: `Subscribing to Kind 7000 feedback events for job`,
+      });
+
       // Use NostrService for subscriptions (same infrastructure that works for publishing)
       const subscribeEffect = Effect.gen(function* () {
+        const telemetryInEffect = yield* TelemetryService;
+        
+        yield* telemetryInEffect.trackEvent({
+          category: "nip90_consumer",
+          action: "creating_result_subscription",
+          label: signedEvent.id,
+          value: `Filter: ${JSON.stringify(filters[0])}`,
+        });
+        
         const resultSub = yield* nostrService.subscribeToEvents(
           [filters[0]], // Result filter
           handleEvent,
@@ -572,12 +606,26 @@ export function useNip90ConsumerChat({
           () => handleEose("result")
         );
         
+        yield* telemetryInEffect.trackEvent({
+          category: "nip90_consumer",
+          action: "creating_feedback_subscription", 
+          label: signedEvent.id,
+          value: `Filter: ${JSON.stringify(filters[1])}`,
+        });
+        
         const feedbackSub = yield* nostrService.subscribeToEvents(
           [filters[1]], // Feedback filter  
           handleEvent,
           DEFAULT_RELAYS,
           () => handleEose("feedback")
         );
+        
+        yield* telemetryInEffect.trackEvent({
+          category: "nip90_consumer",
+          action: "both_subscriptions_created",
+          label: signedEvent.id,
+          value: `Result sub created + Kind 7000 feedback sub created`,
+        });
         
         return { resultSub, feedbackSub };
       });
