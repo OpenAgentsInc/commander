@@ -14,7 +14,7 @@ export const NostrServiceConfig = Context.GenericTag<NostrServiceConfig>("NostrS
 export const NostrServiceConfigLive = Layer.succeed(
   NostrServiceConfig,
   {
-    relays: ["wss://relay.damus.io", "wss://relay.snort.social"],
+    relays: ["wss://nos.lol"],
     defaultPublicKey: undefined,
     defaultPrivateKey: undefined,
   }

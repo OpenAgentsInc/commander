@@ -33,7 +33,7 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
     const nostrService = yield* _(NostrService);
     const nip04Service = yield* _(NIP04Service);
     const telemetry = yield* _(TelemetryService);
-    const sparkService = yield* _(SparkService);
+    // SparkService will be accessed from runtime when needed
     const dvmConfig = yield* _(NIP90ProviderConfigTag);
 
     // Load nostr-tools functions

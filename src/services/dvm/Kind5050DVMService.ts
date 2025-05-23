@@ -75,7 +75,7 @@ export const defaultKind5050DVMServiceConfig: Kind5050DVMServiceConfig = {
   active: false, // Start inactive by default
   dvmPrivateKeyHex: devDvmSkHex, // Use a default development SK
   dvmPublicKeyHex: devDvmPkHex, // Corresponding PK
-  relays: ["wss://relay.damus.io", "wss://relay.nostr.band", "wss://nos.lol"],
+  relays: ["wss://nos.lol"],
   supportedJobKinds: [5050, 5100], // Support kind 5050 and 5100 for text generation
   defaultTextGenerationJobConfig: {
     model: "gemma2:latest", // Default model for Ollama
