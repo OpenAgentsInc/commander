@@ -113,6 +113,11 @@ As we work with Effect's sophisticated type system, we encounter various TypeScr
 **Solution**: Stop manually providing internal library services - use the library's API as designed  
 **Affects**: All attempts to manually manage @effect/ai-openai internal services, streaming operations
 
+### 021 - [Nostr Protocol Tag Filtering and Timing Issues](./021-nostr-protocol-tag-filtering.md)
+**Problem**: Services not receiving events, random services responding to "targeted" requests, timing filters causing event loss  
+**Solution**: Remove restrictive `since` filters, always filter responses by author pubkey, understand p-tags are hints not access control  
+**Affects**: All Nostr protocol implementations (NIP-90 DVMs, NIP-28 channels, etc.), event subscription patterns
+
 ## Fix Documentation Template
 
 When adding new fixes, please follow this structure:
@@ -201,6 +206,9 @@ When you solve a tricky TypeScript issue with Effect:
 - [017 - Effect Service Dependency Analysis](./017-effect-service-dependency-analysis.md)
 - [018 - Runtime Initialization Resilience](./018-runtime-initialization-resilience.md)
 
+### Protocol & Network Issues
+- [021 - Nostr Protocol Tag Filtering and Timing Issues](./021-nostr-protocol-tag-filtering.md)
+
 ## Quick Reference
 
 Common patterns that often need fixes:
@@ -221,6 +229,7 @@ Common patterns that often need fixes:
 14. **Runtime Initialization Failures**: Effect.die() in Layer construction preventing app startup ([018](./018-runtime-initialization-resilience.md))
 15. **AiModel API Misunderstanding**: Treating AiModel objects as Effects instead of using their API ([019](./019-aimodel-api-misuse.md))
 16. **Library Service Management**: Trying to manually provide internal library services ([020](./020-config-service-context-isolation.md))
+17. **Nostr Event Filtering**: Missing events due to timing filters, accepting responses from wrong sources ([021](./021-nostr-protocol-tag-filtering.md))
 
 ### High-Impact Fixes (Batch Applicable)
 - **Service Tag Access**: `yield* _(ServiceName)` → `yield* _(ServiceName.Tag)` 

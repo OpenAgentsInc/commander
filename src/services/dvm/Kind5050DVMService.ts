@@ -63,9 +63,11 @@ export interface Kind5050DVMServiceConfig {
 export const Kind5050DVMServiceConfigTag =
   Context.GenericTag<Kind5050DVMServiceConfig>("Kind5050DVMServiceConfig");
 
-// Generate a default development keypair
-const devDvmSkBytes = generateSecretKey();
-const devDvmSkHex = bytesToHex(devDvmSkBytes);
+// Use a hardcoded development keypair to ensure consistency across refreshes
+// This is just for development - in production, users should set their own keys
+const DEV_DVM_PRIVATE_KEY_HEX = "5d5b1b3c4e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b";
+const devDvmSkBytes = hexToBytes(DEV_DVM_PRIVATE_KEY_HEX);
+const devDvmSkHex = DEV_DVM_PRIVATE_KEY_HEX;
 const devDvmPkHex = getPublicKey(devDvmSkBytes);
 
 // Export the default configuration object directly
