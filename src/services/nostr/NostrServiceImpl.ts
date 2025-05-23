@@ -481,27 +481,44 @@ export const createNostrServiceEffect = Effect.gen(function* (_) {
             : undefined,
         };
 
-        // Convert array of filters to a single filter object
-        const filter: NostrFilter = filters[0];
-        const subCloser = pool.subscribe(
-          relaysToUse as string[],
-          filter,
-          subParams,
-        );
+        // Handle multiple filters by creating separate subscriptions for each
+        const subscriptions: Array<{ close: () => void }> = [];
+        
+        // Subscribe to each filter separately
+        for (const filter of filters) {
+          const subCloser = pool.subscribe(
+            relaysToUse as string[],
+            filter,
+            subParams,
+          );
+          subscriptions.push(subCloser);
+          
+          // Track each filter subscription
+          yield* _(
+            telemetry
+              .trackEvent({
+                category: "log:info",
+                action: "nostr_sub_filter_created",
+                label: `[Nostr] Created subscription for filter`,
+                value: JSON.stringify({ filter, relays: relaysToUse }),
+              })
+              .pipe(Effect.ignoreLogged),
+          );
+        }
 
-        // Create a telemetry event for subscription creation
+        // Create a telemetry event for overall subscription creation
         yield* _(
           telemetry
             .trackEvent({
               category: "log:info",
               action: "nostr_sub_created",
-              label: "[Nostr] Created subscription",
+              label: `[Nostr] Created ${filters.length} subscriptions`,
               value: JSON.stringify({ filters, relays: relaysToUse }),
             })
             .pipe(Effect.ignoreLogged),
         );
 
-        // Return a subscription object with an unsub function
+        // Return a subscription object that unsubscribes from all filters
         return {
           unsub: () => {
             // Track unsubscribe via telemetry
@@ -510,12 +527,15 @@ export const createNostrServiceEffect = Effect.gen(function* (_) {
                 .trackEvent({
                   category: "log:info",
                   action: "nostr_unsub",
-                  label: "[Nostr] Unsubscribing from filters",
+                  label: `[Nostr] Unsubscribing from ${subscriptions.length} filters`,
                 })
                 .pipe(Effect.ignoreLogged),
             );
 
-            subCloser.close();
+            // Close all subscriptions
+            for (const sub of subscriptions) {
+              sub.close();
+            }
           },
         };
       } catch (error) {
