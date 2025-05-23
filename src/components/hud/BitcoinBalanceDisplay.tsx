@@ -1,6 +1,6 @@
 // src/components/hud/BitcoinBalanceDisplay.tsx
-import React from "react";
-import { useQuery } from "@tanstack/react-query";
+import React, { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Effect, Exit, Cause } from "effect";
 import { SparkService, type BalanceInfo } from "@/services/spark";
 import { getMainRuntime } from "@/services/runtime";
@@ -11,8 +11,18 @@ import { Bitcoin, RefreshCw, AlertTriangle, Loader2 } from "lucide-react";
 
 const BitcoinBalanceDisplay: React.FC = () => {
   const runtime = getMainRuntime();
+  const queryClient = useQueryClient();
   const openWalletPane = usePaneStore((state) => state.openWalletPane);
+  const openWalletSetupPane = usePaneStore((state) => state.openWalletSetupPane);
   const walletIsInitialized = useWalletStore((state) => state.isInitialized);
+  
+  // Clear balance cache when wallet is not initialized
+  useEffect(() => {
+    if (!walletIsInitialized) {
+      queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
+      queryClient.removeQueries({ queryKey: ["walletBalance"] });
+    }
+  }, [walletIsInitialized, queryClient]);
 
   const {
     data: balanceData,
@@ -39,7 +49,11 @@ const BitcoinBalanceDisplay: React.FC = () => {
   });
 
   const handleDisplayClick = () => {
-    openWalletPane();
+    if (walletIsInitialized) {
+      openWalletPane();
+    } else {
+      openWalletSetupPane();
+    }
   };
 
   let displayContent;
