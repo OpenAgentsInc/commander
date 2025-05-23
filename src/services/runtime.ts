@@ -34,6 +34,7 @@ import {
   SparkServiceConfigTag,
   DefaultSparkServiceConfigLayer,
 } from "@/services/spark";
+import { SparkServiceTestLive } from "@/services/spark/SparkServiceTestImpl";
 import { globalWalletConfig } from "@/services/walletConfig";
 import { NIP90Service, NIP90ServiceLive } from "@/services/nip90";
 import {
@@ -99,25 +100,46 @@ export function buildFullAppLayer() {
     Layer.provide(Layer.mergeAll(nostrLayer, nip04Layer, telemetryLayer)),
   );
 
-  // Create SparkService layer with user's mnemonic if available
-  const userMnemonic = globalWalletConfig.mnemonic || "test test test test test test test test test test test junk";
-  console.log(`[Runtime] Building SparkService layer with mnemonic: ${userMnemonic.substring(0, 10)}...`);
+  // Create SparkService layer - use mock when no wallet is initialized
+  // NEVER use the test mnemonic in production runtime
+  let sparkLayer: Layer.Layer<SparkService, any, TelemetryService>;
   
-  const sparkConfigLayer = Layer.succeed(
-    SparkServiceConfigTag,
-    {
-      network: "MAINNET",
-      mnemonicOrSeed: userMnemonic,
-      accountNumber: 2,
-      sparkSdkOptions: {
-        // The SDK will use its built-in MAINNET endpoints
-      },
-    }
-  );
-
-  const sparkLayer = SparkServiceLive.pipe(
-    Layer.provide(Layer.merge(sparkConfigLayer, telemetryLayer)),
-  );
+  if (globalWalletConfig.mnemonic) {
+    console.log(`[Runtime] Building SparkService layer with USER mnemonic: ${globalWalletConfig.mnemonic.substring(0, 10)}...`);
+    
+    const sparkConfigLayer = Layer.succeed(
+      SparkServiceConfigTag,
+      {
+        network: "MAINNET",
+        mnemonicOrSeed: globalWalletConfig.mnemonic,
+        accountNumber: 2,
+        sparkSdkOptions: {
+          // The SDK will use its built-in MAINNET endpoints
+        },
+      }
+    );
+    
+    sparkLayer = SparkServiceLive.pipe(
+      Layer.provide(Layer.merge(sparkConfigLayer, telemetryLayer)),
+    );
+  } else {
+    console.log(`[Runtime] Building SparkService layer with MOCK implementation (no wallet initialized)`);
+    
+    // Use mock implementation that returns 0 balance when no wallet
+    const mockConfigLayer = Layer.succeed(
+      SparkServiceConfigTag,
+      {
+        network: "MAINNET",
+        mnemonicOrSeed: "mock_no_wallet",
+        accountNumber: 0,
+        sparkSdkOptions: {},
+      }
+    );
+    
+    sparkLayer = SparkServiceTestLive.pipe(
+      Layer.provide(Layer.merge(mockConfigLayer, telemetryLayer)),
+    );
+  }
 
   const nip90Layer = NIP90ServiceLive.pipe(
     Layer.provide(Layer.mergeAll(nostrLayer, nip04Layer, telemetryLayer)),
