@@ -70,7 +70,7 @@ Here are the specific instructions for the coding agent:
             {
               id: SELL_COMPUTE_PANE_ID_CONST,
               type: "sell_compute",
-              title: "Sell Compute Power",
+              title: "Sell Compute",
               x: Math.max(
                 PANE_MARGIN,
                 (screenWidth - SELL_COMPUTE_INITIAL_WIDTH) / 2,
@@ -251,11 +251,11 @@ Here are the specific instructions for the coding agent:
 
 1.  Start the application (`pnpm start`).
 2.  **Hotbar:** Verify only three items appear: "Sell Compute", "DVM Job History", and "Reset HUD", in that order (or with empty slots if preferred).
-3.  **Default Panes:** On fresh launch (or after clearing `localStorage` for `commander-pane-storage-v2`), verify that only the "Sell Compute Power" pane is open and active.
+3.  **Default Panes:** On fresh launch (or after clearing `localStorage` for `commander-pane-storage-v2`), verify that only the "Sell Compute" pane is open and active.
 4.  **Bitcoin Balance Display:**
     - Verify a balance display appears in the top-right corner.
     - It should show a loading state initially, then the balance (or an error if `SparkService` fails).
-    - Verify clicking the balance display opens (or brings to front and activates) the "Sell Compute Power" pane.
+    - Verify clicking the balance display opens (or brings to front and activates) the "Sell Compute" pane.
     - Verify the refresh button on the balance display works.
 5.  **Hidden Features:**
     - Confirm no buttons for NIP-28, NIP-90 Dashboard, Hand Tracking toggle, etc., are visible on the main HUD.

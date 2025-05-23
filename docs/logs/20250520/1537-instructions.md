@@ -109,7 +109,7 @@ const getInitialPanes = (): Pane[] => {
   initialPanes.push({
     id: SELL_COMPUTE_PANE_ID_CONST,
     type: "sell_compute",
-    title: "Sell Compute Power",
+    title: "Sell Compute",
     x: Math.max(PANE_MARGIN, (screenWidth - SELL_COMPUTE_INITIAL_WIDTH) / 2),
     y: Math.max(PANE_MARGIN, (screenHeight - SELL_COMPUTE_INITIAL_HEIGHT) / 3), // Positioned a bit higher than exact center
     width: SELL_COMPUTE_INITIAL_WIDTH,
@@ -459,7 +459,7 @@ const getInitialPanes = (): Pane[] => {
   initialPanes.push({
     id: SELL_COMPUTE_PANE_ID_CONST,
     type: "sell_compute",
-    title: "Sell Compute Power",
+    title: "Sell Compute",
     x: Math.max(PANE_MARGIN, (screenWidth - SELL_COMPUTE_INITIAL_WIDTH) / 2),
     y: Math.max(PANE_MARGIN, (screenHeight - SELL_COMPUTE_INITIAL_HEIGHT) / 3),
     width: SELL_COMPUTE_INITIAL_WIDTH,

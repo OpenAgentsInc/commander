@@ -59,7 +59,7 @@ const getInitialPanes = (): Pane[] => {
     {
       id: SELL_COMPUTE_PANE_ID_CONST,
       type: "sell_compute",
-      title: "Sell Compute Power",
+      title: "Sell Compute",
       x: Math.max(PANE_MARGIN, (screenWidth - SELL_COMPUTE_INITIAL_WIDTH) / 2),
       y: Math.max(
         PANE_MARGIN,
@@ -136,7 +136,7 @@ export const usePaneStore = create<PaneStoreType>()(
         const newSellComputePane: Pane = {
           id: SELL_COMPUTE_PANE_ID_CONST,
           type: "sell_compute",
-          title: "Sell Compute Power",
+          title: "Sell Compute",
           x: Math.max(
             PANE_MARGIN,
             (screenWidth - SELL_COMPUTE_INITIAL_WIDTH) / 2,
@@ -225,7 +225,7 @@ export const usePaneStore = create<PaneStoreType>()(
             const newPaneInput: PaneInput = {
               id: paneId,
               type: "sell_compute",
-              title: "Sell Compute Power",
+              title: "Sell Compute",
               x: Math.max(
                 PANE_MARGIN,
                 (screenWidth - SELL_COMPUTE_INITIAL_WIDTH) / 2,
@@ -405,11 +405,11 @@ export const usePaneStore = create<PaneStoreType>()(
           activePaneId: defaultActiveId,
           lastPanePosition: defaultSellComputePane
             ? {
-                x: defaultSellComputePane.x,
-                y: defaultSellComputePane.y,
-                width: defaultSellComputePane.width,
-                height: defaultSellComputePane.height,
-              }
+              x: defaultSellComputePane.x,
+              y: defaultSellComputePane.y,
+              width: defaultSellComputePane.width,
+              height: defaultSellComputePane.height,
+            }
             : null,
         };
       },

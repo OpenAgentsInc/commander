@@ -392,7 +392,7 @@ const SellComputePane: React.FC = () => {
       <Card className="w-full max-w-md bg-background/80 backdrop-blur-sm">
         <CardHeader className="flex flex-row items-center justify-between"> {/* Changed to flex for button alignment */}
           <div className="text-center flex-grow">
-            <CardTitle className="text-lg">Sell Compute Power</CardTitle>
+            <CardTitle className="text-lg">Sell Compute</CardTitle>
           </div>
           <DVMSettingsDialog /> {/* Add the settings dialog trigger here */}
         </CardHeader>

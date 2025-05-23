@@ -324,8 +324,8 @@ const WalletPane: React.FC = () => {
                   )}
                   {balanceData && (
                     <p className="text-3xl font-bold text-yellow-400">
-                      {balanceData.balance.toString()}{" "}
-                      <span className="text-xl">sats</span>
+                      <span className="text-xl">₿</span>{" "}
+                      {balanceData.balance.toString()}
                     </p>
                   )}
                   <Button

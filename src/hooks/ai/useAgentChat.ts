@@ -1,14 +1,18 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Effect, Stream, Cause } from "effect";
 import {
-  AgentLanguageModel,
   type AiResponse,
   type AgentChatMessage,
   type AiProviderError,
   type StreamTextOptions,
 } from "@/services/ai/core";
+import {
+  ChatOrchestratorService,
+  type PreferredProviderConfig,
+} from "@/services/ai/orchestration";
 import { getMainRuntime } from "@/services/runtime";
 import { TelemetryService, type TelemetryEvent } from "@/services/telemetry";
+import { useAgentChatStore } from "@/stores/ai/agentChatStore";
 
 interface UseAgentChatOptions {
   initialSystemMessage?: string;
@@ -35,6 +39,7 @@ export interface UIAgentChatMessage extends AgentChatMessage {
 
 export function useAgentChat(options: UseAgentChatOptions = {}) {
   const { initialSystemMessage = "You are a helpful AI assistant." } = options;
+  const { selectedProviderKey } = useAgentChatStore();
 
   const systemMessageInstance: UIAgentChatMessage = {
     id: `system-${Date.now()}`, // Unique ID for system message
@@ -129,34 +134,47 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
         },
       ]);
 
-      const streamTextOptions: StreamTextOptions = {
-        prompt: JSON.stringify({
-          messages: [
-            { role: "system", content: initialSystemMessage },
-            ...conversationHistoryForLLM,
-          ],
-        }),
-        // model, temperature, maxTokens can be added here if desired
+      // Get current provider info for telemetry
+      const currentProviderInfo = useAgentChatStore.getState().availableProviders.find(p => p.key === selectedProviderKey);
+      
+      const preferredProvider: PreferredProviderConfig = {
+        key: selectedProviderKey,
+        modelName: currentProviderInfo?.modelName,
+      };
+
+      const conversationHistoryForOrchestrator = [
+        { role: "system", content: initialSystemMessage, timestamp: Date.now() } as AgentChatMessage,
+        ...conversationHistoryForLLM,
+      ];
+
+      const orchestratorOptions: Parameters<ChatOrchestratorService['streamConversation']>[0]['options'] = {
+        temperature: 0.7,
+        maxTokens: 2048,
       };
 
       const program = Effect.gen(function* (_) {
-        const agentLM = yield* _(AgentLanguageModel.Tag);
+        const orchestrator = yield* _(ChatOrchestratorService);
         // Log successful service resolution
         yield* _(
           Effect.flatMap(TelemetryService, (ts) =>
             ts.trackEvent({
               category: "agent_chat",
-              action: "agent_language_model_resolved_successfully",
-              label: "AgentLanguageModel.Tag resolved from runtime",
+              action: "chat_orchestrator_resolved_successfully",
+              label: `Orchestrator resolved for provider: ${selectedProviderKey}`,
               value: assistantMsgId,
             })
           )
         );
-        console.log("[useAgentChat] Starting stream for message:", assistantMsgId, "Current signal state:", {
+        console.log("[useAgentChat] Orchestrator: Starting stream via provider:", selectedProviderKey, "for message:", assistantMsgId, "Current signal state:", {
           aborted: signal.aborted,
           controller: streamAbortControllerRef.current ? "present" : "null"
         });
-        const textStream = agentLM.streamText(streamTextOptions);
+        
+        const textStream = orchestrator.streamConversation({
+          messages: conversationHistoryForOrchestrator,
+          preferredProvider: preferredProvider,
+          options: orchestratorOptions,
+        });
 
         yield* _(
           Stream.runForEach(textStream, (chunk: AiResponse) =>
@@ -179,6 +197,13 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
                       ...msg,
                       content: (msg.content || "") + chunk.text,
                       _updateId: Date.now(),
+                      providerInfo: currentProviderInfo
+                        ? {
+                            name: currentProviderInfo.name,
+                            type: currentProviderInfo.type as "local" | "network",
+                            model: currentProviderInfo.modelName,
+                          }
+                        : undefined,
                     }
                     : msg,
                 ),
@@ -268,7 +293,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
         Effect.provide(program, runtimeRef.current)
       );
     },
-    [messages, initialSystemMessage, runTelemetry],
+    [messages, initialSystemMessage, runTelemetry, selectedProviderKey],
   );
 
   // Cleanup stream on unmount

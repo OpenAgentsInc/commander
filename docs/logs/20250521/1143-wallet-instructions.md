@@ -819,7 +819,7 @@ const getInitialPanes = (): Pane[] => {
     {
       id: SELL_COMPUTE_PANE_ID_CONST,
       type: "sell_compute",
-      title: "Sell Compute Power",
+      title: "Sell Compute",
       x: Math.max(PANE_MARGIN, (screenWidth - SELL_COMPUTE_INITIAL_WIDTH) / 2),
       y: Math.max(
         PANE_MARGIN,

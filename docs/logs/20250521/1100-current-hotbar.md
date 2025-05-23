@@ -47,7 +47,7 @@ The following sections describe each Hotbar item by its slot number, icon, title
 - **Associated Pane/Functionality:**
   - This button does not open a new pane. Instead, it manipulates the state of all existing panes managed by `PaneManager.tsx`.
   - The default layout (as defined in `src/stores/pane.ts`) typically includes:
-    - **"Sell Compute Power" Pane (`sell_compute`):** Centrally located and active by default.
+    - **"Sell Compute" Pane (`sell_compute`):** Centrally located and active by default.
     - **"Welcome Chat" (NIP-28) Pane (`nip28_channel`):** Positioned at the bottom-left, initially smaller and inactive.
   - Any other panes the user might have opened will be closed, and the default ones will be restored to their initial positions and sizes.
 - **User Interaction within Pane:** Not applicable, as this is a global HUD action.

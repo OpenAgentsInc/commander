@@ -45,7 +45,7 @@ export function openSellComputePaneAction(set: SetPaneStore) {
     const newPaneInput: PaneInput = {
       id: SELL_COMPUTE_PANE_ID,
       type: "sell_compute",
-      title: "Sell Compute Power",
+      title: "Sell Compute",
       dismissable: true,
       x: initialX,
       y: initialY,

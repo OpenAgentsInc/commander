@@ -46,6 +46,7 @@ import {
 } from "@/services/configuration";
 import { OpenAIProvider, OllamaProvider } from "@/services/ai/providers";
 import { AgentLanguageModel } from "@/services/ai/core";
+import { ChatOrchestratorService, ChatOrchestratorServiceLive } from "@/services/ai/orchestration";
 
 // Define the full context type for the runtime
 export type FullAppContext =
@@ -62,7 +63,8 @@ export type FullAppContext =
   | Kind5050DVMService
   | HttpClient.HttpClient
   | ConfigurationService
-  | AgentLanguageModel;
+  | AgentLanguageModel
+  | ChatOrchestratorService;
 
 // Runtime instance - will be initialized asynchronously
 let mainRuntimeInstance: Runtime.Runtime<FullAppContext>;
@@ -134,6 +136,21 @@ const kind5050DVMLayer = Kind5050DVMServiceLive.pipe(
   ),
 );
 
+// Create the chat orchestrator layer with all its dependencies
+const chatOrchestratorLayer = ChatOrchestratorServiceLive.pipe(
+  Layer.provide(
+    Layer.mergeAll(
+      devConfigLayer,              // For ConfigurationService
+      BrowserHttpClient.layerXMLHttpRequest, // For HttpClient.HttpClient
+      telemetryLayer,              // For TelemetryService
+      nip90Layer,                  // For NIP90Service
+      nostrLayer,                  // For NostrService
+      nip04Layer,                  // For NIP04Service
+      ollamaLanguageModelLayer,    // For default AgentLanguageModel.Tag
+    ),
+  ),
+);
+
 // Full application layer - compose services incrementally
 export const FullAppLayer = Layer.mergeAll(
   baseLayer,
@@ -146,6 +163,7 @@ export const FullAppLayer = Layer.mergeAll(
   sparkLayer,
   nip90Layer,
   ollamaLanguageModelLayer,
+  chatOrchestratorLayer,
   kind5050DVMLayer,
 );
 

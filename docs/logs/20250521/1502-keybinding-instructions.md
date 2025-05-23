@@ -195,7 +195,7 @@ Here are the specific instructions:
               const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
               const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
               const newPaneConfig: Pane = {
-                  id: SELL_COMPUTE_PANE_ID_CONST, type: 'sell_compute', title: 'Sell Compute Power',
+                  id: SELL_COMPUTE_PANE_ID_CONST, type: 'sell_compute', title: 'Sell Compute',
                   x: Math.max(20, (screenWidth - 550) / 2),
                   y: Math.max(20, (screenHeight - 420) / 3),
                   width: 550, height: 420, dismissable: true, content: {}, isActive: true
@@ -772,7 +772,7 @@ const getInitialPanes = (): Pane[] => {
     {
       id: SELL_COMPUTE_PANE_ID_CONST,
       type: "sell_compute",
-      title: "Sell Compute Power",
+      title: "Sell Compute",
       x: Math.max(PANE_MARGIN, (screenWidth - SELL_COMPUTE_INITIAL_WIDTH) / 2),
       y: Math.max(
         PANE_MARGIN,
@@ -877,7 +877,7 @@ export const usePaneStore = create<PaneStoreType>()(
             const newPaneInput: PaneInput = {
               id: SELL_COMPUTE_PANE_ID_CONST,
               type: "sell_compute",
-              title: "Sell Compute Power",
+              title: "Sell Compute",
               x: Math.max(20, (screenWidth - 550) / 2),
               y: Math.max(20, (screenHeight - 420) / 3),
               width: 550,

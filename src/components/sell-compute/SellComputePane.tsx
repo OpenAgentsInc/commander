@@ -203,7 +203,7 @@ const SellComputePane: React.FC = () => {
       <Card className="bg-background/80 w-full max-w-md backdrop-blur-sm">
         <CardHeader className="flex flex-row items-center justify-between">
           <div className="flex-grow text-center">
-            <CardTitle className="text-lg">Sell Compute Power</CardTitle>
+            <CardTitle className="text-lg">Sell Compute</CardTitle>
           </div>
           <DVMSettingsDialog />
         </CardHeader>
