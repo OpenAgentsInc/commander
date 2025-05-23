@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import QRCode from "react-qr-code";
 import { Effect, Exit, Cause } from "effect";
 import {
@@ -13,6 +13,7 @@ import {
 import { getMainRuntime } from "@/services/runtime";
 import { TelemetryService } from "@/services/telemetry";
 import { useWalletStore } from "@/stores/walletStore";
+import { usePaneStore } from "@/stores/pane";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,10 +40,19 @@ import LogoutWarningDialog from "./LogoutWarningDialog";
 
 const WalletPane: React.FC = () => {
   const runtime = getMainRuntime();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("balance");
 
   // Get wallet initialization status
   const walletIsInitialized = useWalletStore((state) => state.isInitialized);
+
+  // Clear balance cache when wallet is not initialized
+  useEffect(() => {
+    if (!walletIsInitialized) {
+      queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
+      queryClient.removeQueries({ queryKey: ["walletBalance"] });
+    }
+  }, [walletIsInitialized, queryClient]);
 
   // --- Balance State ---
   const {
@@ -51,7 +61,7 @@ const WalletPane: React.FC = () => {
     error: balanceError,
     refetch: refetchBalance,
   } = useQuery<BalanceInfo, Error>({
-    queryKey: ["walletPaneBitcoinBalance"],
+    queryKey: ["walletBalance"],
     queryFn: async () => {
       const program = Effect.flatMap(SparkService, (s) => s.getBalance());
       const exitResult = await Effect.runPromiseExit(
@@ -60,7 +70,9 @@ const WalletPane: React.FC = () => {
       if (Exit.isSuccess(exitResult)) return exitResult.value;
       throw Cause.squash(exitResult.cause);
     },
-    refetchInterval: 60000,
+    // TODO: Aggressive 1s balance refresh. Monitor performance and API rate limits. Consider websockets or longer intervals for production.
+    refetchInterval: 1000,
+    enabled: walletIsInitialized, // Only fetch if wallet is initialized
   });
 
   // --- Lightning Invoice Generation State ---
@@ -273,18 +285,20 @@ const WalletPane: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="flex-grow overflow-hidden p-1">
-          <div className="mb-2 flex items-center justify-center gap-2">
-            <ViewSeedPhraseDialog>
-              <Button variant="outline" size="sm" className="text-xs">
-                <Key className="mr-1.5 h-3 w-3" /> View Seed Phrase
-              </Button>
-            </ViewSeedPhraseDialog>
-            <LogoutWarningDialog>
-              <Button variant="outline" size="sm" className="text-xs">
-                <LogOut className="mr-1.5 h-3 w-3" /> Logout
-              </Button>
-            </LogoutWarningDialog>
-          </div>
+          {walletIsInitialized && (
+            <div className="mb-2 flex items-center justify-center gap-2">
+              <ViewSeedPhraseDialog>
+                <Button variant="outline" size="sm" className="text-xs">
+                  <Key className="mr-1.5 h-3 w-3" /> View Seed Phrase
+                </Button>
+              </ViewSeedPhraseDialog>
+              <LogoutWarningDialog>
+                <Button variant="outline" size="sm" className="text-xs">
+                  <LogOut className="mr-1.5 h-3 w-3" /> Logout
+                </Button>
+              </LogoutWarningDialog>
+            </div>
+          )}
 
           <Tabs
             value={activeTab}
@@ -295,10 +309,18 @@ const WalletPane: React.FC = () => {
               <TabsTrigger value="balance" className="h-6 text-xs">
                 Balance
               </TabsTrigger>
-              <TabsTrigger value="lightning" className="h-6 text-xs">
+              <TabsTrigger 
+                value="lightning" 
+                className="h-6 text-xs" 
+                disabled={!walletIsInitialized}
+              >
                 Lightning
               </TabsTrigger>
-              <TabsTrigger value="onchain" className="h-6 text-xs">
+              <TabsTrigger 
+                value="onchain" 
+                className="h-6 text-xs"
+                disabled={!walletIsInitialized}
+              >
                 On-Chain
               </TabsTrigger>
             </TabsList>
@@ -310,32 +332,53 @@ const WalletPane: React.FC = () => {
               <ScrollArea className="h-full">
                 <div className="space-y-4 p-3 text-center">
                   <h3 className="text-sm font-semibold">Current Balance</h3>
-                  {isLoadingBalance && (
+                  {!walletIsInitialized ? (
+                    <div className="text-muted-foreground">
+                      <p className="text-lg">No wallet</p>
+                      <p className="text-xs mt-1">Set up a wallet to view balance</p>
+                      <Button
+                        onClick={() => {
+                          const { openWalletSetupPane } = usePaneStore.getState();
+                          openWalletSetupPane();
+                        }}
+                        variant="outline"
+                        size="sm"
+                        className="mt-3"
+                      >
+                        Set Up Wallet
+                      </Button>
+                    </div>
+                  ) : isLoadingBalance && !balanceData ? (
                     <div className="text-muted-foreground">
                       <Loader2 className="mr-1 inline h-4 w-4 animate-spin" />
                       Loading...
                     </div>
-                  )}
-                  {balanceError && (
+                  ) : balanceError ? (
                     <div className="text-destructive">
                       <AlertTriangle className="mr-1 inline h-4 w-4" />
                       {balanceError.message}
                     </div>
-                  )}
-                  {balanceData && (
+                  ) : balanceData ? (
                     <p className="text-3xl font-bold text-yellow-400">
                       <span className="text-xl">₿</span>{" "}
                       {balanceData.balance.toString()}
                     </p>
+                  ) : (
+                    <div className="text-muted-foreground">
+                      <Loader2 className="mr-1 inline h-4 w-4 animate-spin" />
+                      Initializing...
+                    </div>
                   )}
-                  <Button
-                    onClick={() => refetchBalance()}
-                    variant="outline"
-                    size="sm"
-                    className="mx-auto mt-2 w-full max-w-xs"
-                  >
-                    <RefreshCw className="mr-1.5 h-3 w-3" /> Refresh Balance
-                  </Button>
+                  {walletIsInitialized && (
+                    <Button
+                      onClick={() => refetchBalance()}
+                      variant="outline"
+                      size="sm"
+                      className="mx-auto mt-2 w-full max-w-xs"
+                    >
+                      <RefreshCw className="mr-1.5 h-3 w-3" /> Refresh Balance
+                    </Button>
+                  )}
                 </div>
               </ScrollArea>
             </TabsContent>

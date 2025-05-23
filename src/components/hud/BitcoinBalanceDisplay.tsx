@@ -1,16 +1,28 @@
 // src/components/hud/BitcoinBalanceDisplay.tsx
-import React from "react";
-import { useQuery } from "@tanstack/react-query";
+import React, { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Effect, Exit, Cause } from "effect";
 import { SparkService, type BalanceInfo } from "@/services/spark";
 import { getMainRuntime } from "@/services/runtime";
 import { usePaneStore } from "@/stores/pane";
+import { useWalletStore } from "@/stores/walletStore";
 import { Button } from "@/components/ui/button";
 import { Bitcoin, RefreshCw, AlertTriangle, Loader2 } from "lucide-react";
 
 const BitcoinBalanceDisplay: React.FC = () => {
   const runtime = getMainRuntime();
+  const queryClient = useQueryClient();
   const openWalletPane = usePaneStore((state) => state.openWalletPane);
+  const openWalletSetupPane = usePaneStore((state) => state.openWalletSetupPane);
+  const walletIsInitialized = useWalletStore((state) => state.isInitialized);
+  
+  // Clear balance cache when wallet is not initialized
+  useEffect(() => {
+    if (!walletIsInitialized) {
+      queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
+      queryClient.removeQueries({ queryKey: ["walletBalance"] });
+    }
+  }, [walletIsInitialized, queryClient]);
 
   const {
     data: balanceData,
@@ -19,7 +31,7 @@ const BitcoinBalanceDisplay: React.FC = () => {
     refetch,
     isFetching,
   } = useQuery<BalanceInfo, Error>({
-    queryKey: ["bitcoinBalance"],
+    queryKey: ["walletBalance"],
     queryFn: async () => {
       const program = Effect.flatMap(SparkService, (s) => s.getBalance());
       const exitResult = await Effect.runPromiseExit(
@@ -30,16 +42,24 @@ const BitcoinBalanceDisplay: React.FC = () => {
       }
       throw Cause.squash(exitResult.cause);
     },
-    refetchInterval: 30000, // Refetch every 30 seconds
+    // TODO: Aggressive 1s balance refresh. Monitor performance and API rate limits. Consider websockets or longer intervals for production.
+    refetchInterval: 1000,
     refetchIntervalInBackground: true,
+    enabled: walletIsInitialized, // Only fetch if wallet is initialized
   });
 
   const handleDisplayClick = () => {
-    openWalletPane();
+    if (walletIsInitialized) {
+      openWalletPane();
+    } else {
+      openWalletSetupPane();
+    }
   };
 
   let displayContent;
-  if (isLoading && !balanceData) {
+  if (!walletIsInitialized) {
+    displayContent = "No wallet";
+  } else if (isLoading && !balanceData) {
     displayContent = (
       <>
         <Loader2 className="mr-1 h-3 w-3 animate-spin" /> Loading...

@@ -181,7 +181,7 @@ export const useWalletStore = create<WalletState & WalletActions>()(
       },
     }),
     {
-      name: "commander-wallet-store",
+      name: "commander-wallet-store-v2", // v2: Reset to clear test wallet data
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         // Only persist these fields

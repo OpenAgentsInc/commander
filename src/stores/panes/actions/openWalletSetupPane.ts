@@ -9,7 +9,7 @@ export function openWalletSetupPaneAction(set: SetPaneStore) {
       id: WALLET_SETUP_PANE_ID,
       type: "wallet_setup_content",
       title: WALLET_SETUP_PANE_TITLE,
-      dismissable: false, // Usually setup flows are not dismissable
+      dismissable: true, // Users should be able to dismiss and set up wallet later
       width: 500,
       height: 400,
     };
