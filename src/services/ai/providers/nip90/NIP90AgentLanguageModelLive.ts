@@ -14,6 +14,8 @@ import { NIP90Service, type NIP90JobFeedback, type NIP90JobFeedbackStatus } from
 import { NostrService } from "@/services/nostr";
 import { NIP04Service } from "@/services/nip04";
 import { TelemetryService } from "@/services/telemetry";
+import { SparkService } from "@/services/spark";
+import { getMainRuntime } from "@/services/runtime";
 import { NIP90ProviderConfigTag } from "./NIP90ProviderConfig";
 
 // Log when this module is loaded
@@ -31,6 +33,7 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
     const nostrService = yield* _(NostrService);
     const nip04Service = yield* _(NIP04Service);
     const telemetry = yield* _(TelemetryService);
+    const sparkService = yield* _(SparkService);
     const dvmConfig = yield* _(NIP90ProviderConfigTag);
 
     // Load nostr-tools functions
@@ -253,7 +256,7 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
                 jobRequest.id,
                 dvmConfig.dvmPubkey,
                 requestSkBytes as Uint8Array<ArrayBuffer>,
-                (eventUpdate) => {
+                async (eventUpdate) => {
                   if (eventUpdate.kind >= 6000 && eventUpdate.kind < 7000) { // Job Result
                     if (eventUpdate.content) {
                       emit.single(createAiResponse(eventUpdate.content));
@@ -275,6 +278,82 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
                           cause: feedbackEvent
                         })
                       );
+                    } else if (status === "payment-required") {
+                      // Handle payment required
+                      const amountTag = feedbackEvent.tags.find(t => t[0] === "amount");
+                      if (amountTag && amountTag[1]) {
+                        const invoice = amountTag[1];
+                        const amountSats = 3; // TODO: Extract from bolt11 invoice
+                        
+                        // Track telemetry (fire and forget)
+                        const runtime = getMainRuntime();
+                        Effect.runFork(
+                          Effect.flatMap(TelemetryService, ts => ts.trackEvent({
+                            category: "nip90:consumer",
+                            action: "payment_required",
+                            label: jobRequest.id,
+                            value: `${amountSats} sats`
+                          })).pipe(Effect.provide(runtime))
+                        );
+                        
+                        // Auto-pay small amounts
+                        if (amountSats <= 10) {
+                          // Track payment attempt (fire and forget)
+                          Effect.runFork(
+                            Effect.flatMap(TelemetryService, ts => ts.trackEvent({
+                              category: "nip90:consumer",
+                              action: "auto_payment_triggered",
+                              label: jobRequest.id,
+                              value: `${amountSats} sats`
+                            })).pipe(Effect.provide(runtime))
+                          );
+                          
+                          // Execute payment asynchronously
+                          Effect.runPromise(
+                            Effect.gen(function* () {
+                              const spark = yield* SparkService;
+                              return yield* spark.payLightningInvoice({
+                                invoice,
+                                maxFeeSats: 10,
+                                timeoutSeconds: 60
+                              });
+                            }).pipe(Effect.provide(runtime))
+                          ).then(paymentResult => {
+                            // Emit payment success feedback
+                            emit.single(createAiResponse(`Auto-paid ${amountSats} sats. Payment hash: ${paymentResult.payment.paymentHash.substring(0, 12)}... Waiting for DVM to process...`));
+                            
+                            // Track payment success (fire and forget)
+                            Effect.runFork(
+                              Effect.flatMap(TelemetryService, ts => ts.trackEvent({
+                                category: "nip90:consumer",
+                                action: "payment_success",
+                                label: jobRequest.id,
+                                value: paymentResult.payment.paymentHash
+                              })).pipe(Effect.provide(runtime))
+                            );
+                          }).catch(payError => {
+                            // Track payment failure (fire and forget)
+                            Effect.runFork(
+                              Effect.flatMap(TelemetryService, ts => ts.trackEvent({
+                                category: "nip90:consumer",
+                                action: "payment_error",
+                                label: jobRequest.id,
+                                value: payError instanceof Error ? payError.message : String(payError)
+                              })).pipe(Effect.provide(runtime))
+                            );
+                            
+                            emit.fail(new AiProviderError({
+                              message: `Payment failed: ${payError instanceof Error ? payError.message : String(payError)}`,
+                              provider: "NIP90",
+                              isRetryable: false,
+                              cause: payError
+                            }));
+                          });
+                        } else {
+                          // For larger amounts, just notify user
+                          emit.single(createAiResponse(`Payment required: ${amountSats} sats. Invoice: ${invoice.substring(0, 30)}... Manual payment needed.`));
+                        }
+                      }
                     }
                   }
                 }
