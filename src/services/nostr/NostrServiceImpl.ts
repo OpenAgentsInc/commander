@@ -95,11 +95,15 @@ export const createNostrServiceEffect = Effect.gen(function* (_) {
       );
 
       try {
+        // Get relay URLs from config
+        const relayConfigs = getRelayConfigs();
+        const relayUrls = relayConfigs.map(r => r.url);
+        
         // Use querySync to fetch events with timeout protection
         const events = yield* _(
           Effect.tryPromise({
             try: () =>
-              pool.querySync(config.relays as string[], filters[0], {
+              pool.querySync(relayUrls, filters[0], {
                 maxWait: config.requestTimeoutMs / 2,
               }),
             catch: (error) =>
@@ -374,7 +378,7 @@ export const createNostrServiceEffect = Effect.gen(function* (_) {
               .trackEvent({
                 category: "log:error",
                 action: "nostr_publish_anomalous_result",
-                label: `[Nostr] Anomalous result for publishing event ${event.id}: 0 successful, 0 failed, with ${config.relays.length} relays configured.`,
+                label: `[Nostr] Anomalous result for publishing event ${event.id}: 0 successful, 0 failed, with ${relayConfigs.length} relays configured.`,
               })
               .pipe(Effect.ignoreLogged),
           );
@@ -382,7 +386,7 @@ export const createNostrServiceEffect = Effect.gen(function* (_) {
           return yield* _(
             Effect.fail(
               new NostrPublishError({
-                message: `Anomalous result from publishing event ${event.id}: No successes or failures reported from ${config.relays.length} relays.`,
+                message: `Anomalous result from publishing event ${event.id}: No successes or failures reported from ${relayConfigs.length} relays.`,
               }),
             ),
           );
@@ -440,8 +444,10 @@ export const createNostrServiceEffect = Effect.gen(function* (_) {
       );
 
       // Determine which relays to use
+      const relayConfigs = getRelayConfigs();
+      const defaultRelayUrls = relayConfigs.map(r => r.url);
       const relaysToUse =
-        customRelays && customRelays.length > 0 ? customRelays : config.relays;
+        customRelays && customRelays.length > 0 ? customRelays : defaultRelayUrls;
 
       // Check if we have any relays to use
       if (relaysToUse.length === 0) {
@@ -555,7 +561,9 @@ export const createNostrServiceEffect = Effect.gen(function* (_) {
     Effect.try({
       try: () => {
         if (poolInstance) {
-          poolInstance.close(config.relays as string[]);
+          const relayConfigs = getRelayConfigs();
+          const relayUrls = relayConfigs.map(r => r.url);
+          poolInstance.close(relayUrls);
           poolInstance = null;
 
           // Log pool closure via telemetry
