@@ -9,16 +9,17 @@ import {
 } from "@/services/ai/core";
 import { AiProviderError } from "@/services/ai/core/AIError";
 import { AiResponse } from "@/services/ai/core/AiResponse";
-import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
-import { AiLanguageModel } from "@effect/ai/AiLanguageModel";
+import { OpenAiClient } from "@effect/ai-openai";
+import { TextPart } from "@effect/ai/AiResponse";
 import { ConfigurationService } from "@/services/configuration";
 import { TelemetryService } from "@/services/telemetry";
 
 /**
  * Live implementation of AgentLanguageModel using OpenAI
+ * Uses direct OpenAI client instead of AiModel abstraction to avoid Config service issues
  */
 export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
-  const openAiClient = yield* _(OpenAiClient.OpenAiClient);
+  const client = yield* _(OpenAiClient.OpenAiClient);
   const configService = yield* _(ConfigurationService);
   const telemetry = yield* _(TelemetryService);
 
@@ -36,48 +37,36 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
     })
   );
 
-  // Step 1: Create the AiModel (this is just configuration, not an Effect)
-  const openAiModel = OpenAiLanguageModel.model(modelName, {
-    temperature: 0.7,
-    max_tokens: 2048
-  });
+  // Helper to parse messages from prompt JSON
+  const parseMessages = (prompt: string) => {
+    try {
+      const parsed = JSON.parse(prompt);
+      return parsed.messages || [];
+    } catch {
+      return [{ role: "user", content: prompt }];
+    }
+  };
 
-  // Step 2: Build it with the OpenAI client to get a Provider
-  const provider = yield* _(
-    openAiModel.pipe(
-      Effect.provide(Layer.succeed(OpenAiClient.OpenAiClient, openAiClient))
-    )
-  );
-
-  // Log successful model creation
-  yield* _(
-    telemetry.trackEvent({
-      category: "ai:config",
-      action: "openai_language_model_provider_ready",
-      value: modelName,
-    })
-  );
-
-  // Create our AgentLanguageModel implementation using the provider
+  // Create our AgentLanguageModel implementation using direct client
   return makeAgentLanguageModel({
     generateText: (options: GenerateTextOptions) =>
-      provider.use(
-        Effect.gen(function* (_) {
-          const languageModel = yield* _(AiLanguageModel);
-          const effectAiResponse = yield* _(
-            languageModel.generateText({
-              prompt: options.prompt,
-              model: options.model,
-              temperature: options.temperature,
-              maxTokens: options.maxTokens,
-              stopSequences: options.stopSequences
-            })
-          );
-          return new AiResponse({
-            parts: effectAiResponse.parts
-          });
-        })
-      ).pipe(
+      Effect.gen(function* (_) {
+        const messages = parseMessages(options.prompt);
+        const response = yield* _(
+          client.client.createChatCompletion({
+            model: modelName,
+            messages,
+            temperature: options.temperature ?? 0.7,
+            max_tokens: options.maxTokens ?? 2048,
+            stop: options.stopSequences
+          })
+        );
+        
+        const content = response.choices[0]?.message?.content || "";
+        return new AiResponse({
+          parts: [new TextPart({ text: content })]
+        });
+      }).pipe(
         Effect.mapError((error) => new AiProviderError({
           message: `OpenAI generateText error: ${error instanceof Error ? error.message : String(error)}`,
           provider: "OpenAI",
@@ -86,31 +75,30 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
         }))
       ),
 
-    streamText: (options: StreamTextOptions) =>
-      Stream.unwrap(
-        provider.use(
-          Effect.gen(function* (_) {
-            const languageModel = yield* _(AiLanguageModel);
-            const stream = languageModel.streamText({
-              prompt: options.prompt,
-              model: options.model,
-              temperature: options.temperature,
-              maxTokens: options.maxTokens,
-              signal: options.signal
-            });
-            return Stream.map(stream, (effectAiResponse) => new AiResponse({ 
-              parts: effectAiResponse.parts 
-            }));
-          })
-        )
-      ).pipe(
+    streamText: (options: StreamTextOptions) => {
+      const messages = parseMessages(options.prompt);
+      return client.stream({
+        model: modelName,
+        messages,
+        temperature: options.temperature ?? 0.7,
+        max_tokens: options.maxTokens ?? 2048,
+        stop: options.stopSequences
+      }).pipe(
+        Stream.map((chunk) => {
+          // The stream already returns AiResponse objects from @effect/ai
+          // We need to convert to our AiResponse
+          return new AiResponse({
+            parts: chunk.parts
+          });
+        }),
         Stream.mapError((error) => new AiProviderError({
           message: `OpenAI streamText error: ${error instanceof Error ? error.message : String(error)}`,
           provider: "OpenAI",
           isRetryable: true,
           cause: error
         }))
-      ),
+      );
+    },
 
     generateStructured: (options: GenerateStructuredOptions) =>
       Effect.fail(
