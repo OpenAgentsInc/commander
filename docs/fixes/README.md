@@ -103,6 +103,16 @@ As we work with Effect's sophisticated type system, we encounter various TypeScr
 **Solution**: Deferred initialization pattern - move environment checks from Layer construction to method invocation  
 **Affects**: All services with environment dependencies, runtime startup reliability, cross-platform compatibility
 
+### 019 - [AiModel API Misuse](./019-aimodel-api-misuse.md)
+**Problem**: Treating `OpenAiLanguageModel.model()` return value as an Effect leads to "Service not found: Config" errors  
+**Solution**: Use the AiModel API correctly - yield it to get a Provider, then use provider.use()  
+**Affects**: All @effect/ai provider integrations, OpenAI/Ollama/Anthropic language model implementations
+
+### 020 - [Config Service Context Isolation](./020-config-service-context-isolation.md)
+**Problem**: OpenAiLanguageModel.Config service errors persist despite providing it at runtime/layer/stream levels  
+**Solution**: Stop manually providing internal library services - use the library's API as designed  
+**Affects**: All attempts to manually manage @effect/ai-openai internal services, streaming operations
+
 ## Fix Documentation Template
 
 When adding new fixes, please follow this structure:
@@ -169,6 +179,8 @@ When you solve a tricky TypeScript issue with Effect:
 - [007 - Response Type Mapping Pattern](./007-response-type-mapping-pattern.md)
 - [008 - Streaming Type Unification Pattern](./008-streaming-type-unification.md)
 - [010 - Generated.Client Interface Completion](./010-generated-client-interface-completion.md)
+- [019 - AiModel API Misuse](./019-aimodel-api-misuse.md)
+- [020 - Config Service Context Isolation](./020-config-service-context-isolation.md)
 
 ### Testing Patterns
 - [009 - Test Type Import Conflicts](./009-test-type-import-conflicts.md)
@@ -207,6 +219,8 @@ Common patterns that often need fixes:
 12. **ECC Library Dependencies**: Cryptocurrency/bitcoin library dependencies causing test failures ([016](./016-ecc-library-testing-workaround.md))
 13. **Hidden Service Dependencies**: Effect services requiring dependencies not obvious from API surface ([017](./017-effect-service-dependency-analysis.md))
 14. **Runtime Initialization Failures**: Effect.die() in Layer construction preventing app startup ([018](./018-runtime-initialization-resilience.md))
+15. **AiModel API Misunderstanding**: Treating AiModel objects as Effects instead of using their API ([019](./019-aimodel-api-misuse.md))
+16. **Library Service Management**: Trying to manually provide internal library services ([020](./020-config-service-context-isolation.md))
 
 ### High-Impact Fixes (Batch Applicable)
 - **Service Tag Access**: `yield* _(ServiceName)` → `yield* _(ServiceName.Tag)` 

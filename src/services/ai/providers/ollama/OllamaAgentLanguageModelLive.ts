@@ -11,9 +11,7 @@ import { AiProviderError, mapToAiProviderError } from "@/services/ai/core/AIErro
 import { AiResponse } from "@/services/ai/core/AiResponse";
 import { OpenAiLanguageModel } from "@effect/ai-openai";
 import { OpenAiClient } from "@effect/ai-openai";
-import type { Provider } from "@effect/ai/AiPlan";
 import { AiLanguageModel } from "@effect/ai/AiLanguageModel";
-import { Tokenizer } from "@effect/ai/Tokenizer";
 import { ConfigurationService } from "@/services/configuration";
 import { TelemetryService } from "@/services/telemetry";
 import { OllamaOpenAIClientTag } from "./OllamaAsOpenAIClientLive";
@@ -27,39 +25,35 @@ console.log(
  */
 export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
   const ollamaClient = yield* _(OllamaOpenAIClientTag);
+  const configService = yield* _(ConfigurationService);
   const telemetry = yield* _(TelemetryService);
-  // Expect OpenAiLanguageModel.Config to be in context
-  const modelConfig = yield* _(OpenAiLanguageModel.Config);
 
-  const modelName = modelConfig.model;
+  const modelName = yield* _(
+    configService.get("OLLAMA_MODEL_NAME").pipe(
+      Effect.orElseSucceed(() => "gemma3:1b")
+    )
+  );
 
   yield* _(
     telemetry.trackEvent({
       category: "ai:config",
-      action: "ollama_model_from_provided_config_service",
+      action: "ollama_model_from_config_service",
       value: modelName,
     })
   );
 
-  // Step 1: Get the AiModel definition Effect  
-  const aiModelEffectDefinition = OpenAiLanguageModel.model(modelName as any, {
-    temperature: modelConfig.temperature,
-    max_tokens: modelConfig.max_tokens
+  // Step 1: Create the AiModel (this is just configuration, not an Effect)
+  const ollamaModel = OpenAiLanguageModel.model(modelName, {
+    temperature: 0.7,
+    max_tokens: 2048
   });
 
-  // Step 2: Provide both the client service AND Config service to the model effect
-  const configuredAiModelEffect = Effect.provideService(
-    Effect.provideService(
-      aiModelEffectDefinition,
-      OpenAiLanguageModel.Config,
-      modelConfig
-    ),
-    OpenAiClient.OpenAiClient, 
-    ollamaClient
+  // Step 2: Build it with the OpenAI client to get a Provider
+  const provider = yield* _(
+    ollamaModel.pipe(
+      Effect.provide(Layer.succeed(OpenAiClient.OpenAiClient, ollamaClient))
+    )
   );
-
-  // Step 3: Get the AiModel instance (this is the provider, not an Effect)
-  const provider = yield* _(configuredAiModelEffect);
 
   // Log successful model creation
   yield* _(
@@ -76,21 +70,19 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
       provider.use(
         Effect.gen(function* (_) {
           const languageModel = yield* _(AiLanguageModel);
-          const effectAiResponse = yield* _(languageModel.generateText({
-            prompt: options.prompt,
-            model: options.model,
-            temperature: options.temperature,
-            maxTokens: options.maxTokens,
-            stopSequences: options.stopSequences
-          }));
-          // Map @effect/ai's AiResponse to our core AiResponse
+          const effectAiResponse = yield* _(
+            languageModel.generateText({
+              prompt: options.prompt,
+              model: options.model,
+              temperature: options.temperature,
+              maxTokens: options.maxTokens,
+              stopSequences: options.stopSequences
+            })
+          );
           return new AiResponse({
             parts: effectAiResponse.parts
           });
-        }).pipe(
-          // Provide the Config service to the provider.use() execution context
-          Effect.provideService(OpenAiLanguageModel.Config, modelConfig)
-        )
+        })
       ).pipe(
         Effect.mapError((error) =>
           new AiProviderError({
@@ -107,28 +99,26 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
         provider.use(
           Effect.gen(function* (_) {
             const languageModel = yield* _(AiLanguageModel);
-            return languageModel.streamText({
+            const stream = languageModel.streamText({
               prompt: options.prompt,
               model: options.model,
               temperature: options.temperature,
               maxTokens: options.maxTokens,
               signal: options.signal
-            }).pipe(
-              Stream.provideService(OpenAiLanguageModel.Config, modelConfig),
-              Stream.map((effectAiResponse) => new AiResponse({ parts: effectAiResponse.parts })),
-              Stream.mapError((error) =>
-                new AiProviderError({
-                  message: `Ollama streamText error: ${error instanceof Error ? error.message : String(error)}`,
-                  provider: "Ollama",
-                  isRetryable: true,
-                  cause: error
-                })
-              )
-            );
-          }).pipe(
-            // Provide the Config service to the provider.use() execution context
-            Effect.provideService(OpenAiLanguageModel.Config, modelConfig)
-          )
+            });
+            return Stream.map(stream, (effectAiResponse) => new AiResponse({ 
+              parts: effectAiResponse.parts 
+            }));
+          })
+        )
+      ).pipe(
+        Stream.mapError((error) =>
+          new AiProviderError({
+            message: `Ollama streamText error: ${error instanceof Error ? error.message : String(error)}`,
+            provider: "Ollama",
+            isRetryable: true,
+            cause: error
+          })
         )
       ),
 
@@ -146,34 +136,5 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
 // Create the Layer by providing the implementation
 export const OllamaAgentLanguageModelLiveLayer = Layer.effect(
   AgentLanguageModel.Tag,
-  Effect.gen(function* (_) {
-    const configService = yield* _(ConfigurationService);
-    const telemetry = yield* _(TelemetryService);
-
-    const modelName = yield* _(
-      configService.get("OLLAMA_MODEL_NAME").pipe(Effect.orElseSucceed(() => "gemma3:1b"))
-    );
-
-    const openAiModelConfigServiceValue: OpenAiLanguageModel.Config.Service = {
-      model: modelName,
-      temperature: 0.7,
-      max_tokens: 2048,
-    };
-
-    yield* _(
-      telemetry.trackEvent({
-        category: "ai:config",
-        action: "ollama_provider_config_service_created",
-        value: JSON.stringify(openAiModelConfigServiceValue),
-      })
-    );
-
-    return yield* _(
-      Effect.provideService(
-        OllamaAgentLanguageModelLive,
-        OpenAiLanguageModel.Config,
-        openAiModelConfigServiceValue
-      )
-    );
-  })
+  OllamaAgentLanguageModelLive
 );
