@@ -63,10 +63,14 @@ export const SparkServiceLive = Layer.scoped(
       Effect.tryPromise({
         try: async () => {
           // Initialize the SparkWallet using the provided configuration
+          // Pass the network configuration to the SDK options
           const { wallet } = await SparkWallet.initialize({
             mnemonicOrSeed: sparkConfig.mnemonicOrSeed,
             accountNumber: sparkConfig.accountNumber,
-            options: sparkConfig.sparkSdkOptions,
+            options: {
+              network: sparkConfig.network,
+              ...sparkConfig.sparkSdkOptions,
+            },
           });
 
           return wallet;

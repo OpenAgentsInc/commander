@@ -39,10 +39,13 @@ export const SparkServiceTestLive = Layer.effect(
             })
           );
 
-          // Mock invoice creation
+          // Mock invoice creation with network-appropriate prefix
+          const invoicePrefix = sparkConfig.network === "MAINNET" ? "lnbc" : 
+                               sparkConfig.network === "REGTEST" ? "lnbcrt" : 
+                               sparkConfig.network === "LOCAL" ? "lnbcrt" : "lntb";
           const mockInvoice: LightningInvoice = {
             invoice: {
-              encodedInvoice: `lnbc${params.amountSats}n1mock_invoice_${Date.now()}`,
+              encodedInvoice: `${invoicePrefix}${params.amountSats}n1mock_invoice_${Date.now()}`,
               paymentHash: `mock_hash_${Date.now()}`,
               amountSats: params.amountSats,
               createdAt: Date.now(),
