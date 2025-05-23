@@ -44,11 +44,17 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
     max_tokens: 2048
   });
 
-  // Step 2: Provide the client dependency to get the AiModel instance
+  // Step 2: Provide the required configuration and client services
   const configuredAiModelEffect = Effect.provideService(
     aiModelEffectDefinition,
-    OpenAiClient.OpenAiClient,
-    openAiClient
+    OpenAiLanguageModel.Config,
+    { 
+      model: modelName, 
+      temperature: 0.7, 
+      max_tokens: 2048 
+    }
+  ).pipe(
+    Effect.provideService(OpenAiClient.OpenAiClient, openAiClient)
   );
 
   // Step 3: Get the AiModel instance (this is the provider, not an Effect)

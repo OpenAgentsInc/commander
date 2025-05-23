@@ -50,11 +50,17 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
     max_tokens: 2048
   });
 
-  // Step 2: Provide the client dependency
+  // Step 2: Provide the required configuration and client services
   const configuredAiModelEffect = Effect.provideService(
     aiModelEffectDefinition,
-    OpenAiClient.OpenAiClient,
-    ollamaClient
+    OpenAiLanguageModel.Config,
+    { 
+      model: modelName, 
+      temperature: 0.7, 
+      max_tokens: 2048 
+    }
+  ).pipe(
+    Effect.provideService(OpenAiClient.OpenAiClient, ollamaClient)
   );
 
   // Step 3: Get the AiModel instance (this is the provider, not an Effect)
