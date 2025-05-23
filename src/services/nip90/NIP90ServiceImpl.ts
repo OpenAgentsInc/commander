@@ -619,6 +619,7 @@ export const NIP90ServiceLive = Layer.effect(
         dvmPubkeyHex,
         decryptionKey,
         onUpdate,
+        relays,
       ) =>
         Effect.gen(function* (_) {
           yield* _(
@@ -632,6 +633,21 @@ export const NIP90ServiceLive = Layer.effect(
           );
 
           try {
+            // Use DVM-specific relays if provided, otherwise use default relays
+            const subscriptionRelays = relays || [];
+            
+            // Log which relays we're using for this subscription
+            yield* _(
+              telemetry
+                .trackEvent({
+                  category: "nip90:consumer", 
+                  action: "subscription_relays",
+                  label: `Using ${subscriptionRelays.length} DVM relays`,
+                  value: JSON.stringify(subscriptionRelays),
+                })
+                .pipe(Effect.ignoreLogged),
+            );
+
             // Create filters for both result (6xxx) and feedback (7000) events
             const resultFilter: NostrFilter = {
               kinds: Array.from({ length: 1000 }, (_, i) => 6000 + i), // 6000-6999
@@ -645,7 +661,7 @@ export const NIP90ServiceLive = Layer.effect(
               authors: [dvmPubkeyHex],
             };
 
-            // Subscribe to both event types
+            // Subscribe to both event types using DVM-specific relays
             const subscription = yield* _(
               nostr.subscribeToEvents(
                 [resultFilter, feedbackFilter],
@@ -820,6 +836,7 @@ export const NIP90ServiceLive = Layer.effect(
                     );
                   }
                 },
+                subscriptionRelays, // Use DVM-specific relays
               ),
             );
 

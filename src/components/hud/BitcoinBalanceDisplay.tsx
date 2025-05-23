@@ -43,7 +43,7 @@ const BitcoinBalanceDisplay: React.FC = () => {
       throw Cause.squash(exitResult.cause);
     },
     // TODO: Aggressive 1s balance refresh. Monitor performance and API rate limits. Consider websockets or longer intervals for production.
-    refetchInterval: 1000,
+    refetchInterval: 5000,
     refetchIntervalInBackground: true,
     enabled: walletIsInitialized, // Only fetch if wallet is initialized
   });

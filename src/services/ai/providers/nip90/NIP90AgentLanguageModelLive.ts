@@ -250,7 +250,7 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
               })
             );
 
-            // Subscribe to job updates
+            // Subscribe to job updates using DVM-specific relays
             const unsubscribe = yield* _(
               nip90Service.subscribeToJobUpdates(
                 jobRequest.id,
@@ -356,7 +356,8 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
                       }
                     }
                   }
-                }
+                },
+[...dvmConfig.dvmRelays] // Use DVM-specific relays for payment events
               )
             );
 

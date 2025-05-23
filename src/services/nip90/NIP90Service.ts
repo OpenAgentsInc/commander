@@ -201,6 +201,7 @@ export interface NIP90Service {
     dvmPubkeyHex: string,
     decryptionKey: Uint8Array,
     onUpdate: (event: NIP90JobResult | NIP90JobFeedback) => void,
+    relays?: string[],
   ): Effect.Effect<
     Subscription,
     NostrRequestError | NIP04DecryptError | NIP90ResultError,
