@@ -3,13 +3,13 @@ import {
   type ChatMessageProps,
   type MessageRole,
 } from "@/components/chat/ChatMessage";
-import { Effect, Exit, Cause, Layer, Runtime, Option } from "effect";
+import { Effect, Exit, Cause, Layer, Runtime, Option, Context } from "effect";
 import { NIP04Service, NIP04ServiceLive } from "@/services/nip04";
-import { NostrEvent, NostrFilter } from "@/services/nostr";
+import { NostrEvent, NostrFilter, NostrService } from "@/services/nostr";
 import { createNip90JobRequest } from "@/helpers/nip90/event_creation";
 import { decryptNip04Content } from "@/helpers/nip90/event_decryption";
-import { SimplePool } from "nostr-tools";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
+import { NIP90_CONSUMER_RELAYS_ARRAY } from "@/services/relays";
 import {
   TelemetryService,
   TelemetryServiceLive,
@@ -22,6 +22,7 @@ import {
   NIP19DecodeError,
 } from "@/services/nip19";
 import { SparkService } from "@/services/spark";
+import { getMainRuntime } from "@/services/runtime";
 
 interface PaymentState {
   required: boolean;
@@ -36,20 +37,14 @@ interface UseNip90ConsumerChatParams {
   nostrPrivateKeyHex: string | null;
   nostrPublicKeyHex: string | null;
   targetDvmPubkeyHex?: string; // This prop will now be treated as explicitly hex OR npub
-  runtime: Runtime.Runtime<TelemetryService | NIP19Service | NIP04Service | SparkService>;
 }
 
-const DEFAULT_RELAYS = [
-  "wss://relay.damus.io",
-  "wss://relay.nostr.band",
-  "wss://nos.lol",
-];
+const DEFAULT_RELAYS = NIP90_CONSUMER_RELAYS_ARRAY;
 
 export function useNip90ConsumerChat({
   nostrPrivateKeyHex,
   nostrPublicKeyHex,
   targetDvmPubkeyHex: initialTargetDvmInput, // Renamed to avoid confusion
-  runtime,
 }: UseNip90ConsumerChatParams) {
   const [messages, setMessages] = useState<ChatMessageProps[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -58,10 +53,7 @@ export function useNip90ConsumerChat({
     required: false,
     status: 'none'
   });
-  const poolRef = useRef<SimplePool | null>(null);
   const activeSubsRef = useRef<Map<string, any>>(new Map());
-
-  const getTelemetry = () => Effect.provide(TelemetryService, runtime);
 
   const addMessage = useCallback(
     (
@@ -97,40 +89,48 @@ export function useNip90ConsumerChat({
   );
 
   useEffect(() => {
-    poolRef.current = new SimplePool();
+    const currentRuntime = getMainRuntime();
     Effect.runFork(
-      getTelemetry().pipe(
-        Effect.flatMap((ts) =>
-          ts.trackEvent({
-            category: "nip90_consumer",
-            action: "hook_init",
-            label: `Target DVM: ${initialTargetDvmInput || "any"}`,
-          }),
-        ),
-      ),
+      Effect.flatMap(TelemetryService, (ts) =>
+        ts.trackEvent({
+          category: "nip90_consumer",
+          action: "hook_init",
+          label: `Target DVM: ${initialTargetDvmInput || "any"}`,
+        }),
+      ).pipe(Effect.provide(currentRuntime)),
     );
     return () => {
-      activeSubsRef.current.forEach((sub) => sub.unsub());
+      activeSubsRef.current.forEach((sub) => {
+        if (sub && typeof sub.unsub === 'function') {
+          sub.unsub();
+        }
+      });
       activeSubsRef.current.clear();
-      if (poolRef.current) {
-        // poolRef.current.close(DEFAULT_RELAYS); // Consider if closing all relays is always desired
-        poolRef.current = null;
-      }
+      const cleanupRuntime = getMainRuntime();
       Effect.runFork(
-        getTelemetry().pipe(
-          Effect.flatMap((ts) =>
-            ts.trackEvent({
-              category: "nip90_consumer",
-              action: "hook_cleanup",
-            }),
-          ),
-        ),
+        Effect.flatMap(TelemetryService, (ts) =>
+          ts.trackEvent({
+            category: "nip90_consumer",
+            action: "hook_cleanup",
+          }),
+        ).pipe(Effect.provide(cleanupRuntime)),
       );
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialTargetDvmInput]);
 
   const handlePayment = useCallback(async (invoice: string, jobId: string) => {
+    const currentRuntime = getMainRuntime(); // Get the LATEST runtime instance
+    
+    // CRITICAL: Track payment attempt immediately (defensive telemetry)
+    const telemetryService = Context.get(currentRuntime.context, TelemetryService);
+    telemetryService.trackEvent({
+      category: "nip90_consumer",
+      action: "payment_attempt",
+      label: jobId,
+      value: `Invoice: ${invoice.substring(0, 30)}... Amount: ${paymentState.amountSats || 'unknown'} sats`,
+    });
+    
     try {
       setPaymentState(prev => ({ ...prev, status: 'paying' }));
       
@@ -161,29 +161,81 @@ export function useNip90ConsumerChat({
         return result.payment;
       });
       
-      const paymentResult = await Effect.runPromise(
-        Effect.provide(payEffect, runtime)
+      // Provide the currentRuntime for this specific Effect execution
+      const paymentExit = await Effect.runPromiseExit(
+        payEffect.pipe(Effect.provide(currentRuntime))
       );
       
-      setPaymentState(prev => ({ ...prev, status: 'paid' }));
-      addMessage("system", `Payment successful! Hash: ${paymentResult.paymentHash.substring(0, 12)}...`);
-      
+      if (Exit.isSuccess(paymentExit)) {
+        const paymentResult = paymentExit.value;
+        setPaymentState(prev => ({ ...prev, status: 'paid' }));
+        addMessage("system", `Payment successful! Hash: ${paymentResult.paymentHash.substring(0, 12)}...`);
+        
+        // Track success outside Effect too
+        telemetryService.trackEvent({
+          category: "nip90_consumer",
+          action: "payment_complete",
+          label: jobId,
+          value: paymentResult.paymentHash,
+        });
+      } else {
+        const error = Cause.squash(paymentExit.cause);
+        console.error("Payment error in handlePayment:", error);
+        
+        setPaymentState(prev => ({ 
+          ...prev, 
+          status: 'failed',
+          error: error instanceof Error ? error.message : String(error) || "Payment failed"
+        }));
+        addMessage("system", `Payment failed: ${error instanceof Error ? error.message : String(error) || "Unknown error"}`);
+        
+        // Track failure outside Effect
+        telemetryService.trackEvent({
+          category: "nip90_consumer",
+          action: "payment_error",
+          label: jobId,
+          value: error instanceof Error ? error.message : String(error),
+        });
+      }
     } catch (error: any) {
       console.error("Payment error:", error);
+      
       setPaymentState(prev => ({ 
         ...prev, 
         status: 'failed',
         error: error.message || "Payment failed"
       }));
       addMessage("system", `Payment failed: ${error.message || "Unknown error"}`);
+      
+      // Track outer error
+      telemetryService.trackEvent({
+        category: "nip90_consumer",
+        action: "payment_exception",
+        label: jobId,
+        value: error?.message || "Unknown error",
+      });
     }
-  }, [runtime, paymentState.amountSats, addMessage]);
+  }, [paymentState.amountSats, addMessage]);
 
   const sendMessage = useCallback(async () => {
-    const telemetry = await Effect.runPromise(getTelemetry()); // Get telemetry instance
+    const currentRuntime = getMainRuntime(); // Get the LATEST runtime instance
+    const telemetry = Context.get(currentRuntime.context, TelemetryService); // Get telemetry from runtime context
+
+    // CRITICAL: Track that sendMessage was called
+    telemetry.trackEvent({
+      category: "nip90_consumer",
+      action: "send_message_called",
+      label: userInput.trim().substring(0, 30),
+      value: `Input length: ${userInput.trim().length}`,
+    });
 
     if (!userInput.trim()) {
       addMessage("system", "Error: Input is empty.");
+      telemetry.trackEvent({
+        category: "nip90_consumer",
+        action: "send_message_empty_input",
+        label: "empty_input_error",
+      });
       return;
     }
 
@@ -211,15 +263,6 @@ export function useNip90ConsumerChat({
       });
       return;
     }
-    if (!poolRef.current) {
-      addMessage("system", "Error: Nostr connection pool not initialized.");
-      telemetry.trackEvent({
-        category: "nip90_consumer",
-        action: "send_job_error",
-        label: "nostr_pool_not_ready",
-      });
-      return;
-    }
 
     const prompt = userInput.trim();
     addMessage("user", prompt);
@@ -237,13 +280,12 @@ export function useNip90ConsumerChat({
 
     if (initialTargetDvmInput && initialTargetDvmInput.trim()) {
       if (initialTargetDvmInput.startsWith("npub1")) {
-        const decodeEffect = Effect.provide(
-          Effect.flatMap(NIP19Service, (nip19) =>
-            nip19.decode(initialTargetDvmInput),
-          ),
-          runtime,
+        const decodeEffect = Effect.flatMap(NIP19Service, (nip19) =>
+          nip19.decode(initialTargetDvmInput),
         );
-        const decodeExit = await Effect.runPromiseExit(decodeEffect);
+        const decodeExit = await Effect.runPromiseExit(
+          decodeEffect.pipe(Effect.provide(currentRuntime))
+        );
 
         if (Exit.isSuccess(decodeExit) && decodeExit.value.type === "npub") {
           finalTargetDvmPkHexForEncryption = decodeExit.value.data;
@@ -309,19 +351,25 @@ export function useNip90ConsumerChat({
         finalTargetDvmPkHexForPTag,
       );
 
-      // Provide NIP04Service from NIP04ServiceLive
-      const jobRequestWithNip04 = Effect.provide(
+      // Resolve NIP04Service from the currentRuntime
+      const resolvedNip04Service = Context.get(currentRuntime.context, NIP04Service);
+      const jobRequestWithNip04 = Effect.provideService(
         jobRequestEffect,
-        NIP04ServiceLive,
+        NIP04Service, // The Tag
+        resolvedNip04Service // The live service from the current runtime
       );
 
-      const signedEvent = await Effect.runPromise(jobRequestWithNip04);
-
-      const publishPromises = poolRef.current.publish(
-        DEFAULT_RELAYS,
-        signedEvent,
+      // Use currentRuntime for running the Effect
+      const signedEvent = await Effect.runPromise(
+        jobRequestWithNip04.pipe(Effect.provide(currentRuntime))
       );
-      await Promise.any(publishPromises);
+
+      // Use NostrService for publishing instead of SimplePool
+      const nostrService = Context.get(currentRuntime.context, NostrService);
+      const publishEffect = nostrService.publishEvent(signedEvent);
+      await Effect.runPromise(
+        publishEffect.pipe(Effect.provide(currentRuntime))
+      );
 
       telemetry.trackEvent({
         category: "nip90_consumer",
@@ -356,38 +404,48 @@ export function useNip90ConsumerChat({
         },
       ];
 
-      // Use subscribeMany which is available in the current nostr-tools version
-      const sub = (poolRef.current as any).subscribeMany(
-        DEFAULT_RELAYS,
-        filters,
-      );
-      activeSubsRef.current.set(signedEvent.id, sub);
-
-      sub.on("event", async (event: NostrEvent) => {
-        telemetry.trackEvent({
+      // Create shared event handler for both subscriptions
+      const handleEvent = async (event: NostrEvent) => {
+        const currentRuntimeForEvent = getMainRuntime();
+        const telemetryForEvent = Context.get(currentRuntimeForEvent.context, TelemetryService);
+        
+        telemetryForEvent.trackEvent({
           category: "nip90_consumer",
           action: "job_update_received",
           label: event.id,
           value: `Kind: ${event.kind}`,
         });
 
+        // Special telemetry for Kind 7000 events
+        if (event.kind === 7000) {
+          telemetryForEvent.trackEvent({
+            category: "nip90_consumer", 
+            action: "kind_7000_feedback_received",
+            label: event.id,
+            value: `Feedback event received! Content: ${event.content.substring(0, 50)}`,
+          });
+        }
+
         let content = event.content;
         const isEncrypted = event.tags.some((t) => t[0] === "encrypted");
 
         if (isEncrypted && nostrPrivateKeyHex) {
+          const resolvedNip04ForEvent = Context.get(currentRuntimeForEvent.context, NIP04Service);
           const decryptEffect = decryptNip04Content(
             nostrPrivateKeyHex,
             event.pubkey,
             event.content,
-          ).pipe(Effect.provide(NIP04ServiceLive));
-          const decryptExit = await Effect.runPromiseExit(decryptEffect);
+          );
+          const decryptExit = await Effect.runPromiseExit(
+            Effect.provideService(decryptEffect, NIP04Service, resolvedNip04ForEvent)
+          );
           if (Exit.isSuccess(decryptExit)) {
             content = decryptExit.value;
           } else {
             content = "[Error decrypting DVM response]";
             const error = Cause.squash(decryptExit.cause);
             console.error("NIP-04 Decryption error in subscription:", error);
-            telemetry.trackEvent({
+            telemetryForEvent.trackEvent({
               category: "nip90_consumer",
               action: "nip04_decrypt_error",
               label: event.id,
@@ -406,11 +464,11 @@ export function useNip90ConsumerChat({
           // Handle payment-required status
           if (status === "payment-required") {
             const amountTag = event.tags.find((t) => t[0] === "amount");
-            if (amountTag && amountTag[1]) {
-              const invoice = amountTag[1];
-              // Extract sats amount from bolt11 invoice if possible
-              // For now, we know it's 3 sats from our implementation
-              const amountSats = 3;
+            if (amountTag && amountTag[2]) {  // FIX: Invoice is at position 2, not 1!
+              const amountMillisats = amountTag[1];
+              const invoice = amountTag[2];  // FIX: Get invoice from correct position
+              // Convert millisats to sats
+              const amountSats = Math.ceil(parseInt(amountMillisats) / 1000);
               
               setPaymentState({
                 required: true,
@@ -422,16 +480,35 @@ export function useNip90ConsumerChat({
               
               addMessage(
                 "system",
-                `Payment required: ${amountSats} sats. Invoice: ${invoice.substring(0, 20)}...`,
+                `Payment required: ${amountSats} sats. Auto-paying invoice...`,
                 "System",
               );
               
-              telemetry.trackEvent({
+              telemetryForEvent.trackEvent({
                 category: "nip90_consumer",
                 action: "payment_required",
                 label: signedEvent.id,
                 value: amountSats.toString(),
               });
+
+              // AUTO-PAY: Automatically pay small amounts (under 10 sats)
+              if (amountSats <= 10) {
+                addMessage(
+                  "system",
+                  `Auto-paying ${amountSats} sats (auto-approval enabled for small amounts)...`,
+                  "System",
+                );
+                
+                telemetryForEvent.trackEvent({
+                  category: "nip90_consumer",
+                  action: "auto_payment_triggered",
+                  label: signedEvent.id,
+                  value: `${amountSats} sats`,
+                });
+
+                // Trigger payment immediately
+                handlePayment(invoice, signedEvent.id);
+              }
             } else {
               addMessage(
                 "system",
@@ -451,8 +528,12 @@ export function useNip90ConsumerChat({
             setIsLoading(false);
             setPaymentState({ required: false, status: 'none' });
             if (activeSubsRef.current.has(signedEvent.id)) {
-              activeSubsRef.current.get(signedEvent.id)?.unsub();
-              activeSubsRef.current.delete(signedEvent.id);
+              const resultSub = activeSubsRef.current.get(signedEvent.id + "_result");
+              const feedbackSub = activeSubsRef.current.get(signedEvent.id + "_feedback");
+              if (resultSub && typeof resultSub.unsub === 'function') resultSub.unsub();
+              if (feedbackSub && typeof feedbackSub.unsub === 'function') feedbackSub.unsub();
+              activeSubsRef.current.delete(signedEvent.id + "_result");
+              activeSubsRef.current.delete(signedEvent.id + "_feedback");
             }
           }
         } else if (event.kind >= 6000 && event.kind <= 6999) {
@@ -472,19 +553,90 @@ export function useNip90ConsumerChat({
           );
           setIsLoading(false);
           if (activeSubsRef.current.has(signedEvent.id)) {
-            activeSubsRef.current.get(signedEvent.id)?.unsub();
-            activeSubsRef.current.delete(signedEvent.id);
+            const resultSub = activeSubsRef.current.get(signedEvent.id + "_result");
+            const feedbackSub = activeSubsRef.current.get(signedEvent.id + "_feedback");
+            if (resultSub && typeof resultSub.unsub === 'function') resultSub.unsub();
+            if (feedbackSub && typeof feedbackSub.unsub === 'function') feedbackSub.unsub();
+            activeSubsRef.current.delete(signedEvent.id + "_result");
+            activeSubsRef.current.delete(signedEvent.id + "_feedback");
           }
         }
-      });
+      };
 
-      sub.on("eose", () => {
-        telemetry.trackEvent({
+      const handleEose = (subscriptionType: string) => {
+        const currentRuntimeForEose = getMainRuntime();
+        const telemetryForEose = Context.get(currentRuntimeForEose.context, TelemetryService);
+        telemetryForEose.trackEvent({
           category: "nip90_consumer",
           action: "subscription_eose",
-          label: `EOSE for job ${signedEvent.id}`,
+          label: `EOSE for job ${signedEvent.id} (${subscriptionType})`,
         });
+      };
+
+      // Add detailed telemetry for subscription filters
+      telemetry.trackEvent({
+        category: "nip90_consumer",
+        action: "subscription_filters_debug", 
+        label: `Job ${signedEvent.id}`,
+        value: `Result filter kinds: [${filters[0].kinds}] | Feedback filter kinds: [${filters[1].kinds}]`,
       });
+
+      telemetry.trackEvent({
+        category: "nip90_consumer",
+        action: "kind_7000_subscription_confirmed",
+        label: signedEvent.id,
+        value: `Subscribing to Kind 7000 feedback events for job`,
+      });
+
+      // Use NostrService for subscriptions (same infrastructure that works for publishing)
+      const subscribeEffect = Effect.gen(function* () {
+        const telemetryInEffect = yield* TelemetryService;
+        
+        yield* telemetryInEffect.trackEvent({
+          category: "nip90_consumer",
+          action: "creating_result_subscription",
+          label: signedEvent.id,
+          value: `Filter: ${JSON.stringify(filters[0])}`,
+        });
+        
+        const resultSub = yield* nostrService.subscribeToEvents(
+          [filters[0]], // Result filter
+          handleEvent,
+          DEFAULT_RELAYS,
+          () => handleEose("result")
+        );
+        
+        yield* telemetryInEffect.trackEvent({
+          category: "nip90_consumer",
+          action: "creating_feedback_subscription", 
+          label: signedEvent.id,
+          value: `Filter: ${JSON.stringify(filters[1])}`,
+        });
+        
+        const feedbackSub = yield* nostrService.subscribeToEvents(
+          [filters[1]], // Feedback filter  
+          handleEvent,
+          DEFAULT_RELAYS,
+          () => handleEose("feedback")
+        );
+        
+        yield* telemetryInEffect.trackEvent({
+          category: "nip90_consumer",
+          action: "both_subscriptions_created",
+          label: signedEvent.id,
+          value: `Result sub created + Kind 7000 feedback sub created`,
+        });
+        
+        return { resultSub, feedbackSub };
+      });
+
+      const subscriptions = await Effect.runPromise(
+        subscribeEffect.pipe(Effect.provide(currentRuntime))
+      );
+      
+      // Store both subscriptions for cleanup
+      activeSubsRef.current.set(signedEvent.id + "_result", subscriptions.resultSub);
+      activeSubsRef.current.set(signedEvent.id + "_feedback", subscriptions.feedbackSub);
     } catch (error: any) {
       addMessage(
         "system",
@@ -505,7 +657,6 @@ export function useNip90ConsumerChat({
     nostrPublicKeyHex,
     initialTargetDvmInput,
     addMessage,
-    runtime,
   ]); // Ensure initialTargetDvmInput is in deps
 
   return { messages, isLoading, userInput, setUserInput, sendMessage, paymentState, handlePayment };

@@ -59,45 +59,120 @@ function createNip90FeedbackEvent(
   status: "payment-required" | "processing" | "error" | "success" | "partial",
   contentOrExtraInfo?: string,
   amountDetails?: { amountMillisats: number; invoice?: string },
+  telemetryService?: TelemetryService,
 ): NostrEvent {
-  const tags: string[][] = [
-    ["e", requestEvent.id],
-    ["p", requestEvent.pubkey],
-    ["status", status],
-  ];
-
-  // Add content as status extra info if provided
-  if (
-    contentOrExtraInfo &&
-    (status === "error" ||
-      status === "processing" ||
-      status === "payment-required")
-  ) {
-    tags
-      .find((t) => t[0] === "status")
-      ?.push(contentOrExtraInfo.substring(0, 256));
+  // Add telemetry logging at the beginning of the function to verify inputs
+  if (telemetryService) {
+    Effect.runFork(
+      telemetryService.trackEvent({
+        category: "dvm:feedback",
+        action: "creating_feedback_event",
+        label: `Job: ${requestEvent.id} (Kind: ${requestEvent.kind}) from pubkey: ${requestEvent.pubkey.substring(0,10)}... status: ${status}`,
+      }).pipe(Effect.ignoreLogged)
+    );
+  }
+  
+  if (!requestEvent.id || typeof requestEvent.id !== 'string' || requestEvent.id.length !== 64) {
+    if (telemetryService) {
+      Effect.runFork(
+        telemetryService.trackEvent({
+          category: "dvm:feedback_error",
+          action: "invalid_request_event_id",
+          label: "CRITICAL: requestEvent.id is invalid!",
+          value: String(requestEvent.id),
+        }).pipe(Effect.ignoreLogged)
+      );
+    }
+  }
+  if (!requestEvent.pubkey || typeof requestEvent.pubkey !== 'string' || requestEvent.pubkey.length !== 64) {
+    if (telemetryService) {
+      Effect.runFork(
+        telemetryService.trackEvent({
+          category: "dvm:feedback_error",
+          action: "invalid_request_event_pubkey",
+          label: "CRITICAL: requestEvent.pubkey is invalid!", 
+          value: String(requestEvent.pubkey),
+        }).pipe(Effect.ignoreLogged)
+      );
+    }
   }
 
-  // Add amount tag if payment details are provided
+  // Initialize tags
+  const tags: string[][] = [];
+
+  // 1. Add the ["e", <original_job_request_id>] tag.
+  //    Ensure requestEvent.id is valid.
+  if (requestEvent.id && requestEvent.id.length === 64) {
+    tags.push(["e", requestEvent.id]);
+  } else {
+    // Log an error if the job request ID is missing or invalid, as the 'e' tag is crucial.
+    if (telemetryService) {
+      Effect.runFork(
+        telemetryService.trackEvent({
+          category: "dvm:feedback_error",
+          action: "missing_e_tag",
+          label: `Invalid or missing requestEvent.id ('${requestEvent.id}') for 'e' tag. Feedback event for status '${status}' might be unmatchable.`,
+        }).pipe(Effect.ignoreLogged)
+      );
+    }
+  }
+
+  // 2. Add the ["p", <consumer_pubkey>] tag.
+  //    Ensure requestEvent.pubkey is valid.
+  if (requestEvent.pubkey && requestEvent.pubkey.length === 64) {
+    tags.push(["p", requestEvent.pubkey]);
+  } else {
+    if (telemetryService) {
+      Effect.runFork(
+        telemetryService.trackEvent({
+          category: "dvm:feedback_error",
+          action: "missing_p_tag",
+          label: `Invalid or missing requestEvent.pubkey ('${requestEvent.pubkey}') for 'p' tag.`,
+        }).pipe(Effect.ignoreLogged)
+      );
+    }
+  }
+
+  // 3. Add the ["status", <status>, <optional_extra_info>] tag.
+  const statusTagArray: string[] = ["status", status];
+  if (contentOrExtraInfo && (status === "error" || status === "processing" || status === "payment-required")) {
+    statusTagArray.push(contentOrExtraInfo.substring(0, 256));
+  }
+  tags.push(statusTagArray);
+
+  // 4. Add the ["amount", <msats>, <bolt11_invoice>] tag if details are provided.
   if (amountDetails) {
-    const amountTag = ["amount", amountDetails.amountMillisats.toString()];
-    if (amountDetails.invoice) amountTag.push(amountDetails.invoice);
+    const amountTag = ["amount", amountDetails.amountMillisats.toString()]; // amount is always in millisats as per NIP-90 spec for kind 7000
+    if (amountDetails.invoice) {
+      amountTag.push(amountDetails.invoice);
+    }
     tags.push(amountTag);
   }
+
+  // Original content logic:
+  const eventContent = (status === "partial" || (status === "error" && contentOrExtraInfo && contentOrExtraInfo.length > 256))
+    ? contentOrExtraInfo || ""
+    : "";
 
   const template: EventTemplate = {
     kind: 7000,
     created_at: Math.floor(Date.now() / 1000),
-    tags,
-    // Only include substantial content if it's a partial result or a long error message
-    content:
-      status === "partial" ||
-        (status === "error" &&
-          contentOrExtraInfo &&
-          contentOrExtraInfo.length > 256)
-        ? contentOrExtraInfo || ""
-        : "",
+    tags, // Use the fully constructed tags array
+    content: eventContent,
   };
+
+  // Add telemetry log just before finalizing to inspect the tags being used
+  if (telemetryService) {
+    Effect.runFork(
+      telemetryService.trackEvent({
+        category: "dvm:feedback",
+        action: "finalizing_kind_7000_event",
+        label: "Finalizing Kind 7000 event template with tags",
+        value: JSON.stringify(template.tags),
+      }).pipe(Effect.ignoreLogged)
+    );
+  }
+
   return finalizeEvent(template, hexToBytes(dvmPrivateKeyHex)) as NostrEvent;
 }
 
@@ -547,6 +622,8 @@ export const Kind5050DVMServiceLive = Layer.scoped(
                       pendingJob.requestEvent,
                       "error",
                       `Failed to process job: ${error.message}`,
+                      undefined,
+                      localTelemetry,
                     );
                     yield* _(publishFeedback(errorFeedback));
                     
@@ -577,6 +654,8 @@ export const Kind5050DVMServiceLive = Layer.scoped(
               pendingJob.requestEvent,
               "error",
               "Payment invoice expired",
+              undefined,
+              localTelemetry,
             );
             yield* _(publishFeedback(expiredFeedback));
             
@@ -797,6 +876,8 @@ export const Kind5050DVMServiceLive = Layer.scoped(
             jobRequestEvent,
             "error",
             "No inputs provided.",
+            undefined,
+            telemetry,
           );
           yield* _(publishFeedback(feedback));
           return yield* _(
@@ -813,6 +894,8 @@ export const Kind5050DVMServiceLive = Layer.scoped(
             jobRequestEvent,
             "error",
             "No 'text' input found for text generation job.",
+            undefined,
+            telemetry,
           );
           yield* _(publishFeedback(feedback));
           return yield* _(
@@ -827,6 +910,9 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           dvmPrivateKeyHex,
           jobRequestEvent,
           "processing",
+          undefined,
+          undefined,
+          telemetry,
         );
         yield* _(publishFeedback(processingFeedback));
 
@@ -959,6 +1045,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
                 amountMillisats: invoiceAmountMillisats,
                 invoice: bolt11Invoice,
               },
+              telemetry,
             );
             // Publish payment-required feedback as fire-and-forget
             return publishFeedback(paymentRequiredFeedback);
@@ -1126,6 +1213,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
             amountMillisats: invoiceAmountMillisats,
             invoice: bolt11Invoice,
           },
+          telemetry,
         );
 
         yield* _(
@@ -1190,6 +1278,8 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           jobRequestEvent,
           "processing",
           "Payment received, processing your request...",
+          undefined,
+          telemetry,
         );
         yield* _(publishFeedback(processingFeedback));
 
@@ -1299,6 +1389,8 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           jobRequestEvent,
           "success",
           "Job completed successfully",
+          undefined,
+          telemetry,
         );
         yield* _(publishFeedback(successFeedback));
 

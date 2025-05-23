@@ -9,9 +9,10 @@ import * as FiberRefs from "effect/FiberRefs";
 import {
   NostrService,
   NostrServiceLive,
-  DefaultNostrServiceConfigLayer,
 } from "@/services/nostr";
+import { NostrServiceConfigLive } from "@/services/nostr/NostrServiceConfig";
 import { NIP04Service, NIP04ServiceLive } from "@/services/nip04";
+import { NIP13Service, NIP13ServiceLive } from "@/services/nip13";
 import { NIP19Service, NIP19ServiceLive } from "@/services/nip19";
 import { BIP39Service, BIP39ServiceLive } from "@/services/bip39";
 import { BIP32Service, BIP32ServiceLive } from "@/services/bip32";
@@ -83,9 +84,12 @@ export function buildFullAppLayer() {
   );
   const devConfigLayer = DefaultDevConfigLayer.pipe(Layer.provide(configLayer));
 
+  const nip13Layer = NIP13ServiceLive;
+  
   const nostrLayer = NostrServiceLive.pipe(
-    Layer.provide(DefaultNostrServiceConfigLayer),
+    Layer.provide(NostrServiceConfigLive),
     Layer.provide(telemetryLayer),
+    Layer.provide(nip13Layer),
   );
 
   const ollamaLayer = OllamaServiceLive.pipe(
@@ -188,6 +192,7 @@ export function buildFullAppLayer() {
         nip90Layer,                  // For NIP90Service
         nostrLayer,                  // For NostrService
         nip04Layer,                  // For NIP04Service
+        sparkLayer,                  // For SparkService
         ollamaLanguageModelLayer,    // For default AgentLanguageModel.Tag
       ),
     ),

@@ -69,8 +69,8 @@ export const DefaultNostrServiceConfigLayer = Layer.succeed(
     relays: [
       // "wss://purplepag.es/", // Blocked: only accepts kinds 0, 1, 3 and 10002
       "wss://nos.lol/",
-      "wss://relay.damus.io/",
-      "wss://relay.snort.social/",
+      // "wss://relay.damus.io/", // Requires 28-bit PoW
+      // "wss://relay.snort.social/", // Likely requires PoW
       // "wss://offchain.pub/", // Failed: no active subscription
       // "wss://nostr-pub.wellorder.net/", // Failed: connection issues
     ],
@@ -106,3 +106,6 @@ export interface NostrService {
 }
 
 export const NostrService = Context.GenericTag<NostrService>("NostrService");
+
+// Re-export configuration types
+export type { RelayConfig } from "./NostrServiceConfig";

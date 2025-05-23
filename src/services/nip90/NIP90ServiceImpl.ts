@@ -14,6 +14,7 @@ import {
   NIP04DecryptError,
 } from "@/services/nip04";
 import { TelemetryService } from "@/services/telemetry";
+import { getMainRuntime } from "@/services/runtime";
 import { createNip90JobRequest } from "@/helpers/nip90/event_creation";
 import {
   NIP90Service,
@@ -619,6 +620,7 @@ export const NIP90ServiceLive = Layer.effect(
         dvmPubkeyHex,
         decryptionKey,
         onUpdate,
+        relays,
       ) =>
         Effect.gen(function* (_) {
           yield* _(
@@ -632,6 +634,21 @@ export const NIP90ServiceLive = Layer.effect(
           );
 
           try {
+            // Use DVM-specific relays if provided, otherwise use default relays
+            const subscriptionRelays = relays || [];
+            
+            // Log which relays we're using for this subscription
+            yield* _(
+              telemetry
+                .trackEvent({
+                  category: "nip90:consumer", 
+                  action: "subscription_relays",
+                  label: `Using ${subscriptionRelays.length} DVM relays`,
+                  value: JSON.stringify(subscriptionRelays),
+                })
+                .pipe(Effect.ignoreLogged),
+            );
+
             // Create filters for both result (6xxx) and feedback (7000) events
             const resultFilter: NostrFilter = {
               kinds: Array.from({ length: 1000 }, (_, i) => 6000 + i), // 6000-6999
@@ -645,14 +662,45 @@ export const NIP90ServiceLive = Layer.effect(
               authors: [dvmPubkeyHex],
             };
 
-            // Subscribe to both event types
+            // Log the filters being used for debugging
+            yield* _(
+              telemetry
+                .trackEvent({
+                  category: "nip90:subscription", 
+                  action: "filters_created",
+                  label: jobRequestEventId,
+                  value: `Result: ${JSON.stringify(resultFilter)} | Feedback: ${JSON.stringify(feedbackFilter)}`,
+                })
+                .pipe(Effect.ignoreLogged),
+            );
+
+            // Subscribe to both event types using DVM-specific relays
             const subscription = yield* _(
               nostr.subscribeToEvents(
                 [resultFilter, feedbackFilter],
                 (event) => {
                   try {
+                    // Track that we received an event (CRITICAL for debugging)
+                    Effect.runFork(
+                      Effect.flatMap(TelemetryService, ts => ts.trackEvent({
+                        category: "nip90:subscription",
+                        action: "event_received",
+                        label: event.id,
+                        value: `Kind: ${event.kind} | Job: ${jobRequestEventId} | Author: ${event.pubkey}`,
+                      })).pipe(Effect.provide(getMainRuntime()))
+                    );
                     // Determine if it's a result (6xxx) or feedback (7000) event
                     if (event.kind === 7000) {
+                      // Track Kind 7000 feedback event specifically
+                      Effect.runFork(
+                        Effect.flatMap(TelemetryService, ts => ts.trackEvent({
+                          category: "nip90:subscription",
+                          action: "kind_7000_feedback_received",
+                          label: event.id,
+                          value: `Content: ${event.content.substring(0, 50)}... | Tags: ${JSON.stringify(event.tags)}`,
+                        })).pipe(Effect.provide(getMainRuntime()))
+                      );
+
                       // Process as feedback
                       let feedbackEvent: NIP90JobFeedback = {
                         ...event,
@@ -820,7 +868,20 @@ export const NIP90ServiceLive = Layer.effect(
                     );
                   }
                 },
+                subscriptionRelays, // Use DVM-specific relays
               ),
+            );
+
+            // Track successful subscription creation
+            yield* _(
+              telemetry
+                .trackEvent({
+                  category: "nip90:subscription",
+                  action: "subscription_created_successfully",
+                  label: jobRequestEventId,
+                  value: `Subscribed to ${subscriptionRelays.length} relays for result + feedback events`,
+                })
+                .pipe(Effect.ignoreLogged),
             );
 
             return subscription;

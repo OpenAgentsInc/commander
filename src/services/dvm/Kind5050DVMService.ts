@@ -3,6 +3,7 @@ import { TelemetryService } from "@/services/telemetry";
 import { TrackEventError } from "@/services/telemetry/TelemetryService";
 import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
+import { DVM_RELAYS_ARRAY } from "@/services/relays";
 import type { JobHistoryEntry, JobStatistics } from "@/types/dvm";
 import { OllamaError } from "@/services/ollama";
 import { SparkError } from "@/services/spark";
@@ -75,7 +76,7 @@ export const defaultKind5050DVMServiceConfig: Kind5050DVMServiceConfig = {
   active: false, // Start inactive by default
   dvmPrivateKeyHex: devDvmSkHex, // Use a default development SK
   dvmPublicKeyHex: devDvmPkHex, // Corresponding PK
-  relays: ["wss://relay.damus.io", "wss://relay.nostr.band", "wss://nos.lol"],
+  relays: DVM_RELAYS_ARRAY,
   supportedJobKinds: [5050, 5100], // Support kind 5050 and 5100 for text generation
   defaultTextGenerationJobConfig: {
     model: "gemma2:latest", // Default model for Ollama

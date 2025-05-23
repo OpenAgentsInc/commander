@@ -16,6 +16,7 @@ import { NIP90ProviderConfigTag, type NIP90ProviderConfig } from "@/services/ai/
 import { NIP90Service } from "@/services/nip90";
 import { NostrService } from "@/services/nostr";
 import { NIP04Service } from "@/services/nip04";
+import { SparkService } from "@/services/spark";
 
 export interface PreferredProviderConfig {
   key: string;
@@ -48,6 +49,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
     const nip90Service = yield* _(NIP90Service);
     const nostrService = yield* _(NostrService);
     const nip04Service = yield* _(NIP04Service);
+    const sparkService = yield* _(SparkService);
 
     const runTelemetry = (event: any) => Effect.runFork(telemetry.trackEvent(event).pipe(Effect.ignoreLogged));
 
@@ -100,7 +102,8 @@ export const ChatOrchestratorServiceLive = Layer.effect(
               Layer.provide(Layer.succeed(NIP90Service, nip90Service)),
               Layer.provide(Layer.succeed(NostrService, nostrService)),
               Layer.provide(Layer.succeed(NIP04Service, nip04Service)),
-              Layer.provide(Layer.succeed(TelemetryService, telemetry))
+              Layer.provide(Layer.succeed(TelemetryService, telemetry)),
+              Layer.provide(Layer.succeed(SparkService, sparkService))
             );
             
             const nip90AgentLM: AgentLanguageModel = yield* _(

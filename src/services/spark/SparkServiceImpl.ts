@@ -505,8 +505,11 @@ export const SparkServiceLive = Layer.scoped(
           const result: LightningPayment = {
             payment: {
               id: sdkResult.id || "unknown-id",
-              // The SDK uses paymentPreimage, not paymentHash
-              paymentHash: sdkResult.paymentPreimage || "unknown-hash",
+              // Extract payment hash from the invoice or payment result
+              // Use idempotencyKey as the payment identifier from LightningSendRequest
+              paymentHash: sdkResult.idempotencyKey || 
+                           sdkResult.paymentPreimage || // Fallback to preimage if nothing else
+                           "unknown-hash",
               // Prefer actual amount sent by SDK if available
               amountSats:
                 (sdkResult as any).amount?.originalValue ||
@@ -524,12 +527,15 @@ export const SparkServiceLive = Layer.scoped(
               createdAt: sdkResult.createdAt
                 ? Date.parse(sdkResult.createdAt) / 1000
                 : Math.floor(Date.now() / 1000),
-              // Map actual SDK status to our internal status
-              status: String(sdkResult.status).toUpperCase().includes("SUCCESS")
+              // Determine status based on available SDK fields
+              // If we have a paymentPreimage, the payment succeeded
+              // Use the SDK status field to determine failed state
+              // Otherwise it's pending
+              status: sdkResult.paymentPreimage
                 ? "SUCCESS"
-                : String(sdkResult.status).toUpperCase().includes("PEND")
-                  ? "PENDING"
-                  : "FAILED",
+                : sdkResult.status === "LIGHTNING_PAYMENT_FAILED"
+                  ? "FAILED"
+                  : "PENDING",
               // Prefer specific destination field from SDK if available
               destination:
                 (sdkResult as any).destinationNodePubkey ||
