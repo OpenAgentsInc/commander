@@ -80,7 +80,10 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
           return new AiResponse({
             parts: effectAiResponse.parts
           });
-        })
+        }).pipe(
+          // Provide the Config service to the provider.use() execution context
+          Effect.provideService(OpenAiLanguageModel.Config, modelConfig)
+        )
       ).pipe(
         Effect.mapError((error) => new AiProviderError({
           message: `OpenAI generateText error: ${error instanceof Error ? error.message : String(error)}`,
@@ -110,7 +113,10 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
                 cause: error
               }))
             );
-          })
+          }).pipe(
+            // Provide the Config service to the provider.use() execution context
+            Effect.provideService(OpenAiLanguageModel.Config, modelConfig)
+          )
         )
       ),
 

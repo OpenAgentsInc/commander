@@ -87,7 +87,10 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
           return new AiResponse({
             parts: effectAiResponse.parts
           });
-        })
+        }).pipe(
+          // Provide the Config service to the provider.use() execution context
+          Effect.provideService(OpenAiLanguageModel.Config, modelConfig)
+        )
       ).pipe(
         Effect.mapError((error) =>
           new AiProviderError({
@@ -121,7 +124,10 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
                 })
               )
             );
-          })
+          }).pipe(
+            // Provide the Config service to the provider.use() execution context
+            Effect.provideService(OpenAiLanguageModel.Config, modelConfig)
+          )
         )
       ),
 
