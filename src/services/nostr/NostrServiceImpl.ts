@@ -99,28 +99,38 @@ export const createNostrServiceEffect = Effect.gen(function* (_) {
         const relayConfigs = getRelayConfigs();
         const relayUrls = relayConfigs.map(r => r.url);
         
-        // Use querySync to fetch events with timeout protection
-        const events = yield* _(
-          Effect.tryPromise({
-            try: () =>
-              pool.querySync(relayUrls, filters[0], {
-                maxWait: config.requestTimeoutMs / 2,
-              }),
-            catch: (error) =>
-              new NostrRequestError({
-                message: "Failed to fetch events from relays",
-                cause: error,
-              }),
-          }),
-          Effect.timeout(config.requestTimeoutMs),
-          Effect.mapError((e) => {
-            if (e._tag === "TimeoutException") {
-              return new NostrRequestError({
-                message: `Relay request timed out after ${config.requestTimeoutMs}ms`,
-              });
-            }
-            return e as NostrRequestError;
-          }),
+        // Query each filter separately and combine results
+        const allEvents: NostrEvent[] = [];
+
+        for (const filter of filters) {
+          const events = yield* _(
+            Effect.tryPromise({
+              try: () =>
+                pool.querySync(relayUrls, filter, {
+                  maxWait: config.requestTimeoutMs / 2,
+                }),
+              catch: (error) =>
+                new NostrRequestError({
+                  message: "Failed to fetch events from relays",
+                  cause: error,
+                }),
+            }),
+            Effect.timeout(config.requestTimeoutMs),
+            Effect.mapError((e) => {
+              if (e._tag === "TimeoutException") {
+                return new NostrRequestError({
+                  message: `Relay request timed out after ${config.requestTimeoutMs}ms`,
+                });
+              }
+              return e as NostrRequestError;
+            }),
+          );
+          allEvents.push(...events);
+        }
+
+        // Remove duplicates by event ID
+        const events = Array.from(
+          new Map(allEvents.map(e => [e.id, e])).values()
         );
 
         // Track fetch success via telemetry
