@@ -103,7 +103,7 @@ export function useNip90ConsumerChat({
       ).pipe(Effect.provide(currentRuntime)),
     );
     return () => {
-      activeSubsRef.current.forEach((sub) => sub.unsub());
+      activeSubsRef.current.forEach((sub) => sub.close());
       activeSubsRef.current.clear();
       if (poolRef.current) {
         // poolRef.current.close(DEFAULT_RELAYS); // Consider if closing all relays is always desired
@@ -415,162 +415,189 @@ export function useNip90ConsumerChat({
         },
       ];
 
-      // Use subscribeMany with proper params structure
-      const sub = poolRef.current.subscribeMany(
-        DEFAULT_RELAYS,
-        filters,
-        {
-          onevent: async (event: NostrEvent) => {
-            const currentRuntimeForEvent = getMainRuntime(); // Get fresh runtime for THIS event
-            const telemetryForEvent = Context.get(currentRuntimeForEvent.context, TelemetryService);
-            
+      // Create shared event handler for both subscriptions
+      const handleEvent = async (event: NostrEvent) => {
+        const currentRuntimeForEvent = getMainRuntime();
+        const telemetryForEvent = Context.get(currentRuntimeForEvent.context, TelemetryService);
+        
+        telemetryForEvent.trackEvent({
+          category: "nip90_consumer",
+          action: "job_update_received",
+          label: event.id,
+          value: `Kind: ${event.kind}`,
+        });
+
+        let content = event.content;
+        const isEncrypted = event.tags.some((t) => t[0] === "encrypted");
+
+        if (isEncrypted && nostrPrivateKeyHex) {
+          const resolvedNip04ForEvent = Context.get(currentRuntimeForEvent.context, NIP04Service);
+          const decryptEffect = decryptNip04Content(
+            nostrPrivateKeyHex,
+            event.pubkey,
+            event.content,
+          );
+          const decryptExit = await Effect.runPromiseExit(
+            Effect.provideService(decryptEffect, NIP04Service, resolvedNip04ForEvent)
+          );
+          if (Exit.isSuccess(decryptExit)) {
+            content = decryptExit.value;
+          } else {
+            content = "[Error decrypting DVM response]";
+            const error = Cause.squash(decryptExit.cause);
+            console.error("NIP-04 Decryption error in subscription:", error);
             telemetryForEvent.trackEvent({
               category: "nip90_consumer",
-              action: "job_update_received",
+              action: "nip04_decrypt_error",
               label: event.id,
-              value: `Kind: ${event.kind}`,
-            });
-
-            let content = event.content;
-            const isEncrypted = event.tags.some((t) => t[0] === "encrypted");
-
-            if (isEncrypted && nostrPrivateKeyHex) {
-              const resolvedNip04ForEvent = Context.get(currentRuntimeForEvent.context, NIP04Service);
-              const decryptEffect = decryptNip04Content(
-                nostrPrivateKeyHex,
-                event.pubkey,
-                event.content,
-              );
-              const decryptExit = await Effect.runPromiseExit(
-                Effect.provideService(decryptEffect, NIP04Service, resolvedNip04ForEvent)
-              );
-              if (Exit.isSuccess(decryptExit)) {
-                content = decryptExit.value;
-              } else {
-                content = "[Error decrypting DVM response]";
-                const error = Cause.squash(decryptExit.cause);
-                console.error("NIP-04 Decryption error in subscription:", error);
-                telemetryForEvent.trackEvent({
-                  category: "nip90_consumer",
-                  action: "nip04_decrypt_error",
-                  label: event.id,
-                  value: error instanceof Error ? error.message : "Unknown error",
-                });
-              }
-            }
-
-            const dvmAuthor = `DVM (${event.pubkey.substring(0, 6)}...)`;
-            if (event.kind === 7000) {
-              const statusTag = event.tags.find((t) => t[0] === "status");
-              const status = statusTag ? statusTag[1] : "update";
-              const extraInfo =
-                statusTag && statusTag.length > 2 ? statusTag[2] : "";
-              
-              // Handle payment-required status
-              if (status === "payment-required") {
-                const amountTag = event.tags.find((t) => t[0] === "amount");
-                if (amountTag && amountTag[2]) {  // FIX: Invoice is at position 2, not 1!
-                  const amountMillisats = amountTag[1];
-                  const invoice = amountTag[2];  // FIX: Get invoice from correct position
-                  // Convert millisats to sats
-                  const amountSats = Math.ceil(parseInt(amountMillisats) / 1000);
-                  
-                  setPaymentState({
-                    required: true,
-                    invoice,
-                    amountSats,
-                    status: 'pending',
-                    jobId: signedEvent.id
-                  });
-                  
-                  addMessage(
-                    "system",
-                    `Payment required: ${amountSats} sats. Auto-paying invoice...`,
-                    "System",
-                  );
-                  
-                  telemetryForEvent.trackEvent({
-                    category: "nip90_consumer",
-                    action: "payment_required",
-                    label: signedEvent.id,
-                    value: amountSats.toString(),
-                  });
-
-                  // AUTO-PAY: Automatically pay small amounts (under 10 sats)
-                  if (amountSats <= 10) {
-                    addMessage(
-                      "system",
-                      `Auto-paying ${amountSats} sats (auto-approval enabled for small amounts)...`,
-                      "System",
-                    );
-                    
-                    telemetryForEvent.trackEvent({
-                      category: "nip90_consumer",
-                      action: "auto_payment_triggered",
-                      label: signedEvent.id,
-                      value: `${amountSats} sats`,
-                    });
-
-                    // Trigger payment immediately
-                    handlePayment(invoice, signedEvent.id);
-                  }
-                } else {
-                  addMessage(
-                    "system",
-                    "Payment required but no invoice provided by DVM",
-                    "System",
-                  );
-                }
-              } else {
-                addMessage(
-                  "system",
-                  `Status from ${dvmAuthor}: ${status} ${extraInfo ? `- ${extraInfo}` : ""} ${content ? `- ${content}` : ""}`.trim(),
-                  "System",
-                );
-              }
-              
-              if (status === "error" || status === "success") {
-                setIsLoading(false);
-                setPaymentState({ required: false, status: 'none' });
-                if (activeSubsRef.current.has(signedEvent.id)) {
-                  activeSubsRef.current.get(signedEvent.id)?.close();
-                  activeSubsRef.current.delete(signedEvent.id);
-                }
-              }
-            } else if (event.kind >= 6000 && event.kind <= 6999) {
-              // Job result
-              const amountTag = event.tags.find((t) => t[0] === "amount");
-              let paymentInfo = "";
-              if (amountTag) {
-                const msats = amountTag[1];
-                const invoice = amountTag[2];
-                paymentInfo = `\n💰 Payment: ${msats} msats. ${invoice ? `Invoice: ${invoice.substring(0, 15)}...` : ""}`;
-              }
-              addMessage(
-                "assistant",
-                `${content}${paymentInfo}`,
-                dvmAuthor,
-                event.id,
-              );
-              setIsLoading(false);
-              if (activeSubsRef.current.has(signedEvent.id)) {
-                activeSubsRef.current.get(signedEvent.id)?.close();
-                activeSubsRef.current.delete(signedEvent.id);
-              }
-            }
-          },
-          oneose: () => {
-            const currentRuntimeForEose = getMainRuntime();
-            const telemetryForEose = Context.get(currentRuntimeForEose.context, TelemetryService);
-            telemetryForEose.trackEvent({
-              category: "nip90_consumer",
-              action: "subscription_eose",
-              label: `EOSE for job ${signedEvent.id}`,
+              value: error instanceof Error ? error.message : "Unknown error",
             });
           }
         }
+
+        const dvmAuthor = `DVM (${event.pubkey.substring(0, 6)}...)`;
+        if (event.kind === 7000) {
+          const statusTag = event.tags.find((t) => t[0] === "status");
+          const status = statusTag ? statusTag[1] : "update";
+          const extraInfo =
+            statusTag && statusTag.length > 2 ? statusTag[2] : "";
+          
+          // Handle payment-required status
+          if (status === "payment-required") {
+            const amountTag = event.tags.find((t) => t[0] === "amount");
+            if (amountTag && amountTag[2]) {  // FIX: Invoice is at position 2, not 1!
+              const amountMillisats = amountTag[1];
+              const invoice = amountTag[2];  // FIX: Get invoice from correct position
+              // Convert millisats to sats
+              const amountSats = Math.ceil(parseInt(amountMillisats) / 1000);
+              
+              setPaymentState({
+                required: true,
+                invoice,
+                amountSats,
+                status: 'pending',
+                jobId: signedEvent.id
+              });
+              
+              addMessage(
+                "system",
+                `Payment required: ${amountSats} sats. Auto-paying invoice...`,
+                "System",
+              );
+              
+              telemetryForEvent.trackEvent({
+                category: "nip90_consumer",
+                action: "payment_required",
+                label: signedEvent.id,
+                value: amountSats.toString(),
+              });
+
+              // AUTO-PAY: Automatically pay small amounts (under 10 sats)
+              if (amountSats <= 10) {
+                addMessage(
+                  "system",
+                  `Auto-paying ${amountSats} sats (auto-approval enabled for small amounts)...`,
+                  "System",
+                );
+                
+                telemetryForEvent.trackEvent({
+                  category: "nip90_consumer",
+                  action: "auto_payment_triggered",
+                  label: signedEvent.id,
+                  value: `${amountSats} sats`,
+                });
+
+                // Trigger payment immediately
+                handlePayment(invoice, signedEvent.id);
+              }
+            } else {
+              addMessage(
+                "system",
+                "Payment required but no invoice provided by DVM",
+                "System",
+              );
+            }
+          } else {
+            addMessage(
+              "system",
+              `Status from ${dvmAuthor}: ${status} ${extraInfo ? `- ${extraInfo}` : ""} ${content ? `- ${content}` : ""}`.trim(),
+              "System",
+            );
+          }
+          
+          if (status === "error" || status === "success") {
+            setIsLoading(false);
+            setPaymentState({ required: false, status: 'none' });
+            if (activeSubsRef.current.has(signedEvent.id)) {
+              const resultSub = activeSubsRef.current.get(signedEvent.id + "_result");
+              const feedbackSub = activeSubsRef.current.get(signedEvent.id + "_feedback");
+              resultSub?.close();
+              feedbackSub?.close();
+              activeSubsRef.current.delete(signedEvent.id + "_result");
+              activeSubsRef.current.delete(signedEvent.id + "_feedback");
+            }
+          }
+        } else if (event.kind >= 6000 && event.kind <= 6999) {
+          // Job result
+          const amountTag = event.tags.find((t) => t[0] === "amount");
+          let paymentInfo = "";
+          if (amountTag) {
+            const msats = amountTag[1];
+            const invoice = amountTag[2];
+            paymentInfo = `\n💰 Payment: ${msats} msats. ${invoice ? `Invoice: ${invoice.substring(0, 15)}...` : ""}`;
+          }
+          addMessage(
+            "assistant",
+            `${content}${paymentInfo}`,
+            dvmAuthor,
+            event.id,
+          );
+          setIsLoading(false);
+          if (activeSubsRef.current.has(signedEvent.id)) {
+            const resultSub = activeSubsRef.current.get(signedEvent.id + "_result");
+            const feedbackSub = activeSubsRef.current.get(signedEvent.id + "_feedback");
+            resultSub?.close();
+            feedbackSub?.close();
+            activeSubsRef.current.delete(signedEvent.id + "_result");
+            activeSubsRef.current.delete(signedEvent.id + "_feedback");
+          }
+        }
+      };
+
+      const handleEose = (subscriptionType: string) => {
+        const currentRuntimeForEose = getMainRuntime();
+        const telemetryForEose = Context.get(currentRuntimeForEose.context, TelemetryService);
+        telemetryForEose.trackEvent({
+          category: "nip90_consumer",
+          action: "subscription_eose",
+          label: `EOSE for job ${signedEvent.id} (${subscriptionType})`,
+        });
+      };
+
+      // Use separate subscribe() calls for each filter (matching NostrServiceImpl pattern)
+      // Subscribe to job results (kind 6xxx)
+      const resultSub = poolRef.current.subscribe(
+        DEFAULT_RELAYS,
+        filters[0], // Result filter
+        {
+          onevent: handleEvent,
+          oneose: () => handleEose("result")
+        }
       );
-      activeSubsRef.current.set(signedEvent.id, sub);
+      
+      // Subscribe to job feedback (kind 7000)
+      const feedbackSub = poolRef.current.subscribe(
+        DEFAULT_RELAYS,
+        filters[1], // Feedback filter  
+        {
+          onevent: handleEvent,
+          oneose: () => handleEose("feedback")
+        }
+      );
+      
+      // Store both subscriptions for cleanup
+      activeSubsRef.current.set(signedEvent.id + "_result", resultSub);
+      activeSubsRef.current.set(signedEvent.id + "_feedback", feedbackSub);
     } catch (error: any) {
       addMessage(
         "system",
