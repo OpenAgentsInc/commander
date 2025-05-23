@@ -84,7 +84,7 @@ export const defaultKind5050DVMServiceConfig: Kind5050DVMServiceConfig = {
     top_k: 40,
     top_p: 0.9,
     frequency_penalty: 0.5,
-    minPriceSats: 10, // Minimum sats for any job
+    minPriceSats: 3, // Minimum sats for any job
     pricePer1kTokens: 2, // e.g., 2 sats per 1000 tokens
   },
 };

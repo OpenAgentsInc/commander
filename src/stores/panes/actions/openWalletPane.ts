@@ -28,8 +28,8 @@ export function openWalletPaneAction(set: SetPaneStore) {
       type: "wallet",
       title: WALLET_PANE_TITLE,
       dismissable: true,
-      width: 450, // Default width for wallet pane
-      height: 550, // Default height for wallet pane
+      width: 500, // Default width for wallet pane
+      height: 600, // Default height for wallet pane
     };
     const changes = addPaneActionLogic(state, newPaneInput, true); // true for tiling
     return { ...state, ...changes };
