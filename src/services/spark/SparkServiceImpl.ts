@@ -48,6 +48,11 @@ export const SparkServiceLive = Layer.scoped(
     const sparkConfig = yield* _(SparkServiceConfigTag);
     const telemetry = yield* _(TelemetryService);
 
+    const mnemonicStr = typeof sparkConfig.mnemonicOrSeed === 'string' 
+      ? sparkConfig.mnemonicOrSeed 
+      : 'seed_buffer';
+    console.log(`[SparkService] Initializing with mnemonic: ${mnemonicStr.substring(0, 10)}...`);
+
     // Track wallet initialization start in telemetry
     yield* _(
       telemetry.trackEvent({

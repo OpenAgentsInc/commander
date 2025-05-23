@@ -18,6 +18,11 @@ import {
 // Create a client
 const queryClient = new QueryClient();
 
+// Make queryClient available globally for wallet reinitialization
+if (typeof window !== 'undefined') {
+  (window as any).__queryClient = queryClient;
+}
+
 // Check if wallet setup is needed and handle it outside of the component render cycle
 // This completely removes the store access from the component rendering
 let hasCheckedWalletSetup = false;

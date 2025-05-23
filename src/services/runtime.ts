@@ -72,7 +72,7 @@ export type FullAppContext =
 let mainRuntimeInstance: Runtime.Runtime<FullAppContext>;
 
 // Function to build all layers - can be called with updated configuration
-function buildFullAppLayer() {
+export function buildFullAppLayer() {
   // Compose individual services with their direct dependencies
   const telemetryLayer = TelemetryServiceLive.pipe(
     Layer.provide(DefaultTelemetryConfigLayer),
@@ -100,11 +100,14 @@ function buildFullAppLayer() {
   );
 
   // Create SparkService layer with user's mnemonic if available
+  const userMnemonic = globalWalletConfig.mnemonic || "test test test test test test test test test test test junk";
+  console.log(`[Runtime] Building SparkService layer with mnemonic: ${userMnemonic.substring(0, 10)}...`);
+  
   const sparkConfigLayer = Layer.succeed(
     SparkServiceConfigTag,
     {
       network: "MAINNET",
-      mnemonicOrSeed: globalWalletConfig.mnemonic || "test test test test test test test test test test test junk",
+      mnemonicOrSeed: userMnemonic,
       accountNumber: 2,
       sparkSdkOptions: {
         // The SDK will use its built-in MAINNET endpoints

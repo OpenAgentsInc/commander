@@ -39,7 +39,6 @@ import ViewSeedPhraseDialog from "./ViewSeedPhraseDialog";
 import LogoutWarningDialog from "./LogoutWarningDialog";
 
 const WalletPane: React.FC = () => {
-  const runtime = getMainRuntime();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("balance");
 
@@ -63,6 +62,7 @@ const WalletPane: React.FC = () => {
   } = useQuery<BalanceInfo, Error>({
     queryKey: ["walletBalance"],
     queryFn: async () => {
+      const runtime = getMainRuntime(); // Get fresh runtime each time
       const program = Effect.flatMap(SparkService, (s) => s.getBalance());
       const exitResult = await Effect.runPromiseExit(
         Effect.provide(program, runtime),
@@ -88,6 +88,7 @@ const WalletPane: React.FC = () => {
     CreateLightningInvoiceParams
   >({
     mutationFn: async (params) => {
+      const runtime = getMainRuntime(); // Get fresh runtime each time
       const program = Effect.flatMap(SparkService, (s) =>
         s.createLightningInvoice(params),
       );
@@ -107,7 +108,7 @@ const WalletPane: React.FC = () => {
               action: "generate_invoice_success",
             }),
           ),
-          runtime,
+          getMainRuntime(),
         ),
       );
     },
@@ -121,7 +122,7 @@ const WalletPane: React.FC = () => {
               label: error.message,
             }),
           ),
-          runtime,
+          getMainRuntime(),
         ),
       ),
   });
@@ -149,6 +150,7 @@ const WalletPane: React.FC = () => {
     PayLightningInvoiceParams
   >({
     mutationFn: async (params) => {
+      const runtime = getMainRuntime(); // Get fresh runtime each time
       const program = Effect.flatMap(SparkService, (s) =>
         s.payLightningInvoice(params),
       );
@@ -170,7 +172,7 @@ const WalletPane: React.FC = () => {
               label: data.payment.status,
             }),
           ),
-          runtime,
+          getMainRuntime(),
         ),
       );
       refetchBalance();
@@ -188,7 +190,7 @@ const WalletPane: React.FC = () => {
               label: error.message,
             }),
           ),
-          runtime,
+          getMainRuntime(),
         ),
       );
     },
@@ -212,6 +214,7 @@ const WalletPane: React.FC = () => {
   const [copiedAddress, setCopiedAddress] = useState(false);
   const generateAddressMutation = useMutation<string, Error>({
     mutationFn: async () => {
+      const runtime = getMainRuntime(); // Get fresh runtime each time
       const program = Effect.flatMap(SparkService, (s) =>
         s.getSingleUseDepositAddress(),
       );
@@ -231,7 +234,7 @@ const WalletPane: React.FC = () => {
               action: "generate_deposit_address_success",
             }),
           ),
-          runtime,
+          getMainRuntime(),
         ),
       );
     },
@@ -245,7 +248,7 @@ const WalletPane: React.FC = () => {
               label: error.message,
             }),
           ),
-          runtime,
+          getMainRuntime(),
         ),
       ),
   });
@@ -272,9 +275,9 @@ const WalletPane: React.FC = () => {
           category: "ui:pane",
           action: "open_wallet_pane",
         }),
-      ).pipe(Effect.provide(runtime)),
+      ).pipe(Effect.provide(getMainRuntime())),
     );
-  }, [runtime]);
+  }, []);
 
   return (
     <div className="flex h-full flex-col p-1 text-sm">

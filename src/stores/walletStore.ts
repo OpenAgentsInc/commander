@@ -175,6 +175,11 @@ export const useWalletStore = create<WalletState & WalletActions>()(
         // This will create a new SparkService with the user's mnemonic
         await reinitializeRuntime();
 
+        // Invalidate all queries to force refetch with new runtime
+        if (typeof window !== 'undefined' && (window as any).__queryClient) {
+          (window as any).__queryClient.invalidateQueries();
+        }
+
         // For this implementation, we're simulating the service initialization
         await new Promise((r) => setTimeout(r, 500)); // Simulate async initialization
         console.log("WalletStore: Services initialized.");
