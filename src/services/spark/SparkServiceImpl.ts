@@ -506,9 +506,8 @@ export const SparkServiceLive = Layer.scoped(
             payment: {
               id: sdkResult.id || "unknown-id",
               // Extract payment hash from the invoice or payment result
-              // The SDK might provide it in different fields
-              paymentHash: sdkResult.paymentHash || 
-                           (sdkResult as any).hash ||
+              // Use idempotencyKey as the payment identifier from LightningSendRequest
+              paymentHash: sdkResult.idempotencyKey || 
                            sdkResult.paymentPreimage || // Fallback to preimage if nothing else
                            "unknown-hash",
               // Prefer actual amount sent by SDK if available
@@ -530,11 +529,11 @@ export const SparkServiceLive = Layer.scoped(
                 : Math.floor(Date.now() / 1000),
               // Determine status based on available SDK fields
               // If we have a paymentPreimage, the payment succeeded
-              // If we have an error, it failed
+              // Use the SDK status field to determine failed state
               // Otherwise it's pending
               status: sdkResult.paymentPreimage
                 ? "SUCCESS"
-                : sdkResult.error || (sdkResult as any).failure
+                : sdkResult.status === "LIGHTNING_PAYMENT_FAILED"
                   ? "FAILED"
                   : "PENDING",
               // Prefer specific destination field from SDK if available
