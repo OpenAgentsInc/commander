@@ -188,6 +188,7 @@ export function buildFullAppLayer() {
         nip90Layer,                  // For NIP90Service
         nostrLayer,                  // For NostrService
         nip04Layer,                  // For NIP04Service
+        sparkLayer,                  // For SparkService
         ollamaLanguageModelLayer,    // For default AgentLanguageModel.Tag
       ),
     ),
