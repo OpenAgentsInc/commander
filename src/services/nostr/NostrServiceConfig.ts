@@ -26,9 +26,12 @@ export const NostrServiceConfigLive = Layer.succeed(
   {
     relays: [], // Legacy - use relayConfigs instead
     relayConfigs: [
-      { url: "wss://nos.lol" }, // No PoW required
-      { url: "wss://relay.damus.io", powRequirement: 28 }, // Requires 28-bit PoW
-      { url: "wss://relay.nostr.band", powRequirement: 28 }, // Requires 28-bit PoW
+      { url: "wss://nostr.mom" }, // Public relay, no PoW
+      { url: "wss://relay.primal.net" }, // Primal's public relay, no PoW
+      { url: "wss://offchain.pub" }, // Public relay, no PoW
+      // { url: "wss://nos.lol" }, // Unexpectedly requires PoW now
+      // { url: "wss://relay.damus.io", powRequirement: 28 }, // Requires 28-bit PoW
+      // { url: "wss://relay.nostr.band", powRequirement: 28 }, // Requires 28-bit PoW
     ],
     defaultPublicKey: undefined,
     defaultPrivateKey: undefined,
