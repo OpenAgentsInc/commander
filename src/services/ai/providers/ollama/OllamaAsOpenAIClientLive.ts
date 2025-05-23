@@ -32,53 +32,37 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
   Effect.gen(function* (_) {
     const telemetry = yield* _(TelemetryService);
 
-    // Check if the Ollama IPC bridge is available
-    if (
-      !window.electronAPI?.ollama?.generateChatCompletion ||
-      !window.electronAPI?.ollama?.generateChatCompletionStream
-    ) {
-      const errorMsg =
-        "Ollama IPC bridge (window.electronAPI.ollama functions) is not fully available.";
-      yield* _(
-        telemetry
-          .trackEvent({
-            category: "ollama_adapter:error",
-            action: "ipc_unavailable",
-            label: errorMsg,
-          })
-          .pipe(Effect.ignoreLogged),
-      );
+    // Helper to check IPC availability lazily
+    const checkIPC = () => {
+      if (typeof window === 'undefined' || 
+          !window.electronAPI?.ollama?.generateChatCompletion ||
+          !window.electronAPI?.ollama?.generateChatCompletionStream) {
+        return null;
+      }
+      return window.electronAPI.ollama;
+    };
 
-      return yield* _(
-        Effect.die(
-          new AiProviderError({
-            message: errorMsg,
-            provider: "Ollama",
-            isRetryable: false,
-          }),
-        ),
+    // Helper to create IPC unavailable error
+    const createIPCError = (operation: string) => {
+      const request = HttpClientRequest.post(`ollama-ipc-${operation}`);
+      const webResponse = new Response(
+        JSON.stringify({ 
+          error: "Ollama IPC bridge not available",
+          details: "The Electron IPC bridge for Ollama is not available in the current environment"
+        }), 
+        { status: 503 } // Service Unavailable
       );
-    }
-
-    const ollamaIPC = window.electronAPI.ollama;
+      return new HttpClientError.ResponseError({
+        request,
+        response: HttpClientResponse.fromWeb(request, webResponse),
+        reason: "StatusCode",
+        description: `Ollama IPC not available for ${operation}`,
+      });
+    };
 
     // Helper function to generate stub implementations for all the required methods
     const stubMethod = (methodName: string) => {
-      const request = HttpClientRequest.get(`ollama-ipc-${methodName}`);
-      const webResponse = new Response(null, { status: 501 });
-      return Effect.fail(
-        new HttpClientError.ResponseError({
-          request,
-          response: HttpClientResponse.fromWeb(request, webResponse),
-          reason: "StatusCode",
-          cause: new AiProviderError({
-            message: `Not implemented in Ollama adapter: ${methodName}`,
-            provider: "Ollama",
-            isRetryable: false,
-          }),
-          description: `OllamaAdapter: ${methodName} not implemented`,
-        })
-      );
+      return Effect.fail(createIPCError(methodName));
     };
 
     // Implement the OpenAiClient interface
@@ -87,7 +71,12 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
       client: {
         createChatCompletion: (
           options: typeof CreateChatCompletionRequest.Encoded,
-        ): Effect.Effect<typeof CreateChatCompletionResponse.Type, HttpClientError.HttpClientError | ParseError> => {
+        ): Effect.Effect<typeof CreateChatCompletionResponse.Type, HttpClientError.HttpClientError | ParseError> => 
+          Effect.suspend(() => {
+            const ollamaIPC = checkIPC();
+            if (!ollamaIPC) {
+              return Effect.fail(createIPCError("createChatCompletion"));
+            }
           // Map the library's 'options' to the structure expected by your IPC call
           const ipcParams = {
             model: options.model,
@@ -242,7 +231,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
               });
             },
           });
-        },
+          }),
 
         // Chat Completion CRUD methods (missing from original implementation)
         listChatCompletions: (_options: any) => stubMethod("listChatCompletions"),
@@ -423,13 +412,18 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
       },
 
       // Top-level stream method for streaming chat completions
-      stream: (params: StreamCompletionRequest) => {
+      stream: (params: StreamCompletionRequest) => 
+        Stream.suspend(() => {
+          const ollamaIPC = checkIPC();
+          if (!ollamaIPC) {
+            return Stream.fail(createIPCError("stream"));
+          }
         // Ensure stream parameter is set to true
         const streamingParams = { ...params, stream: true };
 
         console.log(`[OllamaAsOpenAIClientLive] Starting stream for ${params.model} with params:`, JSON.stringify(streamingParams, null, 2));
 
-        return Stream.async<AiResponse.AiResponse, HttpClientError.HttpClientError>(
+          return Stream.async<AiResponse.AiResponse, HttpClientError.HttpClientError>(
           (emit) => {
             Effect.runFork(
               telemetry.trackEvent({
@@ -590,7 +584,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
             });
           },
         );
-      },
+        }),
 
       // streamRequest method (can be a stub if not needed)
       streamRequest: <A>(_request: HttpClientRequest.HttpClientRequest) => {
