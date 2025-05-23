@@ -22,6 +22,7 @@ import {
   NIP19DecodeError,
 } from "@/services/nip19";
 import { SparkService } from "@/services/spark";
+import { getMainRuntime } from "@/services/runtime";
 
 interface PaymentState {
   required: boolean;
@@ -36,7 +37,6 @@ interface UseNip90ConsumerChatParams {
   nostrPrivateKeyHex: string | null;
   nostrPublicKeyHex: string | null;
   targetDvmPubkeyHex?: string; // This prop will now be treated as explicitly hex OR npub
-  runtime: Runtime.Runtime<TelemetryService | NIP19Service | NIP04Service | SparkService>;
 }
 
 const DEFAULT_RELAYS = [
@@ -49,7 +49,6 @@ export function useNip90ConsumerChat({
   nostrPrivateKeyHex,
   nostrPublicKeyHex,
   targetDvmPubkeyHex: initialTargetDvmInput, // Renamed to avoid confusion
-  runtime,
 }: UseNip90ConsumerChatParams) {
   const [messages, setMessages] = useState<ChatMessageProps[]>([]);
   const [isLoading, setIsLoading] = useState(false);
