@@ -5,7 +5,8 @@ import { Effect } from "effect";
 import { BIP39Service } from "@/services/bip39";
 // Import SparkService for initialization
 import { SparkService } from "@/services/spark";
-import { getMainRuntime } from "@/services/runtime";
+import { getMainRuntime, reinitializeRuntime } from "@/services/runtime";
+import { globalWalletConfig } from "@/services/walletConfig";
 
 interface WalletState {
   seedPhrase: string | null;
@@ -137,14 +138,21 @@ export const useWalletStore = create<WalletState & WalletActions>()(
         console.log(
           "Logging out, clearing seed phrase and initialization state.",
         );
+        
+        // Clear the global wallet configuration
+        globalWalletConfig.mnemonic = null;
+        
         set({
           seedPhrase: null,
           isInitialized: false,
           isLoading: false,
           error: null,
         });
+        
         // Note: In a production app, you would also need to reinitialize services
         // or trigger a full app reload to ensure clean state
+        // For now, the SparkService will continue using the last mnemonic until
+        // the runtime is reinitialized or the app is restarted
       },
 
       setHasSeenSelfCustodyNotice: () => {
@@ -156,16 +164,16 @@ export const useWalletStore = create<WalletState & WalletActions>()(
       },
 
       _initializeServices: async (mnemonic: string) => {
-        // This is a conceptual placeholder. The actual implementation would need to
-        // reinitialize the runtime or modify the SparkService config layer.
         console.log(
           `WalletStore: Initializing services with mnemonic starting with: ${mnemonic.substring(0, 5)}...`,
         );
 
-        // In a full implementation, we would need to:
-        // 1. Create a new SparkServiceConfig with the provided mnemonic
-        // 2. Create a new runtime with updated layers (or modify existing layers)
-        // 3. Replace the current runtime or update service implementations
+        // Update the global wallet configuration
+        globalWalletConfig.mnemonic = mnemonic;
+        
+        // Reinitialize the runtime with the new mnemonic
+        // This will create a new SparkService with the user's mnemonic
+        await reinitializeRuntime();
 
         // For this implementation, we're simulating the service initialization
         await new Promise((r) => setTimeout(r, 500)); // Simulate async initialization

@@ -62,9 +62,9 @@ export const DefaultSparkServiceConfigLayer = Layer.succeed(
       "test test test test test test test test test test test junk", // Development only
     accountNumber: 2, // Must be ≥ 2 per SDK validation
     sparkSdkOptions: {
-      // Use sensible defaults for local development - will populate from SDK examination
-      grpcUrl: "http://localhost:8080",
-      authToken: "dev_token",
+      // The SDK will use its built-in MAINNET endpoints when these are not specified
+      // grpcUrl: "http://localhost:8080",  // Uncomment for local development
+      // authToken: "dev_token",             // Uncomment for local development
     },
   },
 );

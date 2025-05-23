@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { QRCodeSVG } from "qrcode.react";
+import QRCode from "react-qr-code";
 import { Effect, Exit, Cause } from "effect";
 import {
   SparkService,
@@ -400,7 +400,7 @@ const WalletPane: React.FC = () => {
                       {generatedInvoice && (
                         <div className="border-primary/50 bg-primary/10 mt-2 space-y-1 rounded-md border border-dashed p-2">
                           <div className="my-1 flex justify-center">
-                            <QRCodeSVG
+                            <QRCode
                               value={generatedInvoice.invoice.encodedInvoice}
                               size={112}
                               level="M"
@@ -540,7 +540,7 @@ const WalletPane: React.FC = () => {
                       {depositAddress && (
                         <div className="border-primary/50 bg-primary/10 mt-2 space-y-1 rounded-md border border-dashed p-2">
                           <div className="my-1 flex justify-center">
-                            <QRCodeSVG
+                            <QRCode
                               value={depositAddress}
                               size={112}
                               level="M"

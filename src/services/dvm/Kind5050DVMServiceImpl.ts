@@ -177,6 +177,17 @@ export const Kind5050DVMServiceLive = Layer.scoped(
       config.dvmPublicKeyHex;
     // Use more specific typing for the fiber
     let invoiceCheckFiber: Fiber.RuntimeFiber<number, never> | null = null;
+    
+    // Track pending jobs awaiting payment
+    interface PendingJob {
+      requestEvent: NostrEvent;
+      invoice: string;
+      amountSats: number;
+      createdAt: number;
+      prompt: string;
+      isEncrypted: boolean;
+    }
+    const pendingJobs = new Map<string, PendingJob>(); // jobId -> pending job info
 
     // Track service initialization
     yield* _(
@@ -474,9 +485,117 @@ export const Kind5050DVMServiceLive = Layer.scoped(
             .pipe(Effect.ignoreLogged),
         );
 
+        // Check our in-memory pending jobs
+        const pendingJobsArray = Array.from(pendingJobs.entries());
+        
+        if (pendingJobsArray.length === 0) {
+          yield* _(
+            localTelemetry
+              .trackEvent({
+                category: "dvm:payment_check",
+                action: "no_pending_jobs",
+              })
+              .pipe(Effect.ignoreLogged),
+          );
+          return;
+        }
+
+        yield* _(
+          localTelemetry
+            .trackEvent({
+              category: "dvm:payment_check",
+              action: "checking_pending_jobs",
+              value: `${pendingJobsArray.length} jobs`,
+            })
+            .pipe(Effect.ignoreLogged),
+        );
+
+        // Check each pending job's invoice status
+        for (const [jobId, pendingJob] of pendingJobsArray) {
+          const invoiceStatus = yield* _(
+            localSpark.checkInvoiceStatus(pendingJob.invoice).pipe(
+              Effect.mapError(
+                (e) =>
+                  new DVMPaymentError({
+                    message: `Failed to check invoice status for job ${jobId}`,
+                    cause: e,
+                  }),
+              ),
+            ),
+          );
+
+          if (invoiceStatus.status === "paid") {
+            yield* _(
+              localTelemetry
+                .trackEvent({
+                  category: "dvm:payment",
+                  action: "invoice_paid",
+                  label: jobId,
+                  value: `${pendingJob.amountSats} sats`,
+                })
+                .pipe(Effect.ignoreLogged),
+            );
+
+            // Process the paid job
+            yield* _(
+              processPaidJob(pendingJob).pipe(
+                Effect.catchAll((error) =>
+                  Effect.gen(function* (_) {
+                    // Send error feedback
+                    const errorFeedback = createNip90FeedbackEvent(
+                      useDVMSettingsStore.getState().getEffectiveConfig().dvmPrivateKeyHex,
+                      pendingJob.requestEvent,
+                      "error",
+                      `Failed to process job: ${error.message}`,
+                    );
+                    yield* _(publishFeedback(errorFeedback));
+                    
+                    // Remove from pending
+                    pendingJobs.delete(jobId);
+                    
+                    yield* _(
+                      localTelemetry
+                        .trackEvent({
+                          category: "dvm:error",
+                          action: "paid_job_processing_failed",
+                          label: jobId,
+                          value: error.message,
+                        })
+                        .pipe(Effect.ignoreLogged),
+                    );
+                  }),
+                ),
+              ),
+            );
+          } else if (invoiceStatus.status === "expired") {
+            // Remove expired jobs
+            pendingJobs.delete(jobId);
+            
+            // Send expiry feedback
+            const expiredFeedback = createNip90FeedbackEvent(
+              useDVMSettingsStore.getState().getEffectiveConfig().dvmPrivateKeyHex,
+              pendingJob.requestEvent,
+              "error",
+              "Payment invoice expired",
+            );
+            yield* _(publishFeedback(expiredFeedback));
+            
+            yield* _(
+              localTelemetry
+                .trackEvent({
+                  category: "dvm:payment",
+                  action: "invoice_expired",
+                  label: jobId,
+                })
+                .pipe(Effect.ignoreLogged),
+            );
+          }
+          // If still pending, leave it in the map for next check
+        }
+
+        // Also check history for backward compatibility
         const historyResult = yield* _(
           getJobHistory({ page: 1, pageSize: 500 }).pipe(
-            // Use the real getJobHistory
             Effect.provideService(TelemetryService, localTelemetry),
             Effect.provideService(NostrService, localNostr),
           ),
@@ -592,7 +711,8 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         );
       });
 
-    const processJobRequestInternal = (
+    // Legacy method - processes job immediately without payment
+    const processJobRequestInternalLegacy = (
       jobRequestEvent: NostrEvent,
     ): Effect.Effect<void, DVMError, never> =>
       Effect.gen(function* (_) {
@@ -768,7 +888,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
 
         const invoiceParams: CreateLightningInvoiceParams = {
           amountSats: priceSats,
-          memo: `NIP-90 Job: ${jobRequestEvent.id.substring(0, 8)}`,
+          memo: `NIP-90 DVM Job ${jobRequestEvent.id.substring(0, 8)} | Kind: ${jobRequestEvent.kind} | Tokens: ${totalTokens} | ${isRequestEncrypted ? 'Encrypted' : 'Plain'}`,
         };
         const invoiceResult = yield* _(
           spark
@@ -860,6 +980,337 @@ export const Kind5050DVMServiceLive = Layer.scoped(
               category: "dvm:job",
               action: "job_result_published",
               label: `Job ID: ${jobRequestEvent.id}`,
+              value: jobResultEvent.id,
+            })
+            .pipe(Effect.ignoreLogged),
+        );
+      });
+
+    /**
+     * New payment-first job processing
+     * 1. Generate invoice first
+     * 2. Send payment-required feedback  
+     * 3. Store job in pending map
+     * 4. Process with AI only after payment confirmed
+     */
+    const processJobRequestInternal = (
+      jobRequestEvent: NostrEvent,
+    ): Effect.Effect<void, DVMError, never> =>
+      Effect.gen(function* (_) {
+        const effectiveConfig = useDVMSettingsStore
+          .getState()
+          .getEffectiveConfig();
+        const dvmPrivateKeyHex = effectiveConfig.dvmPrivateKeyHex;
+        const textGenConfig = effectiveConfig.defaultTextGenerationJobConfig;
+
+        yield* _(
+          telemetry
+            .trackEvent({
+              category: "dvm:job",
+              action: "job_request_received",
+              label: jobRequestEvent.id,
+              value: `Kind: ${jobRequestEvent.kind}`,
+            })
+            .pipe(Effect.ignoreLogged),
+        );
+
+        // First, parse the request to get the prompt
+        let inputsSource = jobRequestEvent.tags;
+        let isRequestEncrypted = false;
+
+        if (jobRequestEvent.tags.some((t) => t[0] === "encrypted")) {
+          isRequestEncrypted = true;
+          const dvmSkBytes = hexToBytes(dvmPrivateKeyHex);
+          const decryptedContentStr = yield* _(
+            nip04
+              .decrypt(
+                dvmSkBytes,
+                jobRequestEvent.pubkey,
+                jobRequestEvent.content,
+              )
+              .pipe(
+                Effect.mapError(
+                  (e) =>
+                    new DVMJobRequestError({
+                      message: "Failed to decrypt NIP-90 request content",
+                      cause: e,
+                    }),
+                ),
+              ),
+          );
+          try {
+            inputsSource = JSON.parse(decryptedContentStr) as Array<
+              [string, ...string[]]
+            >;
+          } catch (e) {
+            return yield* _(
+              Effect.fail(
+                new DVMJobRequestError({
+                  message: "Failed to parse decrypted JSON tags",
+                  cause: e,
+                }),
+              ),
+            );
+          }
+        }
+
+        // Extract prompt from inputs
+        const inputs: NIP90Input[] = [];
+        inputsSource
+          .filter((t) => t[0] === "i")
+          .forEach((t) => {
+            // NIP90Input is a tuple: [data, inputType, relay?, marker?]
+            const [, data, inputType = "text", relay = "", marker = ""] = t;
+            inputs.push([data, inputType as NIP90InputType, relay, marker]);
+          });
+
+        if (inputs.length === 0) {
+          return yield* _(
+            Effect.fail(
+              new DVMJobRequestError({
+                message: "No inputs provided in NIP-90 job request",
+              }),
+            ),
+          );
+        }
+
+        const prompt = inputs[0]?.[0] || ""; // First element of the tuple is the data
+
+        // Estimate tokens for pricing (before processing)
+        const estimatedTokens = Math.ceil((prompt.length * 2) / 4); // Rough estimate
+        const priceSats = Math.max(
+          textGenConfig.minPriceSats,
+          Math.ceil((estimatedTokens / 1000) * textGenConfig.pricePer1kTokens),
+        );
+
+        // Generate invoice FIRST (before AI processing)
+        const invoiceParams: CreateLightningInvoiceParams = {
+          amountSats: priceSats,
+          memo: `NIP-90 DVM Job ${jobRequestEvent.id.substring(0, 8)} | Kind: ${jobRequestEvent.kind} | Tokens: ~${estimatedTokens} | ${isRequestEncrypted ? 'Encrypted' : 'Plain'}`,
+        };
+        
+        const invoiceResult = yield* _(
+          spark
+            .createLightningInvoice(invoiceParams)
+            .pipe(
+              Effect.mapError(
+                (e) =>
+                  new DVMPaymentError({
+                    message: "Spark invoice creation failed",
+                    cause: e,
+                  }),
+              ),
+            ),
+        );
+        
+        const bolt11Invoice = invoiceResult.invoice.encodedInvoice;
+        const invoiceAmountMillisats = priceSats * 1000;
+
+        // Store job in pending map
+        pendingJobs.set(jobRequestEvent.id, {
+          requestEvent: jobRequestEvent,
+          invoice: bolt11Invoice,
+          amountSats: priceSats,
+          createdAt: Date.now(),
+          prompt: prompt,
+          isEncrypted: isRequestEncrypted,
+        });
+
+        // Send payment-required feedback
+        const paymentRequiredFeedback = createNip90FeedbackEvent(
+          dvmPrivateKeyHex,
+          jobRequestEvent,
+          "payment-required",
+          `Please pay ${priceSats} sats to process your request`,
+          {
+            amountMillisats: invoiceAmountMillisats,
+            invoice: bolt11Invoice,
+          },
+        );
+
+        yield* _(
+          publishFeedback(paymentRequiredFeedback).pipe(
+            Effect.tap(() =>
+              telemetry
+                .trackEvent({
+                  category: "dvm:job",
+                  action: "payment_requested",
+                  label: jobRequestEvent.id,
+                  value: `${priceSats} sats`,
+                })
+                .pipe(Effect.ignoreLogged),
+            ),
+          ),
+        );
+
+        yield* _(
+          telemetry
+            .trackEvent({
+              category: "dvm:job", 
+              action: "job_pending_payment",
+              label: jobRequestEvent.id,
+              value: JSON.stringify({
+                priceSats,
+                estimatedTokens,
+                encrypted: isRequestEncrypted,
+              }),
+            })
+            .pipe(Effect.ignoreLogged),
+        );
+      });
+
+    /**
+     * Process a paid job - called after payment is confirmed
+     */
+    const processPaidJob = (
+      pendingJob: PendingJob,
+    ): Effect.Effect<void, DVMError, never> =>
+      Effect.gen(function* (_) {
+        const effectiveConfig = useDVMSettingsStore
+          .getState()
+          .getEffectiveConfig();
+        const dvmPrivateKeyHex = effectiveConfig.dvmPrivateKeyHex;
+        const textGenConfig = effectiveConfig.defaultTextGenerationJobConfig;
+        const jobRequestEvent = pendingJob.requestEvent;
+
+        yield* _(
+          telemetry
+            .trackEvent({
+              category: "dvm:job",
+              action: "processing_paid_job",
+              label: jobRequestEvent.id,
+              value: `${pendingJob.amountSats} sats paid`,
+            })
+            .pipe(Effect.ignoreLogged),
+        );
+
+        // Send processing status
+        const processingFeedback = createNip90FeedbackEvent(
+          dvmPrivateKeyHex,
+          jobRequestEvent,
+          "processing",
+          "Payment received, processing your request...",
+        );
+        yield* _(publishFeedback(processingFeedback));
+
+        // Parse params for AI model
+        const paramsMap = new Map<string, string>();
+        const inputsSource = pendingJob.isEncrypted
+          ? JSON.parse(
+              yield* _(
+                nip04
+                  .decrypt(
+                    hexToBytes(dvmPrivateKeyHex),
+                    jobRequestEvent.pubkey,
+                    jobRequestEvent.content,
+                  )
+                  .pipe(
+                    Effect.mapError(
+                      (e) =>
+                        new DVMJobRequestError({
+                          message: "Failed to decrypt params",
+                          cause: e,
+                        }),
+                    ),
+                  ),
+              ),
+            )
+          : jobRequestEvent.tags;
+
+        inputsSource
+          .filter((t: string[]) => t[0] === "param")
+          .forEach((t: string[]) => {
+            const [, key, value] = t;
+            if (key && value) paramsMap.set(key, value);
+          });
+
+        // Process with AI
+        const requestParams = {
+          model: paramsMap.get("model") || textGenConfig.model,
+          temperature: parseFloat(paramsMap.get("temperature") || "") || textGenConfig.temperature,
+          max_tokens: parseInt(paramsMap.get("max_tokens") || "") || textGenConfig.max_tokens,
+          top_k: parseInt(paramsMap.get("top_k") || "") || textGenConfig.top_k,
+          top_p: parseFloat(paramsMap.get("top_p") || "") || textGenConfig.top_p,
+          frequency_penalty: parseFloat(paramsMap.get("frequency_penalty") || "") || textGenConfig.frequency_penalty,
+        };
+
+        const generateOptions = {
+          prompt: pendingJob.prompt,
+          maxTokens: requestParams.max_tokens,
+          temperature: requestParams.temperature,
+        };
+
+        const aiResponse = yield* _(
+          agentLanguageModel.generateText(generateOptions).pipe(
+            Effect.mapError(
+              (e) =>
+                new DVMJobProcessingError({
+                  message: `AI inference failed: ${e instanceof Error ? e.message : String(e)}`,
+                  cause: e,
+                }),
+            ),
+          ),
+        );
+
+        const aiOutput = aiResponse.text || "";
+
+        // Encrypt output if needed
+        let finalOutputContent = aiOutput;
+        if (pendingJob.isEncrypted) {
+          const dvmSkBytes = hexToBytes(dvmPrivateKeyHex);
+          finalOutputContent = yield* _(
+            nip04.encrypt(dvmSkBytes, jobRequestEvent.pubkey, aiOutput).pipe(
+              Effect.mapError(
+                (e) =>
+                  new DVMJobProcessingError({
+                    message: "Failed to encrypt NIP-90 job result",
+                    cause: e,
+                  }),
+              ),
+            ),
+          );
+        }
+
+        // Create and publish result
+        const jobResultEvent = createNip90JobResultEvent(
+          dvmPrivateKeyHex,
+          jobRequestEvent,
+          finalOutputContent,
+          pendingJob.amountSats * 1000,
+          pendingJob.invoice,
+          pendingJob.isEncrypted,
+        );
+
+        yield* _(
+          nostr.publishEvent(jobResultEvent).pipe(
+            Effect.mapError(
+              (e) =>
+                new DVMConnectionError({
+                  message: "Failed to publish NIP-90 job result",
+                  cause: e,
+                }),
+            ),
+          ),
+        );
+
+        // Send success feedback
+        const successFeedback = createNip90FeedbackEvent(
+          dvmPrivateKeyHex,
+          jobRequestEvent,
+          "success",
+          "Job completed successfully",
+        );
+        yield* _(publishFeedback(successFeedback));
+
+        // Remove from pending jobs
+        pendingJobs.delete(jobRequestEvent.id);
+
+        yield* _(
+          telemetry
+            .trackEvent({
+              category: "dvm:job",
+              action: "job_completed_paid",
+              label: jobRequestEvent.id,
               value: jobResultEvent.id,
             })
             .pipe(Effect.ignoreLogged),
