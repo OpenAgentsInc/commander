@@ -56,10 +56,10 @@ export default function App() {
     updateAppLanguage(i18n);
   }, [i18n]);
 
-  // Check wallet setup after the initial render and browser paint
-  useEffect(() => {
-    checkWalletSetupNeeded();
-  }, []);
+  // DISABLED: Automatic wallet setup - users should explicitly choose to set up wallet
+  // useEffect(() => {
+  //   checkWalletSetupNeeded();
+  // }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

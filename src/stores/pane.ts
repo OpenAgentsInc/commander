@@ -381,7 +381,7 @@ export const usePaneStore = create<PaneStoreType>()(
         }),
     }),
     {
-      name: "commander-pane-storage-v2",
+      name: "commander-pane-storage-v3", // v3: Reset to remove wallet setup panes
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         panes: state.panes,
