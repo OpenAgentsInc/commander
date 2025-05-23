@@ -883,6 +883,15 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         const dvmPublicKeyHex = effectiveConfig.dvmPublicKeyHex;
         const relays = effectiveConfig.relays;
 
+        // Log the DVM pubkey prominently so user knows what to configure
+        console.log(`
+========================================
+DVM PROVIDER PUBKEY: ${dvmPublicKeyHex}
+========================================
+Configure consumer with this pubkey!
+========================================
+        `);
+        
         yield* _(
           telemetry
             .trackEvent({
@@ -890,6 +899,17 @@ export const Kind5050DVMServiceLive = Layer.scoped(
               action: "start_listening_attempt",
               label: dvmPublicKeyHex,
               value: `Relays: ${relays.length}`,
+            })
+            .pipe(Effect.ignoreLogged),
+        );
+        
+        yield* _(
+          telemetry
+            .trackEvent({
+              category: "dvm:admin",
+              action: "DVM_PUBKEY_FOR_CONSUMER",
+              label: dvmPublicKeyHex,
+              value: "USE THIS PUBKEY IN CONSUMER CONFIG!",
             })
             .pipe(Effect.ignoreLogged),
         );
