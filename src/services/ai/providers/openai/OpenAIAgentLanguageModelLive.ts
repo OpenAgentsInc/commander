@@ -36,7 +36,7 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
   );
 
   // Step 1: Get the AiModel definition Effect  
-  const aiModelEffectDefinition = OpenAiLanguageModel.model(modelName, {
+  const aiModelEffectDefinition = OpenAiLanguageModel.model(modelName as any, {
     temperature: modelConfig.temperature,
     max_tokens: modelConfig.max_tokens
   });
@@ -105,6 +105,7 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
               maxTokens: options.maxTokens,
               signal: options.signal
             }).pipe(
+              Stream.provideService(OpenAiLanguageModel.Config, modelConfig),
               Stream.map((effectAiResponse) => new AiResponse({ parts: effectAiResponse.parts })),
               Stream.mapError((error) => new AiProviderError({
                 message: `OpenAI streamText error: ${error instanceof Error ? error.message : String(error)}`,
