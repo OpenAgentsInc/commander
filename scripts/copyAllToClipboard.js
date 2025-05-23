@@ -25,6 +25,8 @@ const dirsToExclude = [
   // "src/components",
   "src/localization/",
   "src/services/ai/providers",
+  "docs/transcripts",
+  "docs/local",
   // "src/stores/panes/",
   "src/assets/fonts",
   "docs/logs/20250514",
