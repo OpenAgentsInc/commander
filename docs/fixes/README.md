@@ -88,6 +88,16 @@ As we work with Effect's sophisticated type system, we encounter various TypeScr
 **Solution**: Establish documentation validation protocol with mandatory runtime tests  
 **Affects**: All fix documentation, development practices, and pattern validation across the codebase
 
+### 016 - [ECC Library Testing Workaround](./016-ecc-library-testing-workaround.md)
+**Problem**: Services with cryptocurrency/ECC library dependencies fail tests with "ecc library invalid" errors  
+**Solution**: Create complete mock service implementations that provide identical interfaces without ECC dependencies  
+**Affects**: All services using Bitcoin/Lightning/cryptocurrency libraries, testing infrastructure, CI/CD reliability
+
+### 017 - [Effect Service Dependency Analysis](./017-effect-service-dependency-analysis.md)
+**Problem**: Effect services often require hidden dependencies that cause runtime "Service not found" errors  
+**Solution**: Systematic dependency discovery through runtime testing and complete service provision patterns  
+**Affects**: All Effect service integrations, library upgrades, and service layer completeness validation
+
 ## Fix Documentation Template
 
 When adding new fixes, please follow this structure:
@@ -164,6 +174,14 @@ When you solve a tricky TypeScript issue with Effect:
 ### Documentation & Development Practices
 - [015 - Documentation Runtime Validation](./015-documentation-runtime-validation.md)
 
+### Infrastructure & Testing
+- [009 - Test Type Import Conflicts](./009-test-type-import-conflicts.md)
+- [011 - Test Layer Composition Pattern](./011-test-layer-composition-pattern.md)
+- [012 - Strategic Test Type Casting](./012-strategic-test-type-casting.md)
+- [013 - Runtime Error Detection Testing](./013-runtime-error-detection-testing.md)
+- [016 - ECC Library Testing Workaround](./016-ecc-library-testing-workaround.md)
+- [017 - Effect Service Dependency Analysis](./017-effect-service-dependency-analysis.md)
+
 ## Quick Reference
 
 Common patterns that often need fixes:
@@ -179,6 +197,8 @@ Common patterns that often need fixes:
 9. **Runtime Generator Errors**: "yield* not iterable" errors that pass TypeScript compilation ([013](./013-runtime-error-detection-testing.md))
 10. **Double Yield Pattern**: Yielding provider instances as Effects in generators ([014](./014-double-yield-provider-error.md))
 11. **Documentation Accuracy**: Documentation patterns that compile but fail at runtime ([015](./015-documentation-runtime-validation.md))
+12. **ECC Library Dependencies**: Cryptocurrency/bitcoin library dependencies causing test failures ([016](./016-ecc-library-testing-workaround.md))
+13. **Hidden Service Dependencies**: Effect services requiring dependencies not obvious from API surface ([017](./017-effect-service-dependency-analysis.md))
 
 ### High-Impact Fixes (Batch Applicable)
 - **Service Tag Access**: `yield* _(ServiceName)` → `yield* _(ServiceName.Tag)` 
@@ -192,6 +212,8 @@ Common patterns that often need fixes:
 - **Runtime Error Testing**: Add Effect.runPromise tests to catch "yield* not iterable" errors ([013](./013-runtime-error-detection-testing.md))
 - **Provider Double Yield**: Replace `yield* _(provider as Effect)` with direct provider extraction ([014](./014-double-yield-provider-error.md))
 - **Documentation Validation**: Add runtime tests for all documented patterns before publishing ([015](./015-documentation-runtime-validation.md))
+- **ECC Library Testing**: Create mock service implementations for cryptocurrency dependencies ([016](./016-ecc-library-testing-workaround.md))
+- **Service Dependency Discovery**: Use runtime testing to discover all required services ([017](./017-effect-service-dependency-analysis.md))
 
 ## Resources
 
