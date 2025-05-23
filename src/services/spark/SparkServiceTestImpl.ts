@@ -241,7 +241,7 @@ export const SparkServiceTestLive = Layer.effect(
 export const TestSparkServiceConfigLayer = Layer.succeed(
   SparkServiceConfigTag,
   {
-    network: "REGTEST",
+    network: "MAINNET",
     mnemonicOrSeed: "test test test test test test test test test test test junk",
     accountNumber: 2,
     sparkSdkOptions: {

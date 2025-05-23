@@ -57,7 +57,7 @@ export const SparkServiceConfigTag =
 export const DefaultSparkServiceConfigLayer = Layer.succeed(
   SparkServiceConfigTag,
   {
-    network: "REGTEST",
+    network: "MAINNET",
     mnemonicOrSeed:
       "test test test test test test test test test test test junk", // Development only
     accountNumber: 2, // Must be ≥ 2 per SDK validation

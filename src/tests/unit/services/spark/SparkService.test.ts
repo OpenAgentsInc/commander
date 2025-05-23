@@ -96,7 +96,7 @@ describe("SparkService", () => {
 
   // Mock config for SparkService
   const mockSparkConfig: SparkServiceConfig = {
-    network: "REGTEST",
+    network: "MAINNET",
     mnemonicOrSeed:
       "test test test test test test test test test test test junk",
     accountNumber: 2, // Must be ≥ 2 per SDK validation
