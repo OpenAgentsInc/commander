@@ -127,6 +127,16 @@ export function useNip90ConsumerChat({
 
   const handlePayment = useCallback(async (invoice: string, jobId: string) => {
     const currentRuntime = getMainRuntime(); // Get the LATEST runtime instance
+    
+    // CRITICAL: Track payment attempt immediately (defensive telemetry)
+    const telemetryService = Context.get(currentRuntime.context, TelemetryService);
+    telemetryService.trackEvent({
+      category: "nip90_consumer",
+      action: "payment_attempt",
+      label: jobId,
+      value: `Invoice: ${invoice.substring(0, 30)}... Amount: ${paymentState.amountSats || 'unknown'} sats`,
+    });
+    
     try {
       setPaymentState(prev => ({ ...prev, status: 'paying' }));
       
@@ -166,24 +176,50 @@ export function useNip90ConsumerChat({
         const paymentResult = paymentExit.value;
         setPaymentState(prev => ({ ...prev, status: 'paid' }));
         addMessage("system", `Payment successful! Hash: ${paymentResult.paymentHash.substring(0, 12)}...`);
+        
+        // Track success outside Effect too
+        telemetryService.trackEvent({
+          category: "nip90_consumer",
+          action: "payment_complete",
+          label: jobId,
+          value: paymentResult.paymentHash,
+        });
       } else {
         const error = Cause.squash(paymentExit.cause);
         console.error("Payment error in handlePayment:", error);
+        
         setPaymentState(prev => ({ 
           ...prev, 
           status: 'failed',
           error: error instanceof Error ? error.message : String(error) || "Payment failed"
         }));
         addMessage("system", `Payment failed: ${error instanceof Error ? error.message : String(error) || "Unknown error"}`);
+        
+        // Track failure outside Effect
+        telemetryService.trackEvent({
+          category: "nip90_consumer",
+          action: "payment_error",
+          label: jobId,
+          value: error instanceof Error ? error.message : String(error),
+        });
       }
     } catch (error: any) {
       console.error("Payment error:", error);
+      
       setPaymentState(prev => ({ 
         ...prev, 
         status: 'failed',
         error: error.message || "Payment failed"
       }));
       addMessage("system", `Payment failed: ${error.message || "Unknown error"}`);
+      
+      // Track outer error
+      telemetryService.trackEvent({
+        category: "nip90_consumer",
+        action: "payment_exception",
+        label: jobId,
+        value: error?.message || "Unknown error",
+      });
     }
   }, [paymentState.amountSats, addMessage]);
 
@@ -191,8 +227,21 @@ export function useNip90ConsumerChat({
     const currentRuntime = getMainRuntime(); // Get the LATEST runtime instance
     const telemetry = Context.get(currentRuntime.context, TelemetryService); // Get telemetry from runtime context
 
+    // CRITICAL: Track that sendMessage was called
+    telemetry.trackEvent({
+      category: "nip90_consumer",
+      action: "send_message_called",
+      label: userInput.trim().substring(0, 30),
+      value: `Input length: ${userInput.trim().length}`,
+    });
+
     if (!userInput.trim()) {
       addMessage("system", "Error: Input is empty.");
+      telemetry.trackEvent({
+        category: "nip90_consumer",
+        action: "send_message_empty_input",
+        label: "empty_input_error",
+      });
       return;
     }
 
@@ -441,7 +490,7 @@ export function useNip90ConsumerChat({
               
               addMessage(
                 "system",
-                `Payment required: ${amountSats} sats. Invoice: ${invoice.substring(0, 20)}...`,
+                `Payment required: ${amountSats} sats. Auto-paying invoice...`,
                 "System",
               );
               
@@ -451,6 +500,25 @@ export function useNip90ConsumerChat({
                 label: signedEvent.id,
                 value: amountSats.toString(),
               });
+
+              // AUTO-PAY: Automatically pay small amounts (under 10 sats)
+              if (amountSats <= 10) {
+                addMessage(
+                  "system",
+                  `Auto-paying ${amountSats} sats (auto-approval enabled for small amounts)...`,
+                  "System",
+                );
+                
+                telemetryForEvent.trackEvent({
+                  category: "nip90_consumer",
+                  action: "auto_payment_triggered",
+                  label: signedEvent.id,
+                  value: `${amountSats} sats`,
+                });
+
+                // Trigger payment immediately
+                handlePayment(invoice, signedEvent.id);
+              }
             } else {
               addMessage(
                 "system",
