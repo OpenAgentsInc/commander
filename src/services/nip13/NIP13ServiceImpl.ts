@@ -1,5 +1,5 @@
 import { Effect, Layer } from "effect";
-import { getEventHash, getSignature, type Event as NostrEvent } from "nostr-tools/pure";
+import { getEventHash, type Event as NostrEvent } from "nostr-tools/pure";
 import { NIP13Service, NIP13Error, type MinedEvent, type MiningOptions } from "./NIP13Service";
 
 // Implementation based on NIP-13 JavaScript example

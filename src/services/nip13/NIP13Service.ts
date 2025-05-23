@@ -15,7 +15,6 @@ export class NIP13Error extends Error {
 
 // Mined event type - includes the nonce that was found
 export interface MinedEvent extends NostrEvent {
-  tags: ReadonlyArray<readonly string[]>;
   miningMetadata?: {
     difficulty: number;
     iterations: number;

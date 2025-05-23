@@ -106,3 +106,6 @@ export interface NostrService {
 }
 
 export const NostrService = Context.GenericTag<NostrService>("NostrService");
+
+// Re-export configuration types
+export type { RelayConfig } from "./NostrServiceConfig";

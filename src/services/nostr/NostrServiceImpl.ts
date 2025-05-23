@@ -2,20 +2,34 @@ import { Effect, Layer, Context, Cause } from "effect";
 import { SimplePool } from "nostr-tools";
 import {
   NostrService,
-  NostrServiceConfigTag,
-  type NostrServiceConfig,
   type NostrEvent,
   type NostrFilter,
   NostrPoolError,
   NostrRequestError,
   NostrPublishError,
 } from "./NostrService";
+import { 
+  NostrServiceConfig as NostrServiceConfigTag, 
+  type NostrServiceConfig,
+  type RelayConfig 
+} from "./NostrServiceConfig";
 import { TelemetryService, type TelemetryEvent } from "@/services/telemetry";
+import { NIP13Service } from "@/services/nip13";
 
-// Create an Effect that yields NostrService with TelemetryService as a dependency
+// Create an Effect that yields NostrService with TelemetryService and NIP13Service as dependencies
 export const createNostrServiceEffect = Effect.gen(function* (_) {
   const config = yield* _(NostrServiceConfigTag);
   const telemetry = yield* _(TelemetryService);
+  const nip13Service = yield* _(NIP13Service);
+
+  // Helper function to convert legacy relay array to RelayConfig array
+  const getRelayConfigs = (): RelayConfig[] => {
+    if (config.relayConfigs && config.relayConfigs.length > 0) {
+      return [...config.relayConfigs]; // Convert readonly to mutable
+    }
+    // Convert legacy format
+    return config.relays.map(url => ({ url }));
+  };
 
   let poolInstance: SimplePool | null = null;
 
@@ -26,12 +40,15 @@ export const createNostrServiceEffect = Effect.gen(function* (_) {
         // Create a new SimplePool instance
         poolInstance = new SimplePool();
 
+        const relayConfigs = getRelayConfigs();
+        const relayUrls = relayConfigs.map(r => r.url);
+
         // Log pool initialization via telemetry
         const initEvent: TelemetryEvent = {
           category: "log:info",
           action: "nostr_pool_initialize",
           label: "[Nostr] Pool initialized with relays",
-          value: JSON.stringify(config.relays),
+          value: JSON.stringify(relayUrls),
         };
 
         // Fire-and-forget telemetry using the injected service
@@ -151,8 +168,10 @@ export const createNostrServiceEffect = Effect.gen(function* (_) {
     event: NostrEvent,
   ): Effect.Effect<void, NostrPublishError, never> =>
     Effect.gen(function* (_) {
+      const relayConfigs = getRelayConfigs();
+      
       // 1. Handle No Relays Configured
-      if (config.relays.length === 0) {
+      if (relayConfigs.length === 0) {
         yield* _(
           telemetry
             .trackEvent({
@@ -170,6 +189,73 @@ export const createNostrServiceEffect = Effect.gen(function* (_) {
               message: "Cannot publish event: No relays configured.",
             }),
           ),
+        );
+      }
+
+      // 2. Determine maximum PoW requirement
+      let maxPowRequired = 0;
+      let powRequiredRelays: string[] = [];
+      
+      if (config.enablePoW !== false) { // Default to enabled
+        for (const relayConfig of relayConfigs) {
+          if (relayConfig.powRequirement && relayConfig.powRequirement > 0) {
+            maxPowRequired = Math.max(maxPowRequired, relayConfig.powRequirement);
+            powRequiredRelays.push(relayConfig.url);
+          }
+        }
+      }
+
+      // 3. Mine PoW if required
+      let finalEvent = event;
+      if (maxPowRequired > 0) {
+        yield* _(
+          telemetry
+            .trackEvent({
+              category: "log:info",
+              action: "nostr_pow_mining_start",
+              label: `[Nostr] Mining PoW for event ${event.id}`,
+              value: `Target difficulty: ${maxPowRequired} bits`,
+            })
+            .pipe(Effect.ignoreLogged),
+        );
+
+        const minedEvent = yield* _(
+          nip13Service.mineEvent(event, {
+            targetDifficulty: maxPowRequired,
+            maxIterations: 5_000_000, // 5M iterations max
+            timeoutMs: 60_000, // 1 minute timeout
+            onProgress: (iterations, currentBest) => {
+              if (iterations % 100000 === 0) { // Log every 100k iterations
+                Effect.runFork(
+                  telemetry.trackEvent({
+                    category: "log:info",
+                    action: "nostr_pow_mining_progress",
+                    label: `[Nostr] Mining progress: ${iterations} iterations`,
+                    value: `Current best: ${currentBest}/${maxPowRequired} bits`,
+                  }).pipe(Effect.ignoreLogged)
+                );
+              }
+            }
+          }),
+          Effect.mapError(error => 
+            new NostrPublishError({
+              message: `PoW mining failed: ${error.message}`,
+              cause: error
+            })
+          )
+        );
+
+        finalEvent = minedEvent;
+
+        yield* _(
+          telemetry
+            .trackEvent({
+              category: "log:info",
+              action: "nostr_pow_mining_success",
+              label: `[Nostr] PoW mining completed for event ${finalEvent.id}`,
+              value: `Difficulty: ${nip13Service.calculateDifficulty(finalEvent.id)} bits, Iterations: ${minedEvent.miningMetadata?.iterations || 0}`,
+            })
+            .pipe(Effect.ignoreLogged),
         );
       }
 
@@ -191,18 +277,19 @@ export const createNostrServiceEffect = Effect.gen(function* (_) {
             category: "log:info",
             action: "nostr_publish_begin",
             label: "[Nostr] Publishing event",
-            value: event.id,
+            value: finalEvent.id,
           })
           .pipe(Effect.ignoreLogged),
       );
 
       try {
         // Publish the event to all relays
+        const relayUrls = relayConfigs.map(r => r.url);
         const results = yield* _(
           Effect.tryPromise({
             try: () =>
               Promise.allSettled(
-                pool.publish(config.relays as string[], event),
+                pool.publish(relayUrls, finalEvent),
               ),
             catch: (error) =>
               new NostrPublishError({
@@ -232,7 +319,7 @@ export const createNostrServiceEffect = Effect.gen(function* (_) {
               .trackEvent({
                 category: "log:error",
                 action: "nostr_publish_total_failure",
-                label: `[Nostr] Failed to publish event ${event.id} to all ${failedCount} configured relays.`,
+                label: `[Nostr] Failed to publish event ${finalEvent.id} to all ${failedCount} configured relays.`,
                 value: `Reasons: ${totalFailureReasons}`,
               })
               .pipe(Effect.ignoreLogged),
@@ -241,7 +328,7 @@ export const createNostrServiceEffect = Effect.gen(function* (_) {
           return yield* _(
             Effect.fail(
               new NostrPublishError({
-                message: `Failed to publish event ${event.id} to any of the ${config.relays.length} configured relays. All ${failedCount} attempts failed.`,
+                message: `Failed to publish event ${finalEvent.id} to any of the ${relayConfigs.length} configured relays. All ${failedCount} attempts failed.`,
                 cause: totalFailureReasons,
               }),
             ),
@@ -257,7 +344,7 @@ export const createNostrServiceEffect = Effect.gen(function* (_) {
               .trackEvent({
                 category: "log:warn",
                 action: "nostr_publish_partial_failure",
-                label: `[Nostr] Partially published event ${event.id}: ${successfulCount} succeeded, ${failedCount} failed.`,
+                label: `[Nostr] Partially published event ${finalEvent.id}: ${successfulCount} succeeded, ${failedCount} failed.`,
                 value: `Failures: ${partialFailureReasons}`,
               })
               .pipe(Effect.ignoreLogged),
@@ -273,7 +360,7 @@ export const createNostrServiceEffect = Effect.gen(function* (_) {
               .trackEvent({
                 category: "log:info",
                 action: "nostr_publish_success",
-                label: `[Nostr] Successfully published event ${event.id} to all ${successfulCount} relays.`,
+                label: `[Nostr] Successfully published event ${finalEvent.id} to all ${successfulCount} relays.`,
               })
               .pipe(Effect.ignoreLogged),
           );
