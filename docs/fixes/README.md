@@ -73,6 +73,16 @@ As we work with Effect's sophisticated type system, we encounter various TypeScr
 **Solution**: Strategic `as any` casting at execution boundaries with type restoration for assertions  
 **Affects**: All complex Effect testing scenarios with deep generic types and mocks
 
+### 013 - [Runtime Error Detection Testing](./013-runtime-error-detection-testing.md)
+**Problem**: TypeScript compilation passes while runtime "yield* not iterable" errors occur in Effect generators  
+**Solution**: Comprehensive runtime tests that execute Effect.gen patterns and catch runtime failures  
+**Affects**: All Effect generator patterns, provider implementations, and service access code
+
+### 014 - [Double Yield Provider Error](./014-double-yield-provider-error.md)
+**Problem**: Runtime "yield* not iterable" error when yielding provider instances as Effects in generators  
+**Solution**: Eliminate double yield by getting provider directly from configured Effect  
+**Affects**: AI provider implementations, service layer setup, and Effect generator patterns with providers
+
 ## Fix Documentation Template
 
 When adding new fixes, please follow this structure:
@@ -143,6 +153,8 @@ When you solve a tricky TypeScript issue with Effect:
 - [009 - Test Type Import Conflicts](./009-test-type-import-conflicts.md)
 - [011 - Test Layer Composition Pattern](./011-test-layer-composition-pattern.md)
 - [012 - Strategic Test Type Casting](./012-strategic-test-type-casting.md)
+- [013 - Runtime Error Detection Testing](./013-runtime-error-detection-testing.md)
+- [014 - Double Yield Provider Error](./014-double-yield-provider-error.md)
 
 ## Quick Reference
 
@@ -156,6 +168,8 @@ Common patterns that often need fixes:
 6. **Streaming Type Conflicts**: Custom chunk types conflicting with library response types ([008](./008-streaming-type-unification.md))
 7. **Generator Syntax**: When `yield* _()` doesn't infer as expected
 8. **Stream vs Effect**: Using Effect retry patterns on Streams instead of Stream retry
+9. **Runtime Generator Errors**: "yield* not iterable" errors that pass TypeScript compilation ([013](./013-runtime-error-detection-testing.md))
+10. **Double Yield Pattern**: Yielding provider instances as Effects in generators ([014](./014-double-yield-provider-error.md))
 
 ### High-Impact Fixes (Batch Applicable)
 - **Service Tag Access**: `yield* _(ServiceName)` → `yield* _(ServiceName.Tag)` 
@@ -166,6 +180,8 @@ Common patterns that often need fixes:
 - **Test Import Conflicts**: Alias library types to avoid duplicate identifiers in tests ([009](./009-test-type-import-conflicts.md))
 - **Test Layer Imports**: Use `XxxLiveLayer` imports in tests, not implementation functions ([011](./011-test-layer-composition-pattern.md))
 - **Strategic Test Casting**: Apply `as any` at Effect.runPromise boundaries in tests ([012](./012-strategic-test-type-casting.md))
+- **Runtime Error Testing**: Add Effect.runPromise tests to catch "yield* not iterable" errors ([013](./013-runtime-error-detection-testing.md))
+- **Provider Double Yield**: Replace `yield* _(provider as Effect)` with direct provider extraction ([014](./014-double-yield-provider-error.md))
 
 ## Resources
 

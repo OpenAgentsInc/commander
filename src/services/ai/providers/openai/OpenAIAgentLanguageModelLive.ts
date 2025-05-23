@@ -51,17 +51,8 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
     openAiClient
   );
 
-  // Step 3: Get the AiModel instance
-  const aiModel = yield* _(configuredAiModelEffect);
-
-  // Step 4: Build the provider with type cast to help TypeScript inference
-  const provider = yield* _(
-    (aiModel as unknown) as Effect.Effect<
-      Provider<AiLanguageModel | Tokenizer>,
-      never,
-      never
-    >
-  );
+  // Step 3: Get the AiModel instance (this is the provider, not an Effect)
+  const provider = yield* _(configuredAiModelEffect);
 
   // Log successful model creation
   yield* _(
