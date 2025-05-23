@@ -31,8 +31,10 @@ import { HttpClient } from "@effect/platform";
 import {
   SparkService,
   SparkServiceLive,
+  SparkServiceConfigTag,
   DefaultSparkServiceConfigLayer,
 } from "@/services/spark";
+import { globalWalletConfig } from "@/services/walletConfig";
 import { NIP90Service, NIP90ServiceLive } from "@/services/nip90";
 import {
   Kind5050DVMService,
@@ -69,103 +71,122 @@ export type FullAppContext =
 // Runtime instance - will be initialized asynchronously
 let mainRuntimeInstance: Runtime.Runtime<FullAppContext>;
 
-// Compose individual services with their direct dependencies
-const telemetryLayer = TelemetryServiceLive.pipe(
-  Layer.provide(DefaultTelemetryConfigLayer),
-);
-const configLayer = ConfigurationServiceLive.pipe(
-  Layer.provide(telemetryLayer),
-);
-const devConfigLayer = DefaultDevConfigLayer.pipe(Layer.provide(configLayer));
+// Function to build all layers - can be called with updated configuration
+function buildFullAppLayer() {
+  // Compose individual services with their direct dependencies
+  const telemetryLayer = TelemetryServiceLive.pipe(
+    Layer.provide(DefaultTelemetryConfigLayer),
+  );
+  const configLayer = ConfigurationServiceLive.pipe(
+    Layer.provide(telemetryLayer),
+  );
+  const devConfigLayer = DefaultDevConfigLayer.pipe(Layer.provide(configLayer));
 
-const nostrLayer = NostrServiceLive.pipe(
-  Layer.provide(DefaultNostrServiceConfigLayer),
-  Layer.provide(telemetryLayer),
-);
+  const nostrLayer = NostrServiceLive.pipe(
+    Layer.provide(DefaultNostrServiceConfigLayer),
+    Layer.provide(telemetryLayer),
+  );
 
-const ollamaLayer = OllamaServiceLive.pipe(
-  Layer.provide(
-    Layer.merge(UiOllamaConfigLive, BrowserHttpClient.layerXMLHttpRequest),
-  ),
-  Layer.provide(telemetryLayer),
-);
-
-const nip04Layer = NIP04ServiceLive;
-const nip28Layer = NIP28ServiceLive.pipe(
-  Layer.provide(Layer.mergeAll(nostrLayer, nip04Layer, telemetryLayer)),
-);
-
-const sparkLayer = SparkServiceLive.pipe(
-  Layer.provide(Layer.merge(DefaultSparkServiceConfigLayer, telemetryLayer)),
-);
-
-const nip90Layer = NIP90ServiceLive.pipe(
-  Layer.provide(Layer.mergeAll(nostrLayer, nip04Layer, telemetryLayer)),
-);
-
-// AI service layers - Ollama provider
-const ollamaAdapterLayer = OllamaProvider.OllamaAsOpenAIClientLive.pipe(
-  Layer.provide(Layer.mergeAll(ollamaLayer, telemetryLayer)),
-);
-
-// Create a base layer with all common dependencies
-const baseLayer = Layer.mergeAll(
-  telemetryLayer,
-  devConfigLayer,
-  BrowserHttpClient.layerXMLHttpRequest,
-  ollamaLayer,
-  ollamaAdapterLayer,
-);
-
-// Create the language model layer with its dependencies
-const ollamaLanguageModelLayer = OllamaProvider.OllamaAgentLanguageModelLiveLayer.pipe(
-  Layer.provide(baseLayer),
-);
-
-// Create the DVM layer with its dependencies, including the language model
-const kind5050DVMLayer = Kind5050DVMServiceLive.pipe(
-  Layer.provide(
-    Layer.mergeAll(
-      DefaultKind5050DVMServiceConfigLayer,
-      nostrLayer,
-      sparkLayer,
-      nip04Layer,
-      telemetryLayer,
-      ollamaLanguageModelLayer,
+  const ollamaLayer = OllamaServiceLive.pipe(
+    Layer.provide(
+      Layer.merge(UiOllamaConfigLive, BrowserHttpClient.layerXMLHttpRequest),
     ),
-  ),
-);
+    Layer.provide(telemetryLayer),
+  );
 
-// Create the chat orchestrator layer with all its dependencies
-const chatOrchestratorLayer = ChatOrchestratorServiceLive.pipe(
-  Layer.provide(
-    Layer.mergeAll(
-      devConfigLayer,              // For ConfigurationService
-      BrowserHttpClient.layerXMLHttpRequest, // For HttpClient.HttpClient
-      telemetryLayer,              // For TelemetryService
-      nip90Layer,                  // For NIP90Service
-      nostrLayer,                  // For NostrService
-      nip04Layer,                  // For NIP04Service
-      ollamaLanguageModelLayer,    // For default AgentLanguageModel.Tag
+  const nip04Layer = NIP04ServiceLive;
+  const nip28Layer = NIP28ServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(nostrLayer, nip04Layer, telemetryLayer)),
+  );
+
+  // Create SparkService layer with user's mnemonic if available
+  const sparkConfigLayer = Layer.succeed(
+    SparkServiceConfigTag,
+    {
+      network: "MAINNET",
+      mnemonicOrSeed: globalWalletConfig.mnemonic || "test test test test test test test test test test test junk",
+      accountNumber: 2,
+      sparkSdkOptions: {
+        // The SDK will use its built-in MAINNET endpoints
+      },
+    }
+  );
+
+  const sparkLayer = SparkServiceLive.pipe(
+    Layer.provide(Layer.merge(sparkConfigLayer, telemetryLayer)),
+  );
+
+  const nip90Layer = NIP90ServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(nostrLayer, nip04Layer, telemetryLayer)),
+  );
+
+  // AI service layers - Ollama provider
+  const ollamaAdapterLayer = OllamaProvider.OllamaAsOpenAIClientLive.pipe(
+    Layer.provide(Layer.mergeAll(ollamaLayer, telemetryLayer)),
+  );
+
+  // Create a base layer with all common dependencies
+  const baseLayer = Layer.mergeAll(
+    telemetryLayer,
+    devConfigLayer,
+    BrowserHttpClient.layerXMLHttpRequest,
+    ollamaLayer,
+    ollamaAdapterLayer,
+  );
+
+  // Create the language model layer with its dependencies
+  const ollamaLanguageModelLayer = OllamaProvider.OllamaAgentLanguageModelLiveLayer.pipe(
+    Layer.provide(baseLayer),
+  );
+
+  // Create the DVM layer with its dependencies, including the language model
+  const kind5050DVMLayer = Kind5050DVMServiceLive.pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        DefaultKind5050DVMServiceConfigLayer,
+        nostrLayer,
+        sparkLayer,
+        nip04Layer,
+        telemetryLayer,
+        ollamaLanguageModelLayer,
+      ),
     ),
-  ),
-);
+  );
 
-// Full application layer - compose services incrementally
-export const FullAppLayer = Layer.mergeAll(
-  baseLayer,
-  nostrLayer,
-  nip04Layer,
-  NIP19ServiceLive,
-  BIP39ServiceLive,
-  BIP32ServiceLive,
-  nip28Layer,
-  sparkLayer,
-  nip90Layer,
-  ollamaLanguageModelLayer,
-  chatOrchestratorLayer,
-  kind5050DVMLayer,
-);
+  // Create the chat orchestrator layer with all its dependencies
+  const chatOrchestratorLayer = ChatOrchestratorServiceLive.pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        devConfigLayer,              // For ConfigurationService
+        BrowserHttpClient.layerXMLHttpRequest, // For HttpClient.HttpClient
+        telemetryLayer,              // For TelemetryService
+        nip90Layer,                  // For NIP90Service
+        nostrLayer,                  // For NostrService
+        nip04Layer,                  // For NIP04Service
+        ollamaLanguageModelLayer,    // For default AgentLanguageModel.Tag
+      ),
+    ),
+  );
+
+  // Full application layer - compose services incrementally
+  return Layer.mergeAll(
+    baseLayer,
+    nostrLayer,
+    nip04Layer,
+    NIP19ServiceLive,
+    BIP39ServiceLive,
+    BIP32ServiceLive,
+    nip28Layer,
+    sparkLayer,
+    nip90Layer,
+    ollamaLanguageModelLayer,
+    chatOrchestratorLayer,
+    kind5050DVMLayer,
+  );
+}
+
+// Build the initial full app layer
+export const FullAppLayer = buildFullAppLayer();
 
 // Asynchronous function to initialize the runtime
 async function buildRuntimeAsync<ROut, E = any>(
@@ -205,4 +226,31 @@ export const getMainRuntime = (): Runtime.Runtime<FullAppContext> => {
     throw new Error(errMessage);
   }
   return mainRuntimeInstance;
+};
+
+// Function to reinitialize the runtime with updated wallet configuration
+export const reinitializeRuntime = async (): Promise<void> => {
+  try {
+    console.log("Reinitializing Effect runtime with updated wallet configuration...");
+    
+    // Note: We can't dispose of the old runtime as Effect doesn't provide a dispose method
+    // The old runtime will be garbage collected when no longer referenced
+    // This may cause some resource leaks if services hold external resources
+    
+    // Rebuild all layers with the new configuration
+    // The sparkLayer will now use the updated globalWalletConfig.mnemonic
+    const newFullAppLayer = buildFullAppLayer();
+    
+    // Create a new runtime with the updated configuration
+    mainRuntimeInstance = await buildRuntimeAsync(
+      newFullAppLayer as Layer.Layer<FullAppContext, any, never>,
+    );
+    
+    console.log(
+      "Effect runtime reinitialized successfully with user wallet.",
+    );
+  } catch (e: unknown) {
+    console.error("CRITICAL: Failed to reinitialize Effect runtime:", e);
+    throw e;
+  }
 };
