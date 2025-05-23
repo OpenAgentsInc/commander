@@ -118,6 +118,11 @@ As we work with Effect's sophisticated type system, we encounter various TypeScr
 **Solution**: Remove restrictive `since` filters, always filter responses by author pubkey, understand p-tags are hints not access control  
 **Affects**: All Nostr protocol implementations (NIP-90 DVMs, NIP-28 channels, etc.), event subscription patterns
 
+### 022 - [No Fallback Credentials Pattern](./022-no-fallback-credentials-pattern.md)
+**Problem**: Using `|| "test_value"` for sensitive credentials causes all users to share the same test wallet/account  
+**Solution**: Use mock services for no-credential state, never use fallback values for sensitive data  
+**Affects**: All credential handling, wallet services, API keys, private keys, authentication tokens (critical security fix)
+
 ## Fix Documentation Template
 
 When adding new fixes, please follow this structure:
@@ -176,6 +181,7 @@ When you solve a tricky TypeScript issue with Effect:
 - [005 - Effect.provideLayer Migration](./005-effect-providelayer-migration.md) (10+ errors eliminated)
 - [008 - Streaming Type Unification Pattern](./008-streaming-type-unification.md) (15+ errors eliminated)
 - [018 - Runtime Initialization Resilience](./018-runtime-initialization-resilience.md) (prevents total app failure)
+- [022 - No Fallback Credentials Pattern](./022-no-fallback-credentials-pattern.md) (critical security vulnerability)
 
 ### AI/Provider Integration
 - [001 - AiModel to Provider Type Inference](./001-aimodel-provider-type-inference.md)
@@ -209,6 +215,9 @@ When you solve a tricky TypeScript issue with Effect:
 ### Protocol & Network Issues
 - [021 - Nostr Protocol Tag Filtering and Timing Issues](./021-nostr-protocol-tag-filtering.md)
 
+### Security & Credentials
+- [022 - No Fallback Credentials Pattern](./022-no-fallback-credentials-pattern.md)
+
 ## Quick Reference
 
 Common patterns that often need fixes:
@@ -230,6 +239,7 @@ Common patterns that often need fixes:
 15. **AiModel API Misunderstanding**: Treating AiModel objects as Effects instead of using their API ([019](./019-aimodel-api-misuse.md))
 16. **Library Service Management**: Trying to manually provide internal library services ([020](./020-config-service-context-isolation.md))
 17. **Nostr Event Filtering**: Missing events due to timing filters, accepting responses from wrong sources ([021](./021-nostr-protocol-tag-filtering.md))
+18. **Credential Fallbacks**: Using `|| "test_value"` pattern causing shared test credentials ([022](./022-no-fallback-credentials-pattern.md))
 
 ### High-Impact Fixes (Batch Applicable)
 - **Service Tag Access**: `yield* _(ServiceName)` → `yield* _(ServiceName.Tag)` 
