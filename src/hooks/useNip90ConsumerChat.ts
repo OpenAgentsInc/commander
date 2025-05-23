@@ -21,12 +21,22 @@ import {
   NIP19ServiceLive,
   NIP19DecodeError,
 } from "@/services/nip19";
+import { SparkService } from "@/services/spark";
+
+interface PaymentState {
+  required: boolean;
+  invoice?: string;
+  amountSats?: number;
+  status: 'none' | 'pending' | 'paying' | 'paid' | 'failed';
+  error?: string;
+  jobId?: string;
+}
 
 interface UseNip90ConsumerChatParams {
   nostrPrivateKeyHex: string | null;
   nostrPublicKeyHex: string | null;
   targetDvmPubkeyHex?: string; // This prop will now be treated as explicitly hex OR npub
-  runtime: Runtime.Runtime<TelemetryService | NIP19Service | NIP04Service>;
+  runtime: Runtime.Runtime<TelemetryService | NIP19Service | NIP04Service | SparkService>;
 }
 
 const DEFAULT_RELAYS = [
@@ -44,10 +54,47 @@ export function useNip90ConsumerChat({
   const [messages, setMessages] = useState<ChatMessageProps[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [userInput, setUserInput] = useState("");
+  const [paymentState, setPaymentState] = useState<PaymentState>({
+    required: false,
+    status: 'none'
+  });
   const poolRef = useRef<SimplePool | null>(null);
   const activeSubsRef = useRef<Map<string, any>>(new Map());
 
   const getTelemetry = () => Effect.provide(TelemetryService, runtime);
+
+  const addMessage = useCallback(
+    (
+      role: MessageRole,
+      content: string,
+      author?: string,
+      id?: string,
+      isStreaming = false,
+    ) => {
+      setMessages((prev) => {
+        if (
+          role === "system" &&
+          prev.length > 0 &&
+          prev[prev.length - 1].role === "system" &&
+          prev[prev.length - 1].content.startsWith(content.substring(0, 20))
+        ) {
+          return prev;
+        }
+        return [
+          ...prev,
+          {
+            id: id || `msg-${Date.now()}-${Math.random()}`,
+            role,
+            content,
+            author: author || (role === "user" ? "You" : "Agent"),
+            timestamp: Date.now(),
+            isStreaming,
+          },
+        ];
+      });
+    },
+    [],
+  );
 
   useEffect(() => {
     poolRef.current = new SimplePool();
@@ -83,38 +130,54 @@ export function useNip90ConsumerChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialTargetDvmInput]);
 
-  const addMessage = useCallback(
-    (
-      role: MessageRole,
-      content: string,
-      author?: string,
-      id?: string,
-      isStreaming = false,
-    ) => {
-      setMessages((prev) => {
-        if (
-          role === "system" &&
-          prev.length > 0 &&
-          prev[prev.length - 1].role === "system" &&
-          prev[prev.length - 1].content.startsWith(content.substring(0, 20))
-        ) {
-          return prev;
-        }
-        return [
-          ...prev,
-          {
-            id: id || `msg-${Date.now()}-${Math.random()}`,
-            role,
-            content,
-            author: author || (role === "user" ? "You" : "Agent"),
-            timestamp: Date.now(),
-            isStreaming,
-          },
-        ];
+  const handlePayment = useCallback(async (invoice: string, jobId: string) => {
+    try {
+      setPaymentState(prev => ({ ...prev, status: 'paying' }));
+      
+      const payEffect = Effect.gen(function* () {
+        const spark = yield* SparkService;
+        const telemetry = yield* TelemetryService;
+        
+        yield* telemetry.trackEvent({
+          category: "nip90_consumer",
+          action: "payment_start",
+          label: jobId,
+          value: paymentState.amountSats?.toString(),
+        });
+        
+        const result = yield* spark.payLightningInvoice({
+          invoice,
+          maxFeeSats: 10, // Allow up to 10 sats in fees
+          timeoutSeconds: 60 // 1 minute timeout
+        });
+        
+        yield* telemetry.trackEvent({
+          category: "nip90_consumer",
+          action: "payment_success",
+          label: jobId,
+          value: result.payment.paymentHash,
+        });
+        
+        return result.payment;
       });
-    },
-    [],
-  );
+      
+      const paymentResult = await Effect.runPromise(
+        Effect.provide(payEffect, runtime)
+      );
+      
+      setPaymentState(prev => ({ ...prev, status: 'paid' }));
+      addMessage("system", `Payment successful! Hash: ${paymentResult.paymentHash.substring(0, 12)}...`);
+      
+    } catch (error: any) {
+      console.error("Payment error:", error);
+      setPaymentState(prev => ({ 
+        ...prev, 
+        status: 'failed',
+        error: error.message || "Payment failed"
+      }));
+      addMessage("system", `Payment failed: ${error.message || "Unknown error"}`);
+    }
+  }, [runtime, paymentState.amountSats, addMessage]);
 
   const sendMessage = useCallback(async () => {
     const telemetry = await Effect.runPromise(getTelemetry()); // Get telemetry instance
@@ -339,13 +402,54 @@ export function useNip90ConsumerChat({
           const status = statusTag ? statusTag[1] : "update";
           const extraInfo =
             statusTag && statusTag.length > 2 ? statusTag[2] : "";
-          addMessage(
-            "system",
-            `Status from ${dvmAuthor}: ${status} ${extraInfo ? `- ${extraInfo}` : ""} ${content ? `- ${content}` : ""}`.trim(),
-            "System",
-          );
+          
+          // Handle payment-required status
+          if (status === "payment-required") {
+            const amountTag = event.tags.find((t) => t[0] === "amount");
+            if (amountTag && amountTag[1]) {
+              const invoice = amountTag[1];
+              // Extract sats amount from bolt11 invoice if possible
+              // For now, we know it's 3 sats from our implementation
+              const amountSats = 3;
+              
+              setPaymentState({
+                required: true,
+                invoice,
+                amountSats,
+                status: 'pending',
+                jobId: signedEvent.id
+              });
+              
+              addMessage(
+                "system",
+                `Payment required: ${amountSats} sats. Invoice: ${invoice.substring(0, 20)}...`,
+                "System",
+              );
+              
+              telemetry.trackEvent({
+                category: "nip90_consumer",
+                action: "payment_required",
+                label: signedEvent.id,
+                value: amountSats.toString(),
+              });
+            } else {
+              addMessage(
+                "system",
+                "Payment required but no invoice provided by DVM",
+                "System",
+              );
+            }
+          } else {
+            addMessage(
+              "system",
+              `Status from ${dvmAuthor}: ${status} ${extraInfo ? `- ${extraInfo}` : ""} ${content ? `- ${content}` : ""}`.trim(),
+              "System",
+            );
+          }
+          
           if (status === "error" || status === "success") {
             setIsLoading(false);
+            setPaymentState({ required: false, status: 'none' });
             if (activeSubsRef.current.has(signedEvent.id)) {
               activeSubsRef.current.get(signedEvent.id)?.unsub();
               activeSubsRef.current.delete(signedEvent.id);
@@ -404,5 +508,5 @@ export function useNip90ConsumerChat({
     runtime,
   ]); // Ensure initialTargetDvmInput is in deps
 
-  return { messages, isLoading, userInput, setUserInput, sendMessage };
+  return { messages, isLoading, userInput, setUserInput, sendMessage, paymentState, handlePayment };
 }

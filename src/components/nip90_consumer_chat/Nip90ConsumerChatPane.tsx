@@ -42,6 +42,7 @@ import { ChatContainer } from "@/components/chat";
 import { hexToBytes, bytesToHex } from "@noble/hashes/utils";
 import { useNip90ConsumerChat } from "@/hooks/useNip90ConsumerChat";
 import { getMainRuntime } from "@/services/runtime";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface ConsumerWalletState {
   mnemonic: string | null;
@@ -106,7 +107,7 @@ const Nip90ConsumerChatPane: React.FC = () => {
 
       // Spark Wallet setup for this consumer pane
       const consumerSparkConfig: SparkServiceConfig = {
-        network: "REGTEST", // Or configurable
+        network: "MAINNET", // Changed to MAINNET as requested
         mnemonicOrSeed: mnemonic, // Use the pane's own mnemonic
         accountNumber: 3, // Use a different account number if main app uses 2
       };
@@ -203,6 +204,8 @@ const Nip90ConsumerChatPane: React.FC = () => {
     userInput,
     setUserInput,
     sendMessage,
+    paymentState,
+    handlePayment,
   } = useNip90ConsumerChat({
     nostrPrivateKeyHex: walletState.privateKeyHex,
     nostrPublicKeyHex: walletState.publicKeyHex,
@@ -328,6 +331,52 @@ const Nip90ConsumerChatPane: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Payment Required UI */}
+      {paymentState.required && (
+        <Alert className="mb-3 border-orange-500 bg-orange-50 dark:bg-orange-950">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Payment Required</AlertTitle>
+          <AlertDescription className="mt-2 space-y-2">
+            <p className="text-sm">
+              The DVM requires payment before processing your request.
+            </p>
+            <p className="text-sm font-medium">
+              Amount: {paymentState.amountSats} sats
+            </p>
+            {paymentState.invoice && (
+              <p className="text-xs font-mono bg-muted p-2 rounded break-all">
+                Invoice: {paymentState.invoice.substring(0, 50)}...
+              </p>
+            )}
+            <div className="flex gap-2">
+              <Button
+                onClick={() => handlePayment(paymentState.invoice!, paymentState.jobId!)}
+                disabled={paymentState.status === 'paying' || !paymentState.invoice}
+                size="sm"
+                className="bg-orange-600 hover:bg-orange-700"
+              >
+                {paymentState.status === 'paying' ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Paying...
+                  </>
+                ) : (
+                  <>
+                    <Bitcoin className="mr-2 h-4 w-4" />
+                    Pay {paymentState.amountSats} sats
+                  </>
+                )}
+              </Button>
+              {paymentState.status === 'failed' && (
+                <p className="text-sm text-destructive">
+                  {paymentState.error || "Payment failed"}
+                </p>
+              )}
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="my-2 space-y-1">
         <Label htmlFor="targetDvmInput">
