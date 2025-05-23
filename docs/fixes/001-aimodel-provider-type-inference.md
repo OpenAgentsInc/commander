@@ -1,55 +1,60 @@
-# Fix: AiModel to Provider Type Inference Issue
+# Fix: AiModel to Provider Type Inference Issue (CORRECTED)
 
 ## Problem
 
-When using `@effect/ai-openai` with Effect's generator syntax, TypeScript fails to infer that yielding an `AiModel` produces a `Provider`:
-
-```typescript
-const aiModel = yield* _(configuredAiModelEffect);
-const provider = yield* _(aiModel); // TypeScript infers 'unknown'
-```
+When using `@effect/ai-openai` with Effect's generator syntax, you might think you need to yield the provider instance again after getting it from the configured effect. This leads to runtime errors.
 
 ### Error Message
 ```
-Type 'Provider<Tokenizer | AiLanguageModel>' is not assignable to type 'Effect<unknown, unknown, unknown>'
+TypeError: yield* (intermediate value)(intermediate value)(intermediate value) is not iterable
+```
+
+### Common Anti-Pattern (DO NOT USE)
+```typescript
+// WRONG - This causes runtime errors:
+const aiModel = yield* _(configuredAiModelEffect);      // Gets provider
+const provider = yield* _(aiModel as Effect);           // ERROR: Double yield!
 ```
 
 ## Root Cause
 
-TypeScript cannot infer through the inheritance chain:
-- `AiModel` extends `AiPlan`
-- `AiPlan` extends `Builder<Provides, Requires>`
-- `Builder<Provides, Requires>` = `Effect<Provider<Provides>, never, Requires>`
+The `configuredAiModelEffect` already returns the provider directly. Attempting to yield it again treats a provider instance as if it were an Effect, causing runtime errors.
 
-Therefore, `AiModel` IS an `Effect` that produces a `Provider`, but TypeScript's inference engine can't see through these multiple levels of generic type inheritance.
+The confusion arises because:
+1. `OpenAiLanguageModel.model()` returns an Effect that produces a Provider
+2. After providing dependencies with `Effect.provideService()`, the result is still an Effect
+3. Yielding this configured Effect gives you the **provider directly** - no further yielding needed
 
 ## Solution
 
-Add an explicit type cast to help TypeScript understand the inheritance:
+Get the provider directly from the configured Effect - **no double yielding**:
 
 ```typescript
 import type { Provider } from "@effect/ai/AiPlan";
-import type { AiLanguageModel } from "@effect/ai";
+import { AiLanguageModel } from "@effect/ai/AiLanguageModel";
 
-// After getting the AiModel
-const aiModel = yield* _(configuredAiModelEffect);
+// Step 1: Create the configured Effect
+const aiModelEffectDefinition = OpenAiLanguageModel.model(modelName, {
+  temperature: 0.7,
+  max_tokens: 2048
+});
 
-// Cast it to its Effect nature before yielding
-const provider = yield* _(
-  aiModel as Effect.Effect<
-    Provider<AiLanguageModel.AiLanguageModel>,
-    never,
-    never
-  >
+const configuredAiModelEffect = Effect.provideService(
+  aiModelEffectDefinition,
+  OpenAiClient.OpenAiClient,
+  client
 );
+
+// Step 2: Get the provider directly (CORRECT)
+const provider = yield* _(configuredAiModelEffect);
 ```
 
-### Why This Cast is Safe
+### Why This Pattern is Correct
 
-1. `AiModel<Provides, Requires>` extends `Builder<Provides, Requires>` by definition
-2. `Builder<Provides, Requires>` is a type alias for `Effect<Provider<Provides>, never, Requires>`
-3. Therefore, any `AiModel` instance is also an `Effect` that yields a `Provider`
-4. The cast merely helps TypeScript's inference engine understand what's already true at the type level
+1. **Single Yield**: The configured Effect produces a Provider when yielded
+2. **No Type Casting**: No complex type assertions needed
+3. **Runtime Safe**: Provider instances are not Effects and cannot be yielded again
+4. **Clear Intent**: Code directly expresses what it's doing
 
 ## Complete Example
 
@@ -65,8 +70,11 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
     )
   );
 
-  // Step 1: Create the AiModel definition
-  const aiModelEffectDefinition = OpenAiLanguageModel.model(modelName);
+  // Step 1: Create the AiModel definition with options
+  const aiModelEffectDefinition = OpenAiLanguageModel.model(modelName, {
+    temperature: 0.7,
+    max_tokens: 2048
+  });
 
   // Step 2: Provide dependencies
   const configuredAiModelEffect = Effect.provideService(
@@ -75,65 +83,75 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
     ollamaClient
   );
 
-  // Step 3: Get the AiModel instance
-  const aiModel = yield* _(configuredAiModelEffect);
-
-  // Step 4: Get the Provider with explicit cast
-  const provider = yield* _(
-    aiModel as Effect.Effect<
-      Provider<AiLanguageModel.AiLanguageModel>,
-      never,
-      never
-    >
-  );
+  // Step 3: Get the provider directly (CORRECTED)
+  const provider = yield* _(configuredAiModelEffect);
 
   // Now use the provider to implement AgentLanguageModel
   return makeAgentLanguageModel({
-    generateText: (options) =>
-      provider.generateText({
-        prompt: options.prompt,
-        // ... other options
-      }),
-    // ... other methods
+    generateText: (options: GenerateTextOptions) =>
+      provider.use(
+        Effect.gen(function* (_) {
+          const languageModel = yield* _(AiLanguageModel);
+          const effectAiResponse = yield* _(languageModel.generateText({
+            prompt: options.prompt,
+            model: options.model,
+            temperature: options.temperature,
+            maxTokens: options.maxTokens,
+            stopSequences: options.stopSequences
+          }));
+          // Map to application AiResponse type
+          return new AiResponse({
+            parts: effectAiResponse.parts
+          });
+        })
+      ).pipe(
+        Effect.mapError((error) =>
+          new AiProviderError({
+            message: `Ollama generateText error: ${error instanceof Error ? error.message : String(error)}`,
+            provider: "Ollama",
+            isRetryable: true,
+            cause: error
+          })
+        )
+      ),
+    // ... other methods using provider.use() pattern
   });
 });
 ```
 
-## Alternative Patterns
+## Runtime Validation
 
-### Using Effect.flatMap
+✅ **Tested in**: `src/tests/unit/services/ai/providers/ollama/OllamaAgentLanguageModelLive.runtime.test.ts`  
+✅ **Integration**: Validated in actual application startup  
+✅ **Negative test**: Confirmed double yield pattern fails with "yield* not iterable" error
 
-If you prefer to avoid the generator syntax for this specific operation:
+## Anti-Pattern Examples (DO NOT USE)
 
 ```typescript
+// WRONG - Double yield causes runtime error
+const aiModel = yield* _(configuredAiModelEffect);
+const provider = yield* _(aiModel as Effect);  // ERROR!
+
+// WRONG - Complex type casting that's unnecessary  
 const provider = yield* _(
-  configuredAiModelEffect.pipe(
-    Effect.flatMap((aiModel) => 
-      aiModel as Effect.Effect<Provider<AiLanguageModel.AiLanguageModel>, never, never>
-    )
-  )
+  (aiModel as unknown) as Effect.Effect<Provider<...>, never, never>
 );
-```
-
-### Type Helper
-
-For reusability across multiple providers:
-
-```typescript
-type AsEffect<T> = T extends Effect.Effect<any, any, any> ? T : never;
-
-const provider = yield* _(aiModel as AsEffect<typeof aiModel>);
 ```
 
 ## When to Apply This Fix
 
-Apply this fix when:
-1. You're yielding an `AiModel` instance from `@effect/ai`
-2. TypeScript infers the result as `unknown` or shows type errors
-3. The error mentions `Provider` not being assignable to `Effect`
+Apply this pattern when:
+1. Working with `@effect/ai-openai` or similar provider libraries
+2. You get runtime errors like "yield* not iterable" 
+3. You're tempted to yield a provider instance as an Effect
+4. TypeScript compilation passes but runtime fails
 
 ## Related Issues
 
-- Affects all providers using `@effect/ai-openai` or similar libraries
-- More pronounced with union types (e.g., `AiLanguageModel | Tokenizer`)
-- May appear in other Effect libraries with deep inheritance hierarchies
+- Closely related to [014 - Double Yield Provider Error](./014-double-yield-provider-error.md)
+- Connected to [002 - Provider Service Access Pattern](./002-provider-service-access-pattern.md) for using the provider correctly
+- Prevented by [013 - Runtime Error Detection Testing](./013-runtime-error-detection-testing.md) testing strategies
+
+## Key Lesson
+
+**Trust but verify**: Even if TypeScript compiles and documentation suggests a pattern, runtime testing is essential to validate Effect generator patterns work correctly.
