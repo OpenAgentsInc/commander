@@ -360,7 +360,7 @@ export function openSellComputePaneAction(set: SetPaneStore) {
     const newPaneInput: PaneInput = {
       id: SELL_COMPUTE_PANE_ID,
       type: 'sell_compute',
-      title: 'Sell Compute Power',
+      title: 'Sell Compute',
       dismissable: true, // Or false if it should be a permanent fixture when open
       // Position it centrally or make it larger by default
       width: 600,
@@ -1046,7 +1046,7 @@ const newPanes = state.panes
     const newPaneInput: PaneInput = {
       id: SELL_COMPUTE_PANE_ID,
       type: 'sell_compute',
-      title: 'Sell Compute Power',
+      title: 'Sell Compute',
       dismissable: true,
       width: Math.max(DEFAULT_PANE_WIDTH, 600),  // Larger default
       height: Math.max(DEFAULT_PANE_HEIGHT, 450), // Larger default
@@ -1175,7 +1175,7 @@ return (
 <div className="p-4 h-full flex flex-col items-center justify-center text-sm">
 <Card className="w-full max-w-md bg-background/80 backdrop-blur-sm">
 <CardHeader>
-<CardTitle className="text-center text-lg">Sell Compute Power</CardTitle> {/_ Larger Title _/}
+<CardTitle className="text-center text-lg">Sell Compute</CardTitle> {/_ Larger Title _/}
 </CardHeader>
 <CardContent className="space-y-4"> {/_ Reduced space-y _/}
 <div className="flex items-center justify-between p-3 border border-border/30 rounded-md">
@@ -1769,7 +1769,7 @@ export function openSellComputePaneAction(set: SetPaneStore) {
     const newPaneInput: PaneInput = {
       id: SELL_COMPUTE_PANE_ID,
       type: 'sell_compute',
-      title: 'Sell Compute Power',
+      title: 'Sell Compute',
       dismissable: true,
       x: initialX,
       y: initialY,
@@ -1901,7 +1901,7 @@ const SellComputePane: React.FC = () => {
     <div className="p-4 h-full flex flex-col items-center justify-center text-sm">
       <Card className="w-full max-w-md bg-background/80 backdrop-blur-sm">
         <CardHeader>
-          <CardTitle className="text-center text-lg">Sell Compute Power</CardTitle>
+          <CardTitle className="text-center text-lg">Sell Compute</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between p-3 border border-border/30 rounded-md">

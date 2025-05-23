@@ -51,7 +51,7 @@ The changes successfully implement the simplified UI for the "Compute Market" la
 
 1. The Hotbar now only shows three active items: "Sell Compute", "DVM Job History", and "Reset HUD", in that order.
 
-2. On startup, only the "Sell Compute Power" pane is open and active.
+2. On startup, only the "Sell Compute" pane is open and active.
 
 3. A Bitcoin balance display appears in the top-right corner showing the user's balance from the SparkService.
 
