@@ -214,3 +214,61 @@ const invoice = amountTag[2];  // Get from position 2, not 1
 4. Verify the subscription is actually active by logging the subscription object
 
 The core issue appears to be that despite correct event structure and filters, the consumer's event handler is never being called, suggesting a subscription or relay connection issue.
+
+## UPDATE - Critical Finding
+
+After reviewing NIP-01 and NIP-90, I confirmed:
+- The consumer filter `"#e": [signedEvent.id]` is CORRECT - it matches events with an "e" tag containing that value
+- The provider is correctly adding `["e", "jobId"]` to the event tags
+- NIP-90 specifies that job feedback events MUST include both `["e", "<job-request-id>"]` and `["p", "<customer-pubkey>"]` tags
+
+Our telemetry confirms the provider IS creating events with the correct structure. The filter syntax is correct. Yet the consumer never receives the events.
+
+## The Real Issues - CONFIRMED BUGS
+
+1. **CRITICAL: Wrong SimplePool API Method**: 
+   - Consumer uses: `poolRef.current.subscribeMany()` (line 419)
+   - NostrServiceImpl uses: `pool.subscribe()` (line 486)
+   - The consumer is using the WRONG method! It should use `subscribe()` not `subscribeMany()`
+   - This explains why NO events are being received - the subscription isn't working at all!
+
+2. **Invoice Extraction Bug**: At line 475, the consumer reads `amountTag[1]` for the invoice, but per NIP-90:
+   - For kind 7000 feedback: `["amount", "requested-payment-amount", "<bolt11>"]` - invoice is at position 2  
+   - The consumer is trying to use position 1 (the amount) as the invoice!
+   - This would cause payment to fail even if the event was received
+
+3. **Multiple Filters Issue**: The consumer creates an array of filters but might not be handling them correctly with SimplePool
+
+## Recommended Fixes
+
+1. **Fix the SimplePool subscription method** in `useNip90ConsumerChat.ts`:
+   ```typescript
+   // Change from:
+   const sub = (poolRef.current as any).subscribeMany(DEFAULT_RELAYS, filters);
+   
+   // To match NostrServiceImpl pattern:
+   const sub = poolRef.current.sub(DEFAULT_RELAYS, filters);
+   // OR try:
+   const sub = poolRef.current.subscribe(DEFAULT_RELAYS, filters[0], {
+     onevent: (event) => { /* handler */ },
+     oneose: () => { /* handler */ }
+   });
+   ```
+
+2. **Fix the invoice extraction** at line 475:
+   ```typescript
+   // Change from:
+   const invoice = amountTag[1];
+   
+   // To:
+   const invoice = amountTag[2]; // Invoice is at position 2 per NIP-90
+   ```
+
+3. **Create separate subscriptions for each filter** if needed:
+   ```typescript
+   // Subscribe to both result events AND feedback events
+   const sub1 = poolRef.current.subscribe(DEFAULT_RELAYS, filters[0], handlers);
+   const sub2 = poolRef.current.subscribe(DEFAULT_RELAYS, filters[1], handlers);
+   ```
+
+These bugs explain why payment isn't working - the consumer literally never receives the payment-required event because the subscription is broken!
