@@ -272,14 +272,31 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
                     if (status === "partial" && feedbackEvent.content) {
                       emit.single(createAiResponse(feedbackEvent.content));
                     } else if (status === "error") {
+                      const statusExtraInfoTag = feedbackEvent.tags.find(t => t[0] === "status_extra_info");
+                      const statusExtraInfo = statusExtraInfoTag?.[1];
+                      const dvmErrorMessage = statusExtraInfo || feedbackEvent.content || "DVM reported an unspecified error.";
+                      
+                      // Track DVM error received
+                      const runtime = getMainRuntime();
+                      Effect.runFork(
+                        Effect.flatMap(TelemetryService, ts => ts.trackEvent({
+                          category: "nip90:consumer",
+                          action: "dvm_error_received",
+                          label: jobRequest.id,
+                          value: dvmErrorMessage
+                        })).pipe(Effect.provide(runtime))
+                      );
+
                       emit.fail(
                         new AiProviderError({
-                          message: `NIP-90 DVM error: ${feedbackEvent.content || "Unknown error"}`,
-                          provider: "NIP90",
-                          isRetryable: true,
+                          message: `NIP90 DVM Error (${eventUpdate.pubkey.substring(0,6)}...): ${dvmErrorMessage}`,
+                          provider: "NIP-90",
+                          isRetryable: false, // DVM error is usually not client-retryable
+                          context: { dvmPubkey: eventUpdate.pubkey, jobId: jobRequest.id, feedbackEventId: eventUpdate.id },
                           cause: feedbackEvent
                         })
                       );
+                      emit.end(); // End the stream on DVM error
                     } else if (status === "payment-required") {
                       // Handle payment required
                       const amountTag = feedbackEvent.tags.find(t => t[0] === "amount");

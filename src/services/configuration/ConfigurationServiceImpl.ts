@@ -111,7 +111,7 @@ export const DefaultDevConfigLayer = Layer.effect(
     yield* _(configService.set("OLLAMA_MODEL_ENABLED", "true"));
 
     // NIP-90 Devstral DVM configuration
-    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_DVM_PUBKEY", "714617896896f2838ad6cd25d27b0b6507d1d6e0a5d0072ff65372d123378827")); // Updated provider pubkey
+    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_DVM_PUBKEY", "32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245")); // Actual Devstral service pubkey
     yield* _(configService.set("AI_PROVIDER_DEVSTRAL_RELAYS", JSON.stringify(DEFAULT_RELAYS_ARRAY)));
     yield* _(configService.set("AI_PROVIDER_DEVSTRAL_REQUEST_KIND", "5050")); // Text-to-text kind
     yield* _(configService.set("AI_PROVIDER_DEVSTRAL_REQUIRES_ENCRYPTION", "true")); // Enable encryption for privacy
