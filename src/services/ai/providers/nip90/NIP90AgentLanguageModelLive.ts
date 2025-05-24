@@ -321,8 +321,8 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
                               });
                             }).pipe(Effect.provide(runtime))
                           ).then(paymentResult => {
-                            // Emit payment success feedback
-                            emit.single(createAiResponse(`Auto-paid ${amountSats} sats. Payment hash: ${paymentResult.payment.paymentHash.substring(0, 12)}... Waiting for DVM to process...`));
+                            // **MODIFICATION**: Removed verbose auto-payment message
+                            // emit.single(createAiResponse(`Auto-paid ${amountSats} sats. Payment hash: ${paymentResult.payment.paymentHash.substring(0, 12)}... Waiting for DVM to process...`));
                             
                             // Track payment success (fire and forget)
                             Effect.runFork(
@@ -352,8 +352,8 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
                             }));
                           });
                         } else {
-                          // For larger amounts, just notify user
-                          emit.single(createAiResponse(`Payment required: ${amountSats} sats. Invoice: ${invoice.substring(0, 30)}... Manual payment needed.`));
+                          // **MODIFICATION**: Removed verbose payment required message
+                          // emit.single(createAiResponse(`Payment required: ${amountSats} sats. Invoice: ${invoice.substring(0, 30)}... Manual payment needed.`));
                         }
                       }
                     }
