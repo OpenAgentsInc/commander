@@ -208,7 +208,7 @@ export const createNostrServiceEffect = Effect.gen(function* (_) {
 
       // 2. Determine maximum PoW requirement
       let maxPowRequired = 0;
-      let powRequiredRelays: string[] = [];
+      const powRequiredRelays: string[] = [];
       
       if (config.enablePoW !== false) { // Default to enabled
         for (const relayConfig of relayConfigs) {

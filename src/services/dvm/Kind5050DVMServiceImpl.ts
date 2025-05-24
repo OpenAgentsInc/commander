@@ -1441,9 +1441,22 @@ export const Kind5050DVMServiceLive = Layer.scoped(
 
         const generateOptions = {
           prompt: pendingJob.prompt,
+          model: requestParams.model, // FIX: Add missing model parameter
           maxTokens: requestParams.max_tokens,
           temperature: requestParams.temperature,
         };
+
+        // Log the model being used for debugging
+        yield* _(
+          telemetry
+            .trackEvent({
+              category: "dvm:job",
+              action: "ai_model_selected",
+              label: `Job ID: ${jobRequestEvent.id}`,
+              value: `Using model: ${requestParams.model} (requested: ${paramsMap.get("model") || "none"}, default: ${textGenConfig.model})`,
+            })
+            .pipe(Effect.ignoreLogged),
+        );
 
         const aiResponse = yield* _(
           agentLanguageModel.generateText(generateOptions).pipe(

@@ -76,7 +76,7 @@ class MockAgentChatSession implements AgentChatSession {
         );
       }
 
-      let result = [...this.messages];
+      const result = [...this.messages];
 
       // Add system message if requested
       if (options?.includeSystemMessage && options?.systemMessage) {

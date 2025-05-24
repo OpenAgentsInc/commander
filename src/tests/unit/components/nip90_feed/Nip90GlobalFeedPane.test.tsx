@@ -40,9 +40,9 @@ import Nip90GlobalFeedPane from "@/components/nip90_feed/Nip90GlobalFeedPane";
 import { NostrEvent } from "@/services/nostr/NostrService";
 import { NIP90Service } from "@/services/nip90/NIP90Service";
 // Effect will be the mocked version here
-import { Effect } from "effect"; // eslint-disable-line @typescript-eslint/no-redeclare
+import { Effect } from "effect";  
 import { TelemetryService } from "@/services/telemetry";
-import { useQuery } from "@tanstack/react-query"; // eslint-disable-line @typescript-eslint/no-redeclare
+import { useQuery } from "@tanstack/react-query";  
 
 // Mock dependencies
 vi.mock("@/services/runtime", () => ({
