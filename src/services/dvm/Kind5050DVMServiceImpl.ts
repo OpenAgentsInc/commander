@@ -1278,6 +1278,77 @@ export const Kind5050DVMServiceLive = Layer.scoped(
 
         const prompt = inputs[0]?.[0] || ""; // First element of the tuple is the data
 
+        // Parse parameters from the job request
+        const paramsMap = new Map<string, string>();
+        inputsSource
+          .filter((t) => t[0] === "param")
+          .forEach((t) => {
+            const [, key, value] = t;
+            if (key && value) paramsMap.set(key, value);
+          });
+
+        // Determine requested model and validate availability
+        const currentConfig = useDVMSettingsStore.getState().getEffectiveConfig();
+        const dvmDefaultModel = currentConfig.defaultTextGenerationJobConfig.model;
+        const requestedModelIdentifier = paramsMap.get("model") || dvmDefaultModel;
+
+        yield* _(telemetry.trackEvent({
+          category: "dvm:job_debug",
+          action: "model_identifier_check",
+          label: jobRequestEvent.id,
+          value: `Requested: ${requestedModelIdentifier}, DVM Default: ${dvmDefaultModel}`
+        }).pipe(Effect.ignoreLogged));
+
+        // Use agentLanguageModel to check model availability.
+        // This assumes agentLanguageModel is configured to use the DVM's local Ollama.
+        const modelCheckEffect = agentLanguageModel.generateText({
+          prompt: "test", // Short, non-functional prompt
+          model: requestedModelIdentifier, // Explicitly test the requested model
+          maxTokens: 1,
+          temperature: 0.1
+        }).pipe(
+          Effect.as(true), // Model is available
+          Effect.catchTag("AiProviderError", (e) => {
+            // Heuristic: if the error message indicates model not found, treat as unavailable.
+            const lowerMsg = e.message.toLowerCase();
+            if (lowerMsg.includes("model") && (lowerMsg.includes("not found") || lowerMsg.includes("does not exist"))) {
+              return Effect.succeed(false);
+            }
+            // For other AiProviderErrors, it might be a temporary issue not related to model absence.
+            // To be safe for now, if it's an AiProviderError, we'll assume model might be an issue.
+            // In a more robust system, specific error codes/tags from AgentLanguageModel would be better.
+            console.warn(`[DVM Model Check] AiProviderError for ${requestedModelIdentifier}, assuming unavailable: ${e.message}`);
+            return Effect.succeed(false); // Treat as unavailable
+          }),
+          Effect.catchAll((otherError) => { // Catch any other error during the probe
+            console.warn(`[DVM Model Check] Unknown error probing ${requestedModelIdentifier}, assuming unavailable:`, otherError);
+            return Effect.succeed(false);
+          })
+        );
+
+        const isModelAvailable = yield* _(modelCheckEffect);
+
+        if (!isModelAvailable) {
+          const errorMsg = `Model '${requestedModelIdentifier}' is not available on this DVM.`;
+          yield* _(telemetry.trackEvent({
+            category: "dvm:job_reject",
+            action: "model_not_available",
+            label: jobRequestEvent.id,
+            value: `Requested: ${requestedModelIdentifier}`
+          }).pipe(Effect.ignoreLogged));
+
+          const errorFeedback = createNip90FeedbackEvent(
+            currentConfig.dvmPrivateKeyHex, // Use current effective config
+            jobRequestEvent,
+            "error",
+            errorMsg,
+            undefined,
+            telemetry
+          );
+          yield* _(publishFeedback(errorFeedback));
+          return yield* _(Effect.fail(new DVMJobProcessingError({ message: errorMsg, context: { model: requestedModelIdentifier } })));
+        }
+
         // Estimate tokens for pricing (before processing)
         const estimatedTokens = Math.ceil((prompt.length * 2) / 4); // Rough estimate
         const priceSats = Math.max(
@@ -1285,7 +1356,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           Math.ceil((estimatedTokens / 1000) * textGenConfig.pricePer1kTokens),
         );
 
-        // Generate invoice FIRST (before AI processing)
+        // Generate invoice ONLY after model validation passes
         const invoiceParams: CreateLightningInvoiceParams = {
           amountSats: priceSats,
           memo: `NIP-90 DVM Job ${jobRequestEvent.id.substring(0, 8)} | Kind: ${jobRequestEvent.kind} | Tokens: ~${estimatedTokens} | ${isRequestEncrypted ? 'Encrypted' : 'Plain'}`,
