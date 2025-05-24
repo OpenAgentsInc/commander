@@ -56,6 +56,7 @@ const JOB_POLL_INITIAL_DELAY_MS = 5_000;     // Start polling a specific job aft
 const JOB_POLL_MAX_DELAY_MS = 60_000;        // Max delay between polls for a specific job is 1 minute
 const JOB_POLL_FACTOR = 1.5;                 // Exponential backoff factor for a specific job
 const OVERALL_PENDING_JOBS_CHECK_INTERVAL_S = 1; // Overall loop to check all pending jobs every 1 second
+const OPTIMISTIC_PROCESSING_ATTEMPT_THRESHOLD = 2; // Process after just 2 checks (~5-10 seconds)
 
 /**
  * Helper to create NIP-90 feedback events (Kind 7000)
@@ -271,6 +272,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
       isEncrypted: boolean;
       lastPolledAt: number; // Timestamp of the last poll attempt for this job
       pollAttempts: number; // Number of polling attempts for this job
+      optimisticProcessingStarted: boolean; // New field for fast processing
     }
     const pendingJobs = new Map<string, PendingJob>(); // jobId -> pending job info
 
@@ -651,25 +653,40 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           const invoiceStatusResult = yield* _(checkStatusWithRetryEffect);
 
           if (invoiceStatusResult.status === "paid") {
+            // Payment confirmed - process normally or clean up if already optimistic
             yield* _(localTelemetry.trackEvent({
               category: "dvm:payment",
               action: "invoice_paid_detected",
               label: jobId,
-              value: `Sats: ${jobToPoll.amountSats}, Paid Amount: ${invoiceStatusResult.amountPaidMsats || 'N/A'} msats`,
+              value: `Sats: ${jobToPoll.amountSats}`,
             }).pipe(Effect.ignoreLogged));
 
-            yield* _(processPaidJob(updatedJobEntryForPoll).pipe(
-              Effect.catchAllCause(cause => {
-                Effect.runFork(localTelemetry.trackEvent({
-                    category: "dvm:error",
-                    action: "process_paid_job_failed_after_payment",
-                    label: `Job ID: ${jobId}`,
-                    value: Cause.pretty(cause)
-                }).pipe(Effect.ignoreLogged));
-                // Job remains in pendingJobs to be timed out if processing fails.
-                return Effect.void;
-              })
-            ));
+            if (updatedJobEntryForPoll.optimisticProcessingStarted) {
+              // Already processed optimistically - just send success and clean up
+              const successFeedback = createNip90FeedbackEvent(
+                useDVMSettingsStore.getState().getEffectiveConfig().dvmPrivateKeyHex,
+                updatedJobEntryForPoll.requestEvent,
+                "success",
+                "Payment confirmed - job completed successfully",
+                undefined,
+                localTelemetry,
+              );
+              yield* _(publishFeedback(successFeedback));
+              pendingJobs.delete(jobId);
+            } else {
+              // Normal processing
+              yield* _(processPaidJob(updatedJobEntryForPoll, false).pipe(
+                Effect.catchAllCause(cause => {
+                  Effect.runFork(localTelemetry.trackEvent({
+                      category: "dvm:error",
+                      action: "process_paid_job_failed_after_payment",
+                      label: `Job ID: ${jobId}`,
+                      value: Cause.pretty(cause)
+                  }).pipe(Effect.ignoreLogged));
+                  return Effect.void;
+                })
+              ));
+            }
           } else if (invoiceStatusResult.status === "expired") {
             pendingJobs.delete(jobId);
             yield* _(localTelemetry.trackEvent({
@@ -695,14 +712,52 @@ export const Kind5050DVMServiceLive = Layer.scoped(
               value: `Attempt: ${nextPollAttempt}. Error: ${invoiceStatusResult.message || 'Unknown check error'}`,
             }).pipe(Effect.ignoreLogged));
             // Job stays in pendingJobs, pollAttempts was updated.
-          } else { // Still "pending"
+          } else if (invoiceStatusResult.status === "pending") {
+            // NEW: Check for optimistic processing threshold
+            if (!updatedJobEntryForPoll.optimisticProcessingStarted && 
+                updatedJobEntryForPoll.pollAttempts >= OPTIMISTIC_PROCESSING_ATTEMPT_THRESHOLD) {
+              
+              yield* _(localTelemetry.trackEvent({
+                category: "dvm:payment",
+                action: "OPTIMISTIC_PROCESSING_TRIGGERED",
+                label: jobId,
+                value: `After ${updatedJobEntryForPoll.pollAttempts} attempts - FAST MODE`,
+              }).pipe(Effect.ignoreLogged));
+              
+              // Mark as optimistic and process
+              pendingJobs.set(jobId, { 
+                ...updatedJobEntryForPoll, 
+                optimisticProcessingStarted: true 
+              });
+              
+              yield* _(processPaidJob(updatedJobEntryForPoll, true).pipe(
+                Effect.catchAllCause(cause => {
+                  // If processing fails, log but keep trying
+                  Effect.runFork(localTelemetry.trackEvent({
+                    category: "dvm:error",
+                    action: "optimistic_processing_failed",
+                    label: jobId,
+                    value: Cause.pretty(cause)
+                  }).pipe(Effect.ignoreLogged));
+                  return Effect.void;
+                })
+              ));
+            } else {
+              yield* _(localTelemetry.trackEvent({
+                category: "dvm:payment_check",
+                action: "invoice_still_pending",
+                label: jobId,
+                value: `Attempt: ${nextPollAttempt}`,
+              }).pipe(Effect.ignoreLogged));
+            }
+          } else {
+            // Unknown status
             yield* _(localTelemetry.trackEvent({
               category: "dvm:payment_check",
-              action: "invoice_still_pending_after_check",
+              action: "invoice_unknown_status",
               label: `Job ID: ${jobId}`,
-              value: `Attempt: ${nextPollAttempt}`,
+              value: `Status: ${invoiceStatusResult.status}, Attempt: ${nextPollAttempt}`,
             }).pipe(Effect.ignoreLogged));
-            // Job stays in pendingJobs, pollAttempts was updated.
           }
         }
       });
@@ -1259,6 +1314,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           isEncrypted: isRequestEncrypted,
           lastPolledAt: 0, // Initialize to 0 to ensure the first check in the loop runs immediately
           pollAttempts: 0,
+          optimisticProcessingStarted: false, // Initialize optimistic processing flag
         });
 
         // Send payment-required feedback
@@ -1310,6 +1366,7 @@ export const Kind5050DVMServiceLive = Layer.scoped(
      */
     const processPaidJob = (
       pendingJob: PendingJob,
+      isOptimistic: boolean = false, // New parameter for fast processing
     ): Effect.Effect<void, DVMError, never> =>
       Effect.gen(function* (_) {
         const effectiveConfig = useDVMSettingsStore
@@ -1323,19 +1380,19 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           telemetry
             .trackEvent({
               category: "dvm:job",
-              action: "processing_paid_job",
+              action: isOptimistic ? "processing_optimistic" : "processing_paid_job",
               label: jobRequestEvent.id,
-              value: `${pendingJob.amountSats} sats paid`,
+              value: `${pendingJob.amountSats} sats ${isOptimistic ? '(FAST MODE)' : '(confirmed)'}`,
             })
             .pipe(Effect.ignoreLogged),
         );
 
-        // Send processing status
+        // Send processing status immediately for better UX
         const processingFeedback = createNip90FeedbackEvent(
           dvmPrivateKeyHex,
           jobRequestEvent,
           "processing",
-          "Payment received, processing your request...",
+          isOptimistic ? "Processing your request..." : "Payment received, processing...",
           undefined,
           telemetry,
         );
@@ -1441,33 +1498,44 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           ),
         );
 
-        // Send success feedback
-        const successFeedback = createNip90FeedbackEvent(
-          dvmPrivateKeyHex,
-          jobRequestEvent,
-          "success",
-          "Job completed successfully",
-          undefined,
-          telemetry,
-        );
-        yield* _(publishFeedback(successFeedback));
+        if (!isOptimistic) {
+          // Normal flow: send success and remove from pending
+          const successFeedback = createNip90FeedbackEvent(
+            dvmPrivateKeyHex,
+            jobRequestEvent,
+            "success",
+            "Job completed successfully",
+            undefined,
+            telemetry,
+          );
+          yield* _(publishFeedback(successFeedback));
 
-        // Remove from pending jobs after successful processing and result publication
-        pendingJobs.delete(jobRequestEvent.id);
+          // Remove from pending jobs after successful processing and result publication
+          pendingJobs.delete(jobRequestEvent.id);
 
-        yield* _(
-          telemetry.trackEvent({ // Ensure telemetry is from the correct scope
-            category: "dvm:job_lifecycle",
-            action: "job_removed_from_pending_after_processing",
-            label: jobRequestEvent.id,
-          }).pipe(Effect.ignoreLogged),
-        );
+          yield* _(
+            telemetry.trackEvent({ // Ensure telemetry is from the correct scope
+              category: "dvm:job_lifecycle",
+              action: "job_removed_from_pending_after_processing",
+              label: jobRequestEvent.id,
+            }).pipe(Effect.ignoreLogged),
+          );
+        } else {
+          // Optimistic: keep in pending for final confirmation
+          yield* _(
+            telemetry.trackEvent({
+              category: "dvm:job",
+              action: "optimistic_result_sent_awaiting_payment",
+              label: jobRequestEvent.id,
+            }).pipe(Effect.ignoreLogged),
+          );
+        }
 
         yield* _(
           telemetry
             .trackEvent({
               category: "dvm:job",
-              action: "job_completed_paid",
+              action: isOptimistic ? "optimistic_job_result_published" : "job_completed_paid",
               label: jobRequestEvent.id,
               value: jobResultEvent.id,
             })
