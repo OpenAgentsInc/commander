@@ -124,11 +124,19 @@ export const ChatOrchestratorServiceLive = Layer.effect(
           case "nip90_custom": {
             runTelemetry({ category: "orchestrator", action: "get_provider_model_start_nip90_custom", label: providerKey });
 
-            const dvmPubkeyOpt = yield* _(Effect.optional(configService.get("USER_NIP90_DVM_PUBKEY")));
-            if (Option.isNone(dvmPubkeyOpt) || !dvmPubkeyOpt.value.trim()) {
-              return yield* _(Effect.fail(new AiConfigurationError({ message: "Custom NIP-90 DVM Pubkey not configured or empty for provider 'nip90_custom'" })));
+            const dvmPubkey = yield* _(
+              configService.get("USER_NIP90_DVM_PUBKEY").pipe(
+                Effect.mapError(() => new AiConfigurationError({ 
+                  message: "Custom NIP-90 DVM Pubkey not configured for provider 'nip90_custom'" 
+                }))
+              )
+            );
+            
+            if (!dvmPubkey.trim()) {
+              return yield* _(Effect.fail(new AiConfigurationError({ 
+                message: "Custom NIP-90 DVM Pubkey is empty for provider 'nip90_custom'" 
+              })));
             }
-            const dvmPubkey = dvmPubkeyOpt.value;
 
             const relaysStr = yield* _(configService.get("USER_NIP90_RELAYS").pipe(Effect.orElseSucceed(() => JSON.stringify(DEFAULT_RELAYS_ARRAY))));
             let relaysCfg: string[];

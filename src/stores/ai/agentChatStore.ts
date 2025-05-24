@@ -59,8 +59,7 @@ export const useAgentChatStore = create<AgentChatState>()(
           // Add logic for custom NIP-90 DVM
           const userNip90EnabledStr = yield* _(safeGetConfig("USER_NIP90_ENABLED", "false"));
           if (userNip90EnabledStr === "true") {
-            const userNip90DvmPkResult = yield* _(Effect.optional(configService.get("USER_NIP90_DVM_PUBKEY")));
-            const userNip90DvmPk = Option.getOrElse(userNip90DvmPkResult, () => "");
+            const userNip90DvmPk = yield* _(safeGetConfig("USER_NIP90_DVM_PUBKEY", ""));
 
             if (userNip90DvmPk.trim() !== "") {
               const userNip90Name = yield* _(safeGetConfig("USER_NIP90_NAME", "Custom NIP-90 DVM"));
@@ -78,7 +77,6 @@ export const useAgentChatStore = create<AgentChatState>()(
             }
           }
           set({ availableProviders: providers });
-          return Effect.void;
         }).pipe(
           Effect.catchAll((unexpectedError) => {
             console.error("Unexpected error in loadAvailableProviders:", unexpectedError);

@@ -937,8 +937,8 @@ export const SparkServiceLive = Layer.scoped(
                 
                 try {
                   // First try: Direct invoice lookup by BOLT11
-                  if (wallet.getInvoice) {
-                    invoiceResult = await wallet.getInvoice(invoiceBolt11);
+                  if ((wallet as any).getInvoice) {
+                    invoiceResult = await (wallet as any).getInvoice(invoiceBolt11);
                   }
                 } catch (e) {
                   console.log("[SparkService] getInvoice failed, trying alternatives:", e);
@@ -947,8 +947,8 @@ export const SparkServiceLive = Layer.scoped(
                 if (!invoiceResult) {
                   try {
                     // Second try: List recent invoices and find match
-                    if (wallet.listInvoices) {
-                      const recentInvoices = await wallet.listInvoices({ limit: 100 });
+                    if ((wallet as any).listInvoices) {
+                      const recentInvoices = await (wallet as any).listInvoices({ limit: 100 });
                       invoiceResult = recentInvoices?.find(inv => 
                         inv.bolt11 === invoiceBolt11 || 
                         inv.invoice === invoiceBolt11 ||
@@ -963,9 +963,9 @@ export const SparkServiceLive = Layer.scoped(
                 if (!invoiceResult) {
                   try {
                     // Third try: Check by payment hash if we can extract it
-                    if (wallet.lookupInvoice && invoiceBolt11.startsWith('lnbc')) {
+                    if ((wallet as any).lookupInvoice && invoiceBolt11.startsWith('lnbc')) {
                       // Try to extract payment hash from BOLT11 or use SDK method
-                      invoiceResult = await wallet.lookupInvoice({ invoice: invoiceBolt11 });
+                      invoiceResult = await (wallet as any).lookupInvoice({ invoice: invoiceBolt11 });
                     }
                   } catch (e) {
                     console.log("[SparkService] lookupInvoice failed:", e);
