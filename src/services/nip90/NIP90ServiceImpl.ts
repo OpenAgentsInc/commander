@@ -214,12 +214,12 @@ export const NIP90ServiceLive = Layer.effect(
             // Create the effect for the job request creation
             const jobEventEffect = createNip90JobRequest(
               validatedParams.requesterSk,
-              validatedParams.targetDvmPubkeyHex, // Can be undefined, helper handles it
+              validatedParams.targetDvmPubkeyHex, // For encryption
               mutableInputs,
               validatedParams.outputMimeType || "text/plain",
               validatedParams.bidMillisats,
               validatedParams.kind,
-              validatedParams.targetDvmPubkeyHex, // Using the same value for p-tag by default
+              validatedParams.targetDvmPkHexForPTag, // For p-tag
               mutableAdditionalParams as
                 | Array<[string, string, string]>
                 | undefined,
