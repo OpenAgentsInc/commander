@@ -37,6 +37,7 @@ import {
 } from "@/services/nip04";
 import { useDVMSettingsStore } from "@/stores/dvmSettingsStore";
 import { NIP90Input, NIP90JobParam, NIP90InputType } from "@/services/nip90";
+import { getMainRuntime } from "@/services/runtime";
 import {
   Kind5050DVMService,
   Kind5050DVMServiceConfig,
@@ -556,12 +557,15 @@ export const Kind5050DVMServiceLive = Layer.scoped(
     const checkAndUpdateInvoiceStatusesLogic = (): Effect.Effect<
       void,
       DVMError | TrackEventError,
-      SparkService | TelemetryService | NostrService
+      never
     > =>
-      Effect.gen(function* (ctx) {
-        const localTelemetry = yield* ctx(TelemetryService);
-        const localSpark = yield* ctx(SparkService);
-        const localNostr = yield* ctx(NostrService);
+      Effect.gen(function* (_) {
+        const currentRuntime = getMainRuntime(); // Get fresh runtime on each iteration
+        
+        // Resolve services from the fresh runtime for this iteration
+        const localTelemetry = yield* _(Effect.provide(TelemetryService, currentRuntime));
+        const localSpark = yield* _(Effect.provide(SparkService, currentRuntime));
+        const localNostr = yield* _(Effect.provide(NostrService, currentRuntime));
 
         yield* _(localTelemetry.trackEvent({
           category: "dvm:payment_check",
@@ -1695,6 +1699,9 @@ Configure consumer with this pubkey!
         // Make subscription to Nostr relays
         const onEvent = (event: NostrEvent) => {
           if (isActiveInternal) {
+            // Provide the fresh runtime to processJobRequestInternal
+            const currentRuntimeForEvent = getMainRuntime();
+            
             // Use Effect.runFork instead of yield* for non-generator callback
             Effect.runFork(
               telemetry
@@ -1706,7 +1713,7 @@ Configure consumer with this pubkey!
                 })
                 .pipe(Effect.ignoreLogged),
             );
-            Effect.runFork(processJobRequestInternal(event));
+            Effect.runFork(processJobRequestInternal(event).pipe(Effect.provide(currentRuntimeForEvent)));
           }
         };
 

@@ -38,14 +38,13 @@ const SellComputePane: React.FC = () => {
   });
   const [isDvmLoading, setIsDvmLoading] = useState(false); // Loading state for DVM operations
 
-  const runtime = getMainRuntime();
-
   const checkWalletStatus = useCallback(async () => {
     setStatusLoading((s) => ({ ...s, wallet: true }));
+    const currentRuntime = getMainRuntime(); // Get fresh runtime
     const walletProgram = Effect.flatMap(SparkService, (s) =>
       s.checkWalletStatus(),
     );
-    runPromiseExit(Effect.provide(walletProgram, runtime)).then((exit) => {
+    runPromiseExit(Effect.provide(walletProgram, currentRuntime)).then((exit) => {
       if (Exit.isSuccess(exit)) setIsWalletConnected(exit.value);
       else {
         console.error("Wallet status check failed:", Cause.squash(exit.cause));
@@ -53,7 +52,7 @@ const SellComputePane: React.FC = () => {
       }
       setStatusLoading((s) => ({ ...s, wallet: false }));
     });
-  }, [runtime]);
+  }, []);
 
   const checkOllamaStatus = useCallback(async () => {
     setStatusLoading((s) => ({ ...s, ollama: true }));
@@ -91,7 +90,8 @@ const SellComputePane: React.FC = () => {
       const ollamaProgram = Effect.flatMap(OllamaService, (s) =>
         s.checkOllamaStatus(),
       );
-      const exit = await runPromiseExit(Effect.provide(ollamaProgram, runtime));
+      const currentRuntimeForOllama = getMainRuntime(); // Get fresh runtime
+      const exit = await runPromiseExit(Effect.provide(ollamaProgram, currentRuntimeForOllama));
 
       if (Exit.isSuccess(exit)) {
         console.log(
@@ -115,14 +115,15 @@ const SellComputePane: React.FC = () => {
     } finally {
       setStatusLoading((s) => ({ ...s, ollama: false }));
     }
-  }, [runtime]);
+  }, []);
 
   const checkDVMStatus = useCallback(async () => {
     setIsDvmLoading(true); // Show loading state while checking
+    const currentRuntime = getMainRuntime(); // Get fresh runtime
     const dvmStatusProgram = Effect.flatMap(Kind5050DVMService, (s) =>
       s.isListening(),
     );
-    runPromiseExit(Effect.provide(dvmStatusProgram, runtime)).then((exit) => {
+    runPromiseExit(Effect.provide(dvmStatusProgram, currentRuntime)).then((exit) => {
       if (Exit.isSuccess(exit)) {
         setIsOnline(exit.value);
       } else {
@@ -131,7 +132,7 @@ const SellComputePane: React.FC = () => {
       }
       setIsDvmLoading(false); // Hide loading state when done
     });
-  }, [runtime]);
+  }, []);
 
   useEffect(() => {
     // Add a delay before checking Ollama status to ensure IPC handlers are registered
@@ -156,15 +157,22 @@ const SellComputePane: React.FC = () => {
 
     setIsDvmLoading(true);
 
+    const currentRuntime = getMainRuntime(); // Get fresh runtime
     const dvmAction = isOnline
       ? Effect.flatMap(Kind5050DVMService, (s) => s.stopListening())
       : Effect.flatMap(Kind5050DVMService, (s) => s.startListening());
 
-    const exit = await runPromiseExit(Effect.provide(dvmAction, runtime));
+    const exit = await runPromiseExit(Effect.provide(dvmAction, currentRuntime));
 
     if (Exit.isSuccess(exit)) {
-      // Re-check actual DVM status from service
-      await checkDVMStatus();
+      // Re-check actual DVM status from service with fresh runtime
+      const currentRuntimeForStatusCheck = getMainRuntime();
+      const dvmStatusProgram = Effect.flatMap(Kind5050DVMService, (s) => s.isListening());
+      runPromiseExit(Effect.provide(dvmStatusProgram, currentRuntimeForStatusCheck)).then((statusExit) => {
+        if (Exit.isSuccess(statusExit)) setIsOnline(statusExit.value);
+        else setIsOnline(false);
+        setIsDvmLoading(false);
+      });
       console.log(
         `DVM Service ${isOnline ? "stop" : "start"} command successful.`,
       );
@@ -176,9 +184,15 @@ const SellComputePane: React.FC = () => {
       alert(
         `Failed to ${isOnline ? "stop" : "start"} the service. Check console for details.`,
       );
-      await checkDVMStatus(); // Re-check to ensure UI reflects actual state
+      // Re-check to ensure UI reflects actual state with fresh runtime
+      const currentRuntimeForStatusCheck = getMainRuntime();
+      const dvmStatusProgram = Effect.flatMap(Kind5050DVMService, (s) => s.isListening());
+      runPromiseExit(Effect.provide(dvmStatusProgram, currentRuntimeForStatusCheck)).then((statusExit) => {
+        if (Exit.isSuccess(statusExit)) setIsOnline(statusExit.value);
+        else setIsOnline(false);
+        setIsDvmLoading(false);
+      });
     }
-    // Loading state is handled by checkDVMStatus
   };
 
   const walletStatusText = statusLoading.wallet
