@@ -54,12 +54,9 @@ export function createNip90JobRequest(
     let eventContent = "";
     const tags: Array<[string, ...string[]]> = [["output", outputMimeType]];
 
-    // Conditional Encryption
-    if (
-      targetDvmPkHexForEncryption &&
-      targetDvmPkHexForEncryption.length === 64
-    ) {
-      // Valid DVM PK provided for encryption
+    // Conditional Encryption & P-Tagging Logic
+    if (targetDvmPkHexForEncryption && targetDvmPkHexForEncryption.length === 64) {
+      // Encrypting to a specific DVM
       eventContent = yield* _(
         nip04Service.encrypt(
           requesterSk,
@@ -67,27 +64,31 @@ export function createNip90JobRequest(
           stringifiedParams,
         ),
       );
-      // If encrypted, the p-tag for the encryption target is usually added.
-      // If targetDvmPkHexForPTag is also provided and different, that might be an advanced routing scenario.
-      // For simplicity, if encrypted, assume the p-tag is for the encryption target.
+      // The p-tag for encryption target is crucial
       tags.push(["p", targetDvmPkHexForEncryption]);
       tags.push(["encrypted"]);
+
+      // If a *different* p-tag target is also specified for routing (advanced use case, rare for NIP-04)
+      // and it's not the same as the encryption target, add it as well.
+      // Typically, targetDvmPkHexForPTag would be the same as targetDvmPkHexForEncryption if encrypting.
+      if (targetDvmPkHexForPTag &&
+          targetDvmPkHexForPTag.length === 64 &&
+          targetDvmPkHexForPTag !== targetDvmPkHexForEncryption) {
+        tags.push(["p", targetDvmPkHexForPTag, "wss://relay.example.com/proxy", "proxy"]); // Example marker
+      }
     } else {
-      // No valid targetDvmPkHexForEncryption for encryption. Send unencrypted.
+      // Not encrypting (or targetDvmPkHexForEncryption was invalid)
       eventContent = stringifiedParams;
-      // If a PTag target is specified (even if not for encryption), add it.
+      // If a PTag target is specified for routing an unencrypted request, add it.
       if (targetDvmPkHexForPTag && targetDvmPkHexForPTag.length === 64) {
         tags.push(["p", targetDvmPkHexForPTag]);
       }
-      // Consider logging a warning if targetDvmPkHexForEncryption was provided but invalid, leading to unencrypted.
-      if (
-        targetDvmPkHexForEncryption &&
-        targetDvmPkHexForEncryption.length !== 64
-      ) {
+      // Log warning if encryption was intended but target PK was invalid
+      if (targetDvmPkHexForEncryption && targetDvmPkHexForEncryption.length !== 64) {
+        // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
         console.warn(
-          `[NIP90 Helper] Invalid targetDvmPkHexForEncryption ('${targetDvmPkHexForEncryption}'). Sending unencrypted request.`,
+          `[NIP90 Helper] Invalid targetDvmPkHexForEncryption ('${targetDvmPkHexForEncryption}'). Sending unencrypted request. P-tag target (if any): ${targetDvmPkHexForPTag || 'none'}`
         );
-        // Optionally, communicate this back via Telemetry or error for stricter handling.
       }
     }
 

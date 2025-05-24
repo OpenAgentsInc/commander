@@ -120,6 +120,16 @@ export const DefaultDevConfigLayer = Layer.effect(
     yield* _(configService.set("AI_PROVIDER_DEVSTRAL_MODEL_NAME", "Devstral (NIP-90)")); // User-facing name
     yield* _(configService.set("AI_PROVIDER_DEVSTRAL_ENABLED", "true")); // Enable the provider
 
+    // User-configurable NIP-90 DVM placeholders
+    yield* _(configService.set("USER_NIP90_DVM_PUBKEY", "")); // User needs to fill this
+    yield* _(configService.set("USER_NIP90_RELAYS", JSON.stringify(["wss://relay.damus.io", "wss://nostr.wine"])));
+    yield* _(configService.set("USER_NIP90_REQUEST_KIND", "5050"));
+    yield* _(configService.set("USER_NIP90_REQUIRES_ENCRYPTION", "false")); // Default to false for easier testing
+    yield* _(configService.set("USER_NIP90_USE_EPHEMERAL_REQUESTS", "true"));
+    yield* _(configService.set("USER_NIP90_MODEL_IDENTIFIER", "default_user_model"));
+    yield* _(configService.set("USER_NIP90_NAME", "My Custom NIP-90 DVM"));
+    yield* _(configService.set("USER_NIP90_ENABLED", "false")); // Start disabled by default
+
     return configService;
   })
 );

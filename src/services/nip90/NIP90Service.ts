@@ -74,6 +74,7 @@ export const CreateNIP90JobParamsSchema = Schema.Struct({
   additionalParams: Schema.optional(Schema.Array(NIP90JobParamSchema)),
   bidMillisats: Schema.optional(Schema.Number),
   targetDvmPubkeyHex: Schema.optional(Schema.String), // For encrypted requests to a specific DVM
+  targetDvmPkHexForPTag: Schema.optional(Schema.String), // For p-tag targeting (separate from encryption)
   requesterSk: Schema.instanceOf(Uint8Array), // Customer's secret key (can be ephemeral)
   relays: Schema.optional(Schema.Array(Schema.String)), // Relays to publish the request to
 });

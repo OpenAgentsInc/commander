@@ -1,4 +1,5 @@
-import React, { useState, ChangeEvent } from "react";
+import React, { useState } from "react";
+import type { ChangeEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,16 +22,17 @@ import {
   CreateNIP90JobParams,
   NIP90InputType,
 } from "@/services/nip90";
+import * as nip19 from "nostr-tools/nip19";
 
-// Define the DVM's public key (replace with actual key in a real application)
-const OUR_DVM_PUBKEY_HEX =
-  "32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245"; // Example key
+// **MODIFICATION**: Removed hardcoded DVM pubkey to allow dynamic targeting
+// const OUR_DVM_PUBKEY_HEX = "..."; // Removed hardcoded value
 
 export default function Nip90RequestForm() {
   const [jobKind, setJobKind] = useState<string>("5100"); // Default to Text Generation
   const [inputData, setInputData] = useState<string>("");
   const [outputMimeType, setOutputMimeType] = useState<string>("text/plain");
   const [bidAmount, setBidAmount] = useState<string>("");
+  const [targetDvmPkInput, setTargetDvmPkInput] = useState<string>("");
 
   // UI Feedback state
   const [isPublishing, setIsPublishing] = useState(false);
@@ -44,13 +46,37 @@ export default function Nip90RequestForm() {
     setPublishedEventId(null);
     setEphemeralSkHex(null);
 
-    // This public key is hardcoded for demo purposes
-    // In a real application, this would be configurable
-    if (!OUR_DVM_PUBKEY_HEX) {
-      setPublishError("DVM public key is not configured.");
-      setIsPublishing(false);
-      return;
+    let finalTargetDvmPkHexForEncryption: string | undefined = undefined;
+    let finalTargetDvmPkHexForPTag: string | undefined = undefined;
+    const dvmInput = targetDvmPkInput.trim();
+
+    if (dvmInput) {
+      if (dvmInput.startsWith("npub1")) {
+        try {
+          const decoded = nip19.decode(dvmInput);
+          if (decoded.type === 'npub') {
+            finalTargetDvmPkHexForEncryption = decoded.data;
+            finalTargetDvmPkHexForPTag = decoded.data;
+          } else {
+            setPublishError("Invalid npub format for Target DVM.");
+            setIsPublishing(false);
+            return;
+          }
+        } catch (e) {
+          setPublishError(`Failed to decode npub: ${e instanceof Error ? e.message : String(e)}`);
+          setIsPublishing(false);
+          return;
+        }
+      } else if (dvmInput.length === 64 && /^[0-9a-fA-F]{64}$/.test(dvmInput)) {
+        finalTargetDvmPkHexForEncryption = dvmInput;
+        finalTargetDvmPkHexForPTag = dvmInput;
+      } else {
+        setPublishError("Target DVM Pubkey must be a valid npub or 64-char hex string.");
+        setIsPublishing(false);
+        return;
+      }
     }
+    // If dvmInput is empty, both finalTarget... variables will remain undefined.
 
     try {
       // Form validation
@@ -115,7 +141,8 @@ export default function Nip90RequestForm() {
         inputs: inputsForEncryption,
         outputMimeType: currentOutputMimeType,
         requesterSk: requesterSkUint8Array as Uint8Array<ArrayBuffer>,
-        targetDvmPubkeyHex: OUR_DVM_PUBKEY_HEX,
+        targetDvmPubkeyHex: finalTargetDvmPkHexForEncryption, // For encryption
+        targetDvmPkHexForPTag: finalTargetDvmPkHexForPTag, // For p-tag
         bidMillisats: bidNum,
         // additionalParams // uncomment if using
       };
@@ -232,6 +259,16 @@ export default function Nip90RequestForm() {
               setBidAmount(e.target.value)
             }
             placeholder="Optional: e.g., 1000"
+            disabled={isPublishing}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="targetDvmPkInput">Target DVM Pubkey (npub or hex, optional for broadcast)</Label>
+          <Input
+            id="targetDvmPkInput"
+            value={targetDvmPkInput}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setTargetDvmPkInput(e.target.value)}
+            placeholder="npub1... or hex (leave blank for broadcast)"
             disabled={isPublishing}
           />
         </div>

@@ -1,4 +1,4 @@
-import { Context, Effect, Stream, Layer, Schedule } from "effect";
+import { Context, Effect, Stream, Layer, Schedule, Option } from "effect";
 import { HttpClient } from "@effect/platform";
 import {
   AgentChatMessage,
@@ -17,6 +17,7 @@ import { NIP90Service } from "@/services/nip90";
 import { NostrService } from "@/services/nostr";
 import { NIP04Service } from "@/services/nip04";
 import { SparkService } from "@/services/spark";
+import { DEFAULT_RELAYS_ARRAY } from "@/services/relays";
 
 export interface PreferredProviderConfig {
   key: string;
@@ -118,6 +119,68 @@ export const ChatOrchestratorServiceLive = Layer.effect(
             runTelemetry({ category: "orchestrator", action: "get_provider_model_success_nip90", label: providerKey });
             console.log("[ChatOrchestratorService] Successfully built NIP90 provider for", providerKey);
             return nip90AgentLM;
+          }
+
+          case "nip90_custom": {
+            runTelemetry({ category: "orchestrator", action: "get_provider_model_start_nip90_custom", label: providerKey });
+
+            const dvmPubkey = yield* _(
+              configService.get("USER_NIP90_DVM_PUBKEY").pipe(
+                Effect.mapError(() => new AiConfigurationError({ 
+                  message: "Custom NIP-90 DVM Pubkey not configured for provider 'nip90_custom'" 
+                }))
+              )
+            );
+            
+            if (!dvmPubkey.trim()) {
+              return yield* _(Effect.fail(new AiConfigurationError({ 
+                message: "Custom NIP-90 DVM Pubkey is empty for provider 'nip90_custom'" 
+              })));
+            }
+
+            const relaysStr = yield* _(configService.get("USER_NIP90_RELAYS").pipe(Effect.orElseSucceed(() => JSON.stringify(DEFAULT_RELAYS_ARRAY))));
+            let relaysCfg: string[];
+            try {
+              relaysCfg = JSON.parse(relaysStr);
+              if (!Array.isArray(relaysCfg) || relaysCfg.length === 0) relaysCfg = DEFAULT_RELAYS_ARRAY;
+            } catch { relaysCfg = DEFAULT_RELAYS_ARRAY; }
+
+            const reqKindStr = yield* _(configService.get("USER_NIP90_REQUEST_KIND").pipe(Effect.orElseSucceed(() => "5050")));
+            const reqKind = parseInt(reqKindStr, 10);
+            const reqEncryptionStr = yield* _(configService.get("USER_NIP90_REQUIRES_ENCRYPTION").pipe(Effect.orElseSucceed(() => "true")));
+            const useEphemeralStr = yield* _(configService.get("USER_NIP90_USE_EPHEMERAL_REQUESTS").pipe(Effect.orElseSucceed(() => "true")));
+            const modelIdFromConfig = yield* _(configService.get("USER_NIP90_MODEL_IDENTIFIER").pipe(Effect.orElseSucceed(() => "custom_nip90_model")));
+
+            const nip90ConfigCustom: NIP90ProviderConfig = {
+              modelName: modelName || modelIdFromConfig,
+              isEnabled: true,
+              dvmPubkey,
+              dvmRelays: relaysCfg,
+              requestKind: (!isNaN(reqKind) && reqKind >= 5000 && reqKind <= 5999) ? reqKind : 5050,
+              requiresEncryption: reqEncryptionStr === "true",
+              useEphemeralRequests: useEphemeralStr === "true",
+              modelIdentifier: modelIdFromConfig,
+            };
+
+            const nip90ConfigLayerCustom = Layer.succeed(NIP90ProviderConfigTag, nip90ConfigCustom);
+
+            const nip90AgentLMLayerCustom = NIP90AgentLanguageModelLive.pipe(
+              Layer.provide(nip90ConfigLayerCustom),
+              Layer.provide(Layer.succeed(NIP90Service, nip90Service)),
+              Layer.provide(Layer.succeed(NostrService, nostrService)),
+              Layer.provide(Layer.succeed(NIP04Service, nip04Service)),
+              Layer.provide(Layer.succeed(TelemetryService, telemetry)),
+              Layer.provide(Layer.succeed(SparkService, sparkService))
+            );
+
+            const nip90AgentLMCustomInstance = yield* _(
+              Layer.build(nip90AgentLMLayerCustom).pipe(
+                Effect.map((context) => Context.get(context, AgentLanguageModel.Tag)),
+                Effect.scoped
+              )
+            );
+            runTelemetry({ category: "orchestrator", action: "get_provider_model_success_nip90_custom", label: providerKey });
+            return nip90AgentLMCustomInstance;
           }
           
           default:

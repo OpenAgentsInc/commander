@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import { ConfigurationService } from "@/services/configuration";
 
 export interface AIProvider {
@@ -55,8 +55,28 @@ export const useAgentChatStore = create<AgentChatState>()(
               modelName: modelIdentifier,
             });
           }
+
+          // Add logic for custom NIP-90 DVM
+          const userNip90EnabledStr = yield* _(safeGetConfig("USER_NIP90_ENABLED", "false"));
+          if (userNip90EnabledStr === "true") {
+            const userNip90DvmPk = yield* _(safeGetConfig("USER_NIP90_DVM_PUBKEY", ""));
+
+            if (userNip90DvmPk.trim() !== "") {
+              const userNip90Name = yield* _(safeGetConfig("USER_NIP90_NAME", "Custom NIP-90 DVM"));
+              const userNip90ModelIdentifier = yield* _(safeGetConfig("USER_NIP90_MODEL_IDENTIFIER", "custom_model"));
+
+              providers.push({
+                key: "nip90_custom", // A unique key for the custom DVM
+                name: userNip90Name,
+                type: "nip90",
+                configKey: "USER_NIP90", // Prefix for its config keys
+                modelName: userNip90ModelIdentifier, // Used by DVM to identify the job type/model
+              });
+            } else {
+              console.warn("Custom NIP-90 DVM enabled but pubkey not configured.");
+            }
+          }
           set({ availableProviders: providers });
-          return Effect.void;
         }).pipe(
           Effect.catchAll((unexpectedError) => {
             console.error("Unexpected error in loadAvailableProviders:", unexpectedError);
