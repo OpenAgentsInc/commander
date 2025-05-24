@@ -10,6 +10,7 @@ import {
 import * as Fiber from "effect/Fiber";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
 import { finalizeEvent, type EventTemplate } from "nostr-tools/pure";
+import { Context } from "effect";
 import { TelemetryService, TrackEventError } from "@/services/telemetry";
 import {
   NostrService,
@@ -562,10 +563,10 @@ export const Kind5050DVMServiceLive = Layer.scoped(
       Effect.gen(function* (_) {
         const currentRuntime = getMainRuntime(); // Get fresh runtime on each iteration
         
-        // Resolve services from the fresh runtime for this iteration
-        const localTelemetry = yield* _(Effect.provide(TelemetryService, currentRuntime));
-        const localSpark = yield* _(Effect.provide(SparkService, currentRuntime));
-        const localNostr = yield* _(Effect.provide(NostrService, currentRuntime));
+        // Get services from the current runtime context
+        const localTelemetry = Context.get(currentRuntime.context, TelemetryService);
+        const localSpark = Context.get(currentRuntime.context, SparkService);
+        const localNostr = Context.get(currentRuntime.context, NostrService);
 
         yield* _(localTelemetry.trackEvent({
           category: "dvm:payment_check",
@@ -643,18 +644,19 @@ export const Kind5050DVMServiceLive = Layer.scoped(
             Effect.retry(
               Schedule.recurs(2).pipe(Schedule.compose(Schedule.spaced(Duration.seconds(2))))
             ),
-            Effect.catchTag("SparkError", (e) => {
+            Effect.catchAll((e) => {
+              const sparkErr = e as SparkError;
               Effect.runFork(localTelemetry.trackEvent({ // Fork telemetry to not affect main flow
                 category: "dvm:payment_check_error",
                 action: "spark_check_invoice_failed_final",
                 label: `Job ID: ${jobId}`,
-                value: e.message
+                value: sparkErr.message
               }).pipe(Effect.ignoreLogged));
-              return Effect.succeed({ status: "error" as const, message: e.message });
+              return Effect.succeed({ status: "error" as const, message: sparkErr.message });
             })
           );
 
-          const invoiceStatusResult = yield* _(checkStatusWithRetryEffect);
+          const invoiceStatusResult: InvoiceStatusResult = yield* _(checkStatusWithRetryEffect);
 
           if (invoiceStatusResult.status === "paid") {
             // Payment confirmed - process normally or clean up if already optimistic
