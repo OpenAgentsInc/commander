@@ -16,6 +16,7 @@ import {
   DefaultTelemetryConfigLayer,
   TelemetryEvent,
 } from "@/services/telemetry";
+import { type NIP90JobFeedbackStatus } from "@/services/nip90";
 import {
   NIP19Service,
   NIP19ServiceLive,
@@ -376,11 +377,12 @@ export function useNip90ConsumerChat({
         action: "job_request_published",
         label: signedEvent.id,
       });
-      addMessage(
-        "system",
-        `Job request sent (ID: ${signedEvent.id.substring(0, 8)}...). Waiting for DVM...`,
-        "System",
-      );
+      // **MODIFICATION**: Removed the "Job request sent..." system message
+      // addMessage(
+      //   "system",
+      //   `Job request sent (ID: ${signedEvent.id.substring(0, 8)}...). Waiting for DVM...`,
+      //   "System",
+      // );
 
       const resultKind = signedEvent.kind + 1000;
       const filters: NostrFilter[] = [
@@ -457,11 +459,18 @@ export function useNip90ConsumerChat({
         const dvmAuthor = `DVM (${event.pubkey.substring(0, 6)}...)`;
         if (event.kind === 7000) {
           const statusTag = event.tags.find((t) => t[0] === "status");
-          const status = statusTag ? statusTag[1] : "update";
+          const status = statusTag ? statusTag[1] as NIP90JobFeedbackStatus : "update";
           const extraInfo =
             statusTag && statusTag.length > 2 ? statusTag[2] : "";
           
-          // Handle payment-required status
+          // **MODIFICATION**: Only show payment-required or error feedback messages
+          telemetryForEvent.trackEvent({
+            category: "nip90_consumer_feedback",
+            action: "feedback_received_raw",
+            label: `Job: ${signedEvent.id}, Status: ${status}`,
+            value: `Content: ${content}, ExtraInfo: ${extraInfo}`,
+          });
+          
           if (status === "payment-required") {
             const amountTag = event.tags.find((t) => t[0] === "amount");
             if (amountTag && amountTag[2]) {  // FIX: Invoice is at position 2, not 1!
@@ -504,17 +513,18 @@ export function useNip90ConsumerChat({
             } else {
               addMessage(
                 "system",
-                "Payment required but no invoice provided by DVM",
+                "Payment required but no invoice provided by DVM.",
                 "System",
               );
             }
-          } else {
+          } else if (status === "error") {
             addMessage(
               "system",
-              `Status from ${dvmAuthor}: ${status} ${extraInfo ? `- ${extraInfo}` : ""} ${content ? `- ${content}` : ""}`.trim(),
-              "System",
+              `Error from ${dvmAuthor}: ${extraInfo || content || "Unknown DVM error"}`,
+              "System Error",
             );
           }
+          // Other statuses like "processing", "partial", "success" (if sent as kind 7000) are logged by telemetry but not added to UI.
           
           if (status === "error" || status === "success") {
             setIsLoading(false);
@@ -529,21 +539,15 @@ export function useNip90ConsumerChat({
             }
           }
         } else if (event.kind >= 6000 && event.kind <= 6999) {
-          // Job result
-          const amountTag = event.tags.find((t) => t[0] === "amount");
-          let paymentInfo = "";
-          if (amountTag) {
-            const msats = amountTag[1];
-            const invoice = amountTag[2];
-            paymentInfo = `\n💰 Payment: ${msats} msats. ${invoice ? `Invoice: ${invoice.substring(0, 15)}...` : ""}`;
-          }
+          // **MODIFICATION**: Removed paymentInfo from the assistant message
           addMessage(
             "assistant",
-            `${content}${paymentInfo}`,
+            content,
             dvmAuthor,
             event.id,
           );
           setIsLoading(false);
+          setPaymentState({ required: false, status: 'none' });
           if (activeSubsRef.current.has(signedEvent.id)) {
             const resultSub = activeSubsRef.current.get(signedEvent.id + "_result");
             const feedbackSub = activeSubsRef.current.get(signedEvent.id + "_feedback");
