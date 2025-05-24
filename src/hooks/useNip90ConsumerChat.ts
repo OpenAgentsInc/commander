@@ -169,7 +169,7 @@ export function useNip90ConsumerChat({
       if (Exit.isSuccess(paymentExit)) {
         const paymentResult = paymentExit.value;
         setPaymentState(prev => ({ ...prev, status: 'paid' }));
-        addMessage("system", `Payment successful! Hash: ${paymentResult.paymentHash.substring(0, 12)}...`);
+        // Payment successful - no user message needed, they'll see the AI response
         
         // Track success outside Effect too
         telemetryService.trackEvent({
@@ -478,11 +478,7 @@ export function useNip90ConsumerChat({
                 jobId: signedEvent.id
               });
               
-              addMessage(
-                "system",
-                `Payment required: ${amountSats} sats. Auto-paying invoice...`,
-                "System",
-              );
+              // Payment required - auto-paying silently
               
               telemetryForEvent.trackEvent({
                 category: "nip90_consumer",
@@ -493,11 +489,7 @@ export function useNip90ConsumerChat({
 
               // AUTO-PAY: Automatically pay small amounts (under 10 sats)
               if (amountSats <= 10) {
-                addMessage(
-                  "system",
-                  `Auto-paying ${amountSats} sats (auto-approval enabled for small amounts)...`,
-                  "System",
-                );
+                // Auto-paying small amount silently
                 
                 telemetryForEvent.trackEvent({
                   category: "nip90_consumer",
