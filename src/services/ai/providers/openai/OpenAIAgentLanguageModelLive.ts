@@ -51,10 +51,21 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
   return makeAgentLanguageModel({
     generateText: (options: GenerateTextOptions) =>
       Effect.gen(function* (_) {
+        const resolvedModel = options.model || modelName; // FIX: Honor options.model
+        
+        yield* _(
+          telemetry.trackEvent({
+            category: "openai_provider",
+            action: "generate_text_model_resolved",
+            label: "OpenAIAgentLanguageModelLive",
+            value: `Using: ${resolvedModel} (requested: ${options.model || "none"}, default: ${modelName})`
+          })
+        );
+        
         const messages = parseMessages(options.prompt);
         const response = yield* _(
           client.client.createChatCompletion({
-            model: modelName,
+            model: resolvedModel, // FIX: Use resolved model
             messages,
             temperature: options.temperature ?? 0.7,
             max_tokens: options.maxTokens ?? 2048,
@@ -76,9 +87,21 @@ export const OpenAIAgentLanguageModelLive = Effect.gen(function* (_) {
       ),
 
     streamText: (options: StreamTextOptions) => {
+      const resolvedModel = options.model || modelName; // FIX: Honor options.model
+      
+      // Fire-and-forget telemetry logging
+      Effect.runFork(
+        telemetry.trackEvent({
+          category: "openai_provider",
+          action: "stream_text_model_resolved",
+          label: "OpenAIAgentLanguageModelLive",
+          value: `Using: ${resolvedModel} (requested: ${options.model || "none"}, default: ${modelName})`
+        })
+      );
+      
       const messages = parseMessages(options.prompt);
       return client.stream({
-        model: modelName,
+        model: resolvedModel, // FIX: Use resolved model
         messages,
         temperature: options.temperature ?? 0.7,
         max_tokens: options.maxTokens ?? 2048,

@@ -55,17 +55,17 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<AiProviderError | null>(null);
 
-  const runtimeRef = useRef(getMainRuntime()); // Capture runtime instance
+  // Remove stale runtime reference - get fresh runtime at execution time
   const streamAbortControllerRef = useRef<AbortController | null>(null);
   const currentAssistantMessageIdRef = useRef<string | null>(null);
 
   const runTelemetry = useCallback((event: TelemetryEvent) => {
     Effect.runFork(
       Effect.flatMap(TelemetryService, (ts) => ts.trackEvent(event)).pipe(
-        Effect.provide(runtimeRef.current),
+        Effect.provide(getMainRuntime()), // Get fresh runtime
       ),
     );
-  }, []); // runtimeRef is stable
+  }, []); // No runtime in deps
 
   const sendMessage = useCallback(
     async (promptText: string) => {
@@ -152,6 +152,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
         maxTokens: 2048,
       };
 
+      const currentRuntime = getMainRuntime(); // Get fresh runtime
+      
       const program = Effect.gen(function* (_) {
         const orchestrator = yield* _(ChatOrchestratorService);
         // Log successful service resolution
@@ -213,7 +215,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
           ),
         );
       }).pipe(
-        Effect.provide(runtimeRef.current),
+        Effect.provide(currentRuntime), // Use fresh runtime
         Effect.tapErrorCause((cause) =>
           Effect.sync(() => {
             // Check if the error is due to AbortSignal
@@ -289,9 +291,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
         ),
       );
 
-      Effect.runFork(
-        Effect.provide(program, runtimeRef.current)
-      );
+      Effect.runFork(program);
     },
     [messages, initialSystemMessage, runTelemetry, selectedProviderKey],
   );

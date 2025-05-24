@@ -932,28 +932,55 @@ export const SparkServiceLive = Layer.scoped(
           const sdkResult = yield* _(
             Effect.tryPromise({
               try: async () => {
-                // SDK MOCK - In a real implementation, we would call the actual SDK method
-                // This would likely be something like:
-                // return await wallet.getInvoiceStatus({ encodedInvoice: invoiceBolt11 });
-                // or
-                // return await wallet.lookupInvoice({ paymentHash: extractedPaymentHash });
-
-                // For now, use a simple mock based on the invoiceBolt11 string
-                if (invoiceBolt11.includes("paid_invoice_stub")) {
-                  return {
-                    status: "PAID",
-                    amountPaidMsat: 100000,
-                    payment_hash: "hash_for_paid",
-                  };
-                } else if (invoiceBolt11.includes("expired_invoice_stub")) {
-                  return {
-                    status: "EXPIRED",
-                    payment_hash: "hash_for_expired",
-                  };
-                } else if (invoiceBolt11.includes("error_invoice_stub")) {
-                  throw new Error("SDK error checking invoice"); // Mock error
+                // REAL SDK IMPLEMENTATION - Try multiple methods to check payment status
+                let invoiceResult: any = null;
+                
+                try {
+                  // First try: Direct invoice lookup by BOLT11
+                  if (wallet.getInvoice) {
+                    invoiceResult = await wallet.getInvoice(invoiceBolt11);
+                  }
+                } catch (e) {
+                  console.log("[SparkService] getInvoice failed, trying alternatives:", e);
                 }
-                return { status: "PENDING", payment_hash: "hash_for_pending" }; // Default to pending
+                
+                if (!invoiceResult) {
+                  try {
+                    // Second try: List recent invoices and find match
+                    if (wallet.listInvoices) {
+                      const recentInvoices = await wallet.listInvoices({ limit: 100 });
+                      invoiceResult = recentInvoices?.find(inv => 
+                        inv.bolt11 === invoiceBolt11 || 
+                        inv.invoice === invoiceBolt11 ||
+                        inv.encodedInvoice === invoiceBolt11
+                      );
+                    }
+                  } catch (e) {
+                    console.log("[SparkService] listInvoices failed:", e);
+                  }
+                }
+                
+                if (!invoiceResult) {
+                  try {
+                    // Third try: Check by payment hash if we can extract it
+                    if (wallet.lookupInvoice && invoiceBolt11.startsWith('lnbc')) {
+                      // Try to extract payment hash from BOLT11 or use SDK method
+                      invoiceResult = await wallet.lookupInvoice({ invoice: invoiceBolt11 });
+                    }
+                  } catch (e) {
+                    console.log("[SparkService] lookupInvoice failed:", e);
+                  }
+                }
+                
+                // Log the FULL response for debugging
+                console.log("[SparkService] checkInvoiceStatus raw response:", JSON.stringify(invoiceResult, null, 2));
+                
+                if (!invoiceResult) {
+                  // Fallback: return pending if we can't find the invoice
+                  return { status: "PENDING", payment_hash: "unknown" };
+                }
+                
+                return invoiceResult;
               },
               catch: (e) => {
                 // Map errors to appropriate types
@@ -1025,33 +1052,62 @@ export const SparkServiceLive = Layer.scoped(
           let status: "pending" | "paid" | "expired" | "error" = "pending";
           let amountPaidMsats: number | undefined = undefined;
 
-          // Map SDK status to our defined status
-          switch (sdkResult.status?.toUpperCase()) {
-            case "PAID":
-            case "COMPLETED":
-              status = "paid";
-              amountPaidMsats = sdkResult.amountPaidMsat;
-              break;
-            case "EXPIRED":
-              status = "expired";
-              break;
-            case "PENDING":
-            case "UNPAID":
+          // Check MULTIPLE fields that indicate payment - comprehensive detection
+          const isPaid = !!(
+            sdkResult?.paymentPreimage ||                    // Has preimage = definitely paid
+            sdkResult?.settled ||                            // Settled flag
+            sdkResult?.settledAt ||                          // Has settlement timestamp
+            sdkResult?.state === "SETTLED" ||                // State field
+            sdkResult?.state === "PAID" ||                   // Alternative state
+            sdkResult?.isPaid === true ||                    // Direct paid boolean
+            sdkResult?.amountPaidMsat > 0 ||                 // Has paid amount
+            sdkResult?.amountPaidMsats > 0 ||                // Alternative amount field
+            sdkResult?.status === "PAID" ||                  // Status field
+            sdkResult?.status === "COMPLETED" ||             // Completed status
+            sdkResult?.paid === true ||                      // Another paid flag variant
+            sdkResult?.confirmed === true                    // Confirmed flag
+          );
+          
+          const isExpired = !!(
+            sdkResult?.state === "EXPIRED" ||
+            sdkResult?.status === "EXPIRED" ||
+            sdkResult?.expired === true ||
+            (sdkResult?.expiresAt && Date.now() > new Date(sdkResult.expiresAt).getTime())
+          );
+
+          if (isPaid) {
+            status = "paid";
+            // Try to get amount from multiple possible fields
+            amountPaidMsats = sdkResult?.amountPaidMsat || 
+                              sdkResult?.amountPaidMsats || 
+                              sdkResult?.amount_paid_msat ||
+                              sdkResult?.amountMsat || 
+                              sdkResult?.amount_msat ||
+                              sdkResult?.amount ||
+                              0;
+          } else if (isExpired) {
+            status = "expired";
+          } else if (sdkResult?.status || sdkResult?.state) {
+            // Only if we have some status info, otherwise default to pending
+            const statusStr = (sdkResult.status || sdkResult.state || "").toUpperCase();
+            if (statusStr.includes("PENDING") || statusStr.includes("UNPAID") || statusStr.includes("WAITING")) {
               status = "pending";
-              break;
-            default:
+            } else {
               status = "error";
               yield* _(
                 telemetry
                   .trackEvent({
                     category: "spark:lightning",
                     action: "check_invoice_status_unknown_sdk_status",
-                    label: `Unknown SDK status: ${sdkResult.status}`,
-                    value: invoiceBolt11,
+                    label: `Unknown SDK status: ${statusStr}`,
+                    value: JSON.stringify(sdkResult),
                   })
                   .pipe(Effect.ignoreLogged),
               );
-              break;
+            }
+          } else {
+            // No clear status info, default to pending
+            status = "pending";
           }
 
           yield* _(
