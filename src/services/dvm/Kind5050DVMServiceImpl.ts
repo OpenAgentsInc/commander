@@ -50,6 +50,13 @@ import {
 } from "./Kind5050DVMService";
 import type { JobHistoryEntry, JobStatistics, JobStatus } from "@/types/dvm";
 
+// Enhanced payment polling constants for Lightning Network settlement delays
+const JOB_PAYMENT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes for a job to be paid
+const JOB_POLL_INITIAL_DELAY_MS = 5_000;     // Start polling a specific job after 5 seconds
+const JOB_POLL_MAX_DELAY_MS = 60_000;        // Max delay between polls for a specific job is 1 minute
+const JOB_POLL_FACTOR = 1.5;                 // Exponential backoff factor for a specific job
+const OVERALL_PENDING_JOBS_CHECK_INTERVAL_S = 1; // Overall loop to check all pending jobs every 1 second
+
 /**
  * Helper to create NIP-90 feedback events (Kind 7000)
  */
@@ -257,10 +264,13 @@ export const Kind5050DVMServiceLive = Layer.scoped(
     interface PendingJob {
       requestEvent: NostrEvent;
       invoice: string;
+      paymentHash: string; // Ensure this field is present
       amountSats: number;
-      createdAt: number;
+      createdAt: number;    // Timestamp when the job was added to pendingJobs
       prompt: string;
       isEncrypted: boolean;
+      lastPolledAt: number; // Timestamp of the last poll attempt for this job
+      pollAttempts: number; // Number of polling attempts for this job
     }
     const pendingJobs = new Map<string, PendingJob>(); // jobId -> pending job info
 
@@ -538,10 +548,10 @@ export const Kind5050DVMServiceLive = Layer.scoped(
       });
 
     /**
-     * Check for invoice status updates and update job statuses
-     * Runs periodically when DVM is active
+     * Enhanced payment checking with exponential backoff per job
+     * Runs every 1 second but uses per-job backoff for efficient polling
      */
-    const checkAndUpdateInvoiceStatuses = (): Effect.Effect<
+    const checkAndUpdateInvoiceStatusesLogic = (): Effect.Effect<
       void,
       DVMError | TrackEventError,
       SparkService | TelemetryService | NostrService
@@ -551,126 +561,170 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         const localSpark = yield* ctx(SparkService);
         const localNostr = yield* ctx(NostrService);
 
-        yield* _(
-          localTelemetry
-            .trackEvent({
-              category: "dvm:payment_check",
-              action: "check_all_invoices_start",
-            })
-            .pipe(Effect.ignoreLogged),
-        );
+        yield* _(localTelemetry.trackEvent({
+          category: "dvm:payment_check",
+          action: "check_all_invoices_start",
+          label: `Checking ${pendingJobs.size} pending jobs`,
+        }).pipe(Effect.ignoreLogged));
 
-        // Check our in-memory pending jobs
-        const pendingJobsArray = Array.from(pendingJobs.entries());
-        
-        if (pendingJobsArray.length === 0) {
-          yield* _(
-            localTelemetry
-              .trackEvent({
-                category: "dvm:payment_check",
-                action: "no_pending_jobs",
-              })
-              .pipe(Effect.ignoreLogged),
-          );
-          return;
+        if (pendingJobs.size === 0) {
+          yield* _(localTelemetry.trackEvent({
+            category: "dvm:payment_check",
+            action: "no_pending_jobs_to_check",
+          }).pipe(Effect.ignoreLogged));
+          return; // Exit if no pending jobs
         }
 
-        yield* _(
-          localTelemetry
-            .trackEvent({
-              category: "dvm:payment_check",
-              action: "checking_pending_jobs",
-              value: `${pendingJobsArray.length} jobs`,
-            })
-            .pipe(Effect.ignoreLogged),
-        );
+        for (const [jobId, currentJobEntry] of pendingJobs.entries()) {
+          // Use a fresh copy from the map for each iteration's logic
+          const jobToPoll = pendingJobs.get(jobId);
+          if (!jobToPoll) { // Should not happen if iterating map.keys() or map.entries() directly
+            continue;
+          }
 
-        // Check each pending job's invoice status
-        for (const [jobId, pendingJob] of pendingJobsArray) {
-          const invoiceStatus = yield* _(
-            localSpark.checkInvoiceStatus(pendingJob.invoice).pipe(
-              Effect.mapError(
-                (e) =>
-                  new DVMPaymentError({
-                    message: `Failed to check invoice status for job ${jobId}`,
-                    cause: e,
-                  }),
-              ),
-            ),
+          const now = Date.now();
+
+          // 1. Check for overall job payment timeout
+          if (now - jobToPoll.createdAt > JOB_PAYMENT_TIMEOUT_MS) {
+            pendingJobs.delete(jobId); // Remove from pending
+            yield* _(localTelemetry.trackEvent({
+              category: "dvm:payment",
+              action: "job_payment_timeout",
+              label: jobId,
+              value: `Job timed out after ${JOB_PAYMENT_TIMEOUT_MS / 1000}s`,
+            }).pipe(Effect.ignoreLogged));
+
+            const timeoutFeedback = createNip90FeedbackEvent(
+              useDVMSettingsStore.getState().getEffectiveConfig().dvmPrivateKeyHex,
+              jobToPoll.requestEvent,
+              "error",
+              "Payment timed out by DVM.",
+              undefined,
+              localTelemetry,
+            );
+            yield* _(publishFeedback(timeoutFeedback));
+            continue;
+          }
+
+          // 2. Check if it's time to poll this specific job based on its backoff
+          const backoffDelay = Math.min(
+            JOB_POLL_INITIAL_DELAY_MS * Math.pow(JOB_POLL_FACTOR, jobToPoll.pollAttempts),
+            JOB_POLL_MAX_DELAY_MS
           );
 
-          if (invoiceStatus.status === "paid") {
-            yield* _(
-              localTelemetry
-                .trackEvent({
-                  category: "dvm:payment",
-                  action: "invoice_paid",
-                  label: jobId,
-                  value: `${pendingJob.amountSats} sats`,
-                })
-                .pipe(Effect.ignoreLogged),
-            );
+          if (jobToPoll.pollAttempts > 0 && (now - jobToPoll.lastPolledAt < backoffDelay)) {
+            continue; // Not time to poll this specific job yet
+          }
 
-            // Process the paid job
-            yield* _(
-              processPaidJob(pendingJob).pipe(
-                Effect.catchAll((error) =>
-                  Effect.gen(function* (_) {
-                    // Send error feedback
-                    const errorFeedback = createNip90FeedbackEvent(
-                      useDVMSettingsStore.getState().getEffectiveConfig().dvmPrivateKeyHex,
-                      pendingJob.requestEvent,
-                      "error",
-                      `Failed to process job: ${error.message}`,
-                      undefined,
-                      localTelemetry,
-                    );
-                    yield* _(publishFeedback(errorFeedback));
-                    
-                    // Remove from pending
-                    pendingJobs.delete(jobId);
-                    
-                    yield* _(
-                      localTelemetry
-                        .trackEvent({
-                          category: "dvm:error",
-                          action: "paid_job_processing_failed",
-                          label: jobId,
-                          value: error.message,
-                        })
-                        .pipe(Effect.ignoreLogged),
-                    );
-                  }),
-                ),
-              ),
-            );
-          } else if (invoiceStatus.status === "expired") {
-            // Remove expired jobs
+          const nextPollAttempt = jobToPoll.pollAttempts + 1;
+
+          // Update lastPolledAt and pollAttempts for this job *before* the async call
+          const updatedJobEntryForPoll = {
+            ...jobToPoll,
+            lastPolledAt: now,
+            pollAttempts: nextPollAttempt
+          };
+          pendingJobs.set(jobId, updatedJobEntryForPoll);
+
+          yield* _(localTelemetry.trackEvent({
+            category: "dvm:payment_check",
+            action: "individual_invoice_check_start",
+            label: `Job ID: ${jobId}, Attempt: ${nextPollAttempt}`,
+            value: `Invoice: ${jobToPoll.invoice.substring(0,20)}...`,
+          }).pipe(Effect.ignoreLogged));
+
+          const checkStatusWithRetryEffect = localSpark.checkInvoiceStatus(jobToPoll.invoice).pipe(
+            Effect.retry(
+              Schedule.recurs(2).pipe(Schedule.compose(Schedule.spaced(Duration.seconds(2))))
+            ),
+            Effect.catchTag("SparkError", (e) => {
+              Effect.runFork(localTelemetry.trackEvent({ // Fork telemetry to not affect main flow
+                category: "dvm:payment_check_error",
+                action: "spark_check_invoice_failed_final",
+                label: `Job ID: ${jobId}`,
+                value: e.message
+              }).pipe(Effect.ignoreLogged));
+              return Effect.succeed({ status: "error" as const, message: e.message });
+            })
+          );
+
+          const invoiceStatusResult = yield* _(checkStatusWithRetryEffect);
+
+          if (invoiceStatusResult.status === "paid") {
+            yield* _(localTelemetry.trackEvent({
+              category: "dvm:payment",
+              action: "invoice_paid_detected",
+              label: jobId,
+              value: `Sats: ${jobToPoll.amountSats}, Paid Amount: ${invoiceStatusResult.amountPaidMsats || 'N/A'} msats`,
+            }).pipe(Effect.ignoreLogged));
+
+            yield* _(processPaidJob(updatedJobEntryForPoll).pipe(
+              Effect.catchAllCause(cause => {
+                Effect.runFork(localTelemetry.trackEvent({
+                    category: "dvm:error",
+                    action: "process_paid_job_failed_after_payment",
+                    label: `Job ID: ${jobId}`,
+                    value: Cause.pretty(cause)
+                }).pipe(Effect.ignoreLogged));
+                // Job remains in pendingJobs to be timed out if processing fails.
+                return Effect.void;
+              })
+            ));
+          } else if (invoiceStatusResult.status === "expired") {
             pendingJobs.delete(jobId);
-            
-            // Send expiry feedback
+            yield* _(localTelemetry.trackEvent({
+              category: "dvm:payment",
+              action: "invoice_expired_detected_by_dvm",
+              label: jobId,
+            }).pipe(Effect.ignoreLogged));
+
             const expiredFeedback = createNip90FeedbackEvent(
               useDVMSettingsStore.getState().getEffectiveConfig().dvmPrivateKeyHex,
-              pendingJob.requestEvent,
+              jobToPoll.requestEvent,
               "error",
-              "Payment invoice expired",
+              "Payment invoice expired (DVM check).",
               undefined,
               localTelemetry,
             );
             yield* _(publishFeedback(expiredFeedback));
-            
-            yield* _(
-              localTelemetry
-                .trackEvent({
-                  category: "dvm:payment",
-                  action: "invoice_expired",
-                  label: jobId,
-                })
-                .pipe(Effect.ignoreLogged),
-            );
+          } else if (invoiceStatusResult.status === "error") {
+            yield* _(localTelemetry.trackEvent({
+              category: "dvm:payment_check_error",
+              action: "invoice_check_returned_error_status",
+              label: `Job ID: ${jobId}`,
+              value: `Attempt: ${nextPollAttempt}. Error: ${invoiceStatusResult.message || 'Unknown check error'}`,
+            }).pipe(Effect.ignoreLogged));
+            // Job stays in pendingJobs, pollAttempts was updated.
+          } else { // Still "pending"
+            yield* _(localTelemetry.trackEvent({
+              category: "dvm:payment_check",
+              action: "invoice_still_pending_after_check",
+              label: `Job ID: ${jobId}`,
+              value: `Attempt: ${nextPollAttempt}`,
+            }).pipe(Effect.ignoreLogged));
+            // Job stays in pendingJobs, pollAttempts was updated.
           }
-          // If still pending, leave it in the map for next check
         }
+      });
+
+    // Legacy implementation for backward compatibility
+    const checkAndUpdateInvoiceStatuses = (): Effect.Effect<
+      void,
+      DVMError | TrackEventError,
+      SparkService | TelemetryService | NostrService
+    > =>
+      Effect.gen(function* (ctx) {
+        // Use the new enhanced logic
+        yield* _(checkAndUpdateInvoiceStatusesLogic().pipe(
+          Effect.provideService(SparkService, yield* ctx(SparkService)),
+          Effect.provideService(TelemetryService, yield* ctx(TelemetryService)),
+          Effect.provideService(NostrService, yield* ctx(NostrService)),
+        ));
+
+        // Keep backward compatibility with old logic for history checking
+        const localTelemetry = yield* ctx(TelemetryService);
+        const localSpark = yield* ctx(SparkService);
+        const localNostr = yield* ctx(NostrService);
 
         // Also check history for backward compatibility
         const historyResult = yield* _(
@@ -1191,16 +1245,20 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         );
         
         const bolt11Invoice = invoiceResult.invoice.encodedInvoice;
+        const paymentHash = invoiceResult.invoice.paymentHash; // Extract paymentHash from the invoice result
         const invoiceAmountMillisats = priceSats * 1000;
 
         // Store job in pending map
         pendingJobs.set(jobRequestEvent.id, {
           requestEvent: jobRequestEvent,
           invoice: bolt11Invoice,
+          paymentHash: paymentHash, // Store the paymentHash
           amountSats: priceSats,
           createdAt: Date.now(),
           prompt: prompt,
           isEncrypted: isRequestEncrypted,
+          lastPolledAt: 0, // Initialize to 0 to ensure the first check in the loop runs immediately
+          pollAttempts: 0,
         });
 
         // Send payment-required feedback
@@ -1394,8 +1452,16 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         );
         yield* _(publishFeedback(successFeedback));
 
-        // Remove from pending jobs
+        // Remove from pending jobs after successful processing and result publication
         pendingJobs.delete(jobRequestEvent.id);
+
+        yield* _(
+          telemetry.trackEvent({ // Ensure telemetry is from the correct scope
+            category: "dvm:job_lifecycle",
+            action: "job_removed_from_pending_after_processing",
+            label: jobRequestEvent.id,
+          }).pipe(Effect.ignoreLogged),
+        );
 
         yield* _(
           telemetry
@@ -1520,22 +1586,26 @@ Configure consumer with this pubkey!
           },
         ];
 
-        // Start the invoice check fiber if it's not already running or if it's completed
-        // Since there's no direct isRunning method, we simply start a new fiber if needed
+        // Start the enhanced invoice check fiber if it's not already running
         if (!invoiceCheckFiber) {
           const scheduledInvoiceChecks = Effect.repeat(
-            checkAndUpdateInvoiceStatuses().pipe(
+            checkAndUpdateInvoiceStatusesLogic().pipe(
+              // Provide dependencies needed by checkAndUpdateInvoiceStatusesLogic itself
               Effect.provideService(SparkService, spark),
               Effect.provideService(NostrService, nostr),
               Effect.provideService(TelemetryService, telemetry),
               Effect.catchAllCause((cause) => {
-                console.error("Invoice check error:", Cause.pretty(cause));
-                return Effect.logInfo(
-                  "Continuing with invoice checks despite error",
-                );
+                Effect.runFork(telemetry.trackEvent({ // Use telemetry from the outer scope
+                  category: "dvm:error",
+                  action: "invoice_check_loop_unhandled_error",
+                  value: Cause.pretty(cause),
+                }).pipe(Effect.ignoreLogged));
+                console.error("[Kind5050DVMServiceImpl] Unhandled error in main invoice check loop:", Cause.pretty(cause));
+                return Effect.logInfo("Continuing invoice check loop despite unhandled error in one cycle.");
               }),
             ),
-            Schedule.spaced(Duration.seconds(60)), // Check every minute
+            // Update the schedule interval here:
+            Schedule.spaced(Duration.seconds(OVERALL_PENDING_JOBS_CHECK_INTERVAL_S))
           );
 
           invoiceCheckFiber = Effect.runFork(scheduledInvoiceChecks);
