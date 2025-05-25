@@ -182,6 +182,38 @@ export const ChatOrchestratorServiceLive = Layer.effect(
             runTelemetry({ category: "orchestrator", action: "get_provider_model_success_nip90_custom", label: providerKey });
             return nip90AgentLMCustomInstance;
           }
+
+          case "claude_code": {
+            // Use Claude Code CLI provider - build it with dependencies
+            runTelemetry({ category: "orchestrator", action: "get_provider_model_start_claude_code", label: providerKey });
+            
+            // Import the Claude Code provider dynamically
+            const { ClaudeCodeAgentLanguageModelLiveLayer } = yield* _(
+              Effect.tryPromise({
+                try: () => import("@/services/ai/providers/claude_code"),
+                catch: (e) => new AiConfigurationError({ message: `Failed to load Claude Code provider: ${e}` })
+              })
+            );
+
+            // Build Claude Code AgentLanguageModel with required dependencies
+            const claudeCodeAgentLMLayer = ClaudeCodeAgentLanguageModelLiveLayer.pipe(
+              Layer.provide(Layer.succeed(ConfigurationService, configService)),
+              Layer.provide(Layer.succeed(TelemetryService, telemetry))
+            );
+            
+            const claudeCodeAgentLM: AgentLanguageModel = yield* _(
+              Layer.build(claudeCodeAgentLMLayer).pipe(
+                Effect.map((context) =>
+                  Context.get(context, AgentLanguageModel.Tag)
+                ),
+                Effect.scoped
+              )
+            );
+            
+            runTelemetry({ category: "orchestrator", action: "get_provider_model_success_claude_code", label: providerKey });
+            console.log("[ChatOrchestratorService] Successfully built Claude Code provider for", providerKey);
+            return claudeCodeAgentLM;
+          }
           
           default:
             runTelemetry({ category: "orchestrator", action: "get_provider_model_unknown", label: providerKey });

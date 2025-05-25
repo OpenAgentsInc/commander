@@ -23,5 +23,6 @@
     "skipLibCheck": true,
     "types": ["vitest/globals", "node"]
   },
-  "include": ["src/**/*", "./package.json", "./forge.config.ts"]
+  "include": ["src/**/*", "./package.json", "./forge.config.ts"],
+  "exclude": ["src/kneen-claude-code-sdk/**/*"]
 }

@@ -4,6 +4,9 @@
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare const MAIN_WINDOW_VITE_NAME: string;
 
+// Import types for Claude Code
+import type { ClaudeExecParams } from "@/services/ai/providers/claude_code/claudeCliUtils";
+
 // Preload types
 interface ThemeModeContext {
   toggle: () => Promise<boolean>;
@@ -18,7 +21,23 @@ interface ElectronWindow {
   close: () => Promise<void>;
 }
 
+interface ClaudeCodeAPI {
+  chatCompletion: (params: ClaudeExecParams) => Promise<string | { __error: boolean, message: string }>;
+  streamChat: (
+    params: ClaudeExecParams,
+    onChunk: (chunk: string) => void,
+    onDone: () => void,
+    onError: (error: any) => void
+  ) => () => void;
+}
+
+interface ElectronAPI {
+  claudeCode?: ClaudeCodeAPI;
+  ollama?: any; // Existing ollama interface
+}
+
 declare interface Window {
   themeMode: ThemeModeContext;
   electronWindow: ElectronWindow;
+  electronAPI?: ElectronAPI;
 }
