@@ -24,5 +24,9 @@
     "types": ["vitest/globals", "node"]
   },
   "include": ["src/**/*", "./package.json", "./forge.config.ts"],
-  "exclude": ["src/kneen-claude-code-sdk/**/*", "src/services/ai/providers/claude_code/**/*"]
+  "exclude": [
+    "src/kneen-claude-code-sdk/**/*", 
+    "src/services/ai/providers/claude_code/**/*",
+    "src/helpers/ipc/claude_code/claude-code-listeners.ts"
+  ]
 }

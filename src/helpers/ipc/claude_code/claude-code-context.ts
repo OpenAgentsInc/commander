@@ -1,7 +1,7 @@
 // src/helpers/ipc/claude_code/claude-code-context.ts
 import { contextBridge, ipcRenderer } from "electron";
 import { claudeCodeChannels } from "./claude-code-channels";
-import type { ClaudeExecParams } from "@/services/ai/providers/claude_code/claudeCliUtils";
+// Using global ClaudeExecParams type from types.d.ts
 
 export function exposeClaudeCodeContext() {
   contextBridge.exposeInMainWorld("electronAPI", {
