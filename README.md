@@ -39,6 +39,8 @@ To use Claude Code as an AI provider, you need to:
 
 The bridge service is required because Electron restricts network access for subprocesses. To stop the bridge service, run `./scripts/stop-claude-bridge.sh`.
 
+**Note:** The bridge service must be running separately from the app. Consider adding it to your `pnpm start` script or running it in a separate terminal.
+
 ## Tech Stack
 
 *   **Application Framework:** [Electron](https://www.electronjs.org) (~v35)
