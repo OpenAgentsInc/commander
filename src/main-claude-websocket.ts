@@ -76,13 +76,24 @@ export function setupClaudeWebSocketHandler() {
       return;
     }
     
-    // For multi-turn conversations, format as alternating USER/ASSISTANT
+    // For multi-turn conversations, format as a proper conversation
     if (conversationMessages.length > 1) {
-      conversationContext = conversationMessages
-        .map((msg: any) => `${msg.role.toUpperCase()}: ${msg.content}`)
-        .join('\n\n');
+      // Build conversation with clear role markers
+      const formattedMessages = conversationMessages.map((msg: any, index: number) => {
+        const role = msg.role === 'user' ? 'Human' : 'Assistant';
+        return `${role}: ${msg.content}`;
+      });
+      
+      // Join with double newlines for clarity
+      conversationContext = formattedMessages.join('\n\n');
+      
+      // If the last message is from the user, add a prompt for Claude
+      const lastMessage = conversationMessages[conversationMessages.length - 1];
+      if (lastMessage.role === 'user') {
+        conversationContext += '\n\nAssistant:';
+      }
     } else {
-      // Single message
+      // Single message - just send the content
       conversationContext = conversationMessages[0].content;
     }
     
