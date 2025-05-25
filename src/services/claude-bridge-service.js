@@ -10,6 +10,10 @@ const path = require('path');
 
 const WS_PORT = 45671;
 
+// Get the project root directory (where this script was started from)
+// If started from scripts directory, go up two levels
+const PROJECT_ROOT = process.cwd();
+
 // Logging
 const logFile = path.join(process.env.HOME || '/tmp', 'claude-bridge-service.log');
 function log(msg) {
@@ -20,6 +24,7 @@ function log(msg) {
 }
 
 log('=== Claude Bridge Service Starting ===');
+log(`Working directory: ${PROJECT_ROOT}`);
 
 // Find Claude CLI
 let claudePath;
@@ -98,18 +103,19 @@ wss.on('connection', (ws) => {
     log(`Executing Claude CLI with args: ${args.join(' ')}`);
     
     try {
-      // Spawn Claude with PTY
+      // Spawn Claude with PTY using project root as working directory
       const ptyProcess = pty.spawn(claudePath, args, {
         name: 'xterm-256color',
         cols: 120,
         rows: 30,
-        cwd: process.env.HOME,
+        cwd: PROJECT_ROOT,
         env: process.env
       });
       
       log(`PTY process spawned with PID: ${ptyProcess.pid}`);
       
       let outputBuffer = '';
+      let errorBuffer = '';
       let hasReceivedData = false;
       
       ptyProcess.onData((data) => {
@@ -120,6 +126,11 @@ wss.on('connection', (ws) => {
         
         outputBuffer += data;
         
+        // Also capture any error-like output
+        if (data.includes('error') || data.includes('Error') || data.includes('failed')) {
+          errorBuffer += data;
+        }
+        
         // Parse JSON lines
         const lines = outputBuffer.split('\n');
         if (lines.length > 1) {
@@ -127,7 +138,8 @@ wss.on('connection', (ws) => {
           
           for (const line of lines) {
             const trimmed = line.trim();
-            const cleaned = trimmed.replace(/\x1b\[[0-9;]*[mGKHJ]/g, '');
+            // Remove all ANSI escape sequences including cursor controls
+            const cleaned = trimmed.replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '').replace(/\x1b\[?[0-9;]*[hl]/g, '');
             
             if (cleaned && cleaned.startsWith('{')) {
               try {
@@ -159,7 +171,8 @@ wss.on('connection', (ws) => {
         
         // Send any remaining data
         if (outputBuffer.trim()) {
-          const cleaned = outputBuffer.trim().replace(/\x1b\[[0-9;]*[mGKHJ]/g, '');
+          // Remove all ANSI escape sequences including cursor controls
+          const cleaned = outputBuffer.trim().replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '').replace(/\x1b\[?[0-9;]*[hl]/g, '');
           if (cleaned) {
             ws.send(JSON.stringify({
               id,
@@ -167,6 +180,17 @@ wss.on('connection', (ws) => {
               data: cleaned
             }));
           }
+        }
+        
+        // If exit code is non-zero, send error info
+        if (exitCode !== 0) {
+          const errorMessage = errorBuffer || outputBuffer || 'Unknown error';
+          log(`Process failed with error: ${errorMessage}`);
+          ws.send(JSON.stringify({
+            id,
+            type: 'error',
+            error: `Claude CLI exited with code ${exitCode}: ${errorMessage.trim()}`
+          }));
         }
         
         ws.send(JSON.stringify({

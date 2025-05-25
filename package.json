@@ -6,7 +6,10 @@
   "main": ".vite/build/main.js",
   "private": true,
   "scripts": {
-    "start": "electron-forge start",
+    "start": "./scripts/start-with-bridge.sh",
+    "start:app-only": "electron-forge start",
+    "bridge": "./scripts/start-claude-bridge.sh",
+    "bridge:stop": "./scripts/stop-claude-bridge.sh",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",

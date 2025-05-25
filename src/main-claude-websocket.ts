@@ -57,16 +57,53 @@ export function setupClaudeWebSocketHandler() {
       return;
     }
     
-    // Extract user message
-    const userMessage = params.messages?.find((m: any) => m.role === "user")?.content || "Hello";
-    const systemMessage = params.messages?.find((m: any) => m.role === "system")?.content;
+    // Build conversation context
+    const messages = params.messages || [];
+    let conversationContext = "";
+    
+    // Find system message if any
+    const systemMessage = messages.find((m: any) => m.role === "system")?.content;
+    
+    // Build conversation history
+    const conversationMessages = messages.filter((m: any) => m.role !== "system");
+    
+    if (conversationMessages.length === 0) {
+      console.error("[Main Process] No messages to send");
+      event.sender.send(`claude-code:chat-stream:error`, requestId, {
+        __error: true,
+        message: "No messages provided"
+      });
+      return;
+    }
+    
+    // For multi-turn conversations, format as a proper conversation
+    if (conversationMessages.length > 1) {
+      // Build conversation with clear role markers
+      const formattedMessages = conversationMessages.map((msg: any, index: number) => {
+        const role = msg.role === 'user' ? 'Human' : 'Assistant';
+        return `${role}: ${msg.content}`;
+      });
+      
+      // Join with double newlines for clarity
+      conversationContext = formattedMessages.join('\n\n');
+      
+      // If the last message is from the user, add a prompt for Claude
+      const lastMessage = conversationMessages[conversationMessages.length - 1];
+      if (lastMessage.role === 'user') {
+        conversationContext += '\n\nAssistant:';
+      }
+    } else {
+      // Single message - just send the content
+      conversationContext = conversationMessages[0].content;
+    }
     
     // Build Claude CLI args
-    const args = ["-p", userMessage, "--output-format", "stream-json", "--verbose"];
+    const args = ["-p", conversationContext, "--output-format", "stream-json", "--verbose"];
     if (systemMessage) {
       args.push("--system-prompt", systemMessage);
     }
     
+    console.log("[Main Process] Conversation context being sent:", conversationContext);
     console.log("[Main Process] Connecting to bridge service with args:", args);
     
     // Connect to bridge service
@@ -89,16 +126,35 @@ export function setupClaudeWebSocketHandler() {
           case 'data':
             hasReceivedData = true;
             console.log("[Main Process] Received data from bridge:", message.data);
-            // Forward the parsed JSON to renderer
-            event.sender.send(`claude-code:chat-stream:chunk`, requestId, JSON.stringify(message.data));
+            
+            // Parse Claude's streaming JSON format
+            const claudeData = message.data;
+            if (claudeData.type === "assistant" && claudeData.message) {
+              // Extract text content from assistant message
+              const assistantMessage = claudeData.message;
+              if (assistantMessage.content && Array.isArray(assistantMessage.content)) {
+                for (const contentPart of assistantMessage.content) {
+                  if (contentPart.type === "text" && contentPart.text) {
+                    // Send plain text chunks directly
+                    event.sender.send(`claude-code:chat-stream:chunk`, requestId, contentPart.text);
+                  } else if (contentPart.type === "tool_use") {
+                    // Send tool usage info
+                    const toolInfo = `\n[Using tool: ${contentPart.name}]\n`;
+                    event.sender.send(`claude-code:chat-stream:chunk`, requestId, toolInfo);
+                  }
+                }
+              }
+            } else {
+              // For other types of data, send as-is
+              console.log("[Main Process] Non-assistant data:", claudeData);
+            }
             break;
             
           case 'raw':
             hasReceivedData = true;
             console.log("[Main Process] Received raw data from bridge:", message.data);
-            // For raw data, wrap it
-            const wrappedRaw = { type: 'raw', content: message.data };
-            event.sender.send(`claude-code:chat-stream:chunk`, requestId, JSON.stringify(wrappedRaw));
+            // For raw data (like tool output), send directly
+            event.sender.send(`claude-code:chat-stream:chunk`, requestId, message.data);
             break;
             
           case 'exit':
