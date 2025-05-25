@@ -1,63 +1,3 @@
-# Standalone Node.js PTY Test Script - Claude CLI Isolation Test
-
-## Objective
-
-Create a standalone Node.js script to test if `node-pty` can successfully spawn and communicate with the Claude CLI outside of Electron's environment. This will help isolate whether the subprocess execution failure is specific to Electron or a general Node.js/PTY issue with the Claude CLI.
-
-## Key Findings to Test
-
-Based on the analysis in `1933-analysis.md`:
-- The Claude CLI works perfectly in terminal: `claude -p "hi" --output-format stream-json --verbose`
-- All subprocess methods (spawn, execFile, exec) fail with timeout/SIGTERM in Electron
-- The CLI might be TTY-sensitive and require a pseudo-terminal environment
-- Network pre-flight checks or auto-update mechanisms might be hanging
-
-## Script Requirements
-
-Create a file: `scripts/test-claude-pty-standalone.js`
-
-### 1. Dependencies
-
-```bash
-# First, ensure node-pty is installed:
-cd /Users/christopherdavid/code/commander
-pnpm add node-pty
-```
-
-### 2. Script Implementation
-
-The script should:
-
-1. **Find Claude CLI Path**
-   - Use `which claude` to find the CLI location
-   - Fall back to known paths if needed
-
-2. **Set Up Minimal Environment**
-   - Start with only essential environment variables
-   - Include ANTHROPIC_API_KEY (passed via command line)
-   - Set TERM=xterm-256color for PTY compatibility
-
-3. **Spawn Claude with PTY**
-   - Use exact working command: `claude -p "hi" --output-format stream-json --verbose`
-   - Set PTY dimensions (cols: 120, rows: 30)
-   - Use HOME directory as working directory
-
-4. **Handle Output**
-   - Log ALL raw PTY data with timestamps
-   - Don't attempt to parse JSON initially - just see raw output
-   - Track if ANY data is received (to differentiate between immediate failure vs hang)
-
-5. **Handle Exit**
-   - Log exit code and signal
-   - Report total execution time
-
-6. **Implement Timeout**
-   - Kill process after 30 seconds if no exit
-   - Report if killed by timeout vs natural exit
-
-### 3. Full Script Code
-
-```javascript
 #!/usr/bin/env node
 // scripts/test-claude-pty-standalone.js
 
@@ -83,7 +23,7 @@ try {
         '/opt/homebrew/bin/claude',
         path.join(process.env.HOME, '.local/bin/claude')
     ];
-
+    
     for (const fallback of fallbackPaths) {
         try {
             if (require('fs').existsSync(fallback)) {
@@ -93,7 +33,7 @@ try {
             }
         } catch (e) {}
     }
-
+    
     if (!claudePath) {
         console.error("ERROR: Could not find claude CLI in any location");
         process.exit(1);
@@ -156,7 +96,7 @@ const timeoutId = setTimeout(() => {
         console.error(`\n=== TIMEOUT REACHED (${TIMEOUT_MS}ms) ===`);
         console.error("Killing PTY process...");
         ptyProcess.kill('SIGTERM');
-
+        
         // Force kill after 2 seconds if SIGTERM doesn't work
         setTimeout(() => {
             if (!exitCode && exitCode !== 0) {
@@ -170,30 +110,30 @@ const timeoutId = setTimeout(() => {
 // Handle PTY data
 ptyProcess.onData((data) => {
     const timestamp = Date.now() - startTime;
-
+    
     if (!hasReceivedData) {
         hasReceivedData = true;
         console.log(`\n=== FIRST DATA RECEIVED at ${timestamp}ms ===`);
     }
-
+    
     fullOutput += data;
-
+    
     // Log raw data with escape sequences visible
     const escapedData = data
         .replace(/\x1b/g, '\\x1b')
         .replace(/\r/g, '\\r')
         .replace(/\n/g, '\\n\n'); // Double newline for readability
-
+    
     console.log(`[${timestamp}ms] RAW DATA (${data.length} bytes):`);
     console.log(escapedData);
-
+    
     // Also log cleaned data (no ANSI codes)
     const cleanedData = data.replace(/\x1b\[[0-9;]*[mGKHJ]/g, '');
     if (cleanedData.trim()) {
         console.log(`[${timestamp}ms] CLEANED DATA:`);
         console.log(cleanedData);
     }
-
+    
     // Try to detect JSON lines
     const lines = data.split('\n');
     for (const line of lines) {
@@ -213,9 +153,9 @@ ptyProcess.onData((data) => {
 ptyProcess.onExit(({ exitCode: code, signal }) => {
     exitCode = code;
     clearTimeout(timeoutId);
-
+    
     const duration = Date.now() - startTime;
-
+    
     console.log(`\n=== PTY PROCESS EXITED ===`);
     console.log(`Exit Code: ${code}`);
     console.log(`Signal: ${signal}`);
@@ -223,17 +163,17 @@ ptyProcess.onExit(({ exitCode: code, signal }) => {
     console.log(`Timed Out: ${timedOut}`);
     console.log(`Data Received: ${hasReceivedData}`);
     console.log(`Total Output Length: ${fullOutput.length} bytes`);
-
+    
     if (!hasReceivedData) {
         console.log("\n=== NO DATA RECEIVED ===");
         console.log("The process exited without producing any output.");
     }
-
+    
     // Save full output to file for analysis
     const outputFile = `claude-pty-output-${Date.now()}.txt`;
     require('fs').writeFileSync(outputFile, fullOutput);
     console.log(`\nFull output saved to: ${outputFile}`);
-
+    
     // Exit with same code as PTY process
     process.exit(code || (timedOut ? 1 : 0));
 });
@@ -244,63 +184,3 @@ process.on('SIGINT', () => {
     ptyProcess.kill('SIGTERM');
     process.exit(130);
 });
-```
-
-### 4. Running the Test
-
-```bash
-# From the project directory
-cd /Users/christopherdavid/code/commander
-
-# Make the script executable (optional)
-chmod +x scripts/test-claude-pty-standalone.js
-
-# Run the test (Claude CLI already authenticated via 'claude auth')
-node scripts/test-claude-pty-standalone.js
-```
-
-### 5. Expected Outcomes
-
-**If Successful:**
-- Should see PTY process spawn with PID
-- Should receive data within a few seconds
-- Should see raw PTY output (possibly with ANSI codes)
-- Should see cleaned JSON lines
-- Should exit with code 0
-- Output should match what you see in terminal
-
-**If It Fails Like Electron:**
-- Will timeout after 30 seconds
-- No data received
-- Process killed with SIGTERM
-- This confirms the issue is not Electron-specific
-
-**If It Works (Unlike Electron):**
-- Problem is specific to Electron's process environment
-- Can use this working example to debug Electron differences
-- May need to use `utilityProcess` or external service approach
-
-### 6. Analysis Points
-
-After running, analyze:
-
-1. **Timing**: How quickly does first data arrive vs timeout?
-2. **Output Format**: Is it clean JSON or mixed with terminal codes?
-3. **Error Messages**: Any error output before hang/timeout?
-4. **Environment Sensitivity**: Try removing/adding env vars to find critical ones
-5. **Network Activity**: Run with network monitoring to see if it's making requests
-
-### 7. Next Steps Based on Results
-
-**If PTY test succeeds:**
-- Compare exact environment differences with Electron
-- Try running same PTY code from Electron's utilityProcess
-- Consider PTY service bridge approach
-
-**If PTY test fails:**
-- CLI has fundamental issues with programmatic execution
-- Try with different Node.js versions
-- Consider direct API approach as only viable solution
-- Report issue to Anthropic
-
-This standalone test will definitively answer whether `node-pty` can work with the Claude CLI at all, isolating the problem from Electron's specific constraints.
