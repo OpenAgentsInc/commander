@@ -56,3 +56,9 @@ export const AGENT_CHAT_PANE_ID = "agent_chat_main";
 export const AGENT_CHAT_PANE_TITLE = "Agent Chat";
 export const AGENT_CHAT_PANE_DEFAULT_WIDTH = 500;
 export const AGENT_CHAT_PANE_DEFAULT_HEIGHT = 600;
+
+// Constants for Gemma pane
+export const GEMMA_PANE_ID = "gemma_main";
+export const GEMMA_PANE_TITLE = "Gemma 3n Chat";
+export const GEMMA_PANE_DEFAULT_WIDTH = 600;
+export const GEMMA_PANE_DEFAULT_HEIGHT = 700;

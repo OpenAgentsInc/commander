@@ -21,3 +21,5 @@ export * from "./openRestoreWalletPane";
 // Agent chat pane actions
 export * from "./openAgentChatPane";
 export * from "./toggleAgentChatPane";
+// Gemma pane actions
+export * from "./openGemmaPane";

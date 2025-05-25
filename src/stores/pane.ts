@@ -27,6 +27,8 @@ import {
   // Agent chat pane actions
   openAgentChatPaneAction,
   toggleAgentChatPaneAction,
+  // Gemma pane actions
+  openGemmaPaneAction,
 } from "./panes/actions";
 import {
   DEFAULT_NIP28_PANE_ID,
@@ -125,6 +127,8 @@ export const usePaneStore = create<PaneStoreType>()(
       // Agent chat pane
       openAgentChatPane: () => openAgentChatPaneAction(set),
       toggleAgentChatPane: () => toggleAgentChatPaneAction(set, get),
+      // Gemma pane
+      openGemmaPane: () => openGemmaPaneAction(set),
       resetHUDState: () => {
         // Force recreate initial panes with current screen dimensions
         const screenWidth =

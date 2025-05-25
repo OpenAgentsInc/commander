@@ -15,6 +15,7 @@
 - `pnpm test` - Run all unit tests once
 - `pnpm test:watch` - Run tests in watch mode
 - `pnpm test:e2e` - Run end-to-end tests
+- `pnpm run t` - Run TypeScript type checking only
 - Single test: `pnpm vitest run <TestName>` or `pnpm vitest -t "<test description>"`
 
 ## Code Style Guidelines
