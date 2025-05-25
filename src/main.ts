@@ -9,6 +9,7 @@ import {
   installExtension,
   REACT_DEVELOPER_TOOLS,
 } from "electron-devtools-installer";
+import { setupClaudeWebSocketHandler } from "./main-claude-websocket";
 
 const inDevelopment = process.env.NODE_ENV === "development";
 
@@ -123,6 +124,11 @@ try {
     }
   });
   
+  // Set up WebSocket-based streaming handler
+  setupClaudeWebSocketHandler();
+  
+  // OLD utility process implementation - replaced with WebSocket approach
+  /*
   // Streaming Claude CLI handler using utilityProcess for network access
   ipcMain.on("claude-code:chat-stream", (event, requestId, params) => {
     console.log("[Main Process] Received claude-code:chat-stream request:", requestId, params);
@@ -367,8 +373,9 @@ try {
       });
     }
   });
+  */
   
-  console.log("[Main Process] Successfully registered Claude Code direct CLI handlers");
+  console.log("[Main Process] Successfully registered Claude Code WebSocket handlers");
 } catch (error) {
   console.error(
     "[Main Process] Failed to register Claude Code event listeners early:",

@@ -89,16 +89,35 @@ export function setupClaudeWebSocketHandler() {
           case 'data':
             hasReceivedData = true;
             console.log("[Main Process] Received data from bridge:", message.data);
-            // Forward the parsed JSON to renderer
-            event.sender.send(`claude-code:chat-stream:chunk`, requestId, JSON.stringify(message.data));
+            
+            // Parse Claude's streaming JSON format
+            const claudeData = message.data;
+            if (claudeData.type === "assistant" && claudeData.message) {
+              // Extract text content from assistant message
+              const assistantMessage = claudeData.message;
+              if (assistantMessage.content && Array.isArray(assistantMessage.content)) {
+                for (const contentPart of assistantMessage.content) {
+                  if (contentPart.type === "text" && contentPart.text) {
+                    // Send plain text chunks directly
+                    event.sender.send(`claude-code:chat-stream:chunk`, requestId, contentPart.text);
+                  } else if (contentPart.type === "tool_use") {
+                    // Send tool usage info
+                    const toolInfo = `\n[Using tool: ${contentPart.name}]\n`;
+                    event.sender.send(`claude-code:chat-stream:chunk`, requestId, toolInfo);
+                  }
+                }
+              }
+            } else {
+              // For other types of data, send as-is
+              console.log("[Main Process] Non-assistant data:", claudeData);
+            }
             break;
             
           case 'raw':
             hasReceivedData = true;
             console.log("[Main Process] Received raw data from bridge:", message.data);
-            // For raw data, wrap it
-            const wrappedRaw = { type: 'raw', content: message.data };
-            event.sender.send(`claude-code:chat-stream:chunk`, requestId, JSON.stringify(wrappedRaw));
+            // For raw data (like tool output), send directly
+            event.sender.send(`claude-code:chat-stream:chunk`, requestId, message.data);
             break;
             
           case 'exit':
