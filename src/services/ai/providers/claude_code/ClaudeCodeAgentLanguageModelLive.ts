@@ -40,7 +40,7 @@ export const ClaudeCodeAgentLanguageModelLive = Effect.gen(function* (_) {
 
     const defaultModelName = yield* _(
       configService.get("CLAUDE_CODE_DEFAULT_MODEL").pipe(
-        Effect.orElseSucceed(() => "claude-3-opus-20240229")
+        Effect.orElseSucceed(() => "claude-sonnet")
       )
     );
 

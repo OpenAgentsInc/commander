@@ -81,7 +81,7 @@ export const useAgentChatStore = create<AgentChatState>()(
           const claudeCodeEnabledStr = yield* _(safeGetConfig("CLAUDE_CODE_PROVIDER_ENABLED", "false"));
           if (claudeCodeEnabledStr === "true") {
             const claudeCodeProviderName = yield* _(safeGetConfig("CLAUDE_CODE_PROVIDER_NAME", "Claude Code (CLI)"));
-            const claudeCodeDefaultModel = yield* _(safeGetConfig("CLAUDE_CODE_DEFAULT_MODEL", "claude-3-opus-20240229"));
+            const claudeCodeDefaultModel = yield* _(safeGetConfig("CLAUDE_CODE_DEFAULT_MODEL", "claude-sonnet"));
             providers.push({
               key: "claude_code",
               name: claudeCodeProviderName,

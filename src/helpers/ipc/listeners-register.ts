@@ -10,6 +10,9 @@ export default function registerListeners(mainWindow: BrowserWindow) {
   console.log("[IPC Register] Registering theme event listeners");
   addThemeEventListeners();
 
+  // Note: Claude Code event listeners are registered directly in main.ts
+  // to ensure they're available before the renderer process needs them
+
   // Note: Ollama event listeners are registered earlier in main.ts
   // to ensure they're available before the renderer process needs them
   console.log(
