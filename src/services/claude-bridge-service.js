@@ -127,7 +127,8 @@ wss.on('connection', (ws) => {
           
           for (const line of lines) {
             const trimmed = line.trim();
-            const cleaned = trimmed.replace(/\x1b\[[0-9;]*[mGKHJ]/g, '');
+            // Remove all ANSI escape sequences including cursor controls
+            const cleaned = trimmed.replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '').replace(/\x1b\[?[0-9;]*[hl]/g, '');
             
             if (cleaned && cleaned.startsWith('{')) {
               try {
@@ -159,7 +160,8 @@ wss.on('connection', (ws) => {
         
         // Send any remaining data
         if (outputBuffer.trim()) {
-          const cleaned = outputBuffer.trim().replace(/\x1b\[[0-9;]*[mGKHJ]/g, '');
+          // Remove all ANSI escape sequences including cursor controls
+          const cleaned = outputBuffer.trim().replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '').replace(/\x1b\[?[0-9;]*[hl]/g, '');
           if (cleaned) {
             ws.send(JSON.stringify({
               id,
