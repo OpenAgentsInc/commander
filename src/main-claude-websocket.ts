@@ -57,12 +57,37 @@ export function setupClaudeWebSocketHandler() {
       return;
     }
     
-    // Extract user message
-    const userMessage = params.messages?.find((m: any) => m.role === "user")?.content || "Hello";
-    const systemMessage = params.messages?.find((m: any) => m.role === "system")?.content;
+    // Build conversation context
+    const messages = params.messages || [];
+    let conversationContext = "";
+    
+    // Find system message if any
+    const systemMessage = messages.find((m: any) => m.role === "system")?.content;
+    
+    // Build conversation history
+    const conversationMessages = messages.filter((m: any) => m.role !== "system");
+    
+    if (conversationMessages.length === 0) {
+      console.error("[Main Process] No messages to send");
+      event.sender.send(`claude-code:chat-stream:error`, requestId, {
+        __error: true,
+        message: "No messages provided"
+      });
+      return;
+    }
+    
+    // For multi-turn conversations, format as alternating USER/ASSISTANT
+    if (conversationMessages.length > 1) {
+      conversationContext = conversationMessages
+        .map((msg: any) => `${msg.role.toUpperCase()}: ${msg.content}`)
+        .join('\n\n');
+    } else {
+      // Single message
+      conversationContext = conversationMessages[0].content;
+    }
     
     // Build Claude CLI args
-    const args = ["-p", userMessage, "--output-format", "stream-json", "--verbose"];
+    const args = ["-p", conversationContext, "--output-format", "stream-json", "--verbose"];
     if (systemMessage) {
       args.push("--system-prompt", systemMessage);
     }
