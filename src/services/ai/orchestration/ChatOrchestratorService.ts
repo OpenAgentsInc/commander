@@ -18,6 +18,16 @@ import { NIP90ProviderConfigTag, type NIP90ProviderConfig } from "@/services/ai/
 import { NIP90Service } from "@/services/nip90";
 import { NostrService } from "@/services/nostr";
 import { NIP04Service } from "@/services/nip04";
+
+// Helper to safely access error message
+const getErrorMessage = (error: unknown): string => {
+  if (error && typeof error === 'object' && 'message' in error && typeof (error as any).message === 'string') {
+    return (error as any).message;
+  }
+  return error && typeof error === 'object' ? 
+    JSON.stringify(error, Object.getOwnPropertyNames(error)) : 
+    String(error);
+};
 import { SparkService } from "@/services/spark";
 import { DEFAULT_RELAYS_ARRAY } from "@/services/relays";
 
@@ -215,9 +225,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                         temperature: options.temperature,
                       }),
                       catch: (error) => {
-                        const serializedCause = error && typeof error === 'object' ? 
-                          (error.message || JSON.stringify(error, Object.getOwnPropertyNames(error))) : 
-                          String(error);
+                        const serializedCause = getErrorMessage(error);
                         return new AiProviderError({
                           message: `Claude Code IPC call failed: ${error}`,
                           cause: serializedCause,
@@ -290,11 +298,9 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                         },
                         (error: any) => {
                           // Stream error
-                          const errorMessage = error && typeof error === 'object' && error.message ? error.message : String(error);
+                          const errorMessage = getErrorMessage(error);
                           // Serialize cause properly for logging
-                          const serializedCause = error && typeof error === 'object' ? 
-                            (error.message || JSON.stringify(error, Object.getOwnPropertyNames(error))) : 
-                            String(error);
+                          const serializedCause = getErrorMessage(error);
                           emit.fail(new AiProviderError({
                             message: `Claude Code stream error: ${errorMessage}`,
                             cause: serializedCause,
@@ -304,11 +310,9 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                         }
                       );
                     } catch (error) {
-                      const errorMessage = error && typeof error === 'object' && error.message ? error.message : String(error);
+                      const errorMessage = getErrorMessage(error);
                       // Serialize cause properly for logging
-                      const serializedCause = error && typeof error === 'object' ? 
-                        (error.message || JSON.stringify(error, Object.getOwnPropertyNames(error))) : 
-                        String(error);
+                      const serializedCause = getErrorMessage(error);
                       emit.fail(new AiProviderError({
                         message: `Failed to start Claude Code stream: ${errorMessage}`,
                         cause: serializedCause,
@@ -348,9 +352,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                         temperature: options.temperature,
                       }),
                       catch: (error) => {
-                        const serializedCause = error && typeof error === 'object' ? 
-                          (error.message || JSON.stringify(error, Object.getOwnPropertyNames(error))) : 
-                          String(error);
+                        const serializedCause = getErrorMessage(error);
                         return new AiProviderError({
                           message: `Claude Code IPC call failed: ${error}`,
                           cause: serializedCause,

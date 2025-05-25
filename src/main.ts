@@ -45,7 +45,7 @@ try {
         claudePath = execSync("which claude", { encoding: "utf8" }).trim();
         console.log(`[Main Process] Found claude at: ${claudePath}`);
       } catch (whichError) {
-        console.error("[Main Process] 'which claude' failed:", whichError.message);
+        console.error("[Main Process] 'which claude' failed:", whichError instanceof Error ? whichError.message : String(whichError));
         // Try common paths
         const fs = require("fs");
         const possiblePaths = [
@@ -119,7 +119,7 @@ try {
       return result;
     } catch (error) {
       console.error("[Main Process] Claude CLI error:", error);
-      return { __error: true, message: error.message };
+      return { __error: true, message: error instanceof Error ? error.message : String(error) };
     }
   });
   
@@ -139,7 +139,7 @@ try {
         claudePath = execSync("which claude", { encoding: "utf8" }).trim();
         console.log(`[Main Process] Found claude at: ${claudePath}`);
       } catch (whichError) {
-        console.error("[Main Process] 'which claude' failed:", whichError.message);
+        console.error("[Main Process] 'which claude' failed:", whichError instanceof Error ? whichError.message : String(whichError));
         // Try common paths
         const possiblePaths = [
           "/usr/local/bin/claude",
@@ -343,7 +343,7 @@ try {
           console.error("[Main Process] Failed to send message to utility process:", e);
           event.sender.send("claude-code:chat-stream:error", requestId, { 
             __error: true, 
-            message: `Failed to communicate with utility process: ${e.message}` 
+            message: `Failed to communicate with utility process: ${e instanceof Error ? e.message : String(e)}` 
           });
         }
       });
@@ -363,7 +363,7 @@ try {
       console.error("[Main Process] Claude CLI utilityProcess error:", error);
       event.sender.send("claude-code:chat-stream:error", requestId, { 
         __error: true, 
-        message: `Process error: ${error.message}` 
+        message: `Process error: ${error instanceof Error ? error.message : String(error)}` 
       });
     }
   });
