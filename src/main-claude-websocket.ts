@@ -87,8 +87,7 @@ export function setupClaudeWebSocketHandler() {
     }
     
     // Build Claude CLI args
-    // Use --no-cache to ensure each request is independent
-    const args = ["--no-cache", "-p", conversationContext, "--output-format", "stream-json", "--verbose"];
+    const args = ["-p", conversationContext, "--output-format", "stream-json", "--verbose"];
     if (systemMessage) {
       args.push("--system-prompt", systemMessage);
     }

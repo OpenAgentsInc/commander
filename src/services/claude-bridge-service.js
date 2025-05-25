@@ -115,6 +115,7 @@ wss.on('connection', (ws) => {
       log(`PTY process spawned with PID: ${ptyProcess.pid}`);
       
       let outputBuffer = '';
+      let errorBuffer = '';
       let hasReceivedData = false;
       
       ptyProcess.onData((data) => {
@@ -124,6 +125,11 @@ wss.on('connection', (ws) => {
         }
         
         outputBuffer += data;
+        
+        // Also capture any error-like output
+        if (data.includes('error') || data.includes('Error') || data.includes('failed')) {
+          errorBuffer += data;
+        }
         
         // Parse JSON lines
         const lines = outputBuffer.split('\n');
@@ -174,6 +180,17 @@ wss.on('connection', (ws) => {
               data: cleaned
             }));
           }
+        }
+        
+        // If exit code is non-zero, send error info
+        if (exitCode !== 0) {
+          const errorMessage = errorBuffer || outputBuffer || 'Unknown error';
+          log(`Process failed with error: ${errorMessage}`);
+          ws.send(JSON.stringify({
+            id,
+            type: 'error',
+            error: `Claude CLI exited with code ${exitCode}: ${errorMessage.trim()}`
+          }));
         }
         
         ws.send(JSON.stringify({
