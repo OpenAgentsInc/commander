@@ -19,9 +19,7 @@ Create a file: `scripts/test-claude-pty-standalone.js`
 ### 1. Dependencies
 
 ```bash
-# First, ensure node-pty is installed globally or in the project
-npm install -g node-pty
-# OR if running from project directory:
+# First, ensure node-pty is installed:
 cd /Users/christopherdavid/code/commander
 pnpm add node-pty
 ```
@@ -93,7 +91,7 @@ try {
         '/opt/homebrew/bin/claude',
         path.join(process.env.HOME, '.local/bin/claude')
     ];
-    
+
     for (const fallback of fallbackPaths) {
         try {
             if (require('fs').existsSync(fallback)) {
@@ -103,7 +101,7 @@ try {
             }
         } catch (e) {}
     }
-    
+
     if (!claudePath) {
         console.error("ERROR: Could not find claude CLI in any location");
         process.exit(1);
@@ -167,7 +165,7 @@ const timeoutId = setTimeout(() => {
         console.error(`\n=== TIMEOUT REACHED (${TIMEOUT_MS}ms) ===`);
         console.error("Killing PTY process...");
         ptyProcess.kill('SIGTERM');
-        
+
         // Force kill after 2 seconds if SIGTERM doesn't work
         setTimeout(() => {
             if (!exitCode && exitCode !== 0) {
@@ -181,30 +179,30 @@ const timeoutId = setTimeout(() => {
 // Handle PTY data
 ptyProcess.onData((data) => {
     const timestamp = Date.now() - startTime;
-    
+
     if (!hasReceivedData) {
         hasReceivedData = true;
         console.log(`\n=== FIRST DATA RECEIVED at ${timestamp}ms ===`);
     }
-    
+
     fullOutput += data;
-    
+
     // Log raw data with escape sequences visible
     const escapedData = data
         .replace(/\x1b/g, '\\x1b')
         .replace(/\r/g, '\\r')
         .replace(/\n/g, '\\n\n'); // Double newline for readability
-    
+
     console.log(`[${timestamp}ms] RAW DATA (${data.length} bytes):`);
     console.log(escapedData);
-    
+
     // Also log cleaned data (no ANSI codes)
     const cleanedData = data.replace(/\x1b\[[0-9;]*[mGKHJ]/g, '');
     if (cleanedData.trim()) {
         console.log(`[${timestamp}ms] CLEANED DATA:`);
         console.log(cleanedData);
     }
-    
+
     // Try to detect JSON lines
     const lines = data.split('\n');
     for (const line of lines) {
@@ -224,9 +222,9 @@ ptyProcess.onData((data) => {
 ptyProcess.onExit(({ exitCode: code, signal }) => {
     exitCode = code;
     clearTimeout(timeoutId);
-    
+
     const duration = Date.now() - startTime;
-    
+
     console.log(`\n=== PTY PROCESS EXITED ===`);
     console.log(`Exit Code: ${code}`);
     console.log(`Signal: ${signal}`);
@@ -234,17 +232,17 @@ ptyProcess.onExit(({ exitCode: code, signal }) => {
     console.log(`Timed Out: ${timedOut}`);
     console.log(`Data Received: ${hasReceivedData}`);
     console.log(`Total Output Length: ${fullOutput.length} bytes`);
-    
+
     if (!hasReceivedData) {
         console.log("\n=== NO DATA RECEIVED ===");
         console.log("The process exited without producing any output.");
     }
-    
+
     // Save full output to file for analysis
     const outputFile = `claude-pty-output-${Date.now()}.txt`;
     require('fs').writeFileSync(outputFile, fullOutput);
     console.log(`\nFull output saved to: ${outputFile}`);
-    
+
     // Exit with same code as PTY process
     process.exit(code || (timedOut ? 1 : 0));
 });
