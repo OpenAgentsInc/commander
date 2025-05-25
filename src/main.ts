@@ -123,11 +123,15 @@ try {
     }
   });
   
-  // Streaming Claude CLI handler using SDK non-interactive mode
+  // Streaming Claude CLI handler using utilityProcess for network access
   ipcMain.on("claude-code:chat-stream", (event, requestId, params) => {
     console.log("[Main Process] Received claude-code:chat-stream request:", requestId, params);
     
     try {
+      const { utilityProcess } = require("electron");
+      const path = require("path");
+      const fs = require("fs");
+      
       // First, try to find the claude command
       const { execSync } = require("child_process");
       let claudePath;
@@ -137,7 +141,6 @@ try {
       } catch (whichError) {
         console.error("[Main Process] 'which claude' failed:", whichError.message);
         // Try common paths
-        const fs = require("fs");
         const possiblePaths = [
           "/usr/local/bin/claude",
           "/opt/homebrew/bin/claude",
@@ -145,9 +148,9 @@ try {
           `${process.env.HOME}/node_modules/.bin/claude`
         ];
         
-        for (const path of possiblePaths) {
-          if (fs.existsSync(path)) {
-            claudePath = path;
+        for (const possiblePath of possiblePaths) {
+          if (fs.existsSync(possiblePath)) {
+            claudePath = possiblePath;
             console.log(`[Main Process] Found claude at fallback path: ${claudePath}`);
             break;
           }
@@ -163,229 +166,204 @@ try {
         }
       }
       
-      // Test with hardcoded simple message to eliminate content issues
-      const userMessage = "hi"; // Hardcode to exact working manual test
-      console.log("[Main Process] Using hardcoded test message:", userMessage);
+      // Extract user message from params
+      const userMessage = params.messages?.find(m => m.role === "user")?.content || "Hello";
+      const systemMessage = params.messages?.find(m => m.role === "system")?.content;
       
-      // Quick auth check to diagnose authentication issues
-      try {
-        console.log("[Main Process] Testing Claude auth status...");
-        const authCheck = execSync(`${claudePath} --version`, { 
-          encoding: "utf8", 
-          timeout: 3000,
-          env: { ...process.env },
-          cwd: process.env.HOME
-        });
-        console.log(`[Main Process] Claude version check successful:`, authCheck.trim());
-      } catch (authError) {
-        console.error(`[Main Process] Claude version check failed:`, authError.message);
-        // Don't fail here, just log it
-      }
+      console.log("[Main Process] Processing message:", userMessage);
       
       // Build arguments for non-interactive streaming mode
-      // Note: Skipping --system-prompt as it can cause CLI hanging issues
-      // System messages should be handled through conversation context instead
-      const args = ["-p", userMessage, "--output-format", "stream-json", "--verbose"];
+      const args = ["-p", userMessage, "--output-format", "stream-json"];
+      if (systemMessage) {
+        args.push("--system-prompt", systemMessage);
+      }
       
-      console.log(`[Main Process] Spawning Claude with args:`, args);
-      console.log(`[Main Process] Environment check:`, {
-        PATH: process.env.PATH?.split(':').slice(0, 5), // First 5 PATH entries
-        HOME: process.env.HOME,
-        USER: process.env.USER,
-        SHELL: process.env.SHELL,
-        cwd: process.cwd(),
-        claudePath
+      console.log(`[Main Process] Using utilityProcess with args:`, args);
+      
+      // Path to our wrapper script
+      const wrapperPath = path.join(__dirname, "../../src/services/ai/providers/claude_code/claude-utility-wrapper.js");
+      
+      // Verify the wrapper exists
+      if (!fs.existsSync(wrapperPath)) {
+        console.error(`[Main Process] Wrapper not found at: ${wrapperPath}`);
+        event.sender.send("claude-code:chat-stream:error", requestId, { 
+          __error: true, 
+          message: "Claude utility wrapper not found. Please check installation." 
+        });
+        return;
+      }
+      console.log(`[Main Process] Using wrapper at: ${wrapperPath}`);
+      
+      // Start utility process with network access
+      const child = utilityProcess.fork(wrapperPath, [], {
+        serviceName: "Claude CLI Process",
+        stdio: "pipe",
+        // Enable network access by allowing auth requests
+        respondToAuthRequestsFromMainProcess: true
       });
       
-      // Nuclear option: Write to temp script and execute it
-      const fs = require("fs");
-      const path = require("path");
-      const { exec } = require("child_process");
+      let buffer = '';
+      let isRawMode = false;
+      let hasReceivedData = false;
       
-      const tempScriptPath = path.join(process.env.HOME, `.claude_temp_${Date.now()}.sh`);
-      const scriptContent = `#!/bin/zsh
-export PATH="${process.env.PATH}"
-export HOME="${process.env.HOME}"
-cd "${process.env.HOME}"
-${claudePath} ${args.join(' ')}
-`;
-      
-      console.log("[Main Process] Creating temp script:", tempScriptPath);
-      console.log("[Main Process] Script content:", scriptContent);
-      
-      fs.writeFileSync(tempScriptPath, scriptContent, { mode: 0o755 });
-      
-      exec(`/bin/zsh "${tempScriptPath}"`, {
-        cwd: process.env.HOME,
-        timeout: 20000, // 20 second timeout
-        maxBuffer: 1024 * 1024 * 10 // 10MB buffer
-      }, (error, stdout, stderr) => {
-        // Clean up temp script
-        try {
-          fs.unlinkSync(tempScriptPath);
-        } catch (cleanupError) {
-          console.error("[Main Process] Failed to cleanup temp script:", cleanupError);
-        }
-        if (error) {
-          console.error("[Main Process] execFile error:", error);
+      // Set up timeout
+      const timeoutId = setTimeout(() => {
+        if (!hasReceivedData) {
+          console.error("[Main Process] Claude CLI timeout - no output after 30 seconds");
+          child.kill();
           event.sender.send("claude-code:chat-stream:error", requestId, { 
             __error: true, 
-            message: `execFile error: ${error.message}`
+            message: "Claude CLI timeout. The command may require authentication. Try running 'claude auth' in your terminal." 
           });
-          return;
         }
+      }, 30000); // 30 second timeout
+      
+      // Handle messages from the utility process
+      child.on("message", (message) => {
+        hasReceivedData = true;
+        clearTimeout(timeoutId);
         
-        console.log("[Main Process] execFile stdout:", stdout);
-        console.log("[Main Process] execFile stderr:", stderr);
+        console.log("[Main Process] Received message from utility process:", message.type);
         
-        if (stderr) {
-          event.sender.send("claude-code:chat-stream:error", requestId, { 
-            __error: true, 
-            message: `Claude CLI stderr: ${stderr}`
-          });
-          return;
-        }
-        
-        // Parse the complete output
-        try {
-          const lines = stdout.split('\n').filter(line => line.trim());
-          for (const line of lines) {
-            try {
-              const jsonChunk = JSON.parse(line);
-              console.log("[Main Process] Parsed JSON chunk:", JSON.stringify(jsonChunk, null, 2));
-              
-              if (jsonChunk.type === "assistant" && jsonChunk.message) {
-                const message = jsonChunk.message;
-                if (message.content && Array.isArray(message.content)) {
-                  for (const contentPart of message.content) {
-                    if (contentPart.type === "text" && contentPart.text) {
-                      event.sender.send("claude-code:chat-stream:chunk", requestId, contentPart.text);
+        switch (message.type) {
+          case "data":
+            console.log("[Main Process] Data:", message.data);
+            // Check for raw mode marker
+            if (!isRawMode && message.data.includes('__RAW_MODE_START__')) {
+              isRawMode = true;
+              const parts = message.data.split('__RAW_MODE_START__');
+              if (parts[0]) {
+                // Process any data before the marker
+                buffer = parts[0];
+              }
+              buffer = parts[1] || '';
+            } else if (!isRawMode) {
+              buffer += message.data;
+            }
+            break;
+            
+          case "raw":
+            console.log("[Main Process] Raw streaming data:", message.data);
+            // In raw mode, parse streaming JSON
+            const lines = message.data.split('\n').filter(line => line.trim());
+            
+            for (const line of lines) {
+              try {
+                const jsonChunk = JSON.parse(line);
+                console.log("[Main Process] Parsed JSON chunk:", JSON.stringify(jsonChunk, null, 2));
+                
+                if (jsonChunk.type === "assistant" && jsonChunk.message) {
+                  const assistantMessage = jsonChunk.message;
+                  if (assistantMessage.content && Array.isArray(assistantMessage.content)) {
+                    for (const contentPart of assistantMessage.content) {
+                      if (contentPart.type === "text" && contentPart.text) {
+                        event.sender.send("claude-code:chat-stream:chunk", requestId, contentPart.text);
+                      } else if (contentPart.type === "tool_use") {
+                        const toolInfo = `\n[Using tool: ${contentPart.name}]\n`;
+                        event.sender.send("claude-code:chat-stream:chunk", requestId, toolInfo);
+                      }
                     }
                   }
                 }
-              }
-            } catch (parseError) {
-              if (line.trim()) {
-                event.sender.send("claude-code:chat-stream:chunk", requestId, line);
-              }
-            }
-          }
-          
-          event.sender.send("claude-code:chat-stream:done", requestId);
-        } catch (outputError) {
-          console.error("[Main Process] Output parsing error:", outputError);
-          event.sender.send("claude-code:chat-stream:error", requestId, { 
-            __error: true, 
-            message: `Output parsing error: ${outputError.message}`
-          });
-        }
-      });
-      
-      return; // Skip the old spawn approach
-      
-      // Add timeout to detect hanging
-      const timeoutId = setTimeout(() => {
-        console.error("[Main Process] Claude CLI timeout - no output after 10 seconds");
-        claudeProcess.kill();
-        event.sender.send("claude-code:chat-stream:error", requestId, { 
-          __error: true, 
-          message: "Claude CLI timeout. Command executed:\nclaude " + args.join(' ') + "\n\nTry this command manually to debug." 
-        });
-      }, 10000); // 10 second timeout
-      
-      claudeProcess.stdout.on("data", (data) => {
-        clearTimeout(timeoutId); // Clear timeout on first data
-        const rawData = data.toString();
-        console.log("[Main Process] Claude raw streaming data:", rawData);
-        
-        // Split by lines in case multiple JSON objects are in one chunk
-        const lines = rawData.split('\n').filter(line => line.trim());
-        
-        for (const line of lines) {
-          try {
-            const jsonChunk = JSON.parse(line);
-            console.log("[Main Process] Parsed JSON chunk:", JSON.stringify(jsonChunk, null, 2));
-            
-            // Handle different Claude Code message types
-            if (jsonChunk.type === "assistant" && jsonChunk.message) {
-              const message = jsonChunk.message;
-              if (message.content && Array.isArray(message.content)) {
-                for (const contentPart of message.content) {
-                  if (contentPart.type === "text" && contentPart.text) {
-                    console.log("[Main Process] Sending text chunk:", contentPart.text);
-                    event.sender.send("claude-code:chat-stream:chunk", requestId, contentPart.text);
-                  } else if (contentPart.type === "tool_use") {
-                    // Handle tool use - could show what Claude is doing
-                    const toolInfo = `[Using tool: ${contentPart.name}]`;
-                    console.log("[Main Process] Sending tool use info:", toolInfo);
-                    event.sender.send("claude-code:chat-stream:chunk", requestId, toolInfo);
-                  }
+              } catch (parseError) {
+                // If not valid JSON, it might be tool output
+                if (line.trim() && !line.includes('__RAW_MODE_START__')) {
+                  console.log("[Main Process] Non-JSON line (possibly tool output):", line);
                 }
               }
-            } else if (jsonChunk.type === "system" && jsonChunk.subtype === "init") {
-              // System initialization - could show available tools
-              const initInfo = `[Claude Code initialized with tools: ${jsonChunk.tools?.join(", ") || "none"}]`;
-              console.log("[Main Process] Sending init info:", initInfo);
-              event.sender.send("claude-code:chat-stream:chunk", requestId, initInfo);
-            } else if (jsonChunk.type === "user" && jsonChunk.message) {
-              // User message or tool results - usually we skip these
-              console.log("[Main Process] Skipping user message chunk");
             }
-          } catch (parseError) {
-            // If not valid JSON, send as-is (fallback)
-            if (line.trim()) {
-              console.log("[Main Process] Sending raw chunk (parse failed):", line);
-              event.sender.send("claude-code:chat-stream:chunk", requestId, line);
+            break;
+            
+          case "error":
+            console.error("[Main Process] Claude CLI error:", message.error);
+            
+            // Check for specific authentication errors
+            if (message.error.includes("not authenticated") || 
+                message.error.includes("auth") || 
+                message.error.includes("login")) {
+              event.sender.send("claude-code:chat-stream:error", requestId, { 
+                __error: true, 
+                message: `Authentication error: ${message.error}\n\nPlease run 'claude auth' in your terminal to authenticate.` 
+              });
+            } else {
+              event.sender.send("claude-code:chat-stream:error", requestId, { 
+                __error: true, 
+                message: `Claude CLI error: ${message.error}` 
+              });
             }
-          }
+            break;
+            
+          case "exit":
+            console.log(`[Main Process] Claude CLI exited with code: ${message.code}`);
+            clearTimeout(timeoutId);
+            
+            if (message.code === 0) {
+              event.sender.send("claude-code:chat-stream:done", requestId);
+            } else {
+              event.sender.send("claude-code:chat-stream:error", requestId, { 
+                __error: true, 
+                message: `Claude CLI exited with code ${message.code}. This might be an authentication issue - try running 'claude auth' manually.` 
+              });
+            }
+            break;
         }
       });
       
-      claudeProcess.stderr.on("data", (data) => {
-        clearTimeout(timeoutId); // Clear timeout on stderr too
-        const errorMessage = data.toString();
-        console.error("[Main Process] Claude CLI stderr:", errorMessage);
-        console.error("[Main Process] Full stderr buffer:", JSON.stringify(errorMessage));
-        
-        // Check for specific authentication errors
-        if (errorMessage.includes("not authenticated") || errorMessage.includes("auth") || errorMessage.includes("login")) {
-          event.sender.send("claude-code:chat-stream:error", requestId, { 
-            __error: true, 
-            message: `Authentication error: ${errorMessage}\n\nPlease run 'claude auth' in your terminal to authenticate.` 
-          });
-        } else {
-          event.sender.send("claude-code:chat-stream:error", requestId, { 
-            __error: true, 
-            message: `Claude CLI error: ${errorMessage}` 
-          });
-        }
-      });
-      
-      claudeProcess.on("close", (code) => {
-        clearTimeout(timeoutId); // Clear timeout on process close
-        console.log(`[Main Process] Claude CLI stream ended with code: ${code}`);
-        if (code === 0) {
-          event.sender.send("claude-code:chat-stream:done", requestId);
-        } else {
-          event.sender.send("claude-code:chat-stream:error", requestId, { 
-            __error: true, 
-            message: `Claude CLI exited with code ${code}. This might be an authentication issue - try running 'claude auth' manually.` 
-          });
-        }
-      });
-      
-      claudeProcess.on("error", (error) => {
-        console.error("[Main Process] Claude CLI process error:", error);
+      // Add immediate error handler
+      child.on("error", (error) => {
+        console.error("[Main Process] Utility process error:", error);
         event.sender.send("claude-code:chat-stream:error", requestId, { 
           __error: true, 
-          message: `Process error: ${error.message}` 
+          message: `Utility process error: ${error.message}` 
         });
       });
+
+      // Handle utility process spawn
+      child.on("spawn", () => {
+        console.log("[Main Process] Utility process spawned successfully");
+        
+        // Test if we can send messages
+        try {
+          // Send the command to execute
+          child.postMessage({
+            type: "start",
+            command: claudePath,
+            args: args,
+            env: {
+              PATH: process.env.PATH,
+              HOME: process.env.HOME,
+              USER: process.env.USER,
+              // Add any Claude-specific environment variables
+              ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
+              CLAUDE_API_KEY: process.env.CLAUDE_API_KEY || ''
+            }
+          });
+          console.log("[Main Process] Start message sent to utility process");
+        } catch (e) {
+          console.error("[Main Process] Failed to send message to utility process:", e);
+          event.sender.send("claude-code:chat-stream:error", requestId, { 
+            __error: true, 
+            message: `Failed to communicate with utility process: ${e.message}` 
+          });
+        }
+      });
+      
+      child.on("exit", (code) => {
+        console.log("[Main Process] Utility process exited early with code:", code);
+        clearTimeout(timeoutId);
+        if (!hasReceivedData) {
+          event.sender.send("claude-code:chat-stream:error", requestId, { 
+            __error: true, 
+            message: `Utility process exited unexpectedly with code ${code}` 
+          });
+        }
+      });
+      
     } catch (error) {
-      console.error("[Main Process] Claude CLI spawn error:", error);
+      console.error("[Main Process] Claude CLI utilityProcess error:", error);
       event.sender.send("claude-code:chat-stream:error", requestId, { 
         __error: true, 
-        message: `Spawn error: ${error.message}` 
+        message: `Process error: ${error.message}` 
       });
     }
   });
