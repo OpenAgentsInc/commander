@@ -10,6 +10,10 @@ const path = require('path');
 
 const WS_PORT = 45671;
 
+// Get the project root directory (where this script was started from)
+// If started from scripts directory, go up two levels
+const PROJECT_ROOT = process.cwd();
+
 // Logging
 const logFile = path.join(process.env.HOME || '/tmp', 'claude-bridge-service.log');
 function log(msg) {
@@ -20,6 +24,7 @@ function log(msg) {
 }
 
 log('=== Claude Bridge Service Starting ===');
+log(`Working directory: ${PROJECT_ROOT}`);
 
 // Find Claude CLI
 let claudePath;
@@ -98,12 +103,12 @@ wss.on('connection', (ws) => {
     log(`Executing Claude CLI with args: ${args.join(' ')}`);
     
     try {
-      // Spawn Claude with PTY
+      // Spawn Claude with PTY using project root as working directory
       const ptyProcess = pty.spawn(claudePath, args, {
         name: 'xterm-256color',
         cols: 120,
         rows: 30,
-        cwd: process.env.HOME,
+        cwd: PROJECT_ROOT,
         env: process.env
       });
       
