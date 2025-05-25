@@ -8,6 +8,8 @@ import {
   AgentLanguageModel,
   GenerateTextOptions,
   StreamTextOptions,
+  GenerateStructuredOptions,
+  makeAgentLanguageModel,
 } from "@/services/ai/core";
 import { ConfigurationService } from "@/services/configuration";
 import { TelemetryService } from "@/services/telemetry";
@@ -181,6 +183,193 @@ export const ChatOrchestratorServiceLive = Layer.effect(
             );
             runTelemetry({ category: "orchestrator", action: "get_provider_model_success_nip90_custom", label: providerKey });
             return nip90AgentLMCustomInstance;
+          }
+
+          case "claude_code": {
+            // Use Claude Code CLI provider via IPC (main process only)
+            runTelemetry({ category: "orchestrator", action: "get_provider_model_start_claude_code", label: providerKey });
+            
+            // Create an IPC-based AgentLanguageModel that delegates to main process
+            const claudeCodeAgentLM: AgentLanguageModel = makeAgentLanguageModel({
+              generateText: (options: GenerateTextOptions) =>
+                Effect.gen(function* (_) {
+                  // Parse messages from prompt string 
+                  let messages: any[];
+                  try {
+                    const parsed = JSON.parse(options.prompt);
+                    messages = parsed.messages || [];
+                  } catch {
+                    messages = [{ role: "user", content: options.prompt }];
+                  }
+                  
+                  // Use IPC to call main process Claude Code implementation
+                  const response = yield* _(
+                    Effect.tryPromise({
+                      try: () => window.electronAPI.claudeCode!.chatCompletion({
+                        messages: messages.map(msg => ({
+                          role: msg.role,
+                          content: msg.content
+                        })),
+                        model: options.model || "claude-3-opus-20240229",
+                        max_tokens: options.maxTokens,
+                        temperature: options.temperature,
+                      }),
+                      catch: (error) => new AiProviderError({
+                        message: `Claude Code IPC call failed: ${error}`,
+                        cause: error,
+                        isRetryable: false,
+                        provider: "claude_code"
+                      })
+                    })
+                  );
+                  
+                  // Handle error response format
+                  if (typeof response === 'object' && response !== null && '__error' in response) {
+                    return yield* _(Effect.fail(new AiProviderError({
+                      message: `Claude Code CLI error: ${response.message}`,
+                      cause: response,
+                      isRetryable: false,
+                      provider: "claude_code"
+                    })));
+                  }
+                  
+                  // Parse successful response
+                  const content = typeof response === 'string' ? response : JSON.stringify(response);
+                  
+                  return AiResponse.fromSimple({
+                    text: content,
+                    metadata: {
+                      usage: {
+                        promptTokens: messages.reduce((acc, msg) => acc + msg.content.length / 4, 0), // Rough estimate
+                        completionTokens: content.length / 4, // Rough estimate
+                        totalTokens: 0
+                      }
+                    }
+                  });
+                }),
+
+              streamText: (options: StreamTextOptions) =>
+                Stream.asyncScoped((emit) =>
+                  Effect.gen(function* (_) {
+                    // Parse messages from prompt string 
+                    let messages: any[];
+                    try {
+                      const parsed = JSON.parse(options.prompt);
+                      messages = parsed.messages || [];
+                    } catch {
+                      messages = [{ role: "user", content: options.prompt }];
+                    }
+                    
+                    let cleanup: (() => void) | undefined;
+                    
+                    try {
+                      cleanup = window.electronAPI.claudeCode!.streamChat(
+                        {
+                          messages: messages.map(msg => ({
+                            role: msg.role,
+                            content: msg.content
+                          })),
+                          model: options.model || "claude-3-opus-20240229",
+                          max_tokens: options.maxTokens,
+                          temperature: options.temperature,
+                        },
+                        (chunk: string) => {
+                          // Emit each chunk as a text delta
+                          emit.single(AiResponse.fromSimple({
+                            text: chunk
+                          }));
+                        },
+                        () => {
+                          // Stream completed
+                          emit.end();
+                        },
+                        (error: any) => {
+                          // Stream error
+                          emit.fail(new AiProviderError({
+                            message: `Claude Code stream error: ${error}`,
+                            cause: error,
+                            isRetryable: false,
+                            provider: "claude_code"
+                          }));
+                        }
+                      );
+                    } catch (error) {
+                      emit.fail(new AiProviderError({
+                        message: `Failed to start Claude Code stream: ${error}`,
+                        cause: error,
+                        isRetryable: false,
+                        provider: "claude_code"
+                      }));
+                    }
+                    
+                    // Return cleanup function
+                    return Effect.sync(() => {
+                      cleanup?.();
+                    });
+                  })
+                ),
+              
+              generateStructured: (options: GenerateStructuredOptions) =>
+                Effect.gen(function* (_) {
+                  // Parse messages from prompt string 
+                  let messages: any[];
+                  try {
+                    const parsed = JSON.parse(options.prompt);
+                    messages = parsed.messages || [];
+                  } catch {
+                    messages = [{ role: "user", content: options.prompt }];
+                  }
+                  
+                  // Use IPC to call main process Claude Code implementation
+                  const response = yield* _(
+                    Effect.tryPromise({
+                      try: () => window.electronAPI.claudeCode!.chatCompletion({
+                        messages: messages.map(msg => ({
+                          role: msg.role,
+                          content: msg.content
+                        })),
+                        model: options.model || "claude-3-opus-20240229",
+                        max_tokens: options.maxTokens,
+                        temperature: options.temperature,
+                      }),
+                      catch: (error) => new AiProviderError({
+                        message: `Claude Code IPC call failed: ${error}`,
+                        cause: error,
+                        isRetryable: false,
+                        provider: "claude_code"
+                      })
+                    })
+                  );
+                  
+                  // Handle error response format
+                  if (typeof response === 'object' && response !== null && '__error' in response) {
+                    return yield* _(Effect.fail(new AiProviderError({
+                      message: `Claude Code CLI error: ${response.message}`,
+                      cause: response,
+                      isRetryable: false,
+                      provider: "claude_code"
+                    })));
+                  }
+                  
+                  // Parse successful response
+                  const content = typeof response === 'string' ? response : JSON.stringify(response);
+                  
+                  return AiResponse.fromSimple({
+                    text: content,
+                    metadata: {
+                      usage: {
+                        promptTokens: messages.reduce((acc, msg) => acc + msg.content.length / 4, 0),
+                        completionTokens: content.length / 4,
+                        totalTokens: 0
+                      }
+                    }
+                  });
+                })
+            });
+            
+            runTelemetry({ category: "orchestrator", action: "get_provider_model_success_claude_code", label: providerKey });
+            console.log("[ChatOrchestratorService] Successfully created Claude Code IPC provider for", providerKey);
+            return claudeCodeAgentLM;
           }
 
           default:

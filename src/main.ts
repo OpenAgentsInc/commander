@@ -27,7 +27,7 @@ try {
   );
 }
 
-// Register Claude Code event listeners - Disabled for now due to TypeScript exclusion
+// Register Claude Code event listeners
 // console.log("[Main Process] Registering Claude Code event listeners early");
 // try {
 //   addClaudeCodeEventListeners();
