@@ -87,11 +87,13 @@ export function setupClaudeWebSocketHandler() {
     }
     
     // Build Claude CLI args
-    const args = ["-p", conversationContext, "--output-format", "stream-json", "--verbose"];
+    // Use --no-cache to ensure each request is independent
+    const args = ["--no-cache", "-p", conversationContext, "--output-format", "stream-json", "--verbose"];
     if (systemMessage) {
       args.push("--system-prompt", systemMessage);
     }
     
+    console.log("[Main Process] Conversation context being sent:", conversationContext);
     console.log("[Main Process] Connecting to bridge service with args:", args);
     
     // Connect to bridge service
