@@ -1,0 +1,8 @@
+// src/helpers/ipc/claude_code/claude-code-channels.ts
+export const CLAUDE_CODE_CHAT_COMPLETION_CHANNEL = "claude-code:chat-completion";
+export const CLAUDE_CODE_CHAT_STREAM_CHANNEL = "claude-code:chat-stream";
+
+export const claudeCodeChannels = {
+  chatCompletion: CLAUDE_CODE_CHAT_COMPLETION_CHANNEL,
+  chatStream: CLAUDE_CODE_CHAT_STREAM_CHANNEL,
+};

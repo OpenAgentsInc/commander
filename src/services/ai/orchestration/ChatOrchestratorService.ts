@@ -182,7 +182,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
             runTelemetry({ category: "orchestrator", action: "get_provider_model_success_nip90_custom", label: providerKey });
             return nip90AgentLMCustomInstance;
           }
-          
+
           default:
             runTelemetry({ category: "orchestrator", action: "get_provider_model_unknown", label: providerKey });
             return yield* _(Effect.fail(new AiConfigurationError({ message: `Unsupported provider key: ${providerKey}` })));

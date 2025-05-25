@@ -6,7 +6,7 @@ import { ConfigurationService } from "@/services/configuration";
 export interface AIProvider {
   key: string;
   name: string;
-  type: "ollama" | "nip90" | "openai" | "anthropic";
+  type: "ollama" | "nip90" | "openai" | "anthropic" | "claude_code";
   configKey?: string;
   modelName?: string;
 }
@@ -76,6 +76,20 @@ export const useAgentChatStore = create<AgentChatState>()(
               console.warn("Custom NIP-90 DVM enabled but pubkey not configured.");
             }
           }
+
+          // Add Claude Code CLI provider
+          const claudeCodeEnabledStr = yield* _(safeGetConfig("CLAUDE_CODE_PROVIDER_ENABLED", "false"));
+          if (claudeCodeEnabledStr === "true") {
+            const claudeCodeProviderName = yield* _(safeGetConfig("CLAUDE_CODE_PROVIDER_NAME", "Claude Code (CLI)"));
+            const claudeCodeDefaultModel = yield* _(safeGetConfig("CLAUDE_CODE_DEFAULT_MODEL", "claude-3-opus-20240229"));
+            providers.push({
+              key: "claude_code",
+              name: claudeCodeProviderName,
+              type: "claude_code",
+              modelName: claudeCodeDefaultModel,
+            });
+          }
+
           set({ availableProviders: providers });
         }).pipe(
           Effect.catchAll((unexpectedError) => {

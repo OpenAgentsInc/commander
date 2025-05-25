@@ -115,20 +115,4 @@ export function exposeOllamaContext() {
   });
 }
 
-// Add TypeScript type declaration to the window object
-declare global {
-  interface Window {
-    electronAPI: {
-      ollama: {
-        checkStatus: () => Promise<boolean>;
-        generateChatCompletion: (request: unknown) => Promise<any>;
-        generateChatCompletionStream: (
-          request: unknown,
-          onChunk: (chunk: any) => void,
-          onDone: () => void,
-          onError: (error: any) => void,
-        ) => () => void; // Returns a cancel function
-      };
-    };
-  }
-}
+// Types are now declared in src/types.d.ts
