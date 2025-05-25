@@ -60,3 +60,5 @@ declare global {
     electronAPI: ElectronAPI; // Make electronAPI non-optional
   }
 }
+
+export {}; // Make this file a module

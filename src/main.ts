@@ -1,7 +1,7 @@
 import { app, BrowserWindow, nativeTheme } from "electron"; // Add nativeTheme
 import registerListeners from "./helpers/ipc/listeners-register";
 import { addOllamaEventListeners } from "./helpers/ipc/ollama/ollama-listeners";
-// import { addClaudeCodeEventListeners } from "./helpers/ipc/claude_code/claude-code-listeners";
+import { addClaudeCodeEventListeners } from "./helpers/ipc/claude_code/claude-code-listeners";
 // "electron-squirrel-startup" seems broken when packaging with vite
 //import started from "electron-squirrel-startup";
 import path from "path";
@@ -27,19 +27,19 @@ try {
   );
 }
 
-// Register Claude Code event listeners - DISABLED (Node.js modules not compatible with renderer)
-// console.log("[Main Process] Registering Claude Code event listeners early");
-// try {
-//   addClaudeCodeEventListeners();
-//   console.log(
-//     "[Main Process] Successfully registered Claude Code event listeners early",
-//   );
-// } catch (error) {
-//   console.error(
-//     "[Main Process] Failed to register Claude Code event listeners early:",
-//     error,
-//   );
-// }
+// Register Claude Code event listeners
+console.log("[Main Process] Registering Claude Code event listeners early");
+try {
+  addClaudeCodeEventListeners();
+  console.log(
+    "[Main Process] Successfully registered Claude Code event listeners early",
+  );
+} catch (error) {
+  console.error(
+    "[Main Process] Failed to register Claude Code event listeners early:",
+    error,
+  );
+}
 
 function createWindow() {
   // Force dark theme for native Electron elements
