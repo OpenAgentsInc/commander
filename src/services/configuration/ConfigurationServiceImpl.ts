@@ -134,7 +134,7 @@ export const DefaultDevConfigLayer = Layer.effect(
     yield* _(configService.set("ANTHROPIC_API_KEY", "YOUR_ANTHROPIC_API_KEY_HERE_OR_LEAVE_BLANK_FOR_ENV_VAR"));
     yield* _(configService.set("CLAUDE_CODE_CLI_PATH", "")); // Optional: full path to @anthropic-ai/claude-code CLI if not in system PATH
     yield* _(configService.set("CLAUDE_CODE_PROVIDER_ENABLED", "true")); // Enable for testing
-    yield* _(configService.set("CLAUDE_CODE_DEFAULT_MODEL", "claude-3-opus-20240229")); // Example model
+    yield* _(configService.set("CLAUDE_CODE_DEFAULT_MODEL", "claude-sonnet")); // Example model
     yield* _(configService.set("CLAUDE_CODE_PROVIDER_NAME", "Claude Code (CLI)"));
 
     return configService;

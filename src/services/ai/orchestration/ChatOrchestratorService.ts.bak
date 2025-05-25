@@ -232,7 +232,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                   if (typeof response === 'object' && response !== null && '__error' in response) {
                     return yield* _(Effect.fail(new AiProviderError({
                       message: `Claude Code CLI error: ${response.message}`,
-                      cause: response && typeof response === 'object' ? (response.message || JSON.stringify(response, Object.getOwnPropertyNames(response))) : String(response),
+                      cause: response,
                       isRetryable: false,
                       provider: "claude_code"
                     })));
@@ -365,7 +365,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                   if (typeof response === 'object' && response !== null && '__error' in response) {
                     return yield* _(Effect.fail(new AiProviderError({
                       message: `Claude Code CLI error: ${response.message}`,
-                      cause: response && typeof response === 'object' ? (response.message || JSON.stringify(response, Object.getOwnPropertyNames(response))) : String(response),
+                      cause: response,
                       isRetryable: false,
                       provider: "claude_code"
                     })));
