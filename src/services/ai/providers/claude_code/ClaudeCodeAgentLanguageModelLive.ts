@@ -75,6 +75,7 @@ export const ClaudeCodeAgentLanguageModelLive = Effect.gen(function* (_) {
           model: modelToUse,
           temperature: options.temperature,
           max_tokens: options.maxTokens,
+          sessionId: (options as any).sessionId, // Pass sessionId if available
         };
 
         const electronAPI = (window as any).electronAPI;
@@ -136,6 +137,7 @@ export const ClaudeCodeAgentLanguageModelLive = Effect.gen(function* (_) {
             model: modelToUse,
             temperature: options.temperature,
             max_tokens: options.maxTokens,
+            sessionId: (options as any).sessionId, // Pass sessionId if available
          };
          
          const electronAPI = (window as any).electronAPI;

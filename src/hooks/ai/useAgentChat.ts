@@ -13,6 +13,8 @@ import {
 import { getMainRuntime } from "@/services/runtime";
 import { TelemetryService, type TelemetryEvent } from "@/services/telemetry";
 import { useAgentChatStore } from "@/stores/ai/agentChatStore";
+import { DatabaseService } from "@/services/db";
+import type { DBMessage, DBToolExecution } from "@/services/db";
 
 interface UseAgentChatOptions {
   initialSystemMessage?: string;
@@ -37,6 +39,9 @@ export interface UIAgentChatMessage extends AgentChatMessage {
   };
 }
 
+// Helper to generate UUID for sessionId
+const generateId = () => `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+
 export function useAgentChat(options: UseAgentChatOptions = {}) {
   const { initialSystemMessage = "You are a helpful AI assistant." } = options;
   const { selectedProviderKey } = useAgentChatStore();
@@ -54,6 +59,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
   const [currentInput, setCurrentInput] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<AiProviderError | null>(null);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
 
   // Remove stale runtime reference - get fresh runtime at execution time
   const streamAbortControllerRef = useRef<AbortController | null>(null);
@@ -67,9 +73,83 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
     );
   }, []); // No runtime in deps
 
+  // Load chat history from database when sessionId changes
+  useEffect(() => {
+    if (!currentSessionId) return;
+
+    const loadHistory = async () => {
+      try {
+        const runtime = getMainRuntime();
+        const program = Effect.gen(function* (_) {
+          const dbService = yield* _(DatabaseService);
+          
+          // Load messages for this session
+          const dbMessages = yield* _(dbService.getMessagesForSession(currentSessionId, 100));
+          
+          // Convert DB messages to UI messages
+          const uiMessages: UIAgentChatMessage[] = [];
+          
+          for (const dbMsg of dbMessages) {
+            let uiMsg: UIAgentChatMessage = {
+              id: dbMsg.id,
+              role: dbMsg.role,
+              content: dbMsg.content || "",
+              timestamp: dbMsg.timestamp * 1000, // Convert from seconds to milliseconds
+            };
+            
+            // Parse tool calls if present
+            if (dbMsg.tool_calls_json) {
+              try {
+                const toolCalls = JSON.parse(dbMsg.tool_calls_json);
+                uiMsg = { ...uiMsg, tool_calls: toolCalls };
+              } catch (e) {
+                console.error("Failed to parse tool_calls_json:", e);
+              }
+            }
+            
+            uiMessages.push(uiMsg);
+          }
+          
+          return uiMessages;
+        });
+        
+        const historicalMessages = await Effect.runPromise(
+          program.pipe(Effect.provide(runtime))
+        );
+        
+        // Update messages state with history (preserve system message)
+        setMessages([systemMessageInstance, ...historicalMessages]);
+        
+        runTelemetry({
+          category: "agent_chat",
+          action: "history_loaded",
+          label: currentSessionId,
+          value: historicalMessages.length.toString(),
+        });
+      } catch (error) {
+        console.error("Failed to load chat history:", error);
+        runTelemetry({
+          category: "agent_chat",
+          action: "history_load_error",
+          label: currentSessionId,
+          value: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    };
+    
+    loadHistory();
+  }, [currentSessionId, systemMessageInstance, runTelemetry]);
+
   const sendMessage = useCallback(
     async (promptText: string) => {
       if (!promptText.trim()) return;
+
+      // Generate sessionId if this is the first message
+      let sessionId = currentSessionId;
+      if (!sessionId) {
+        sessionId = generateId();
+        setCurrentSessionId(sessionId);
+      }
 
       const userMessage: UIAgentChatMessage = {
         id: `user-${Date.now()}`,
@@ -150,7 +230,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
       const orchestratorOptions: Parameters<ChatOrchestratorService['streamConversation']>[0]['options'] = {
         temperature: 0.7,
         maxTokens: 2048,
-      };
+        sessionId: sessionId, // Pass sessionId for Claude Code provider
+      } as any;
 
       const currentRuntime = getMainRuntime(); // Get fresh runtime
       
@@ -293,7 +374,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
 
       Effect.runFork(program);
     },
-    [messages, initialSystemMessage, runTelemetry, selectedProviderKey],
+    [messages, initialSystemMessage, runTelemetry, selectedProviderKey, currentSessionId],
   );
 
   // Cleanup stream on unmount
@@ -314,6 +395,17 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
     };
   }, [runTelemetry]);
 
+  const clearHistory = useCallback(() => {
+    setMessages([systemMessageInstance]);
+    setCurrentSessionId(null);
+    setError(null);
+    runTelemetry({
+      category: "agent_chat",
+      action: "history_cleared",
+      label: currentSessionId || "no_session",
+    });
+  }, [systemMessageInstance, currentSessionId, runTelemetry]);
+
   return {
     messages,
     currentInput,
@@ -321,5 +413,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
     isLoading,
     error,
     sendMessage,
+    clearHistory,
+    currentSessionId,
   };
 }

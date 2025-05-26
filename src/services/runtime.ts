@@ -51,6 +51,7 @@ import {
 import { OpenAIProvider, OllamaProvider } from "@/services/ai/providers";
 import { AgentLanguageModel } from "@/services/ai/core";
 import { ChatOrchestratorService, ChatOrchestratorServiceLive } from "@/services/ai/orchestration";
+import { DatabaseService, DatabaseServiceRendererProxyLive } from "@/services/db";
 
 // Define the full context type for the runtime
 export type FullAppContext =
@@ -68,7 +69,8 @@ export type FullAppContext =
   | HttpClient.HttpClient
   | ConfigurationService
   | AgentLanguageModel
-  | ChatOrchestratorService;
+  | ChatOrchestratorService
+  | DatabaseService;
 
 // Runtime instance - will be initialized asynchronously
 let mainRuntimeInstance: Runtime.Runtime<FullAppContext>;
@@ -85,6 +87,9 @@ export function buildFullAppLayer() {
   const devConfigLayer = DefaultDevConfigLayer.pipe(Layer.provide(configLayer));
 
   const nip13Layer = NIP13ServiceLive;
+  
+  // Database layer for renderer (uses IPC proxy)
+  const databaseLayer = DatabaseServiceRendererProxyLive;
   
   const nostrLayer = NostrServiceLive.pipe(
     Layer.provide(NostrServiceConfigLive),
@@ -212,6 +217,7 @@ export function buildFullAppLayer() {
     ollamaLanguageModelLayer,
     chatOrchestratorLayer,
     kind5050DVMLayer,
+    databaseLayer,
   );
 }
 

@@ -26,6 +26,9 @@ importers:
       '@effect/platform-browser':
         specifier: ^0.62.3
         version: 0.62.3(@effect/platform@0.82.4(effect@3.15.2))(effect@3.15.2)
+      '@electric-sql/pglite':
+        specifier: ^0.2.15
+        version: 0.2.17
       '@icons-pack/react-simple-icons':
         specifier: ^12.7.0
         version: 12.8.0(react@19.1.0)
@@ -671,6 +674,9 @@ packages:
       '@effect/experimental': ^0.46.2
       '@effect/platform': ^0.82.2
       effect: ^3.15.1
+
+  '@electric-sql/pglite@0.2.17':
+    resolution: {integrity: sha512-qEpKRT2oUaWDH6tjRxLHjdzMqRUGYDnGZlKrnL4dJ77JVMcP2Hpo3NYnOSPKdZdeec57B6QPprCUFg0picx5Pw==}
 
   '@electron-forge/cli@7.8.1':
     resolution: {integrity: sha512-QI3EShutfq9Y+2TWWrPjm4JZM3eSAKzoQvRZdVhAfVpUbyJ8K23VqJShg3kGKlPf9BXHAGvE+8LyH5s2yDr1qA==}
@@ -7037,6 +7043,8 @@ snapshots:
       '@opentelemetry/semantic-conventions': 1.34.0
       effect: 3.15.2
       uuid: 11.1.0
+
+  '@electric-sql/pglite@0.2.17': {}
 
   '@electron-forge/cli@7.8.1(encoding@0.1.13)':
     dependencies:

@@ -137,6 +137,9 @@ export const DefaultDevConfigLayer = Layer.effect(
     yield* _(configService.set("CLAUDE_CODE_DEFAULT_MODEL", "claude-sonnet")); // Example model
     yield* _(configService.set("CLAUDE_CODE_PROVIDER_NAME", "Claude Code (CLI)"));
 
+    // Database configuration
+    yield* _(configService.set("DB_DATA_DIR", "commander-data/database/main_v1")); // Versioned subdir for database
+
     return configService;
   })
 );
