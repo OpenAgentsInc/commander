@@ -20,6 +20,8 @@ import { useAgentChat } from "@/hooks/ai/useAgentChat";
 import { AgentChatMessage } from "@/services/ai/core/AgentChatMessage";
 import { cn } from "@/utils/tailwind";
 import { useConfigurationService } from "@/hooks/useConfigurationService";
+import { Effect } from "effect";
+import { getMainRuntime } from "@/services/runtime";
 
 interface CodingCommandPaneProps {
   sessionId?: string;
@@ -35,39 +37,30 @@ export const CodingCommandPane: React.FC<CodingCommandPaneProps> = ({
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [developerMode, setDeveloperMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { getConfig, setConfig } = useConfigurationService();
+  const configService = useConfigurationService();
   
-  // Force Claude Code provider
+  // Use the agent chat hook with session options
   const {
     messages,
     isLoading,
     error,
     sendMessage,
-    selectedProvider,
-    setSelectedProvider,
   } = useAgentChat({
     sessionId,
-    initialProvider: "claude_code", // Force Claude Code
+    initialSystemMessage: "You are an expert coding assistant. Help the user with their programming tasks, analyze code, and provide solutions.",
   });
-
-  // Ensure Claude Code is selected
-  useEffect(() => {
-    if (selectedProvider !== "claude_code") {
-      setSelectedProvider("claude_code");
-    }
-  }, [selectedProvider, setSelectedProvider]);
 
   // Load developer mode setting
   useEffect(() => {
-    getConfig("CLAUDE_CODE_DANGEROUS_PERMISSIONS_ENABLED")
-      .then((value) => {
-        setDeveloperMode(value === "true");
-      })
-      .catch(() => {
-        // Default to false if not set
-        setDeveloperMode(false);
-      });
-  }, [getConfig]);
+    const runtime = getMainRuntime();
+    Effect.runPromise(
+      configService.get("CLAUDE_CODE_DANGEROUS_PERMISSIONS_ENABLED").pipe(
+        Effect.map((value) => value === "true"),
+        Effect.catchAll(() => Effect.succeed(false)),
+        Effect.provide(runtime)
+      )
+    ).then(setDeveloperMode);
+  }, [configService]);
 
   const handleSendMessage = (content: string) => {
     // Send message with file context via the sessionId mechanism
@@ -120,9 +113,14 @@ export const CodingCommandPane: React.FC<CodingCommandPaneProps> = ({
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  const extractCodeBlocks = (content: string) => {
+  interface CodeBlock {
+    language: string;
+    code: string;
+  }
+
+  const extractCodeBlocks = (content: string): CodeBlock[] => {
     const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
-    const blocks = [];
+    const blocks: CodeBlock[] = [];
     let match;
     
     while ((match = codeBlockRegex.exec(content)) !== null) {
@@ -136,8 +134,13 @@ export const CodingCommandPane: React.FC<CodingCommandPaneProps> = ({
   };
 
   const handleDeveloperModeToggle = async (pressed: boolean) => {
+    const runtime = getMainRuntime();
     try {
-      await setConfig("CLAUDE_CODE_DANGEROUS_PERMISSIONS_ENABLED", pressed ? "true" : "false");
+      await Effect.runPromise(
+        configService.set("CLAUDE_CODE_DANGEROUS_PERMISSIONS_ENABLED", pressed ? "true" : "false").pipe(
+          Effect.provide(runtime)
+        )
+      );
       setDeveloperMode(pressed);
     } catch (error) {
       console.error("Failed to update developer mode setting:", error);
@@ -184,7 +187,7 @@ export const CodingCommandPane: React.FC<CodingCommandPaneProps> = ({
             <ScrollArea className="h-[calc(100%-8rem)]">
               <div className="space-y-4 py-4">
                 {messages.map((message, index) => {
-                  const codeBlocks = extractCodeBlocks(message.content);
+                  const codeBlocks = extractCodeBlocks(message.content || "");
                   
                   return (
                     <div

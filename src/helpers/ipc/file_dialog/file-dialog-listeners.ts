@@ -17,7 +17,7 @@ export function addFileDialogEventListeners() {
         { name: "JavaScript", extensions: ["js", "jsx"] },
         { name: "Text Files", extensions: ["txt", "md"] },
       ],
-      properties: ["openFile", ...(options?.multiSelections ? ["multiSelections"] : [])],
+      properties: ["openFile", ...(options?.multiSelections ? ["multiSelections" as const] : [])] as Array<"openFile" | "multiSelections">,
     });
 
     if (result.canceled) {

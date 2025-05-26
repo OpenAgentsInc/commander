@@ -7,10 +7,22 @@ export const createFileDialogContext = () => ({
     defaultPath?: string;
     filters?: Array<{ name: string; extensions: string[] }>;
     multiSelections?: boolean;
-  }) => window.electronAPI.fileDialog.selectFiles(options),
+  }) => {
+    if (!window.electronAPI?.fileDialog?.selectFiles) {
+      console.error("File dialog API not available");
+      return Promise.resolve(null);
+    }
+    return window.electronAPI.fileDialog.selectFiles(options);
+  },
   
   selectDirectory: (options?: {
     title?: string;
     defaultPath?: string;
-  }) => window.electronAPI.fileDialog.selectDirectory(options),
+  }) => {
+    if (!window.electronAPI?.fileDialog?.selectDirectory) {
+      console.error("File dialog API not available");
+      return Promise.resolve(null);
+    }
+    return window.electronAPI.fileDialog.selectDirectory(options);
+  },
 });

@@ -74,10 +74,24 @@ declare global {
     getAllSessions: (options?: { limit?: number; offset?: number; sortBy?: "created_at" | "last_updated_at"; sortOrder?: "ASC" | "DESC" }) => Promise<DBSession[] | IpcErrorObject>;
   }
 
+  interface FileDialogAPI {
+    selectFiles: (options?: {
+      title?: string;
+      defaultPath?: string;
+      filters?: Array<{ name: string; extensions: string[] }>;
+      multiSelections?: boolean;
+    }) => Promise<string[] | null>;
+    selectDirectory: (options?: {
+      title?: string;
+      defaultPath?: string;
+    }) => Promise<string | null>;
+  }
+
   interface ElectronAPI {
     claudeCode?: ClaudeCodeAPI;
     ollama: OllamaAPI; // Make ollama non-optional
     database: DatabaseAPI;
+    fileDialog: FileDialogAPI;
   }
 
   interface Window {
