@@ -1,4 +1,6 @@
 import React from 'react';
+import { Button } from '@/components/ui/button';
+import { Pencil } from 'lucide-react';
 import { Effect } from 'effect';
 import { TelemetryService } from '@/services/telemetry';
 import { getMainRuntime } from '@/services/runtime';
@@ -9,32 +11,25 @@ import {
   ProseMirror,
   ProseMirrorDoc,
   reactKeys,
-  useEditorEffect,
 } from "@handlewithcare/react-prosemirror";
-
-// Component that autofocuses the editor and fills container
-const AutoFocusEditor: React.FC = () => {
-  useEditorEffect((view) => {
-    if (view) {
-      view.focus();
-    }
-  }, []);
-
-  return (
-    <ProseMirrorDoc
-      as={
-        <div
-          className="p-4 prose prose-invert h-full w-full outline-none text-white box-border"
-          style={{ minHeight: '100%', padding: '12px' }}
-        />
-      }
-    />
-  );
-};
 
 const CoderPane: React.FC = () => {
   const runtime = getMainRuntime(); // For telemetry
   const removePane = usePaneStore((state) => state.removePane);
+
+  const handleEditClick = () => {
+    Effect.runFork(
+      Effect.flatMap(TelemetryService, (ts) =>
+        ts.trackEvent({
+          category: 'coder_mode',
+          action: 'edit_button_click',
+        }),
+      ).pipe(Effect.provide(runtime)),
+    );
+    // TODO: Define actual "Edit" functionality.
+    // For now, it could log or be a placeholder.
+    console.log("Coder Mode: Edit button clicked.");
+  };
 
   const handleExitCoderMode = React.useCallback(() => {
     Effect.runFork(
@@ -75,6 +70,17 @@ const CoderPane: React.FC = () => {
 
   return (
     <div className="h-full w-full flex flex-col bg-black">
+      {/* Top bar for Edit button and potential future controls */}
+      <div className="flex justify-center p-3">
+        <Button
+          variant="outline"
+          className="border-gray-700 bg-black text-gray-400 hover:border-gray-500 hover:bg-gray-900 hover:text-gray-200"
+          onClick={handleEditClick}
+        >
+          <Pencil className="mr-2 h-4 w-4" />
+          Edit
+        </Button>
+      </div>
       {/*
         Coder Mode Content Area:
         This is where the main content for Coder Mode will go.
@@ -85,15 +91,15 @@ const CoderPane: React.FC = () => {
         {/* Future content will go here */}
       </div>
       {/* ProseMirror editor at the bottom */}
-      <div className="flex items-center justify-center pb-4 px-4">
-        <div className="h-[100px] w-[750px] overflow-auto rounded border border-white bg-black">
+      <div className="flex items-center justify-center pb-4">
+        <div className="h-[100px] w-[750px] overflow-auto rounded border border-white bg-black p-2">
           <ProseMirror
             defaultState={EditorState.create({
               schema,
               plugins: [reactKeys()],
             })}
           >
-            <AutoFocusEditor />
+            <ProseMirrorDoc as={<div className="prose prose-invert min-h-full outline-none text-white" />} />
           </ProseMirror>
         </div>
       </div>
