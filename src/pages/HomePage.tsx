@@ -20,7 +20,6 @@ import { isMacOs } from "@/utils/os";
 import { Effect } from "effect";
 import { getMainRuntime } from "@/services/runtime";
 import { TelemetryService } from "@/services/telemetry";
-import { useNavigate } from '@tanstack/react-router';
 
 interface HandDataContext {
   activeHandPose: HandPose;
@@ -32,7 +31,6 @@ interface HandDataContext {
 const TITLE_BAR_HEIGHT = 32; // Title bar height is 2rem = 32px
 
 export default function HomePage() {
-  const navigate = useNavigate(); // Add this
   // Default hand tracking to off for "Compute Market" launch
   const [isHandTrackingActive, setIsHandTrackingActive] = useState(false);
   const [handData, setHandData] = useState<HandDataContext | null>(null);
@@ -53,6 +51,7 @@ export default function HomePage() {
     toggleDvmJobHistoryPane,
     toggleAgentChatPane,
     togglePreviousChatsPane,
+    toggleCoderPane,
   } = usePaneStore(
     useShallow((state) => ({
       panes: state.panes,
@@ -64,6 +63,7 @@ export default function HomePage() {
       toggleDvmJobHistoryPane: state.toggleDvmJobHistoryPane,
       toggleAgentChatPane: state.toggleAgentChatPane,
       togglePreviousChatsPane: state.togglePreviousChatsPane,
+      toggleCoderPane: state.toggleCoderPane,
     })),
   );
 
@@ -238,12 +238,7 @@ export default function HomePage() {
       switch (digit) {
         case 1: // New: Coder Mode
           console.log("Keyboard: Toggle Coder Mode");
-          // If already in coder mode, navigate home, else navigate to coder
-          if (window.location.pathname === '/coder') {
-            navigate({ to: '/' });
-          } else {
-            navigate({ to: '/coder' });
-          }
+          toggleCoderPane();
           break;
         case 2: // Was 1: Sell Compute
           console.log("Keyboard: Toggle Sell Compute");
@@ -286,7 +281,7 @@ export default function HomePage() {
       window.removeEventListener("keydown", handleGlobalKeyDown);
     };
   }, [
-    navigate, // Add navigate
+    toggleCoderPane,
     toggleSellComputePane,
     toggleWalletPane,
     toggleHandTracking,
@@ -327,6 +322,7 @@ export default function HomePage() {
           onToggleDvmJobHistoryPane={toggleDvmJobHistoryPane}
           onToggleAgentChatPane={toggleAgentChatPane}
           onTogglePreviousChatsPane={togglePreviousChatsPane}
+          onToggleCoderPane={toggleCoderPane}
         />
       </div>
     </KeyboardControls>

@@ -1,2 +1,2 @@
 // src/components/coder/index.ts
-export { default as CoderView } from "./CoderView";
+export { default as CoderPane } from "./CoderPane";

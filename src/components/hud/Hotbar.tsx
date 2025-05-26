@@ -4,15 +4,12 @@ import { HotbarItem } from "./HotbarItem";
 import { Store, History, Hand, Wallet, Bot, MessageSquare, CodeXml } from "lucide-react";
 import { usePaneStore } from "@/stores/pane";
 import { useShallow } from "zustand/react/shallow";
-import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { Effect } from 'effect';
-import { TelemetryService } from '@/services/telemetry';
-import { getMainRuntime } from '@/services/runtime';
 import {
   SELL_COMPUTE_PANE_ID_CONST,
   WALLET_PANE_ID,
   AGENT_CHAT_PANE_ID,
   PREVIOUS_CHATS_PANE_ID,
+  CODER_PANE_ID,
 } from "@/stores/panes/constants";
 import { DVM_JOB_HISTORY_PANE_ID } from "@/stores/panes/actions/openDvmJobHistoryPane";
 
@@ -25,6 +22,7 @@ interface HotbarProps {
   onToggleDvmJobHistoryPane: () => void;
   onToggleAgentChatPane: () => void;
   onTogglePreviousChatsPane?: () => void;
+  onToggleCoderPane: () => void;
 }
 
 export const Hotbar: React.FC<HotbarProps> = ({
@@ -36,35 +34,15 @@ export const Hotbar: React.FC<HotbarProps> = ({
   onToggleDvmJobHistoryPane,
   onToggleAgentChatPane,
   onTogglePreviousChatsPane,
+  onToggleCoderPane,
 }) => {
   console.log("[Hotbar] onTogglePreviousChatsPane provided:", !!onTogglePreviousChatsPane);
-  const navigate = useNavigate();
-  const routerState = useRouterState();
-  const runtime = getMainRuntime();
 
   const { activePaneId } = usePaneStore(
     useShallow((state) => ({
       activePaneId: state.activePaneId,
     })),
   );
-
-  const isCoderModeActive = routerState.location.pathname === '/coder';
-
-  const handleCoderModeClick = () => {
-    Effect.runFork(
-      Effect.flatMap(TelemetryService, (ts) =>
-        ts.trackEvent({
-          category: 'coder_mode',
-          action: 'hotbar_button_click',
-        }),
-      ).pipe(Effect.provide(runtime)),
-    );
-    if (isCoderModeActive) {
-      navigate({ to: '/' }); // Navigate back to home if already in Coder Mode
-    } else {
-      navigate({ to: '/coder' });
-    }
-  };
 
   return (
     <div
@@ -76,9 +54,9 @@ export const Hotbar: React.FC<HotbarProps> = ({
       {/* Slot 1: Coder Mode */}
       <HotbarItem
         slotNumber={1}
-        onClick={handleCoderModeClick}
-        title={isCoderModeActive ? "Exit Coder Mode" : "Coder Mode"}
-        isActive={isCoderModeActive}
+        onClick={onToggleCoderPane}
+        title="Coder Mode"
+        isActive={activePaneId === CODER_PANE_ID}
       >
         <CodeXml className="text-muted-foreground h-5 w-5" />
       </HotbarItem>

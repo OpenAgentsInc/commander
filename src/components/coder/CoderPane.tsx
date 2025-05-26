@@ -1,14 +1,14 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Pencil, X } from 'lucide-react'; // Pencil for Edit, X for potential close
-import { useNavigate } from '@tanstack/react-router';
+import { Pencil } from 'lucide-react';
 import { Effect } from 'effect';
 import { TelemetryService } from '@/services/telemetry';
 import { getMainRuntime } from '@/services/runtime';
+import { usePaneStore } from '@/stores/pane';
 
-const CoderView: React.FC = () => {
-  const navigate = useNavigate();
+const CoderPane: React.FC = () => {
   const runtime = getMainRuntime(); // For telemetry
+  const removePane = usePaneStore((state) => state.removePane);
 
   const handleEditClick = () => {
     Effect.runFork(
@@ -33,8 +33,9 @@ const CoderView: React.FC = () => {
         }),
       ).pipe(Effect.provide(runtime)),
     );
-    navigate({ to: '/' });
-  }, [navigate, runtime]);
+    // Close the coder pane
+    removePane('coder_pane');
+  }, [removePane, runtime]);
 
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -61,9 +62,9 @@ const CoderView: React.FC = () => {
   }, [runtime]);
 
   return (
-    <div className="fixed inset-0 z-[9998] flex h-screen w-screen flex-col items-center bg-black p-4">
+    <div className="h-full w-full flex flex-col bg-black">
       {/* Top bar for Edit button and potential future controls */}
-      <div className="absolute top-0 left-0 right-0 flex justify-center p-3">
+      <div className="flex justify-center p-3">
         <Button
           variant="outline"
           className="border-gray-700 bg-black text-gray-400 hover:border-gray-500 hover:bg-gray-900 hover:text-gray-200"
@@ -79,8 +80,11 @@ const CoderView: React.FC = () => {
         For now, it's just a black screen.
         Example: A large text editor or code display area.
       */}
+      <div className="flex-1 bg-black">
+        {/* Future content will go here */}
+      </div>
     </div>
   );
 };
 
-export default CoderView;
+export default CoderPane;
