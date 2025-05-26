@@ -52,6 +52,8 @@ export const CodingCommandPane: React.FC<CodingCommandPaneProps> = ({
 
   // Load developer mode setting
   useEffect(() => {
+    if (!configService) return;
+    
     const runtime = getMainRuntime();
     Effect.runPromise(
       configService.get("CLAUDE_CODE_DANGEROUS_PERMISSIONS_ENABLED").pipe(
@@ -134,6 +136,11 @@ export const CodingCommandPane: React.FC<CodingCommandPaneProps> = ({
   };
 
   const handleDeveloperModeToggle = async (pressed: boolean) => {
+    if (!configService) {
+      console.warn("ConfigurationService not available yet");
+      return;
+    }
+    
     const runtime = getMainRuntime();
     try {
       await Effect.runPromise(
