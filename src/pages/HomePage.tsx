@@ -47,6 +47,7 @@ export default function HomePage() {
     toggleWalletPane,
     toggleDvmJobHistoryPane,
     toggleAgentChatPane,
+    togglePreviousChatsPane,
   } = usePaneStore(
     useShallow((state) => ({
       panes: state.panes,
@@ -57,6 +58,7 @@ export default function HomePage() {
       toggleWalletPane: state.toggleWalletPane,
       toggleDvmJobHistoryPane: state.toggleDvmJobHistoryPane,
       toggleAgentChatPane: state.toggleAgentChatPane,
+      togglePreviousChatsPane: state.togglePreviousChatsPane,
     })),
   );
 
@@ -204,10 +206,13 @@ export default function HomePage() {
           toggleAgentChatPane();
           break;
         case 5:
+          console.log("Keyboard: Toggle Previous Chats Pane");
+          togglePreviousChatsPane();
+          break;
         case 6:
         case 7:
         case 8:
-          // No operation for slots 5-8
+          // No operation for slots 6-8
           break;
         case 9:
           console.log("Keyboard: Toggle Hand Tracking");
@@ -229,6 +234,7 @@ export default function HomePage() {
     toggleHandTracking,
     toggleDvmJobHistoryPane,
     toggleAgentChatPane,
+    togglePreviousChatsPane,
   ]);
 
   // Handler for keyboard shortcuts (kept as a backup, but we'll primarily use the global handler)
@@ -262,6 +268,7 @@ export default function HomePage() {
           onToggleWalletPane={toggleWalletPane}
           onToggleDvmJobHistoryPane={toggleDvmJobHistoryPane}
           onToggleAgentChatPane={toggleAgentChatPane}
+          onTogglePreviousChatsPane={togglePreviousChatsPane}
         />
       </div>
     </KeyboardControls>

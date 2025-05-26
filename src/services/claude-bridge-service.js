@@ -44,22 +44,26 @@ async function initDatabase() {
     await db.exec(`
       CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
-        title TEXT,
-        model TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        last_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at INTEGER NOT NULL,
+        last_updated_at INTEGER NOT NULL,
+        provider_key TEXT NOT NULL,
+        model_name TEXT,
+        system_prompt TEXT,
+        metadata_json TEXT,
+        title TEXT
       );
       
       CREATE TABLE IF NOT EXISTS messages (
         id TEXT PRIMARY KEY,
         session_id TEXT NOT NULL REFERENCES sessions(id),
-        role TEXT NOT NULL,
-        content TEXT NOT NULL,
-        model TEXT,
-        timestamp BIGINT NOT NULL,
+        role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system', 'tool')),
+        content TEXT,
+        name TEXT,
+        tool_call_id TEXT,
         tool_calls_json TEXT,
+        timestamp INTEGER NOT NULL,
+        provider_message_id TEXT,
         metadata_json TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
       );
       
@@ -67,11 +71,11 @@ async function initDatabase() {
         id TEXT PRIMARY KEY,
         message_id TEXT NOT NULL REFERENCES messages(id),
         tool_name TEXT NOT NULL,
-        input_json TEXT NOT NULL,
+        arguments_json TEXT NOT NULL,
         result_json TEXT,
-        status TEXT NOT NULL DEFAULT 'pending',
-        started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        completed_at TIMESTAMP,
+        status TEXT NOT NULL CHECK (status IN ('pending', 'executed_success', 'executed_error')),
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
         FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
       );
       
@@ -142,8 +146,17 @@ async function handleDatabaseOperation(ws, request) {
     switch (operation) {
       case 'saveSession':
         await db.exec(
-          `INSERT INTO sessions (id, title, model) VALUES ('${params.id}', '${params.title}', '${params.model}') 
-           ON CONFLICT (id) DO UPDATE SET last_updated_at = CURRENT_TIMESTAMP`
+          `INSERT INTO sessions (id, created_at, last_updated_at, provider_key, model_name, system_prompt, metadata_json, title) 
+           VALUES ('${params.id}', ${params.created_at}, ${params.last_updated_at}, '${params.provider_key}', 
+                   '${params.model_name || ''}', '${(params.system_prompt || '').replace(/'/g, "''")}', 
+                   '${params.metadata_json || ''}', '${params.title || ''}') 
+           ON CONFLICT (id) DO UPDATE SET 
+             last_updated_at = ${params.last_updated_at},
+             provider_key = '${params.provider_key}',
+             model_name = '${params.model_name || ''}',
+             system_prompt = '${(params.system_prompt || '').replace(/'/g, "''")}',
+             metadata_json = '${params.metadata_json || ''}',
+             title = '${params.title || ''}'`
         );
         result = { success: true };
         break;
@@ -157,10 +170,11 @@ async function handleDatabaseOperation(ws, request) {
         
       case 'saveMessage':
         await db.exec(
-          `INSERT INTO messages (id, session_id, role, content, model, timestamp, tool_calls_json, metadata_json)
+          `INSERT INTO messages (id, session_id, role, content, name, tool_call_id, tool_calls_json, timestamp, provider_message_id, metadata_json)
            VALUES ('${params.id}', '${params.session_id}', '${params.role}', 
-                   '${params.content.replace(/'/g, "''")}', '${params.model}', 
-                   ${params.timestamp}, '${params.tool_calls_json || ''}', '${params.metadata_json || ''}')`
+                   '${(params.content || '').replace(/'/g, "''")}', '${params.name || ''}', '${params.tool_call_id || ''}',
+                   '${params.tool_calls_json || ''}', ${params.timestamp}, '${params.provider_message_id || ''}', 
+                   '${params.metadata_json || ''}')`
         );
         result = { success: true };
         break;
@@ -176,17 +190,40 @@ async function handleDatabaseOperation(ws, request) {
         
       case 'saveToolCall':
         await db.exec(
-          `INSERT INTO tool_executions (id, message_id, tool_name, input_json, status)
+          `INSERT INTO tool_executions (id, message_id, tool_name, arguments_json, result_json, status, created_at, updated_at)
            VALUES ('${params.id}', '${params.message_id}', '${params.tool_name}', 
-                   '${params.input_json.replace(/'/g, "''")}', '${params.status || 'pending'}')`
+                   '${params.arguments_json.replace(/'/g, "''")}', '${params.result_json || ''}', 
+                   '${params.status}', ${params.created_at}, ${params.updated_at})`
         );
         result = { success: true };
         break;
         
       case 'updateSession':
-        if (params.updates.last_updated_at !== undefined) {
+        const updateClauses = [];
+        const updates = params.updates || {};
+        
+        if (updates.last_updated_at !== undefined) {
+          updateClauses.push(`last_updated_at = ${updates.last_updated_at}`);
+        }
+        if (updates.provider_key !== undefined) {
+          updateClauses.push(`provider_key = '${updates.provider_key}'`);
+        }
+        if (updates.model_name !== undefined) {
+          updateClauses.push(`model_name = '${updates.model_name || ''}'`);
+        }
+        if (updates.system_prompt !== undefined) {
+          updateClauses.push(`system_prompt = '${(updates.system_prompt || '').replace(/'/g, "''")}'`);
+        }
+        if (updates.metadata_json !== undefined) {
+          updateClauses.push(`metadata_json = '${updates.metadata_json || ''}'`);
+        }
+        if (updates.title !== undefined) {
+          updateClauses.push(`title = '${(updates.title || '').replace(/'/g, "''")}'`);
+        }
+        
+        if (updateClauses.length > 0) {
           await db.exec(
-            `UPDATE sessions SET last_updated_at = to_timestamp(${params.updates.last_updated_at}) WHERE id = '${params.sessionId}'`
+            `UPDATE sessions SET ${updateClauses.join(', ')} WHERE id = '${params.sessionId}'`
           );
         }
         result = { success: true };
@@ -196,7 +233,7 @@ async function handleDatabaseOperation(ws, request) {
         await db.exec(
           `UPDATE tool_executions 
            SET result_json = '${params.resultJson.replace(/'/g, "''")}', 
-               status = '${params.status}', completed_at = CURRENT_TIMESTAMP
+               status = '${params.status}', updated_at = ${Math.floor(Date.now() / 1000)}
            WHERE id = '${params.toolCallId}'`
         );
         result = { success: true };
@@ -204,9 +241,18 @@ async function handleDatabaseOperation(ws, request) {
         
       case 'getToolCallsForMessage':
         const toolCallsResult = await db.query(
-          `SELECT * FROM tool_executions WHERE message_id = '${params.messageId}' ORDER BY started_at`
+          `SELECT * FROM tool_executions WHERE message_id = '${params.messageId}' ORDER BY created_at`
         );
         result = toolCallsResult.rows || [];
+        break;
+        
+      case 'getAllSessions':
+        const { limit = 100, offset = 0, sortBy = 'last_updated_at', sortOrder = 'DESC' } = params || {};
+        const sessionsResult = await db.exec(
+          `SELECT * FROM sessions ORDER BY ${sortBy} ${sortOrder} LIMIT ${limit} OFFSET ${offset}`
+        );
+        result = sessionsResult.rows || [];
+        log(`Found ${result.length} sessions`);
         break;
         
       default:

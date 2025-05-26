@@ -11,7 +11,12 @@ import { useAgentChatStore } from "@/stores/ai/agentChatStore";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfigurationService } from "@/services/configuration";
 
-const AgentChatPane: React.FC = () => {
+interface AgentChatPaneProps {
+  sessionId?: string;
+  sessionTitle?: string;
+}
+
+const AgentChatPane: React.FC<AgentChatPaneProps> = ({ sessionId, sessionTitle }) => {
   const {
     messages,
     currentInput,
@@ -22,6 +27,7 @@ const AgentChatPane: React.FC = () => {
   } = useAgentChat({
     initialSystemMessage:
       "You are Commander's AI Agent. Be helpful and concise.",
+    sessionId,
   });
 
   const runtime = getMainRuntime();

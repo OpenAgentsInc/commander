@@ -27,6 +27,8 @@ import {
   // Agent chat pane actions
   openAgentChatPaneAction,
   toggleAgentChatPaneAction,
+  // Previous chats pane actions
+  openPreviousChatsPaneAction,
 } from "./panes/actions";
 import {
   DEFAULT_NIP28_PANE_ID,
@@ -45,6 +47,7 @@ import {
   AGENT_CHAT_PANE_TITLE,
   AGENT_CHAT_PANE_DEFAULT_WIDTH,
   AGENT_CHAT_PANE_DEFAULT_HEIGHT,
+  PREVIOUS_CHATS_PANE_ID,
 } from "./panes/constants";
 import { DVM_JOB_HISTORY_PANE_ID } from "./panes/actions/openDvmJobHistoryPane";
 
@@ -125,6 +128,59 @@ export const usePaneStore = create<PaneStoreType>()(
       // Agent chat pane
       openAgentChatPane: () => openAgentChatPaneAction(set),
       toggleAgentChatPane: () => toggleAgentChatPaneAction(set, get),
+      // Previous chats pane
+      openPreviousChatsPane: () => openPreviousChatsPaneAction(set),
+      togglePreviousChatsPane: () =>
+        set((state) => {
+          const paneId = PREVIOUS_CHATS_PANE_ID;
+          const existingPane = state.panes.find((p) => p.id === paneId);
+
+          // If the pane exists
+          if (existingPane) {
+            // If it's already the active pane, close it
+            if (state.activePaneId === paneId) {
+              const remainingPanes = state.panes.filter(
+                (pane) => pane.id !== paneId,
+              );
+              let newActivePaneId: string | null = null;
+              if (remainingPanes.length > 0) {
+                newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
+              }
+              const updatedPanes = remainingPanes.map((p) => ({
+                ...p,
+                isActive: p.id === newActivePaneId,
+              }));
+
+              return {
+                ...state,
+                panes: updatedPanes,
+                activePaneId: newActivePaneId,
+              };
+            }
+            // If it exists but isn't active, bring it to front
+            else {
+              // Move the pane to the end of the array to bring it to the front
+              const panesWithoutTarget = state.panes.filter(
+                (p) => p.id !== paneId,
+              );
+              const updatedTargetPane = { ...existingPane, isActive: true };
+              const updatedOtherPanes = panesWithoutTarget.map((p) => ({
+                ...p,
+                isActive: false,
+              }));
+
+              return {
+                ...state,
+                panes: [...updatedOtherPanes, updatedTargetPane],
+                activePaneId: paneId,
+              };
+            }
+          } else {
+            // Pane doesn't exist, open it
+            openPreviousChatsPaneAction(set);
+            return state;
+          }
+        }),
       resetHUDState: () => {
         // Force recreate initial panes with current screen dimensions
         const screenWidth =

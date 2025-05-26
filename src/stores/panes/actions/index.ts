@@ -21,3 +21,5 @@ export * from "./openRestoreWalletPane";
 // Agent chat pane actions
 export * from "./openAgentChatPane";
 export * from "./toggleAgentChatPane";
+// Previous chats pane actions
+export * from "./openPreviousChatsPane";

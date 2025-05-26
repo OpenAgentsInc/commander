@@ -10,4 +10,5 @@ export const dbChannels = {
   saveToolCall: `${DB_SERVICE_CHANNEL_PREFIX}:saveToolCall`,
   updateToolCallResult: `${DB_SERVICE_CHANNEL_PREFIX}:updateToolCallResult`,
   getToolCallsForMessage: `${DB_SERVICE_CHANNEL_PREFIX}:getToolCallsForMessage`,
+  getAllSessions: `${DB_SERVICE_CHANNEL_PREFIX}:getAllSessions`,
 };
