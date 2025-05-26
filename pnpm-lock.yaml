@@ -24,8 +24,8 @@ importers:
         specifier: ^0.82.4
         version: 0.82.4(effect@3.15.2)
       '@effect/platform-browser':
-        specifier: ^0.62.3
-        version: 0.62.3(@effect/platform@0.82.4(effect@3.15.2))(effect@3.15.2)
+        specifier: ^0.62.4
+        version: 0.62.4(@effect/platform@0.82.4(effect@3.15.2))(effect@3.15.2)
       '@electric-sql/pglite':
         specifier: ^0.3.2
         version: 0.3.2
@@ -633,10 +633,10 @@ packages:
       lmdb:
         optional: true
 
-  '@effect/platform-browser@0.62.3':
-    resolution: {integrity: sha512-2uXnKxurPelNURkQwukJxfJKOS8AwqF42mCytr/u0qC9+Ioaqz0ijbxg/PZom61rzrwhGiAB1xcUYMZL8KaN7A==}
+  '@effect/platform-browser@0.62.4':
+    resolution: {integrity: sha512-3sI8LEFWwtgbXyz2MBlK7yNCm4QYgr5jY6ep7jadBD1drYhujgH0Rz4zClcfMTVrbBEQATH66/lZXEyqOqzm1w==}
     peerDependencies:
-      '@effect/platform': ^0.82.3
+      '@effect/platform': ^0.82.4
       effect: ^3.15.2
 
   '@effect/platform-node-shared@0.34.3':
@@ -6988,7 +6988,7 @@ snapshots:
       effect: 3.15.2
       uuid: 11.1.0
 
-  '@effect/platform-browser@0.62.3(@effect/platform@0.82.4(effect@3.15.2))(effect@3.15.2)':
+  '@effect/platform-browser@0.62.4(@effect/platform@0.82.4(effect@3.15.2))(effect@3.15.2)':
     dependencies:
       '@effect/platform': 0.82.4(effect@3.15.2)
       effect: 3.15.2
