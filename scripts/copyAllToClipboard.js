@@ -25,6 +25,7 @@ const dirsToExclude = [
   // "src/components",
   "src/localization/",
   "src/utils",
+  "src/tests",
   // "src/components",
   // "src/components/ui",
   // "docs/UI-STANDARDS.md",
