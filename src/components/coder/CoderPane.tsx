@@ -1,31 +1,69 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect, lazy, Suspense } from 'react';
 import { Effect } from 'effect';
 import { TelemetryService } from '@/services/telemetry';
 import { getMainRuntime } from '@/services/runtime';
 import { usePaneStore } from '@/stores/pane';
 import { EditorState } from "prosemirror-state";
 import { schema } from "prosemirror-schema-basic";
-import {
-  ProseMirror,
-  ProseMirrorDoc,
-  reactKeys,
-  useEditorEffect,
-  useEditorEventListener,
-  useEditorState,
-} from "@handlewithcare/react-prosemirror";
+
+
+// ProseMirror Editor component that's loaded after the dynamic import
+const ProseMirrorEditor: React.FC<{ onSubmit: (text: string) => void, disabled?: boolean }> = ({ onSubmit, disabled }) => {
+  const [components, setComponents] = useState<any>(null);
+  
+  useEffect(() => {
+    // Load ProseMirror components
+    import("@handlewithcare/react-prosemirror").then(module => {
+      setComponents({
+        ProseMirror: module.ProseMirror,
+        ProseMirrorDoc: module.ProseMirrorDoc,
+        reactKeys: module.reactKeys,
+        useEditorEffect: module.useEditorEffect,
+        useEditorEventListener: module.useEditorEventListener,
+        useEditorState: module.useEditorState,
+      });
+    });
+  }, []);
+
+  if (!components) {
+    return <div className="h-full w-full flex items-center justify-center text-gray-500">Loading editor...</div>;
+  }
+
+  const { ProseMirror, ProseMirrorDoc, reactKeys } = components;
+
+  return (
+    <ProseMirror
+      defaultState={EditorState.create({
+        schema,
+        plugins: [reactKeys()],
+      })}
+    >
+      <AutoFocusEditor 
+        onSubmit={onSubmit} 
+        disabled={disabled}
+        components={components}
+      />
+    </ProseMirror>
+  );
+};
 
 // Component that autofocuses the editor and fills container
-const AutoFocusEditor: React.FC<{ onSubmit: (text: string) => void, disabled?: boolean }> = ({ onSubmit, disabled }) => {
+const AutoFocusEditor: React.FC<{ 
+  onSubmit: (text: string) => void, 
+  disabled?: boolean,
+  components: any 
+}> = ({ onSubmit, disabled, components }) => {
+  const { useEditorState, useEditorEffect, useEditorEventListener, ProseMirrorDoc } = components;
   const editorState = useEditorState();
   
-  useEditorEffect((view) => {
+  useEditorEffect((view: any) => {
     if (view && !disabled) {
       view.focus();
     }
   }, [disabled]);
 
   // Handle Enter (submit) and Shift+Enter (new line)
-  useEditorEventListener("keydown", (view, event) => {
+  useEditorEventListener("keydown", (view: any, event: KeyboardEvent) => {
     if (event.key === "Enter" && !event.shiftKey && !disabled) {
       event.preventDefault();
       
@@ -259,14 +297,7 @@ const CoderPane: React.FC = () => {
       {/* ProseMirror editor at the bottom */}
       <div className="flex items-center justify-center pb-4 px-4">
         <div className="h-[100px] w-[750px] overflow-auto rounded border border-white bg-black">
-          <ProseMirror
-            defaultState={EditorState.create({
-              schema,
-              plugins: [reactKeys()],
-            })}
-          >
-            <AutoFocusEditor onSubmit={sendMessage} disabled={isLoading} />
-          </ProseMirror>
+          <ProseMirrorEditor onSubmit={sendMessage} disabled={isLoading} />
         </div>
       </div>
     </div>

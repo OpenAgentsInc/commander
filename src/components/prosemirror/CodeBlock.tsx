@@ -11,7 +11,6 @@ import {
 } from "@codemirror/view";
 import ReactCodeMirror, {
   type ReactCodeMirrorRef,
-  oneDark,
 } from "@uiw/react-codemirror";
 import { exitCode } from "prosemirror-commands";
 import { redo, undo } from "prosemirror-history";
@@ -36,7 +35,7 @@ export const CodeBlock = forwardRef<
   const cmViewRef = useRef<CodeMirrorView | null>(null);
 
   const onCommit = useEditorEventCallback((view) => {
-    if (!exitCode(view.state, view.dispatch)) {
+    if (!exitCode(view.state as any, view.dispatch as any)) {
       return false;
     }
     view.focus();
@@ -44,11 +43,11 @@ export const CodeBlock = forwardRef<
   });
 
   const onUndo = useEditorEventCallback((view) => {
-    return undo(view.state, view.dispatch, view);
+    return undo(view.state as any, view.dispatch as any, view as any);
   });
 
   const onRedo = useEditorEventCallback((view) => {
-    return redo(view.state, view.dispatch, view);
+    return redo(view.state as any, view.dispatch as any, view as any);
   });
 
   const onDelete = useEditorEventCallback((view, cmView: CodeMirrorView) => {
@@ -63,7 +62,7 @@ export const CodeBlock = forwardRef<
         pos + nodeProps.node.nodeSize + 1,
         emptyParagraph
       )
-        .setSelection(Selection.near(tr.doc.resolve(tr.mapping.map(pos)), 1))
+        .setSelection(Selection.near(tr.doc.resolve(tr.mapping.map(pos)), 1) as any)
         .scrollIntoView();
 
       view.dispatch(tr);
@@ -100,7 +99,7 @@ export const CodeBlock = forwardRef<
       let tr = view.state.tr;
 
       if (dir === -1) {
-        tr = view.state.tr.setSelection(sel).scrollIntoView();
+        tr = view.state.tr.setSelection(sel as any).scrollIntoView();
       } else if (dir === 1) {
         // Insert empty paragraph if `code_block` is the last node in the document.
         if (
@@ -111,7 +110,7 @@ export const CodeBlock = forwardRef<
           tr = tr.insert(sel.$anchor.pos, emptyParagraph);
         }
         const newSel = Selection.near(tr.doc.resolve(sel.$anchor.pos + 1), dir);
-        tr = tr.setSelection(newSel).scrollIntoView();
+        tr = tr.setSelection(newSel as any).scrollIntoView();
       }
 
       view.dispatch(tr);
@@ -199,7 +198,7 @@ export const CodeBlock = forwardRef<
         offset += toB - fromB - (toA - fromA);
       });
 
-      tr.setSelection(TextSelection.create(tr.doc, selFrom, selTo));
+      tr.setSelection(TextSelection.create(tr.doc, selFrom, selTo) as any);
     }
 
     view.dispatch(tr);
@@ -207,7 +206,6 @@ export const CodeBlock = forwardRef<
 
   const extensions = useMemo(
     () => [
-      oneDark,
       Prec.highest(cmKeymap.of([...keymap, ...defaultKeymap])),
       drawSelection(),
       javascript({ jsx: true, typescript: true }),
@@ -237,7 +235,7 @@ export const CodeBlock = forwardRef<
     }
 
     let tr = view.state.tr;
-    tr = tr.setSelection(TextSelection.create(tr.doc, selFrom, selTo));
+    tr = tr.setSelection(TextSelection.create(tr.doc, selFrom, selTo) as any);
     view.dispatch(tr);
   });
 

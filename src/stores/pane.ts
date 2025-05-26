@@ -30,9 +30,6 @@ import {
   // Previous chats pane actions
   openPreviousChatsPaneAction,
   togglePreviousChatsPaneAction,
-  // Coder pane actions
-  openCoderPaneAction,
-  toggleCoderPaneAction,
 } from "./panes/actions";
 import {
   DEFAULT_NIP28_PANE_ID,
@@ -105,7 +102,6 @@ export const usePaneStore = create<PaneStoreType>()(
       openPreviousChatsPane: () => openPreviousChatsPaneAction(set),
       togglePreviousChatsPane: () => togglePreviousChatsPaneAction(set, get),
       // Coder pane
-      openCoderPane: () => openCoderPaneAction(set),
       toggleCoderPane: () =>
         set((state) => {
           const paneId = CODER_PANE_ID;
