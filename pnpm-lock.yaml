@@ -250,8 +250,8 @@ importers:
         specifier: ^19.1.2
         version: 19.1.5(@types/react@19.1.4)
       electron:
-        specifier: ^35.2.1
-        version: 35.4.0
+        specifier: ^36.3.1
+        version: 36.3.1
       electron-devtools-installer:
         specifier: ^4.0.0
         version: 4.0.0
@@ -3331,8 +3331,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@35.4.0:
-    resolution: {integrity: sha512-VIPSNcUnic00aaE83w6BW4Dj1kE8A5DU0nVbvwqotN3+gseGunbP4WyHp/kfKXVKQj1S3No3HnYxU5LJmYbAtw==}
+  electron@36.3.1:
+    resolution: {integrity: sha512-LeOZ+tVahmctHaAssLCGRRUa2SAO09GXua3pKdG+WzkbSDMh+3iOPONNVPTqGp8HlWnzGj4r6mhsIbM2RgH+eQ==}
     engines: {node: '>= 12.20.55'}
     hasBin: true
 
@@ -10053,7 +10053,7 @@ snapshots:
       - supports-color
     optional: true
 
-  electron@35.4.0:
+  electron@36.3.1:
     dependencies:
       '@electron/get': 2.0.3
       '@types/node': 22.15.19
