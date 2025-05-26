@@ -39,6 +39,7 @@ To use Claude Code as an AI provider, you need to:
 
 1. Install the Claude CLI: `npm install -g @anthropic-ai/cli`
 2. Authenticate: `claude auth`
+3. **(New)** When "Claude Code (CLI)" is selected in the Agent Chat pane, a folder icon button will appear. Click this to select an active project folder. This folder path will be passed to the Claude Code CLI (as `--project-path <path>`) for context.
 
 The bridge service is automatically started when you run `pnpm start`. Additional commands:
 - `pnpm bridge` - Start bridge service only

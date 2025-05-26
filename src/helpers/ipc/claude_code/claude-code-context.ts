@@ -56,6 +56,9 @@ export function exposeClaudeCodeContext() {
           cleanup();
         };
       },
+      
+      selectFolder: (): Promise<string | null> => // Add this method
+        ipcRenderer.invoke(claudeCodeChannels.selectFolder),
     },
   });
 }

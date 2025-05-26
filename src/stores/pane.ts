@@ -57,19 +57,19 @@ const getInitialPanes = (): Pane[] => {
   const screenHeight =
     typeof window !== "undefined" ? window.innerHeight : 1080;
 
-  // Only return the Sell Compute pane for focused "Compute Market" launch
+  // Return the Agent Chat pane as the default
   return [
     {
-      id: SELL_COMPUTE_PANE_ID_CONST,
-      type: "sell_compute",
-      title: "Sell Compute",
-      x: Math.max(PANE_MARGIN, (screenWidth - SELL_COMPUTE_INITIAL_WIDTH) / 2),
+      id: AGENT_CHAT_PANE_ID,
+      type: "agent_chat",
+      title: AGENT_CHAT_PANE_TITLE,
+      x: Math.max(PANE_MARGIN, (screenWidth - AGENT_CHAT_PANE_DEFAULT_WIDTH) / 2),
       y: Math.max(
         PANE_MARGIN,
-        (screenHeight - SELL_COMPUTE_INITIAL_HEIGHT) / 3,
+        (screenHeight - AGENT_CHAT_PANE_DEFAULT_HEIGHT) / 3,
       ),
-      width: SELL_COMPUTE_INITIAL_WIDTH,
-      height: SELL_COMPUTE_INITIAL_HEIGHT,
+      width: AGENT_CHAT_PANE_DEFAULT_WIDTH,
+      height: AGENT_CHAT_PANE_DEFAULT_HEIGHT,
       isActive: true,
       dismissable: true,
       content: {},
@@ -79,19 +79,19 @@ const getInitialPanes = (): Pane[] => {
 
 const initialState: PaneState = {
   panes: getInitialPanes(),
-  activePaneId: SELL_COMPUTE_PANE_ID_CONST,
+  activePaneId: AGENT_CHAT_PANE_ID,
   lastPanePosition: null, // Will be set below
 };
 
-const sellComputePaneInitial = initialState.panes.find(
-  (p) => p.id === SELL_COMPUTE_PANE_ID_CONST,
+const agentChatPaneInitial = initialState.panes.find(
+  (p) => p.id === AGENT_CHAT_PANE_ID,
 );
-if (sellComputePaneInitial) {
+if (agentChatPaneInitial) {
   initialState.lastPanePosition = {
-    x: sellComputePaneInitial.x,
-    y: sellComputePaneInitial.y,
-    width: sellComputePaneInitial.width,
-    height: sellComputePaneInitial.height,
+    x: agentChatPaneInitial.x,
+    y: agentChatPaneInitial.y,
+    width: agentChatPaneInitial.width,
+    height: agentChatPaneInitial.height,
   };
 }
 

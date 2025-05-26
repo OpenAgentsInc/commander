@@ -382,7 +382,7 @@ wss.on('connection', (ws) => {
       return;
     }
     
-    const { id, args } = request;
+    const { id, args, activeFolder } = request;
     
     if (!args || !Array.isArray(args)) {
       ws.send(JSON.stringify({
@@ -395,6 +395,12 @@ wss.on('connection', (ws) => {
     
     // Ensure streaming format is enabled
     const claudeArgs = [...args];
+    
+    // Add project-path flag if activeFolder is provided
+    if (activeFolder) {
+      claudeArgs.push("--project-path", activeFolder);
+      log(`Using active folder for Claude CLI: ${activeFolder}`);
+    }
     const outputFormatIndex = claudeArgs.findIndex(arg => arg === '--output-format');
     if (outputFormatIndex !== -1) {
       claudeArgs.splice(outputFormatIndex, 2); // Remove existing output format

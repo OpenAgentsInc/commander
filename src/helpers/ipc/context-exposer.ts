@@ -16,6 +16,7 @@ import type { DBSession, DBMessage, DBToolExecution } from "@/services/db";
 const claudeCodeChannels = {
   chatCompletion: "claude-code:chat-completion",
   chatStream: "claude-code:chat-stream",
+  selectFolder: "claude-code:select-folder",
 };
 
 export default function exposeContexts() {
@@ -118,6 +119,7 @@ export default function exposeContexts() {
           cleanup();
         };
       },
+      selectFolder: () => ipcRenderer.invoke(claudeCodeChannels.selectFolder),
     },
 
     // Database API
@@ -131,6 +133,7 @@ export default function exposeContexts() {
       saveToolCall: (toolCall: DBToolExecution) => ipcRenderer.invoke(dbChannels.saveToolCall, toolCall),
       updateToolCallResult: (toolCallId: string, resultJson: string, status: "executed_success" | "executed_error") => ipcRenderer.invoke(dbChannels.updateToolCallResult, toolCallId, resultJson, status),
       getToolCallsForMessage: (messageId: string) => ipcRenderer.invoke(dbChannels.getToolCallsForMessage, messageId),
+      getAllSessions: (options?: { limit?: number; offset?: number; sortBy?: "created_at" | "last_updated_at"; sortOrder?: "ASC" | "DESC" }) => ipcRenderer.invoke(dbChannels.getAllSessions, options),
     },
   };
 
