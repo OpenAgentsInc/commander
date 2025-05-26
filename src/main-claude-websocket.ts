@@ -577,30 +577,43 @@ export function setupClaudeWebSocketHandler() {
       const mainWindow = BrowserWindow.fromWebContents(event.sender);
       console.log("[Main Process] Main window found:", !!mainWindow);
       
-      // Try without specifying parent window if mainWindow is null
-      const dialogOptions = {
-        properties: ['openDirectory'] as any,
+      // Use more explicit properties
+      const dialogOptions: Electron.OpenDialogOptions = {
+        properties: ['openDirectory'],
         title: 'Select Project Folder for Claude Code',
         buttonLabel: 'Select Folder',
-        message: 'Choose a folder for Claude Code to use as the project context'
+        message: 'Choose a folder for Claude Code to use as the project context',
+        defaultPath: process.env.HOME || process.cwd()
       };
       
-      console.log("[Main Process] Showing dialog with options:", dialogOptions);
+      console.log("[Main Process] Showing dialog with options:", JSON.stringify(dialogOptions, null, 2));
       
-      const result = mainWindow 
-        ? await dialog.showOpenDialog(mainWindow, dialogOptions)
-        : await dialog.showOpenDialog(dialogOptions);
-      
-      console.log("[Main Process] Dialog result:", result);
-      
-      if (!result.canceled && result.filePaths.length > 0) {
-        console.log("[Main Process] Folder selected:", result.filePaths[0]);
-        return result.filePaths[0];
+      // Try showOpenDialogSync as a workaround
+      if (mainWindow) {
+        console.log("[Main Process] Using synchronous dialog with main window");
+        const result = dialog.showOpenDialogSync(mainWindow, dialogOptions);
+        console.log("[Main Process] Sync dialog result:", result);
+        
+        if (result && result.length > 0) {
+          console.log("[Main Process] Folder selected (sync):", result[0]);
+          return result[0];
+        }
+      } else {
+        console.log("[Main Process] Using async dialog without main window");
+        const asyncResult = await dialog.showOpenDialog(dialogOptions);
+        console.log("[Main Process] Async dialog result:", JSON.stringify(asyncResult, null, 2));
+        
+        if (!asyncResult.canceled && asyncResult.filePaths && asyncResult.filePaths.length > 0) {
+          console.log("[Main Process] Folder selected (async):", asyncResult.filePaths[0]);
+          return asyncResult.filePaths[0];
+        }
       }
+      
       console.log("[Main Process] Folder selection cancelled or no path selected.");
       return null;
     } catch (error) {
       console.error("[Main Process] Error showing folder dialog:", error);
+      console.error("[Main Process] Error stack:", error.stack);
       return null;
     }
   });
