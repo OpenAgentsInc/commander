@@ -48,6 +48,9 @@ import {
   AGENT_CHAT_PANE_DEFAULT_WIDTH,
   AGENT_CHAT_PANE_DEFAULT_HEIGHT,
   PREVIOUS_CHATS_PANE_ID,
+  PREVIOUS_CHATS_PANE_TITLE,
+  PREVIOUS_CHATS_PANE_DEFAULT_WIDTH,
+  PREVIOUS_CHATS_PANE_DEFAULT_HEIGHT,
 } from "./panes/constants";
 import { DVM_JOB_HISTORY_PANE_ID } from "./panes/actions/openDvmJobHistoryPane";
 
@@ -132,8 +135,10 @@ export const usePaneStore = create<PaneStoreType>()(
       openPreviousChatsPane: () => openPreviousChatsPaneAction(set),
       togglePreviousChatsPane: () =>
         set((state) => {
+          console.log("[togglePreviousChatsPane] Called");
           const paneId = PREVIOUS_CHATS_PANE_ID;
           const existingPane = state.panes.find((p) => p.id === paneId);
+          console.log("[togglePreviousChatsPane] Existing pane:", existingPane);
 
           // If the pane exists
           if (existingPane) {
@@ -176,9 +181,24 @@ export const usePaneStore = create<PaneStoreType>()(
               };
             }
           } else {
-            // Pane doesn't exist, open it
-            openPreviousChatsPaneAction(set);
-            return state;
+            // Pane doesn't exist, create it
+            const screenWidth =
+              typeof window !== "undefined" ? window.innerWidth : 1920;
+            const screenHeight =
+              typeof window !== "undefined" ? window.innerHeight : 1080;
+
+            const newPaneInput: PaneInput = {
+              id: PREVIOUS_CHATS_PANE_ID,
+              type: "previous_chats_list",
+              title: PREVIOUS_CHATS_PANE_TITLE,
+              x: Math.max(PANE_MARGIN, (screenWidth - PREVIOUS_CHATS_PANE_DEFAULT_WIDTH) / 2),
+              y: Math.max(PANE_MARGIN, (screenHeight - PREVIOUS_CHATS_PANE_DEFAULT_HEIGHT) / 3),
+              width: PREVIOUS_CHATS_PANE_DEFAULT_WIDTH,
+              height: PREVIOUS_CHATS_PANE_DEFAULT_HEIGHT,
+              dismissable: true,
+            };
+
+            return addPaneActionLogic(state, newPaneInput, true);
           }
         }),
       resetHUDState: () => {

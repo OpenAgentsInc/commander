@@ -33,6 +33,7 @@ export const Hotbar: React.FC<HotbarProps> = ({
   onToggleAgentChatPane,
   onTogglePreviousChatsPane,
 }) => {
+  console.log("[Hotbar] onTogglePreviousChatsPane provided:", !!onTogglePreviousChatsPane);
   const { activePaneId } = usePaneStore(
     useShallow((state) => ({
       activePaneId: state.activePaneId,
@@ -86,7 +87,10 @@ export const Hotbar: React.FC<HotbarProps> = ({
       {onTogglePreviousChatsPane && (
         <HotbarItem
           slotNumber={5}
-          onClick={onTogglePreviousChatsPane}
+          onClick={() => {
+            console.log("[Hotbar] Previous Chats button clicked");
+            onTogglePreviousChatsPane();
+          }}
           title="Chat History"
           isActive={activePaneId === PREVIOUS_CHATS_PANE_ID}
         >

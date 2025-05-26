@@ -12,6 +12,7 @@ import { TelemetryService } from "@/services/telemetry";
 import { AGENT_CHAT_PANE_TITLE } from "@/stores/panes/constants";
 
 const PreviousChatsPane: React.FC = () => {
+  console.log("[PreviousChatsPane] Component rendered");
   const runtime = getMainRuntime();
   const { addPane } = usePaneStore();
 
@@ -23,16 +24,22 @@ const PreviousChatsPane: React.FC = () => {
   } = useQuery<DBSession[], Error>({
     queryKey: ["allChatSessions"],
     queryFn: async () => {
+      console.log("[PreviousChatsPane] Fetching sessions...");
       const program = Effect.flatMap(DatabaseService, (db) =>
         db.getAllSessions({ sortBy: "last_updated_at", sortOrder: "DESC", limit: 100 }),
       );
       const exitResult = await Effect.runPromiseExit(Effect.provide(program, runtime));
-      if (Exit.isSuccess(exitResult)) return exitResult.value;
+      if (Exit.isSuccess(exitResult)) {
+        console.log("[PreviousChatsPane] Sessions fetched:", exitResult.value.length);
+        return exitResult.value;
+      }
+      console.error("[PreviousChatsPane] Failed to fetch sessions:", exitResult.cause);
       throw Cause.squash(exitResult.cause);
     },
   });
 
   React.useEffect(() => {
+    console.log("[PreviousChatsPane] useEffect - component mounted");
     Effect.runFork(
       Effect.flatMap(TelemetryService, (ts) =>
         ts.trackEvent({
