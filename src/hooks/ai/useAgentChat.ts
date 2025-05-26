@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { Effect, Stream, Cause } from "effect";
 import {
   type AiResponse,
@@ -46,12 +46,13 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
   const { initialSystemMessage = "You are a helpful AI assistant." } = options;
   const { selectedProviderKey } = useAgentChatStore();
 
-  const systemMessageInstance: UIAgentChatMessage = {
+  // Use useMemo to create stable system message instance
+  const systemMessageInstance = useMemo<UIAgentChatMessage>(() => ({
     id: `system-${Date.now()}`, // Unique ID for system message
     role: "system",
     content: initialSystemMessage,
     timestamp: Date.now(),
-  };
+  }), [initialSystemMessage]);
 
   const [messages, setMessages] = useState<UIAgentChatMessage[]>([
     systemMessageInstance,

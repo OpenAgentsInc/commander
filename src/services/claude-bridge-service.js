@@ -141,68 +141,56 @@ async function handleDatabaseOperation(ws, request) {
     
     switch (operation) {
       case 'saveSession':
-        await db.query(
-          'INSERT INTO sessions (id, title, model) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET last_updated_at = CURRENT_TIMESTAMP',
-          [params.id, params.title, params.model]
+        await db.exec(
+          `INSERT INTO sessions (id, title, model) VALUES ('${params.id}', '${params.title}', '${params.model}') 
+           ON CONFLICT (id) DO UPDATE SET last_updated_at = CURRENT_TIMESTAMP`
         );
         result = { success: true };
         break;
         
       case 'getSession':
         const sessionResult = await db.query(
-          'SELECT * FROM sessions WHERE id = $1',
+          'SELECT * FROM sessions WHERE id = ?',
           [params.sessionId]
         );
         result = sessionResult.rows[0] || null;
         break;
         
       case 'saveMessage':
-        await db.query(
+        await db.exec(
           `INSERT INTO messages (id, session_id, role, content, model, timestamp, tool_calls_json, metadata_json)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [
-            params.id,
-            params.session_id,
-            params.role,
-            params.content,
-            params.model,
-            params.timestamp,
-            params.tool_calls_json,
-            params.metadata_json
-          ]
+           VALUES ('${params.id}', '${params.session_id}', '${params.role}', 
+                   '${params.content.replace(/'/g, "''")}', '${params.model}', 
+                   ${params.timestamp}, '${params.tool_calls_json || ''}', '${params.metadata_json || ''}')`
         );
         result = { success: true };
         break;
         
       case 'getMessagesForSession':
+        log(`Getting messages for session: ${params.sessionId}`);
         const messagesResult = await db.query(
-          `SELECT * FROM messages WHERE session_id = $1 ORDER BY timestamp ASC LIMIT $2 OFFSET $3`,
+          'SELECT * FROM messages WHERE session_id = ? ORDER BY timestamp ASC LIMIT ? OFFSET ?',
           [params.sessionId, params.limit || 100, params.offset || 0]
         );
         result = messagesResult.rows;
+        log(`Found ${result.length} messages for session ${params.sessionId}`);
         break;
         
       case 'saveToolCall':
-        await db.query(
+        await db.exec(
           `INSERT INTO tool_executions (id, message_id, tool_name, input_json, status)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [
-            params.id,
-            params.message_id,
-            params.tool_name,
-            params.input_json,
-            params.status || 'pending'
-          ]
+           VALUES ('${params.id}', '${params.message_id}', '${params.tool_name}', 
+                   '${params.input_json.replace(/'/g, "''")}', '${params.status || 'pending'}')`
         );
         result = { success: true };
         break;
         
       case 'updateToolCallResult':
-        await db.query(
+        await db.exec(
           `UPDATE tool_executions 
-           SET result_json = $1, status = $2, completed_at = CURRENT_TIMESTAMP
-           WHERE id = $3`,
-          [params.resultJson, params.status, params.toolCallId]
+           SET result_json = '${params.resultJson.replace(/'/g, "''")}', 
+               status = '${params.status}', completed_at = CURRENT_TIMESTAMP
+           WHERE id = '${params.toolCallId}'`
         );
         result = { success: true };
         break;
