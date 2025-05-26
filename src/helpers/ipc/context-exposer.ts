@@ -8,6 +8,8 @@ import {
 } from "./theme/theme-channels";
 import { WIN_MINIMIZE_CHANNEL, WIN_MAXIMIZE_CHANNEL, WIN_CLOSE_CHANNEL } from "./window/window-channels";
 import { OLLAMA_CHAT_COMPLETION_CHANNEL, OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL, OLLAMA_STATUS_CHECK } from "./ollama/ollama-channels";
+import { dbChannels } from "./db/db-channels";
+import type { DBSession, DBMessage, DBToolExecution } from "@/services/db";
 // import { claudeCodeChannels } from "./claude_code/claude-code-channels";
 
 // Define Claude Code channels inline to avoid import issues
@@ -116,6 +118,19 @@ export default function exposeContexts() {
           cleanup();
         };
       },
+    },
+
+    // Database API
+    database: {
+      initDB: () => ipcRenderer.invoke(dbChannels.initDB),
+      saveSession: (session: DBSession) => ipcRenderer.invoke(dbChannels.saveSession, session),
+      getSession: (sessionId: string) => ipcRenderer.invoke(dbChannels.getSession, sessionId),
+      updateSession: (sessionId: string, updates: Partial<DBSession>) => ipcRenderer.invoke(dbChannels.updateSession, sessionId, updates),
+      saveMessage: (message: DBMessage) => ipcRenderer.invoke(dbChannels.saveMessage, message),
+      getMessagesForSession: (sessionId: string, limit?: number, offset?: number) => ipcRenderer.invoke(dbChannels.getMessagesForSession, sessionId, limit, offset),
+      saveToolCall: (toolCall: DBToolExecution) => ipcRenderer.invoke(dbChannels.saveToolCall, toolCall),
+      updateToolCallResult: (toolCallId: string, resultJson: string, status: "executed_success" | "executed_error") => ipcRenderer.invoke(dbChannels.updateToolCallResult, toolCallId, resultJson, status),
+      getToolCallsForMessage: (messageId: string) => ipcRenderer.invoke(dbChannels.getToolCallsForMessage, messageId),
     },
   };
 

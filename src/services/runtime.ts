@@ -6,10 +6,15 @@ import * as Runtime from "effect/Runtime";
 import * as _Context from "effect/Context";
 import * as RuntimeFlags from "effect/RuntimeFlags";
 import * as FiberRefs from "effect/FiberRefs";
+
+console.log("[Runtime] Starting imports...");
+
 import {
   NostrService,
   NostrServiceLive,
 } from "@/services/nostr";
+console.log("[Runtime] Imported NostrService");
+
 import { NostrServiceConfigLive } from "@/services/nostr/NostrServiceConfig";
 import { NIP04Service, NIP04ServiceLive } from "@/services/nip04";
 import { NIP13Service, NIP13ServiceLive } from "@/services/nip13";
@@ -17,18 +22,26 @@ import { NIP19Service, NIP19ServiceLive } from "@/services/nip19";
 import { BIP39Service, BIP39ServiceLive } from "@/services/bip39";
 import { BIP32Service, BIP32ServiceLive } from "@/services/bip32";
 import { NIP28Service, NIP28ServiceLive } from "@/services/nip28";
+console.log("[Runtime] Imported NIP services");
+
 import {
   TelemetryService,
   TelemetryServiceLive,
   DefaultTelemetryConfigLayer,
 } from "@/services/telemetry";
+console.log("[Runtime] Imported TelemetryService");
+
 import {
   OllamaService,
   OllamaServiceLive,
   UiOllamaConfigLive,
 } from "@/services/ollama";
+console.log("[Runtime] Imported OllamaService");
+
 import { BrowserHttpClient } from "@effect/platform-browser";
 import { HttpClient } from "@effect/platform";
+console.log("[Runtime] Imported HttpClient");
+
 import {
   SparkService,
   SparkServiceLive,
@@ -37,20 +50,40 @@ import {
 } from "@/services/spark";
 import { SparkServiceTestLive } from "@/services/spark/SparkServiceTestImpl";
 import { globalWalletConfig } from "@/services/walletConfig";
+console.log("[Runtime] Imported SparkService");
+
 import { NIP90Service, NIP90ServiceLive } from "@/services/nip90";
+console.log("[Runtime] Imported NIP90Service");
+
 import {
   Kind5050DVMService,
   Kind5050DVMServiceLive,
   DefaultKind5050DVMServiceConfigLayer,
 } from "@/services/dvm";
+console.log("[Runtime] Imported DVMService");
+
 import {
   ConfigurationService,
   ConfigurationServiceLive,
   DefaultDevConfigLayer,
 } from "@/services/configuration";
-import { OpenAIProvider, OllamaProvider } from "@/services/ai/providers";
+console.log("[Runtime] Imported ConfigurationService");
+
+// Import providers directly to avoid loading NIP90 in renderer
+import * as OllamaProvider from "@/services/ai/providers/ollama";
+import * as OpenAIProvider from "@/services/ai/providers/openai";
+console.log("[Runtime] Imported AI providers");
+
 import { AgentLanguageModel } from "@/services/ai/core";
 import { ChatOrchestratorService, ChatOrchestratorServiceLive } from "@/services/ai/orchestration";
+console.log("[Runtime] Imported AI orchestration");
+
+import { DatabaseService } from "@/services/db";
+import { DatabaseServiceRendererProxyLive } from "@/services/db/DatabaseServiceRendererProxy";
+import { DatabaseServiceWebSocketProxyLive } from "@/services/db/DatabaseServiceWebSocketProxy";
+console.log("[Runtime] Imported DatabaseService");
+
+console.log("[Runtime] All imports complete");
 
 // Define the full context type for the runtime
 export type FullAppContext =
@@ -68,7 +101,8 @@ export type FullAppContext =
   | HttpClient.HttpClient
   | ConfigurationService
   | AgentLanguageModel
-  | ChatOrchestratorService;
+  | ChatOrchestratorService
+  | DatabaseService;
 
 // Runtime instance - will be initialized asynchronously
 let mainRuntimeInstance: Runtime.Runtime<FullAppContext>;
@@ -85,6 +119,10 @@ export function buildFullAppLayer() {
   const devConfigLayer = DefaultDevConfigLayer.pipe(Layer.provide(configLayer));
 
   const nip13Layer = NIP13ServiceLive;
+  
+  // Database layer for renderer (uses IPC proxy)
+  // Use WebSocket proxy for database instead of IPC
+  const databaseLayer = DatabaseServiceWebSocketProxyLive;
   
   const nostrLayer = NostrServiceLive.pipe(
     Layer.provide(NostrServiceConfigLive),
@@ -212,6 +250,7 @@ export function buildFullAppLayer() {
     ollamaLanguageModelLayer,
     chatOrchestratorLayer,
     kind5050DVMLayer,
+    databaseLayer,
   );
 }
 

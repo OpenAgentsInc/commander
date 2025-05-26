@@ -78,6 +78,7 @@
     "@effect/ai-openai": "^0.19.5",
     "@effect/platform": "^0.82.4",
     "@effect/platform-browser": "^0.62.3",
+    "@electric-sql/pglite": "^0.3.2",
     "@icons-pack/react-simple-icons": "^12.7.0",
     "@mediapipe/camera_utils": "^0.3.1675466862",
     "@mediapipe/drawing_utils": "^0.3.1675466124",

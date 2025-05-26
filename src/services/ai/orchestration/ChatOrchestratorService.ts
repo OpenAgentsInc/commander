@@ -13,11 +13,12 @@ import {
 } from "@/services/ai/core";
 import { ConfigurationService } from "@/services/configuration";
 import { TelemetryService } from "@/services/telemetry";
-import { NIP90AgentLanguageModelLive } from "@/services/ai/providers/nip90/NIP90AgentLanguageModelLive";
-import { NIP90ProviderConfigTag, type NIP90ProviderConfig } from "@/services/ai/providers/nip90/NIP90ProviderConfig";
+// Import NIP90 types only, not the implementation
+import { type NIP90ProviderConfig } from "@/services/ai/providers/nip90/NIP90ProviderConfig";
 import { NIP90Service } from "@/services/nip90";
 import { NostrService } from "@/services/nostr";
 import { NIP04Service } from "@/services/nip04";
+import { SparkService } from "@/services/spark";
 
 // Helper to safely access error message
 const getErrorMessage = (error: unknown): string => {
@@ -28,7 +29,6 @@ const getErrorMessage = (error: unknown): string => {
     JSON.stringify(error, Object.getOwnPropertyNames(error)) : 
     String(error);
 };
-import { SparkService } from "@/services/spark";
 import { DEFAULT_RELAYS_ARRAY } from "@/services/relays";
 
 export interface PreferredProviderConfig {
@@ -67,8 +67,8 @@ export const ChatOrchestratorServiceLive = Layer.effect(
     const runTelemetry = (event: any) => Effect.runFork(telemetry.trackEvent(event).pipe(Effect.ignoreLogged));
 
     // Helper to get provider-specific AgentLanguageModel
-    const getProviderLanguageModel = (providerKey: string, modelName?: string): Effect.Effect<AgentLanguageModel, AiConfigurationError | AiProviderError> => {
-      return Effect.gen(function* (_) {
+    const getProviderLanguageModel = (providerKey: string, modelName?: string): Effect.Effect<AgentLanguageModel, AiConfigurationError | AiProviderError, never> => {
+      return (Effect.gen(function* (_) {
         runTelemetry({ category: "orchestrator", action: "get_provider_model_start", label: providerKey, value: modelName });
         
         switch (providerKey.toLowerCase()) {
@@ -106,6 +106,20 @@ export const ChatOrchestratorServiceLive = Layer.effect(
             
             console.log("[ChatOrchestratorService] Building NIP90 provider with config:", nip90Config);
             
+            // Dynamically import NIP90 provider to avoid loading in renderer
+            const nip90Module: any = yield* _(
+              Effect.tryPromise({
+                try: () => import("@/services/ai/providers/nip90" as any),
+                catch: (error) => new AiProviderError({
+                  message: `Failed to load NIP90 provider: ${error}`,
+                  cause: error,
+                  isRetryable: false,
+                  provider: "nip90"
+                })
+              })
+            );
+            const { NIP90AgentLanguageModelLive, NIP90ProviderConfigTag } = nip90Module;
+            
             // Create NIP90 provider config layer
             const nip90ConfigLayer = Layer.succeed(NIP90ProviderConfigTag, nip90Config);
             
@@ -124,7 +138,13 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                 Effect.map((context) =>
                   Context.get(context, AgentLanguageModel.Tag)
                 ),
-                Effect.scoped
+                Effect.scoped,
+                Effect.mapError((error) => new AiProviderError({
+                  message: `Failed to build NIP90 provider: ${error}`,
+                  cause: error,
+                  isRetryable: false,
+                  provider: "nip90"
+                }))
               )
             );
             
@@ -174,9 +194,23 @@ export const ChatOrchestratorServiceLive = Layer.effect(
               modelIdentifier: modelIdFromConfig,
             };
 
-            const nip90ConfigLayerCustom = Layer.succeed(NIP90ProviderConfigTag, nip90ConfigCustom);
+            // Dynamically import NIP90 provider to avoid loading in renderer
+            const nip90ModuleCustom: any = yield* _(
+              Effect.tryPromise({
+                try: () => import("@/services/ai/providers/nip90" as any),
+                catch: (error) => new AiProviderError({
+                  message: `Failed to load NIP90 provider: ${error}`,
+                  cause: error,
+                  isRetryable: false,
+                  provider: "nip90_custom"
+                })
+              })
+            );
+            const { NIP90AgentLanguageModelLive: NIP90AgentLanguageModelLiveCustom, NIP90ProviderConfigTag: NIP90ProviderConfigTagCustom } = nip90ModuleCustom;
 
-            const nip90AgentLMLayerCustom = NIP90AgentLanguageModelLive.pipe(
+            const nip90ConfigLayerCustom = Layer.succeed(NIP90ProviderConfigTagCustom, nip90ConfigCustom);
+
+            const nip90AgentLMLayerCustom = NIP90AgentLanguageModelLiveCustom.pipe(
               Layer.provide(nip90ConfigLayerCustom),
               Layer.provide(Layer.succeed(NIP90Service, nip90Service)),
               Layer.provide(Layer.succeed(NostrService, nostrService)),
@@ -188,7 +222,13 @@ export const ChatOrchestratorServiceLive = Layer.effect(
             const nip90AgentLMCustomInstance = yield* _(
               Layer.build(nip90AgentLMLayerCustom).pipe(
                 Effect.map((context) => Context.get(context, AgentLanguageModel.Tag)),
-                Effect.scoped
+                Effect.scoped,
+                Effect.mapError((error) => new AiProviderError({
+                  message: `Failed to build NIP90 custom provider: ${error}`,
+                  cause: error,
+                  isRetryable: false,
+                  provider: "nip90_custom"
+                }))
               )
             );
             runTelemetry({ category: "orchestrator", action: "get_provider_model_success_nip90_custom", label: providerKey });
@@ -223,6 +263,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                         model: options.model || "claude-3-opus-20240229",
                         max_tokens: options.maxTokens,
                         temperature: options.temperature,
+                        sessionId: (options as any).sessionId, // Pass sessionId for database persistence
                       }),
                       catch: (error) => {
                         const serializedCause = getErrorMessage(error);
@@ -285,6 +326,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                           model: options.model || "claude-sonnet",
                           max_tokens: options.maxTokens,
                           temperature: options.temperature,
+                          sessionId: (options as any).sessionId, // Pass sessionId for database persistence
                         },
                         (chunk: string) => {
                           // Emit each chunk as a text delta
@@ -350,6 +392,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                         model: options.model || "claude-3-opus-20240229",
                         max_tokens: options.maxTokens,
                         temperature: options.temperature,
+                        sessionId: (options as any).sessionId, // Pass sessionId for database persistence
                       }),
                       catch: (error) => {
                         const serializedCause = getErrorMessage(error);
@@ -398,7 +441,16 @@ export const ChatOrchestratorServiceLive = Layer.effect(
             runTelemetry({ category: "orchestrator", action: "get_provider_model_unknown", label: providerKey });
             return yield* _(Effect.fail(new AiConfigurationError({ message: `Unsupported provider key: ${providerKey}` })));
         }
-      });
+      }) as Effect.Effect<AgentLanguageModel, AiConfigurationError | AiProviderError, unknown>).pipe(
+        Effect.catchAllDefect((defect) => 
+          Effect.fail(new AiProviderError({
+            message: `Unexpected error in provider ${providerKey}: ${defect}`,
+            cause: defect,
+            isRetryable: false,
+            provider: providerKey
+          }))
+        )
+      ) as Effect.Effect<AgentLanguageModel, AiConfigurationError | AiProviderError, never>;
     };
 
     return {

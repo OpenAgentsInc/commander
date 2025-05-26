@@ -23,6 +23,8 @@ export interface ClaudeExecParams {
   max_tokens?: number; // maps to --max-tokens-to-sample
   top_p?: number;
   stop?: string | string[]; // maps to --stop-sequences
+  // Database integration
+  sessionId?: string; // Session ID for database persistence
   // Add other params the CLI might support
   [key: string]: unknown; // Allow other params
 }

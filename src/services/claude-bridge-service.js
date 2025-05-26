@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// External Node.js service for Claude CLI bridge
+// External Node.js service for Claude CLI and Database bridge
 // This runs as a separate process with full Node.js capabilities
 
 const WebSocket = require('ws');
@@ -7,6 +7,7 @@ const pty = require('node-pty');
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { PGlite } = require('@electric-sql/pglite');
 
 const WS_PORT = 45671;
 
@@ -25,6 +26,72 @@ function log(msg) {
 
 log('=== Claude Bridge Service Starting ===');
 log(`Working directory: ${PROJECT_ROOT}`);
+
+// Initialize PGLite database
+let db = null;
+const dbPath = path.join(process.env.HOME || '/tmp', '.commander', 'database', 'main_v1');
+
+async function initDatabase() {
+  try {
+    // Ensure directory exists
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+    
+    log(`Initializing PGLite database at: ${dbPath}`);
+    db = new PGlite(dbPath);
+    await db.waitReady;
+    
+    // Create tables if they don't exist
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS sessions (
+        id TEXT PRIMARY KEY,
+        title TEXT,
+        model TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      
+      CREATE TABLE IF NOT EXISTS messages (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES sessions(id),
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        model TEXT,
+        timestamp BIGINT NOT NULL,
+        tool_calls_json TEXT,
+        metadata_json TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+      );
+      
+      CREATE TABLE IF NOT EXISTS tool_executions (
+        id TEXT PRIMARY KEY,
+        message_id TEXT NOT NULL REFERENCES messages(id),
+        tool_name TEXT NOT NULL,
+        input_json TEXT NOT NULL,
+        result_json TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP,
+        FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id);
+      CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_tool_executions_message_id ON tool_executions(message_id);
+    `);
+    
+    log('Database initialized successfully');
+  } catch (error) {
+    log(`ERROR: Failed to initialize database: ${error.message}`);
+    throw error;
+  }
+}
+
+// Initialize database on startup
+initDatabase().catch(err => {
+  log(`FATAL: Could not initialize database: ${err.message}`);
+  process.exit(1);
+});
 
 // Find Claude CLI
 let claudePath;
@@ -56,6 +123,112 @@ try {
   }
 }
 
+// Database operation handler
+async function handleDatabaseOperation(ws, request) {
+  const { id, operation, params } = request;
+  
+  if (!db) {
+    ws.send(JSON.stringify({
+      id,
+      type: 'db_error',
+      error: 'Database not initialized'
+    }));
+    return;
+  }
+  
+  try {
+    let result;
+    
+    switch (operation) {
+      case 'saveSession':
+        await db.exec(
+          `INSERT INTO sessions (id, title, model) VALUES ('${params.id}', '${params.title}', '${params.model}') 
+           ON CONFLICT (id) DO UPDATE SET last_updated_at = CURRENT_TIMESTAMP`
+        );
+        result = { success: true };
+        break;
+        
+      case 'getSession':
+        const sessionResult = await db.exec(
+          `SELECT * FROM sessions WHERE id = '${params.sessionId}'`
+        );
+        result = sessionResult.rows ? sessionResult.rows[0] : null;
+        break;
+        
+      case 'saveMessage':
+        await db.exec(
+          `INSERT INTO messages (id, session_id, role, content, model, timestamp, tool_calls_json, metadata_json)
+           VALUES ('${params.id}', '${params.session_id}', '${params.role}', 
+                   '${params.content.replace(/'/g, "''")}', '${params.model}', 
+                   ${params.timestamp}, '${params.tool_calls_json || ''}', '${params.metadata_json || ''}')`
+        );
+        result = { success: true };
+        break;
+        
+      case 'getMessagesForSession':
+        log(`Getting messages for session: ${params.sessionId}`);
+        const messagesResult = await db.exec(
+          `SELECT * FROM messages WHERE session_id = '${params.sessionId}' ORDER BY timestamp ASC LIMIT ${params.limit || 100} OFFSET ${params.offset || 0}`
+        );
+        result = messagesResult.rows || [];
+        log(`Found ${result.length} messages for session ${params.sessionId}`);
+        break;
+        
+      case 'saveToolCall':
+        await db.exec(
+          `INSERT INTO tool_executions (id, message_id, tool_name, input_json, status)
+           VALUES ('${params.id}', '${params.message_id}', '${params.tool_name}', 
+                   '${params.input_json.replace(/'/g, "''")}', '${params.status || 'pending'}')`
+        );
+        result = { success: true };
+        break;
+        
+      case 'updateSession':
+        if (params.updates.last_updated_at !== undefined) {
+          await db.exec(
+            `UPDATE sessions SET last_updated_at = to_timestamp(${params.updates.last_updated_at}) WHERE id = '${params.sessionId}'`
+          );
+        }
+        result = { success: true };
+        break;
+        
+      case 'updateToolCallResult':
+        await db.exec(
+          `UPDATE tool_executions 
+           SET result_json = '${params.resultJson.replace(/'/g, "''")}', 
+               status = '${params.status}', completed_at = CURRENT_TIMESTAMP
+           WHERE id = '${params.toolCallId}'`
+        );
+        result = { success: true };
+        break;
+        
+      case 'getToolCallsForMessage':
+        const toolCallsResult = await db.query(
+          `SELECT * FROM tool_executions WHERE message_id = '${params.messageId}' ORDER BY started_at`
+        );
+        result = toolCallsResult.rows || [];
+        break;
+        
+      default:
+        throw new Error(`Unknown database operation: ${operation}`);
+    }
+    
+    ws.send(JSON.stringify({
+      id,
+      type: 'db_result',
+      result
+    }));
+    
+  } catch (error) {
+    log(`Database operation error: ${error.message}`);
+    ws.send(JSON.stringify({
+      id,
+      type: 'db_error',
+      error: error.message
+    }));
+  }
+}
+
 // WebSocket server for streaming and health checks
 const wss = new WebSocket.Server({ port: WS_PORT });
 log(`WebSocket server started on port ${WS_PORT}`);
@@ -83,9 +256,16 @@ wss.on('connection', (ws) => {
         type: 'health',
         status: 'ok',
         claudePath,
+        dbStatus: db ? 'ready' : 'not initialized',
         uptime: process.uptime(),
         pid: process.pid
       }));
+      return;
+    }
+    
+    // Handle database operations
+    if (request.type === 'db') {
+      handleDatabaseOperation(ws, request);
       return;
     }
     

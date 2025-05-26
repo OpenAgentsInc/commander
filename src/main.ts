@@ -2,6 +2,7 @@ import { app, BrowserWindow, nativeTheme } from "electron"; // Add nativeTheme
 import registerListeners from "./helpers/ipc/listeners-register";
 import { addOllamaEventListeners } from "./helpers/ipc/ollama/ollama-listeners";
 // import { addClaudeCodeEventListeners } from "./helpers/ipc/claude_code/claude-code-listeners";
+import { addDatabaseEventListeners, initializeDatabaseService } from "./helpers/ipc/db/db-listeners";
 // "electron-squirrel-startup" seems broken when packaging with vite
 //import started from "electron-squirrel-startup";
 import path from "path";
@@ -432,7 +433,27 @@ async function installExtensions() {
   }
 }
 
-app.whenReady().then(createWindow).then(installExtensions);
+// Initialize database and register listeners before creating window
+app.whenReady().then(async () => {
+  console.log("[Main Process] App ready, initializing database...");
+  
+  try {
+    // Initialize database service
+    await initializeDatabaseService();
+    console.log("[Main Process] Database initialized successfully");
+    
+    // Register database IPC listeners
+    addDatabaseEventListeners();
+    console.log("[Main Process] Database IPC listeners registered");
+  } catch (error) {
+    console.error("[Main Process] Failed to initialize database:", error);
+    // Continue app startup even if database fails - we can show error in UI
+  }
+  
+  // Create window and install extensions
+  createWindow();
+  await installExtensions();
+});
 
 //osX only
 app.on("window-all-closed", () => {
