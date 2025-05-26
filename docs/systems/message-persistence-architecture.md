@@ -16,7 +16,7 @@
 
 ## Overview
 
-The Commander message persistence system is a multi-process architecture designed to save chat messages, AI responses, and tool executions across Claude Code sessions. The system uses PGLite (an embeddable WASM PostgreSQL) as its database engine and implements a sophisticated cross-process communication pattern to work within Electron's security constraints.
+The Commander message persistence system is a multi-process architecture designed to save chat messages, AI responses, and tool executions across Claude Code sessions. The system uses PGLite (an embeddable WASM PostgreSQL) as its database engine and implements a sophisticated cross-process communication pattern to work within Electron's security constraints. As of the latest implementation, the system supports real-time streaming of assistant responses, providing users with immediate feedback as messages are generated.
 
 ### Key Design Decisions
 
@@ -24,6 +24,7 @@ The Commander message persistence system is a multi-process architecture designe
 2. **WebSocket Bridge Pattern**: External Node.js service handles database operations to bypass Electron renderer restrictions
 3. **Effect-based Service Layer**: Provides functional error handling, dependency injection, and composable service architecture
 4. **Cross-Process Database Access**: Both Electron main process and external bridge service access the same database file
+5. **Real-time Message Streaming**: Claude CLI's `stream-json` format enables incremental display of responses as they're generated
 
 ## Architecture Diagram
 
@@ -128,7 +129,9 @@ const dataDir = path.join(userDataPath, dbDataDirName);
 
 #### IPC Handlers (`src/main-claude-websocket.ts`)
 - Manages Claude CLI communication via WebSocket
-- Saves messages at appropriate points in conversation flow
+- Handles streaming message chunks (`claude_stream_chunk`) from bridge service
+- Extracts text content and forwards incrementally to renderer
+- Saves complete assistant messages immediately when received
 - Handles session lifecycle (create, update)
 
 ### 3. Bridge Service Components
@@ -137,23 +140,32 @@ const dataDir = path.join(userDataPath, dbDataDirName);
 - External Node.js process running WebSocket server
 - Handles both database operations and Claude CLI execution
 - Implements schema migrations for database updates
+- **Streaming Support**: Parses Claude CLI's `stream-json` output line by line
 
 ```javascript
-// Database operation handler
-async function handleDatabaseOperation(ws, request) {
-  const { id, operation, params } = request;
-
-  switch (operation) {
-    case 'saveSession':
-      await db.query(
-        `INSERT INTO sessions (...) VALUES ($1, $2, ...)
-         ON CONFLICT (id) DO UPDATE SET ...`,
-        [params.id, params.created_at, ...]
-      );
-      break;
-    // ... other operations
+// Streaming JSON parser for Claude CLI output
+ptyProcess.onData((data) => {
+  outputBuffer += data;
+  let newlineIndex;
+  while ((newlineIndex = outputBuffer.indexOf('\n')) >= 0) {
+    const jsonLine = outputBuffer.substring(0, newlineIndex).trim();
+    outputBuffer = outputBuffer.substring(newlineIndex + 1);
+    
+    if (jsonLine) {
+      try {
+        const claudeMessage = JSON.parse(jsonLine);
+        // Send each JSON object as a streaming chunk
+        ws.send(JSON.stringify({
+          id: requestId,
+          type: 'claude_stream_chunk',
+          payload: claudeMessage
+        }));
+      } catch (e) {
+        log(`JSON Parse Error: ${e.message}`);
+      }
+    }
   }
-}
+});
 ```
 
 ## Data Flow
@@ -163,12 +175,24 @@ async function handleDatabaseOperation(ws, request) {
 ```
 User Input → React Component → useAgentChat Hook → IPC Channel → Main Process
      ↓
-WebSocket → Bridge Service → Claude CLI
+WebSocket → Bridge Service → Claude CLI (--output-format stream-json)
      ↓
-Response → Parse → Save to Database
+Stream JSON Objects → Parse Line by Line → Send as claude_stream_chunk
      ↓
-WebSocket → Main Process → IPC → React Component → UI Update
+Main Process → Extract Text → IPC Stream → React Component → Incremental UI Update
+     ↓
+Complete Message → Save to Database
 ```
+
+### 1.1 Streaming Flow Detail
+
+The streaming implementation transforms the response handling:
+
+1. **Claude CLI Execution**: Bridge service adds `--output-format stream-json` flag
+2. **Line-by-Line Parsing**: Each JSON object (init, assistant, tool_use, result) parsed individually
+3. **Incremental Forwarding**: Text chunks sent immediately to UI via `claude_stream_chunk` messages
+4. **Real-time Display**: Users see responses character by character as generated
+5. **Persistence on Completion**: Complete messages saved when fully received
 
 ### 2. Detailed Save Flow
 
@@ -287,9 +311,9 @@ CREATE INDEX idx_tool_executions_message_id ON tool_executions(message_id);
 
 ### WebSocket Protocol
 
-The system uses a simple JSON-based protocol over WebSocket:
+The system uses a JSON-based protocol over WebSocket with support for both database operations and streaming:
 
-#### Request Format
+#### Database Request Format
 ```json
 {
   "type": "db",
@@ -305,20 +329,39 @@ The system uses a simple JSON-based protocol over WebSocket:
 }
 ```
 
-#### Response Format
+#### Streaming Message Types
+
+##### Stream Chunk (Bridge → Main)
 ```json
 {
-  "id": "unique-request-id",
-  "type": "db_result",
-  "result": { "success": true }
+  "id": "request-id",
+  "type": "claude_stream_chunk",
+  "payload": {
+    "type": "assistant",
+    "message": {
+      "id": "msg_xyz",
+      "content": [
+        { "type": "text", "text": "Here's the response..." }
+      ]
+    }
+  }
 }
 ```
 
-#### Error Format
+##### Stream Done (Bridge → Main)
 ```json
 {
-  "id": "unique-request-id",
-  "type": "db_error",
+  "id": "request-id",
+  "type": "claude_stream_done",
+  "exitCode": 0
+}
+```
+
+##### Stream Error (Bridge → Main)
+```json
+{
+  "id": "request-id",
+  "type": "claude_stream_error",
   "error": "Error message"
 }
 ```
@@ -345,17 +388,20 @@ ws.send(JSON.stringify({
 
 ## Message Lifecycle
 
-### 1. New Chat Session
+### 1. New Chat Session with Streaming
 
 1. User opens agent chat pane
 2. Types first message and hits send
 3. `useAgentChat` hook generates new session ID
 4. Session saved to database with metadata
 5. User message saved with session reference
-6. Message sent to Claude via bridge service
-7. Response streamed back and displayed
-8. Assistant message saved after completion
-9. Session `last_updated_at` updated
+6. Message sent to Claude via bridge service with `--output-format stream-json`
+7. Claude CLI emits JSON objects for each part of the response
+8. Bridge service parses each JSON object and sends as `claude_stream_chunk`
+9. Main process extracts text content and forwards to UI incrementally
+10. UI updates in real-time, showing text as it's generated
+11. Complete assistant message saved to database when fully received
+12. Session `last_updated_at` updated on stream completion
 
 ### 2. Continuing Existing Session
 
@@ -500,27 +546,42 @@ const ws = new WebSocket(BRIDGE_SERVICE_URL);
 activeConnections.set(requestId, ws);
 ```
 
-### 4. Streaming Responses
+### 4. Real-time Streaming Implementation
 
-Claude responses are streamed and saved incrementally:
+The system implements true streaming from Claude CLI to the UI:
 
 ```javascript
-// Accumulate content during streaming
-let fullAssistantContent = "";
+// Bridge service: Parse stream-json output line by line
+while ((newlineIndex = outputBuffer.indexOf('\n')) >= 0) {
+  const jsonLine = outputBuffer.substring(0, newlineIndex).trim();
+  const claudeMessage = JSON.parse(jsonLine);
+  
+  // Send immediately as streaming chunk
+  ws.send(JSON.stringify({
+    id: requestId,
+    type: 'claude_stream_chunk',
+    payload: claudeMessage
+  }));
+}
 
-ws.on('message', (data) => {
-  if (claudeData.type === "assistant") {
-    fullAssistantContent += contentPart.text;
-    event.sender.send(`claude-code:chat-stream:chunk`, requestId, contentPart.text);
+// Main process: Handle streaming chunks
+case 'claude_stream_chunk':
+  const assistantMessage = claudeMessage.message;
+  // Extract and forward text immediately
+  for (const contentPart of assistantMessage.content) {
+    if (contentPart.type === "text") {
+      event.sender.send('claude-code:chat-stream:chunk', requestId, contentPart.text);
+    }
   }
-});
-
-// Save complete message after streaming ends
-await saveMessageToDatabase({
-  content: fullAssistantContent,
-  // ...
-});
+  // Save complete message object to database
+  await saveMessageToDatabase(assistantMessage);
+  break;
 ```
+
+This approach provides:
+- **Immediate Feedback**: Users see responses as they're generated
+- **Efficient Memory Usage**: No need to buffer entire response
+- **Resilient Persistence**: Messages saved as complete objects when received
 
 ## Testing & Debugging
 
@@ -552,7 +613,7 @@ function log(msg) {
 }
 ```
 
-### 3. WebSocket Debugging
+### 3. WebSocket and Streaming Debugging
 
 ```typescript
 // Enable verbose WebSocket logging
@@ -563,6 +624,18 @@ ws.on('message', (data) => {
 ws.on('error', (error) => {
   console.error('[Main Process] WebSocket error:', error);
 });
+
+// Streaming-specific debugging
+case 'claude_stream_chunk':
+  console.log(`[Main Process] Stream chunk type: ${claudeMessage.type}`);
+  if (claudeMessage.type === "assistant") {
+    console.log(`[Main Process] Assistant content parts: ${claudeMessage.message.content.length}`);
+  }
+  break;
+
+// Bridge service streaming logs
+log(`Parsed Claude Message: type=${claudeMessage.type}`);
+log(`Stream buffer remaining: ${outputBuffer.length} chars`);
 ```
 
 ### 4. Effect Service Testing
@@ -598,6 +671,8 @@ const testRuntime = pipe(
 - **Virtual Scrolling**: Render only visible messages
 - **Background Sync**: Save messages asynchronously
 - **Connection Multiplexing**: Single WebSocket for all operations
+- **Partial Message Updates**: Stream individual tokens rather than full text chunks
+- **Compression**: Compress WebSocket messages for faster transmission
 
 ### 4. Reliability Improvements
 
@@ -623,10 +698,4 @@ The Commander message persistence system represents a sophisticated solution to 
 4. **Maintainability**: Clear separation of concerns and comprehensive error handling
 5. **Extensibility**: Easy to add new features and storage capabilities
 
-The architecture balances the constraints of Electron's security model with the need for robust data persistence, creating a foundation that can scale with the application's growth.
-
----
-
-## Addendum: Message Streaming from Claude Code CLI
-
-Currently, the system does not implement real-time streaming of message content from the Claude Code CLI to the user interface. While the Claude Code CLI itself supports a stream-json output format, which emits each message (init, user, assistant, result) as a distinct JSON object, our claude-bridge-service.js and the subsequent data pipeline via WebSockets and IPC are configured to collect the full output from the CLI before processing and displaying it. This means assistant responses appear in the UI only after the Claude Code CLI process has completed its turn. For persistence, complete assistant messages are saved to the PGlite database after the full response is received by main-claude-websocket.ts. Future enhancements could adapt the claude-bridge-service.js to parse the stream-json output, sending individual message objects (particularly the content of assistant messages) incrementally over WebSockets. This would then allow main-claude-websocket.ts to forward these partial updates to the renderer for a live streaming display in AgentChatPane, while still persisting the complete message once fully received.
+The architecture balances the constraints of Electron's security model with the need for robust data persistence, creating a foundation that can scale with the application's growth. With the implementation of real-time streaming, the system now provides an even more responsive user experience while maintaining data integrity and security.
