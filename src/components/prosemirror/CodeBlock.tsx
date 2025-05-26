@@ -22,8 +22,8 @@ import {
   type NodeViewComponentProps,
   useEditorEventCallback,
   useStopEvent,
-} from "../../src/index.js";
-import { schema } from "../schema.js";
+} from "@handlewithcare/react-prosemirror";
+import { schema } from "./schema";
 
 export const CodeBlock = forwardRef<
   HTMLDivElement | null,
