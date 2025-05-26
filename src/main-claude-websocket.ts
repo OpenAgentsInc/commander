@@ -290,7 +290,90 @@ export function setupClaudeWebSocketHandler() {
         const message = JSON.parse(data);
         
         switch (message.type) {
+          case 'claude_stream_chunk':
+            hasReceivedData = true;
+            const claudeMessage = message.payload;
+            console.log("[Main Process] Received stream chunk:", claudeMessage.type);
+            
+            if (claudeMessage.type === "assistant" && claudeMessage.message) {
+              // Extract text content from assistant message
+              const assistantMessage = claudeMessage.message;
+              if (assistantMessage.content && Array.isArray(assistantMessage.content)) {
+                for (const contentPart of assistantMessage.content) {
+                  if (contentPart.type === "text" && contentPart.text) {
+                    // Send plain text chunks directly
+                    event.sender.send(`claude-code:chat-stream:chunk`, requestId, contentPart.text);
+                    // Collect for database
+                    fullAssistantContent += contentPart.text;
+                  } else if (contentPart.type === "tool_use") {
+                    // Send tool usage info
+                    const toolInfo = `\n[Using tool: ${contentPart.name}]\n`;
+                    event.sender.send(`claude-code:chat-stream:chunk`, requestId, toolInfo);
+                    // Collect tool call for database
+                    toolCalls.push({
+                      id: contentPart.id,
+                      type: "function",
+                      function: {
+                        name: contentPart.name,
+                        arguments: JSON.stringify(contentPart.input || {})
+                      }
+                    });
+                  }
+                }
+              }
+              
+              // Save complete assistant message immediately when received
+              if (!assistantMessageId) {
+                assistantMessageId = claudeMessage.id || generateId();
+              }
+              
+              // Save the assistant message to database
+              (async () => {
+                try {
+                  const assistantDbMessage = {
+                    id: assistantMessageId,
+                    session_id: sessionId,
+                    role: "assistant",
+                    content: assistantMessage.content.filter((p: any) => p.type === 'text').map((p: any) => p.text).join(''),
+                    tool_calls_json: toolCalls.length > 0 ? JSON.stringify(toolCalls) : undefined,
+                    timestamp: Math.floor(Date.now() / 1000),
+                    provider_message_id: claudeMessage.id,
+                  };
+                  
+                  await saveMessageToDatabase(assistantDbMessage);
+                  console.log("[Main Process] Assistant message saved to database");
+                  
+                  // Save tool executions if any
+                  const toolUses = assistantMessage.content.filter((p: any) => p.type === 'tool_use');
+                  for (const tu of toolUses) {
+                    const toolExecution = {
+                      id: tu.id,
+                      message_id: assistantMessageId,
+                      tool_name: tu.name,
+                      arguments_json: JSON.stringify(tu.input || {}),
+                      status: "pending",
+                      created_at: Math.floor(Date.now() / 1000),
+                      updated_at: Math.floor(Date.now() / 1000),
+                    };
+                    
+                    await saveToolCallToDatabase(toolExecution);
+                  }
+                  if (toolUses.length > 0) {
+                    console.log(`[Main Process] ${toolUses.length} tool calls saved to database`);
+                  }
+                } catch (error) {
+                  console.error("[Main Process] Failed to save assistant message:", error);
+                }
+              })();
+            } else if (claudeMessage.type === "init") {
+              console.log("[Main Process] Stream initialized:", claudeMessage);
+            } else if (claudeMessage.type === "result") {
+              console.log("[Main Process] Stream result:", claudeMessage);
+            }
+            break;
+            
           case 'data':
+            // Legacy non-streaming format support
             hasReceivedData = true;
             console.log("[Main Process] Received data from bridge:", message.data);
             
@@ -333,6 +416,38 @@ export function setupClaudeWebSocketHandler() {
             console.log("[Main Process] Received raw data from bridge:", message.data);
             // For raw data (like tool output), send directly
             event.sender.send(`claude-code:chat-stream:chunk`, requestId, message.data);
+            break;
+            
+          case 'claude_stream_done':
+            console.log("[Main Process] Claude stream completed with code:", message.exitCode);
+            ws.close();
+            activeConnections.delete(requestId);
+            
+            // Update session last_updated_at
+            (async () => {
+              try {
+                await updateSessionInDatabase(sessionId, { last_updated_at: Math.floor(Date.now() / 1000) });
+              } catch (error) {
+                console.error("[Main Process] Failed to update session:", error);
+              }
+            })();
+            
+            if (message.exitCode === 0) {
+              event.sender.send(`claude-code:chat-stream:done`, requestId);
+            } else {
+              event.sender.send(`claude-code:chat-stream:error`, requestId, {
+                __error: true,
+                message: `Claude CLI stream ended with code ${message.exitCode}`
+              });
+            }
+            break;
+            
+          case 'claude_stream_error':
+            console.error("[Main Process] Claude stream error:", message.error);
+            event.sender.send(`claude-code:chat-stream:error`, requestId, {
+              __error: true,
+              message: message.error
+            });
             break;
             
           case 'exit':

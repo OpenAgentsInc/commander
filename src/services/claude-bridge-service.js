@@ -393,11 +393,19 @@ wss.on('connection', (ws) => {
       return;
     }
     
-    log(`Executing Claude CLI with args: ${args.join(' ')}`);
+    // Ensure streaming format is enabled
+    const claudeArgs = [...args];
+    const outputFormatIndex = claudeArgs.findIndex(arg => arg === '--output-format');
+    if (outputFormatIndex !== -1) {
+      claudeArgs.splice(outputFormatIndex, 2); // Remove existing output format
+    }
+    claudeArgs.push('--output-format', 'stream-json');
+    
+    log(`Executing Claude CLI with streaming args: ${claudeArgs.join(' ')}`);
     
     try {
       // Spawn Claude with PTY using project root as working directory
-      const ptyProcess = pty.spawn(claudePath, args, {
+      const ptyProcess = pty.spawn(claudePath, claudeArgs, {
         name: 'xterm-256color',
         cols: 120,
         rows: 30,
@@ -424,36 +432,38 @@ wss.on('connection', (ws) => {
           errorBuffer += data;
         }
         
-        // Parse JSON lines
-        const lines = outputBuffer.split('\n');
-        if (lines.length > 1) {
-          outputBuffer = lines.pop() || '';
+        // Parse JSON lines for streaming
+        let newlineIndex;
+        while ((newlineIndex = outputBuffer.indexOf('\n')) >= 0) {
+          const jsonLine = outputBuffer.substring(0, newlineIndex).trim();
+          outputBuffer = outputBuffer.substring(newlineIndex + 1);
           
-          for (const line of lines) {
-            const trimmed = line.trim();
+          if (jsonLine) {
             // Remove all ANSI escape sequences including cursor controls
-            const cleaned = trimmed.replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '').replace(/\x1b\[?[0-9;]*[hl]/g, '');
+            const cleaned = jsonLine.replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '').replace(/\x1b\[?[0-9;]*[hl]/g, '');
             
             if (cleaned && cleaned.startsWith('{')) {
               try {
-                const json = JSON.parse(cleaned);
-                log(`Parsed JSON type: ${json.type}`);
+                const claudeMessage = JSON.parse(cleaned);
+                log(`Parsed Claude Message: type=${claudeMessage.type}`);
+                
+                // Send as streaming chunk
                 ws.send(JSON.stringify({
                   id,
-                  type: 'data',
-                  data: json
+                  type: 'claude_stream_chunk',
+                  payload: claudeMessage
                 }));
               } catch (e) {
-                // Not JSON, might be raw output
-                if (cleaned) {
-                  log(`Non-JSON output: ${cleaned.substring(0, 50)}...`);
-                  ws.send(JSON.stringify({
-                    id,
-                    type: 'raw',
-                    data: cleaned
-                  }));
-                }
+                log(`JSON Parse Error in bridge service: ${e.message} for line: <<<${cleaned}>>>`);
+                // Continue processing other lines
               }
+            } else if (cleaned) {
+              // Non-JSON output, send as raw
+              ws.send(JSON.stringify({
+                id,
+                type: 'raw',
+                data: cleaned
+              }));
             }
           }
         }
@@ -462,11 +472,29 @@ wss.on('connection', (ws) => {
       ptyProcess.onExit(({ exitCode, signal }) => {
         log(`PTY process exited with code: ${exitCode}, signal: ${signal}`);
         
-        // Send any remaining data
+        // Process any remaining data in buffer
         if (outputBuffer.trim()) {
-          // Remove all ANSI escape sequences including cursor controls
           const cleaned = outputBuffer.trim().replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '').replace(/\x1b\[?[0-9;]*[hl]/g, '');
-          if (cleaned) {
+          if (cleaned && cleaned.startsWith('{')) {
+            try {
+              const claudeMessage = JSON.parse(cleaned);
+              log(`Final Claude Message: type=${claudeMessage.type}`);
+              ws.send(JSON.stringify({
+                id,
+                type: 'claude_stream_chunk',
+                payload: claudeMessage
+              }));
+            } catch (e) {
+              log(`Final JSON Parse Error: ${e.message}`);
+              if (cleaned) {
+                ws.send(JSON.stringify({
+                  id,
+                  type: 'raw',
+                  data: cleaned
+                }));
+              }
+            }
+          } else if (cleaned) {
             ws.send(JSON.stringify({
               id,
               type: 'raw',
@@ -481,14 +509,15 @@ wss.on('connection', (ws) => {
           log(`Process failed with error: ${errorMessage}`);
           ws.send(JSON.stringify({
             id,
-            type: 'error',
+            type: 'claude_stream_error',
             error: `Claude CLI exited with code ${exitCode}: ${errorMessage.trim()}`
           }));
         }
         
+        // Send stream done message
         ws.send(JSON.stringify({
           id,
-          type: 'exit',
+          type: 'claude_stream_done',
           exitCode
         }));
       });

@@ -17,6 +17,9 @@ interface KeyboardControlsState {
 }
 import { AppControls, appControlsMap } from "@/controls";
 import { isMacOs } from "@/utils/os";
+import { Effect } from "effect";
+import { getMainRuntime } from "@/services/runtime";
+import { TelemetryService } from "@/services/telemetry";
 
 interface HandDataContext {
   activeHandPose: HandPose;
@@ -178,6 +181,48 @@ export default function HomePage() {
   // Set up a global keydown handler since KeyboardControls doesn't always provide the event
   useEffect(() => {
     const handleGlobalKeyDown = (event: KeyboardEvent) => {
+      // Handle Escape key for closing active pane
+      if (event.key === "Escape") {
+        const activeElement = document.activeElement as HTMLElement;
+        
+        // Check if an input, textarea, or dialog element has focus
+        if (
+          activeElement &&
+          (activeElement.tagName === "INPUT" ||
+            activeElement.tagName === "TEXTAREA" ||
+            activeElement.closest('[role="dialog"]'))
+        ) {
+          // Let the focused element or dialog handle Escape
+          return;
+        }
+
+        // If no specific input/dialog is focused, proceed to check for active pane
+        const { activePaneId, panes, removePane } = usePaneStore.getState();
+
+        if (activePaneId) {
+          const activePane = panes.find((p) => p.id === activePaneId);
+          
+          // Ensure the pane exists and is dismissable (default true if undefined)
+          if (activePane && activePane.dismissable !== false) {
+            event.preventDefault(); // We are handling this Escape press
+            removePane(activePaneId);
+
+            // Log telemetry
+            const runtime = getMainRuntime();
+            Effect.runFork(
+              Effect.flatMap(TelemetryService, (ts) =>
+                ts.trackEvent({
+                  category: "ui:pane",
+                  action: "close_active_pane_escape",
+                  label: activePane.title || activePane.id,
+                }),
+              ).pipe(Effect.provide(runtime)),
+            );
+          }
+        }
+        return; // Explicitly return after handling Escape for panes
+      }
+
       // Only handle modifier + digit combinations
       const modifier = isMacOs() ? event.metaKey : event.ctrlKey;
       if (!modifier) return;
