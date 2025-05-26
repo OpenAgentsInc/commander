@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { Effect } from 'effect';
 import { TelemetryService } from '@/services/telemetry';
 import { getMainRuntime } from '@/services/runtime';
@@ -10,33 +10,88 @@ import {
   ProseMirrorDoc,
   reactKeys,
   useEditorEffect,
+  useEditorEventListener,
+  useEditorState,
 } from "@handlewithcare/react-prosemirror";
 
 // Component that autofocuses the editor and fills container
-const AutoFocusEditor: React.FC = () => {
+const AutoFocusEditor: React.FC<{ onSubmit: (text: string) => void, disabled?: boolean }> = ({ onSubmit, disabled }) => {
+  const editorState = useEditorState();
+  
   useEditorEffect((view) => {
-    if (view) {
+    if (view && !disabled) {
       view.focus();
     }
-  }, []);
+  }, [disabled]);
+
+  // Handle Enter (submit) and Shift+Enter (new line)
+  useEditorEventListener("keydown", (view, event) => {
+    if (event.key === "Enter" && !event.shiftKey && !disabled) {
+      event.preventDefault();
+      
+      // Get the text content from the editor
+      const text = editorState?.doc.textContent || "";
+      
+      if (text.trim()) {
+        // Submit the message
+        onSubmit(text);
+        
+        // Clear the editor
+        if (view) {
+          const tr = view.state.tr.delete(0, view.state.doc.content.size);
+          view.dispatch(tr);
+        }
+      }
+      
+      return true;
+    }
+    // Shift+Enter will naturally create a new line, no need to handle
+    return false;
+  });
 
   return (
     <ProseMirrorDoc
       as={
         <div
           className="p-4 prose prose-invert h-full w-full outline-none text-white box-border"
-          style={{ minHeight: '100%', padding: '12px' }}
+          style={{ minHeight: '100%', padding: '12px', opacity: disabled ? 0.5 : 1 }}
         />
       }
     />
   );
 };
 
+// Simple message interface for chat history
+interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: number;
+  isStreaming?: boolean;
+}
+
 const CoderPane: React.FC = () => {
   const runtime = getMainRuntime(); // For telemetry
   const removePane = usePaneStore((state) => state.removePane);
+  
+  // Chat state
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      role: 'system',
+      content: 'You are Claude Code, a helpful AI coding assistant.',
+      timestamp: Date.now(),
+    }
+  ]);
+  const [isLoading, setIsLoading] = useState(false);
+  const streamCancelRef = useRef<(() => void) | null>(null);
+  const sessionIdRef = useRef<string>(`coder-${Date.now()}`);
 
   const handleExitCoderMode = React.useCallback(() => {
+    // Cancel any ongoing stream
+    if (streamCancelRef.current) {
+      streamCancelRef.current();
+      streamCancelRef.current = null;
+    }
+    
     Effect.runFork(
       Effect.flatMap(TelemetryService, (ts) =>
         ts.trackEvent({
@@ -73,16 +128,133 @@ const CoderPane: React.FC = () => {
     );
   }, [runtime]);
 
+  // Send message to Claude Code
+  const sendMessage = useCallback(async (content: string) => {
+    if (!content.trim() || isLoading) return;
+
+    // Add user message
+    const userMessage: ChatMessage = {
+      role: 'user',
+      content: content.trim(),
+      timestamp: Date.now(),
+    };
+    setMessages(prev => [...prev, userMessage]);
+    setIsLoading(true);
+
+    // Create assistant message placeholder
+    const assistantMessage: ChatMessage = {
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+      isStreaming: true,
+    };
+    setMessages(prev => [...prev, assistantMessage]);
+
+    try {
+      // Prepare messages for Claude Code API
+      const apiMessages = messages
+        .filter(m => m.role !== 'system')
+        .concat(userMessage)
+        .map(m => ({ role: m.role, content: m.content }));
+
+      // Add system message at the beginning
+      apiMessages.unshift({
+        role: 'system',
+        content: messages.find(m => m.role === 'system')?.content || 'You are Claude Code, a helpful AI coding assistant.'
+      });
+
+      // Stream response from Claude Code
+      const cleanup = window.electronAPI.claudeCode?.streamChat(
+        {
+          messages: apiMessages,
+          model: 'claude-3-sonnet-20240229',
+          max_tokens: 4096,
+          temperature: 0.7,
+          sessionId: sessionIdRef.current,
+        },
+        (chunk: string) => {
+          // Update assistant message with new chunk
+          setMessages(prev => 
+            prev.map((msg, idx) => 
+              idx === prev.length - 1 && msg.role === 'assistant'
+                ? { ...msg, content: msg.content + chunk }
+                : msg
+            )
+          );
+        },
+        () => {
+          // Stream completed
+          setMessages(prev => 
+            prev.map((msg, idx) => 
+              idx === prev.length - 1 && msg.role === 'assistant'
+                ? { ...msg, isStreaming: false }
+                : msg
+            )
+          );
+          setIsLoading(false);
+          streamCancelRef.current = null;
+        },
+        (error: any) => {
+          // Stream error
+          console.error('Claude Code stream error:', error);
+          setMessages(prev => 
+            prev.map((msg, idx) => 
+              idx === prev.length - 1 && msg.role === 'assistant'
+                ? { ...msg, content: `Error: ${error.message || 'Stream failed'}`, isStreaming: false }
+                : msg
+            )
+          );
+          setIsLoading(false);
+          streamCancelRef.current = null;
+        }
+      );
+
+      streamCancelRef.current = cleanup || null;
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      setMessages(prev => prev.slice(0, -1)); // Remove assistant placeholder
+      setIsLoading(false);
+    }
+  }, [messages, isLoading]);
+
+  // Cleanup on unmount
+  React.useEffect(() => {
+    return () => {
+      if (streamCancelRef.current) {
+        streamCancelRef.current();
+      }
+    };
+  }, []);
+
   return (
     <div className="h-full w-full flex flex-col bg-black">
-      {/*
-        Coder Mode Content Area:
-        This is where the main content for Coder Mode will go.
-        For now, it's just a black screen.
-        Example: A large text editor or code display area.
-      */}
-      <div className="flex-1 bg-black">
-        {/* Future content will go here */}
+      {/* Chat messages area */}
+      <div className="flex-1 overflow-auto p-4">
+        <div className="max-w-[750px] mx-auto space-y-4">
+          {messages
+            .filter(msg => msg.role !== 'system') // Don't show system messages
+            .map((message, idx) => (
+              <div
+                key={idx}
+                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-[80%] rounded-lg p-3 ${
+                    message.role === 'user'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-800 text-white border border-gray-700'
+                  }`}
+                >
+                  <div className="prose prose-invert prose-sm max-w-none">
+                    {message.content}
+                    {message.isStreaming && (
+                      <span className="inline-block w-2 h-4 ml-1 bg-white animate-pulse" />
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+        </div>
       </div>
       {/* ProseMirror editor at the bottom */}
       <div className="flex items-center justify-center pb-4 px-4">
@@ -93,7 +265,7 @@ const CoderPane: React.FC = () => {
               plugins: [reactKeys()],
             })}
           >
-            <AutoFocusEditor />
+            <AutoFocusEditor onSubmit={sendMessage} disabled={isLoading} />
           </ProseMirror>
         </div>
       </div>
