@@ -401,6 +401,11 @@ wss.on('connection', (ws) => {
     }
     claudeArgs.push('--output-format', 'stream-json');
     
+    // Add --dangerously-skip-permissions flag to avoid permission prompts
+    if (!claudeArgs.includes('--dangerously-skip-permissions')) {
+      claudeArgs.push('--dangerously-skip-permissions');
+    }
+    
     log(`Executing Claude CLI with streaming args: ${claudeArgs.join(' ')}`);
     
     try {
