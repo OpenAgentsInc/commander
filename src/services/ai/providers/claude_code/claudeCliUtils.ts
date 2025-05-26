@@ -28,6 +28,8 @@ export interface ClaudeExecParams {
   // File context support
   contextFiles?: string[]; // Array of file paths to include as context
   contextDirectories?: string[]; // Array of directories to include as context
+  // Developer mode
+  dangerousPermissions?: boolean; // Enable --dangerously-skip-permissions flag
   // Add other params the CLI might support
   [key: string]: unknown; // Allow other params
 }

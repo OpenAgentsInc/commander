@@ -19,7 +19,10 @@ import type { DBMessage, DBToolExecution } from "@/services/db";
 interface UseAgentChatOptions {
   initialSystemMessage?: string;
   sessionId?: string;
-  // Future: providerKey?: string; modelName?: string;
+  provider?: string; // Preferred provider key
+  modelName?: string; // Optional model name
+  dangerousPermissions?: boolean; // For Claude Code provider
+  contextFiles?: string[]; // File paths for context
 }
 
 // Extend AgentChatMessage for UI-specific properties for local state management
@@ -44,8 +47,18 @@ export interface UIAgentChatMessage extends AgentChatMessage {
 const generateId = () => `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
 export function useAgentChat(options: UseAgentChatOptions = {}) {
-  const { initialSystemMessage = "You are a helpful AI assistant.", sessionId } = options;
+  const { 
+    initialSystemMessage = "You are a helpful AI assistant.", 
+    sessionId,
+    provider: preferredProvider,
+    modelName,
+    dangerousPermissions,
+    contextFiles 
+  } = options;
   const { selectedProviderKey, setSelectedProviderKey } = useAgentChatStore();
+  
+  // Use preferred provider if specified, otherwise use store selection
+  const effectiveProviderKey = preferredProvider || selectedProviderKey;
 
   // Use useMemo to create stable system message instance
   const systemMessageInstance = useMemo<UIAgentChatMessage>(() => ({
@@ -129,8 +142,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
           program.pipe(Effect.provide(runtime))
         );
         
-        // Set provider from session if available
-        if (session?.provider_key) {
+        // Set provider from session if available (unless we have a preferred provider)
+        if (session?.provider_key && !preferredProvider) {
           setSelectedProviderKey(session.provider_key);
         }
         
@@ -235,11 +248,11 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
       ]);
 
       // Get current provider info for telemetry
-      const currentProviderInfo = useAgentChatStore.getState().availableProviders.find(p => p.key === selectedProviderKey);
+      const currentProviderInfo = useAgentChatStore.getState().availableProviders.find(p => p.key === effectiveProviderKey);
       
-      const preferredProvider: PreferredProviderConfig = {
-        key: selectedProviderKey,
-        modelName: currentProviderInfo?.modelName,
+      const preferredProviderConfig: PreferredProviderConfig = {
+        key: effectiveProviderKey,
+        modelName: modelName || currentProviderInfo?.modelName,
       };
 
       const conversationHistoryForOrchestrator = [
@@ -251,6 +264,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
         temperature: 0.7,
         maxTokens: 2048,
         sessionId: sessionId, // Pass sessionId for Claude Code provider
+        dangerousPermissions: dangerousPermissions,
+        contextFiles: contextFiles,
       } as any;
 
       const currentRuntime = getMainRuntime(); // Get fresh runtime
@@ -263,19 +278,19 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
             ts.trackEvent({
               category: "agent_chat",
               action: "chat_orchestrator_resolved_successfully",
-              label: `Orchestrator resolved for provider: ${selectedProviderKey}`,
+              label: `Orchestrator resolved for provider: ${effectiveProviderKey}`,
               value: assistantMsgId,
             })
           )
         );
-        console.log("[useAgentChat] Orchestrator: Starting stream via provider:", selectedProviderKey, "for message:", assistantMsgId, "Current signal state:", {
+        console.log("[useAgentChat] Orchestrator: Starting stream via provider:", effectiveProviderKey, "for message:", assistantMsgId, "Current signal state:", {
           aborted: signal.aborted,
           controller: streamAbortControllerRef.current ? "present" : "null"
         });
         
         const textStream = orchestrator.streamConversation({
           messages: conversationHistoryForOrchestrator,
-          preferredProvider: preferredProvider,
+          preferredProvider: preferredProviderConfig,
           options: orchestratorOptions,
         });
 

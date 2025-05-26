@@ -39,7 +39,7 @@ export const CodingCommandPane: React.FC<CodingCommandPaneProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const configService = useConfigurationService();
   
-  // Use the agent chat hook with session options
+  // Use the agent chat hook with session options - default to Claude Code provider
   const {
     messages,
     isLoading,
@@ -48,6 +48,9 @@ export const CodingCommandPane: React.FC<CodingCommandPaneProps> = ({
   } = useAgentChat({
     sessionId,
     initialSystemMessage: "You are an expert coding assistant. Help the user with their programming tasks, analyze code, and provide solutions.",
+    provider: "claude_code", // Always use Claude Code for the coding pane
+    dangerousPermissions: developerMode,
+    contextFiles: selectedFiles,
   });
 
   // Load developer mode setting
@@ -65,22 +68,8 @@ export const CodingCommandPane: React.FC<CodingCommandPaneProps> = ({
   }, [configService]);
 
   const handleSendMessage = (content: string) => {
-    // Send message with file context via the sessionId mechanism
-    // The useAgentChat hook will pass these through the AI orchestration layer
-    const messageOptions: any = {};
-    
-    if (selectedFiles.length > 0) {
-      // Add file paths to the options that will be passed through the layers
-      messageOptions.contextFiles = selectedFiles;
-    }
-    
-    // For now, we'll include file list in the message content
-    // TODO: Pass contextFiles through the orchestration layer properly
-    const contextPrefix = selectedFiles.length > 0 
-      ? `Context files: ${selectedFiles.join(", ")}\n\n` 
-      : "";
-    
-    sendMessage(contextPrefix + content);
+    // Context files are already passed through the useAgentChat hook options
+    sendMessage(content);
   };
 
   const handleFileSelect = async () => {

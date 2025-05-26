@@ -76,6 +76,9 @@ export const ClaudeCodeAgentLanguageModelLive = Effect.gen(function* (_) {
           temperature: options.temperature,
           max_tokens: options.maxTokens,
           sessionId: (options as any).sessionId, // Pass sessionId if available
+          dangerousPermissions: (options as any).dangerousPermissions,
+          contextFiles: (options as any).contextFiles,
+          contextDirectories: (options as any).contextDirectories,
         };
         
         console.log("[ClaudeCodeProvider] Sending params with sessionId:", cliParams.sessionId);
@@ -140,6 +143,9 @@ export const ClaudeCodeAgentLanguageModelLive = Effect.gen(function* (_) {
             temperature: options.temperature,
             max_tokens: options.maxTokens,
             sessionId: (options as any).sessionId, // Pass sessionId if available
+            dangerousPermissions: (options as any).dangerousPermissions,
+            contextFiles: (options as any).contextFiles,
+            contextDirectories: (options as any).contextDirectories,
          };
          
          const electronAPI = (window as any).electronAPI;

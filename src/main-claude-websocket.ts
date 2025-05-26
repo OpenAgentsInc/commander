@@ -158,8 +158,8 @@ export function setupClaudeWebSocketHandler() {
     
     // Import configuration service to check developer mode
     const { Effect } = require("effect");
-    const { ConfigurationService } = require("@/services/configuration");
-    const { getMainRuntime } = require("@/services/runtime");
+    const { ConfigurationService } = require("./services/configuration");
+    const { getMainRuntime } = require("./services/runtime");
     
     // Check if bridge service is available
     const bridgeAvailable = await checkBridgeService();
