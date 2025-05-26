@@ -1,6 +1,6 @@
 // WebSocket implementation for Claude CLI via external bridge service
 
-import { ipcMain, dialog } from "electron";
+import { ipcMain, dialog, BrowserWindow } from "electron";
 import * as crypto from "crypto";
 
 const WebSocket = require('ws');
@@ -570,11 +570,16 @@ export function setupClaudeWebSocketHandler() {
   });
   
   // Handle folder selection
-  ipcMain.handle("claude-code:select-folder", async () => {
+  ipcMain.handle("claude-code:select-folder", async (event) => {
     console.log("[Main Process] Received claude-code:select-folder request");
-    const result = await dialog.showOpenDialog({
-      properties: ['openDirectory', 'dontAddToRecent']
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Select Project Folder for Claude Code',
+      buttonLabel: 'Select Folder'
     });
+    
     if (!result.canceled && result.filePaths.length > 0) {
       console.log("[Main Process] Folder selected:", result.filePaths[0]);
       return result.filePaths[0];
