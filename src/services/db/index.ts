@@ -4,3 +4,4 @@ export * from "./DatabaseService";
 // export * from "./PGLiteService";
 // export * from "./DatabaseServiceImpl";
 export * from "./DatabaseServiceRendererProxy";
+export * from "./DatabaseServiceWebSocketProxy";

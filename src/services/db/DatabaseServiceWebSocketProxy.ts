@@ -2,7 +2,7 @@ import { Effect, Layer } from "effect";
 import { DatabaseService, DatabaseError } from "./DatabaseService";
 import type { DBSession, DBMessage, DBToolExecution } from "./DatabaseSchemas";
 
-const WebSocket = require('ws');
+// Use browser's built-in WebSocket in renderer process
 const BRIDGE_SERVICE_URL = 'ws://localhost:45671';
 
 // Generate unique request IDs
@@ -20,18 +20,18 @@ async function sendDatabaseRequest(operation: string, params: any): Promise<any>
       reject(new Error(`Database operation timeout: ${operation}`));
     }, 10000); // 10 second timeout
     
-    ws.on('open', () => {
+    ws.onopen = () => {
       ws.send(JSON.stringify({
         type: 'db',
         id: requestId,
         operation,
         params
       }));
-    });
+    };
     
-    ws.on('message', (data: string) => {
+    ws.onmessage = (event: MessageEvent) => {
       try {
-        const response = JSON.parse(data);
+        const response = JSON.parse(event.data);
         if (response.id === requestId) {
           clearTimeout(timeout);
           ws.close();
@@ -47,12 +47,16 @@ async function sendDatabaseRequest(operation: string, params: any): Promise<any>
         ws.close();
         reject(e);
       }
-    });
+    };
     
-    ws.on('error', (error: any) => {
+    ws.onerror = (error: Event) => {
       clearTimeout(timeout);
-      reject(error);
-    });
+      reject(new Error('WebSocket error'));
+    };
+    
+    ws.onclose = () => {
+      clearTimeout(timeout);
+    };
   });
 }
 

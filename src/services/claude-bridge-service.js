@@ -149,11 +149,10 @@ async function handleDatabaseOperation(ws, request) {
         break;
         
       case 'getSession':
-        const sessionResult = await db.query(
-          'SELECT * FROM sessions WHERE id = ?',
-          [params.sessionId]
+        const sessionResult = await db.exec(
+          `SELECT * FROM sessions WHERE id = '${params.sessionId}'`
         );
-        result = sessionResult.rows[0] || null;
+        result = sessionResult.rows ? sessionResult.rows[0] : null;
         break;
         
       case 'saveMessage':
@@ -168,11 +167,10 @@ async function handleDatabaseOperation(ws, request) {
         
       case 'getMessagesForSession':
         log(`Getting messages for session: ${params.sessionId}`);
-        const messagesResult = await db.query(
-          'SELECT * FROM messages WHERE session_id = ? ORDER BY timestamp ASC LIMIT ? OFFSET ?',
-          [params.sessionId, params.limit || 100, params.offset || 0]
+        const messagesResult = await db.exec(
+          `SELECT * FROM messages WHERE session_id = '${params.sessionId}' ORDER BY timestamp ASC LIMIT ${params.limit || 100} OFFSET ${params.offset || 0}`
         );
-        result = messagesResult.rows;
+        result = messagesResult.rows || [];
         log(`Found ${result.length} messages for session ${params.sessionId}`);
         break;
         
@@ -182,6 +180,15 @@ async function handleDatabaseOperation(ws, request) {
            VALUES ('${params.id}', '${params.message_id}', '${params.tool_name}', 
                    '${params.input_json.replace(/'/g, "''")}', '${params.status || 'pending'}')`
         );
+        result = { success: true };
+        break;
+        
+      case 'updateSession':
+        if (params.updates.last_updated_at !== undefined) {
+          await db.exec(
+            `UPDATE sessions SET last_updated_at = to_timestamp(${params.updates.last_updated_at}) WHERE id = '${params.sessionId}'`
+          );
+        }
         result = { success: true };
         break;
         

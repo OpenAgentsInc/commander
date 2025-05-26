@@ -48,6 +48,7 @@ export function exposeClaudeCodeContext() {
         ipcRenderer.on(`${claudeCodeChannels.chatStream}:done`, doneListener);
         ipcRenderer.on(`${claudeCodeChannels.chatStream}:error`, errorListener);
 
+        console.log("[IPC] Sending claude stream with params:", { ...params, stream: true });
         ipcRenderer.send(claudeCodeChannels.chatStream, requestId, { ...params, stream: true }); // Ensure stream=true
 
         return () => {

@@ -78,7 +78,9 @@ import { AgentLanguageModel } from "@/services/ai/core";
 import { ChatOrchestratorService, ChatOrchestratorServiceLive } from "@/services/ai/orchestration";
 console.log("[Runtime] Imported AI orchestration");
 
-import { DatabaseService, DatabaseServiceRendererProxyLive } from "@/services/db";
+import { DatabaseService } from "@/services/db";
+import { DatabaseServiceRendererProxyLive } from "@/services/db/DatabaseServiceRendererProxy";
+import { DatabaseServiceWebSocketProxyLive } from "@/services/db/DatabaseServiceWebSocketProxy";
 console.log("[Runtime] Imported DatabaseService");
 
 console.log("[Runtime] All imports complete");
@@ -119,7 +121,8 @@ export function buildFullAppLayer() {
   const nip13Layer = NIP13ServiceLive;
   
   // Database layer for renderer (uses IPC proxy)
-  const databaseLayer = DatabaseServiceRendererProxyLive;
+  // Use WebSocket proxy for database instead of IPC
+  const databaseLayer = DatabaseServiceWebSocketProxyLive;
   
   const nostrLayer = NostrServiceLive.pipe(
     Layer.provide(NostrServiceConfigLive),

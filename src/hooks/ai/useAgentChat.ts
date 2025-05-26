@@ -119,7 +119,10 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
         );
         
         // Update messages state with history (preserve system message)
-        setMessages([systemMessageInstance, ...historicalMessages]);
+        // Only set messages if we actually loaded some history, otherwise keep current messages
+        if (historicalMessages.length > 0) {
+          setMessages([systemMessageInstance, ...historicalMessages]);
+        }
         
         runTelemetry({
           category: "agent_chat",

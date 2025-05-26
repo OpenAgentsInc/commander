@@ -239,6 +239,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                         model: options.model || "claude-3-opus-20240229",
                         max_tokens: options.maxTokens,
                         temperature: options.temperature,
+                        sessionId: (options as any).sessionId, // Pass sessionId for database persistence
                       }),
                       catch: (error) => {
                         const serializedCause = getErrorMessage(error);
@@ -301,6 +302,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                           model: options.model || "claude-sonnet",
                           max_tokens: options.maxTokens,
                           temperature: options.temperature,
+                          sessionId: (options as any).sessionId, // Pass sessionId for database persistence
                         },
                         (chunk: string) => {
                           // Emit each chunk as a text delta
@@ -366,6 +368,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                         model: options.model || "claude-3-opus-20240229",
                         max_tokens: options.maxTokens,
                         temperature: options.temperature,
+                        sessionId: (options as any).sessionId, // Pass sessionId for database persistence
                       }),
                       catch: (error) => {
                         const serializedCause = getErrorMessage(error);

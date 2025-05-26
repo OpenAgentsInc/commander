@@ -77,6 +77,8 @@ export const ClaudeCodeAgentLanguageModelLive = Effect.gen(function* (_) {
           max_tokens: options.maxTokens,
           sessionId: (options as any).sessionId, // Pass sessionId if available
         };
+        
+        console.log("[ClaudeCodeProvider] Sending params with sessionId:", cliParams.sessionId);
 
         const electronAPI = (window as any).electronAPI;
         if (!electronAPI?.claudeCode?.streamChat) {
