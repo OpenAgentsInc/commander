@@ -93,9 +93,9 @@ const DatabaseServiceWebSocketProxyLive = Layer.succeed(
   DatabaseService.of({
     saveSession: (session) => Effect.tryPromise({
       try: () => sendDatabaseRequest('saveSession', session),
-      catch: (e) => new DatabaseError({ 
-        message: `WebSocket saveSession failed: ${e}`, 
-        cause: e 
+      catch: (e) => new DatabaseError({
+        message: `WebSocket saveSession failed: ${e}`,
+        cause: e
       })
     }),
     // ... other methods
@@ -142,11 +142,11 @@ const dataDir = path.join(userDataPath, dbDataDirName);
 // Database operation handler
 async function handleDatabaseOperation(ws, request) {
   const { id, operation, params } = request;
-  
+
   switch (operation) {
     case 'saveSession':
       await db.query(
-        `INSERT INTO sessions (...) VALUES ($1, $2, ...) 
+        `INSERT INTO sessions (...) VALUES ($1, $2, ...)
          ON CONFLICT (id) DO UPDATE SET ...`,
         [params.id, params.created_at, ...]
       );
@@ -481,9 +481,9 @@ CREATE INDEX idx_sessions_last_updated ON sessions(last_updated_at);
 getMessagesForSession: (sessionId, options = {}) => {
   const { limit = 100, offset = 0 } = options;
   return runQuery<DBMessage>(
-    `SELECT * FROM messages 
-     WHERE session_id = $1 
-     ORDER BY timestamp ASC 
+    `SELECT * FROM messages
+     WHERE session_id = $1
+     ORDER BY timestamp ASC
      LIMIT $2 OFFSET $3`,
     [sessionId, limit, offset]
   );
@@ -531,10 +531,10 @@ await saveMessageToDatabase({
 async function checkDatabase() {
   const db = new PGlite(dbPath);
   await db.waitReady;
-  
+
   const sessions = await db.exec('SELECT * FROM sessions ORDER BY last_updated_at DESC');
   console.log('Sessions found:', sessions.rows?.length || 0);
-  
+
   const messages = await db.exec('SELECT COUNT(*) as count FROM messages');
   console.log('Total messages:', messages.rows?.[0]?.count || 0);
 }
@@ -624,3 +624,9 @@ The Commander message persistence system represents a sophisticated solution to 
 5. **Extensibility**: Easy to add new features and storage capabilities
 
 The architecture balances the constraints of Electron's security model with the need for robust data persistence, creating a foundation that can scale with the application's growth.
+
+---
+
+## Addendum: Message Streaming from Claude Code CLI
+
+Currently, the system does not implement real-time streaming of message content from the Claude Code CLI to the user interface. While the Claude Code CLI itself supports a stream-json output format, which emits each message (init, user, assistant, result) as a distinct JSON object, our claude-bridge-service.js and the subsequent data pipeline via WebSockets and IPC are configured to collect the full output from the CLI before processing and displaying it. This means assistant responses appear in the UI only after the Claude Code CLI process has completed its turn. For persistence, complete assistant messages are saved to the PGlite database after the full response is received by main-claude-websocket.ts. Future enhancements could adapt the claude-bridge-service.js to parse the stream-json output, sending individual message objects (particularly the content of assistant messages) incrementally over WebSockets. This would then allow main-claude-websocket.ts to forward these partial updates to the renderer for a live streaming display in AgentChatPane, while still persisting the complete message once fully received.
