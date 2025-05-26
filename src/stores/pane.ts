@@ -167,7 +167,7 @@ export const usePaneStore = create<PaneStoreType>()(
               type: "coder",
               title: CODER_PANE_TITLE,
               x: PANE_MARGIN,
-              y: PANE_MARGIN,
+              y: PANE_MARGIN + 40,
               width: width,
               height: height,
               dismissable: true,
