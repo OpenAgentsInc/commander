@@ -396,10 +396,11 @@ wss.on('connection', (ws) => {
     // Ensure streaming format is enabled
     const claudeArgs = [...args];
     
-    // Add project-path flag if activeFolder is provided
+    // Set working directory if activeFolder is provided
+    let workingDirectory = PROJECT_ROOT;
     if (activeFolder) {
-      claudeArgs.push("--project-path", activeFolder);
-      log(`Using active folder for Claude CLI: ${activeFolder}`);
+      workingDirectory = activeFolder;
+      log(`Using active folder as working directory for Claude CLI: ${activeFolder}`);
     }
     const outputFormatIndex = claudeArgs.findIndex(arg => arg === '--output-format');
     if (outputFormatIndex !== -1) {
@@ -415,12 +416,12 @@ wss.on('connection', (ws) => {
     log(`Executing Claude CLI with streaming args: ${claudeArgs.join(' ')}`);
     
     try {
-      // Spawn Claude with PTY using project root as working directory
+      // Spawn Claude with PTY using selected folder or project root as working directory
       const ptyProcess = pty.spawn(claudePath, claudeArgs, {
         name: 'xterm-256color',
         cols: 120,
         rows: 30,
-        cwd: PROJECT_ROOT,
+        cwd: workingDirectory,
         env: process.env
       });
       
