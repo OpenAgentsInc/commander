@@ -2,8 +2,7 @@
 import { ipcMain } from "electron";
 import { Effect, Layer, Runtime, Cause } from "effect";
 import { DatabaseService, DatabaseError } from "@/services/db";
-import { DatabaseServiceLive } from "@/services/db/DatabaseServiceImpl";
-import { PGLiteServiceLive } from "@/services/db/PGLiteService";
+import { DatabaseServiceWebSocketProxyLive } from "@/services/db/DatabaseServiceWebSocketProxy";
 import type { DBSession, DBMessage, DBToolExecution } from "@/services/db";
 import { dbChannels } from "./db-channels";
 import { ConfigurationService, ConfigurationServiceLive, DefaultDevConfigLayer } from "@/services/configuration";
@@ -53,26 +52,8 @@ export async function initializeDatabaseService() {
   console.log("[DB IPC] Initializing database service...");
 
   try {
-    // Create telemetry layer
-    const telemetryLayer = TelemetryServiceLive.pipe(
-      Layer.provide(DefaultTelemetryConfigLayer)
-    );
-
-    // Create configuration layer
-    const configLayer = ConfigurationServiceLive.pipe(
-      Layer.provide(telemetryLayer)
-    );
-    const devConfigLayer = DefaultDevConfigLayer.pipe(Layer.provide(configLayer));
-
-    // Create PGLite layer
-    const pgliteLayer = PGLiteServiceLive.pipe(
-      Layer.provide(Layer.merge(devConfigLayer, telemetryLayer))
-    );
-
-    // Create database layer
-    const databaseLayer = DatabaseServiceLive.pipe(
-      Layer.provide(Layer.merge(pgliteLayer, telemetryLayer))
-    );
+    // Create database layer using WebSocket proxy
+    const databaseLayer = DatabaseServiceWebSocketProxyLive;
 
     // Create the runtime
     const runtimeContext = await Effect.runPromise(
@@ -80,11 +61,7 @@ export async function initializeDatabaseService() {
     );
     databaseRuntime = Runtime.make(runtimeContext);
 
-    // Initialize the database
-    const dbService = Runtime.runSync(databaseRuntime)(DatabaseService);
-    await Effect.runPromise(dbService.initDB());
-
-    console.log("[DB IPC] Database service initialized successfully");
+    console.log("[DB IPC] Database service (WebSocket proxy) initialized successfully");
     return databaseRuntime;
   } catch (error) {
     console.error("[DB IPC] Failed to initialize database service:", error);
