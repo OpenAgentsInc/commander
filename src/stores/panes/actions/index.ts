@@ -26,3 +26,4 @@ export * from "./openPreviousChatsPane";
 export * from "./togglePreviousChatsPane";
 // Coding command pane actions
 export * from "./openCodingCommandPane";
+export * from "./toggleCodingCommandPane";

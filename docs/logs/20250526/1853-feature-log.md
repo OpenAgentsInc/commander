@@ -52,8 +52,20 @@ Implementing Feature #1 from the 30-day sprint: Claude Code Deep Integration & "
 - Added constants for pane sizing
 
 ### Next Steps:
-1. Run tests to ensure no breakage
-2. Test the pane opening functionality
+1. Run tests to ensure no breakage ✓
+2. Test the pane opening functionality ✓
 3. Enhance Claude Bridge Service for file context
 4. Implement actual file selection
 5. Hook up developer mode settings
+
+### 19:12 - Hotbar Integration Complete
+- Added Coding Command button to Hotbar (slot 6)
+- Created toggleCodingCommandPane action
+- Integrated with HomePage keyboard shortcuts (Cmd/Ctrl+6)
+- All tests passing
+
+### Next Phase - Enhanced Context Support:
+1. Enhance Claude Bridge Service for file/project context
+2. Add WebSocket message types for file context
+3. Implement file picker dialog
+4. Connect developer mode settings to configuration service

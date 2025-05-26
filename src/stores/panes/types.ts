@@ -47,6 +47,7 @@ export interface PaneStoreType extends PaneState {
   openPreviousChatsPane: () => void; // Open Previous Chats List pane
   togglePreviousChatsPane: () => void; // Toggle Previous Chats List pane (open if closed, close if open)
   openCodingCommandPane: () => void; // Open Coding Command pane
+  toggleCodingCommandPane: () => void; // Toggle Coding Command pane (open if closed, close if open)
 }
 
 export type SetPaneStore = StoreApi<PaneStoreType>["setState"];
