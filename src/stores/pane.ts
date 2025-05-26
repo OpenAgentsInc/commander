@@ -30,6 +30,8 @@ import {
   // Previous chats pane actions
   openPreviousChatsPaneAction,
   togglePreviousChatsPaneAction,
+  // Coding command pane actions
+  openCodingCommandPaneAction,
 } from "./panes/actions";
 import {
   DEFAULT_NIP28_PANE_ID,
@@ -131,6 +133,8 @@ export const usePaneStore = create<PaneStoreType>()(
       // Previous chats pane
       openPreviousChatsPane: () => openPreviousChatsPaneAction(set),
       togglePreviousChatsPane: () => togglePreviousChatsPaneAction(set, get),
+      // Coding command pane
+      openCodingCommandPane: () => openCodingCommandPaneAction(set),
       resetHUDState: () => {
         // Force recreate initial panes with current screen dimensions
         const screenWidth =

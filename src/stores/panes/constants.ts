@@ -62,3 +62,9 @@ export const PREVIOUS_CHATS_PANE_ID = "previous_chats_list_pane";
 export const PREVIOUS_CHATS_PANE_TITLE = "Chat History";
 export const PREVIOUS_CHATS_PANE_DEFAULT_WIDTH = 300;
 export const PREVIOUS_CHATS_PANE_DEFAULT_HEIGHT = 450;
+
+// Constants for Coding Command pane
+export const CODING_COMMAND_PANE_ID = "coding_command_main";
+export const CODING_COMMAND_PANE_TITLE = "Coding Assistant";
+export const CODING_COMMAND_PANE_DEFAULT_WIDTH = 600;
+export const CODING_COMMAND_PANE_DEFAULT_HEIGHT = 700;

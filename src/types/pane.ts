@@ -21,6 +21,7 @@ export type Pane = {
     | "restore_wallet_content"
     | "agent_chat"
     | "previous_chats_list"
+    | "coding_command"
     | string; // Type of content the pane displays. Add more as needed.
   title: string; // Title displayed in the pane's title bar.
   x: number; // X-coordinate of the top-left corner.

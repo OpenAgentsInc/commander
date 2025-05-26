@@ -24,3 +24,5 @@ export * from "./toggleAgentChatPane";
 // Previous chats pane actions
 export * from "./openPreviousChatsPane";
 export * from "./togglePreviousChatsPane";
+// Coding command pane actions
+export * from "./openCodingCommandPane";
