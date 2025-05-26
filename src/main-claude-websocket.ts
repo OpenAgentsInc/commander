@@ -281,8 +281,20 @@ export function setupClaudeWebSocketHandler() {
     
     ws.on('open', () => {
       console.log("[Main Process] Connected to bridge service");
-      // Send the command
-      ws.send(JSON.stringify({ id: requestId, args }));
+      // Send the command with optional file context
+      const bridgeRequest: any = { id: requestId, args };
+      
+      // Add file context if provided
+      if (params.contextFiles && Array.isArray(params.contextFiles)) {
+        bridgeRequest.contextFiles = params.contextFiles;
+        console.log(`[Main Process] Including ${params.contextFiles.length} context files`);
+      }
+      if (params.contextDirectories && Array.isArray(params.contextDirectories)) {
+        bridgeRequest.contextDirectories = params.contextDirectories;
+        console.log(`[Main Process] Including ${params.contextDirectories.length} context directories`);
+      }
+      
+      ws.send(JSON.stringify(bridgeRequest));
     });
     
     ws.on('message', (data: string) => {

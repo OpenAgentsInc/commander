@@ -55,18 +55,48 @@ export const CodingCommandPane: React.FC<CodingCommandPaneProps> = ({
   }, [selectedProvider, setSelectedProvider]);
 
   const handleSendMessage = (content: string) => {
-    // Include selected files context in the message
+    // Send message with file context via the sessionId mechanism
+    // The useAgentChat hook will pass these through the AI orchestration layer
+    const messageOptions: any = {};
+    
+    if (selectedFiles.length > 0) {
+      // Add file paths to the options that will be passed through the layers
+      messageOptions.contextFiles = selectedFiles;
+    }
+    
+    // For now, we'll include file list in the message content
+    // TODO: Pass contextFiles through the orchestration layer properly
     const contextPrefix = selectedFiles.length > 0 
       ? `Context files: ${selectedFiles.join(", ")}\n\n` 
       : "";
+    
     sendMessage(contextPrefix + content);
   };
 
-  const handleFileSelect = () => {
-    // In a real implementation, this would open a file picker
-    // For now, we'll just simulate adding a file
-    const mockFile = `/src/example${selectedFiles.length + 1}.ts`;
-    setSelectedFiles([...selectedFiles, mockFile]);
+  const handleFileSelect = async () => {
+    try {
+      const electronAPI = (window as any).electronAPI;
+      if (!electronAPI?.fileDialog?.selectFiles) {
+        console.error("File dialog API not available");
+        return;
+      }
+      
+      const files = await electronAPI.fileDialog.selectFiles({
+        title: "Select Files for Context",
+        multiSelections: true,
+        filters: [
+          { name: "Code Files", extensions: ["js", "jsx", "ts", "tsx", "py", "go", "rs", "java", "cpp", "c", "h"] },
+          { name: "Text Files", extensions: ["txt", "md", "json", "yaml", "yml", "toml", "xml"] },
+          { name: "All Files", extensions: ["*"] },
+        ],
+      });
+      
+      if (files && files.length > 0) {
+        setSelectedFiles([...selectedFiles, ...files]);
+      }
+    } catch (error) {
+      console.error("Error selecting files:", error);
+    }
   };
 
   const handleCopyCode = (code: string, index: number) => {

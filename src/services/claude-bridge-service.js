@@ -382,7 +382,7 @@ wss.on('connection', (ws) => {
       return;
     }
     
-    const { id, args } = request;
+    const { id, args, contextFiles, contextDirectories } = request;
     
     if (!args || !Array.isArray(args)) {
       ws.send(JSON.stringify({
@@ -391,6 +391,31 @@ wss.on('connection', (ws) => {
         error: 'Missing or invalid args array'
       }));
       return;
+    }
+    
+    // Process context files if provided
+    let fileContext = '';
+    if (contextFiles && Array.isArray(contextFiles)) {
+      log(`Processing ${contextFiles.length} context files`);
+      for (const filePath of contextFiles) {
+        try {
+          if (fs.existsSync(filePath)) {
+            const content = fs.readFileSync(filePath, 'utf8');
+            const relativePath = path.relative(PROJECT_ROOT, filePath);
+            fileContext += `\n\n--- File: ${relativePath} ---\n${content}\n--- End of ${relativePath} ---\n`;
+          } else {
+            log(`Context file not found: ${filePath}`);
+          }
+        } catch (e) {
+          log(`Error reading context file ${filePath}: ${e.message}`);
+        }
+      }
+    }
+    
+    // Process context directories if provided
+    if (contextDirectories && Array.isArray(contextDirectories)) {
+      log(`Processing ${contextDirectories.length} context directories`);
+      // TODO: Implement directory traversal with file filtering
     }
     
     // Ensure streaming format is enabled
@@ -404,6 +429,16 @@ wss.on('connection', (ws) => {
     // Add --dangerously-skip-permissions flag to avoid permission prompts
     if (!claudeArgs.includes('--dangerously-skip-permissions')) {
       claudeArgs.push('--dangerously-skip-permissions');
+    }
+    
+    // If we have file context, prepend it to the prompt
+    if (fileContext) {
+      const promptIndex = claudeArgs.findIndex(arg => arg === '-p');
+      if (promptIndex !== -1 && promptIndex + 1 < claudeArgs.length) {
+        const originalPrompt = claudeArgs[promptIndex + 1];
+        claudeArgs[promptIndex + 1] = fileContext + '\n\n' + originalPrompt;
+        log(`Added file context to prompt (${fileContext.length} chars)`);
+      }
     }
     
     log(`Executing Claude CLI with streaming args: ${claudeArgs.join(' ')}`);

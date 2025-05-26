@@ -25,6 +25,9 @@ export interface ClaudeExecParams {
   stop?: string | string[]; // maps to --stop-sequences
   // Database integration
   sessionId?: string; // Session ID for database persistence
+  // File context support
+  contextFiles?: string[]; // Array of file paths to include as context
+  contextDirectories?: string[]; // Array of directories to include as context
   // Add other params the CLI might support
   [key: string]: unknown; // Allow other params
 }

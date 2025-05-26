@@ -18,6 +18,12 @@ const claudeCodeChannels = {
   chatStream: "claude-code:chat-stream",
 };
 
+// Define file dialog channels inline to avoid import issues
+const fileDialogChannels = {
+  selectFiles: "file-dialog:select-files",
+  selectDirectory: "file-dialog:select-directory",
+};
+
 export default function exposeContexts() {
   // Build unified electronAPI object with all IPC functions
   const electronAPI = {
@@ -131,6 +137,21 @@ export default function exposeContexts() {
       saveToolCall: (toolCall: DBToolExecution) => ipcRenderer.invoke(dbChannels.saveToolCall, toolCall),
       updateToolCallResult: (toolCallId: string, resultJson: string, status: "executed_success" | "executed_error") => ipcRenderer.invoke(dbChannels.updateToolCallResult, toolCallId, resultJson, status),
       getToolCallsForMessage: (messageId: string) => ipcRenderer.invoke(dbChannels.getToolCallsForMessage, messageId),
+    },
+
+    // File Dialog API
+    fileDialog: {
+      selectFiles: (options?: {
+        title?: string;
+        defaultPath?: string;
+        filters?: Array<{ name: string; extensions: string[] }>;
+        multiSelections?: boolean;
+      }) => ipcRenderer.invoke(fileDialogChannels.selectFiles, options),
+      
+      selectDirectory: (options?: {
+        title?: string;
+        defaultPath?: string;
+      }) => ipcRenderer.invoke(fileDialogChannels.selectDirectory, options),
     },
   };
 

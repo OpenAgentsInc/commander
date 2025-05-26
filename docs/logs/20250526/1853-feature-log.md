@@ -69,3 +69,40 @@ Implementing Feature #1 from the 30-day sprint: Claude Code Deep Integration & "
 2. Add WebSocket message types for file context
 3. Implement file picker dialog
 4. Connect developer mode settings to configuration service
+
+### 19:17 - Understanding the Architecture
+- Claude Code uses a multi-layer architecture:
+  - UI Component (CodingCommandPane) → uses useAgentChat hook
+  - AgentChatPane → ChatOrchestratorService → ClaudeCodeAgentLanguageModelLive
+  - ClaudeCodeAgentLanguageModelLive → IPC calls via electronAPI.claudeCode
+  - Main process IPC handlers → ClaudeCodeService → ClaudeCliExecutor
+  - ClaudeCliExecutor spawns claude-bridge-service.js (separate Node process)
+  - Bridge service communicates via WebSocket and has database access
+
+- Current flow:
+  1. UI sends message
+  2. Goes through AI orchestration layer
+  3. IPC to main process
+  4. Main process uses ClaudeCliExecutor
+  5. Executor spawns bridge service
+  6. Bridge service executes Claude CLI with PTY
+
+### Next Implementation Steps:
+1. Add file context support to ClaudeExecParams interface ✓
+2. Update bridge service to handle file context via WebSocket ✓
+3. Modify CodingCommandPane to send file paths with messages ✓
+4. Add file selection dialog using Electron's dialog API ✓
+
+### 19:26 - File Context Support Implemented
+- Added contextFiles and contextDirectories to ClaudeExecParams
+- Updated bridge service to process file context and prepend to prompt
+- Modified main-claude-websocket.ts to pass context through WebSocket
+- Created file dialog IPC channels and listeners
+- Updated CodingCommandPane to use native file picker
+- Registered file dialog handlers in IPC system
+
+### Remaining Tasks:
+1. Pass contextFiles through the AI orchestration layers properly
+2. Add developer mode settings to configuration
+3. Implement directory traversal in bridge service
+4. Add tests for the new functionality
