@@ -156,6 +156,11 @@ export function setupClaudeWebSocketHandler() {
     console.log("[Main Process] Claude WebSocket stream request:", requestId);
     console.log("[Main Process] Received params:", JSON.stringify(params, null, 2));
     
+    // Import configuration service to check developer mode
+    const { Effect } = require("effect");
+    const { ConfigurationService } = require("@/services/configuration");
+    const { getMainRuntime } = require("@/services/runtime");
+    
     // Check if bridge service is available
     const bridgeAvailable = await checkBridgeService();
     if (!bridgeAvailable) {
@@ -279,10 +284,31 @@ export function setupClaudeWebSocketHandler() {
     let fullAssistantContent = "";
     let toolCalls: any[] = [];
     
-    ws.on('open', () => {
+    ws.on('open', async () => {
       console.log("[Main Process] Connected to bridge service");
       // Send the command with optional file context
       const bridgeRequest: any = { id: requestId, args };
+      
+      // Check developer mode setting
+      try {
+        const runtime = getMainRuntime();
+        const dangerousPermissions = await Effect.runPromise(
+          Effect.gen(function* (_) {
+            const config = yield* _(ConfigurationService);
+            const value = yield* _(config.get("CLAUDE_CODE_DANGEROUS_PERMISSIONS_ENABLED").pipe(
+              Effect.orElseSucceed(() => "false")
+            ));
+            return value === "true";
+          }).pipe(Effect.provide(runtime))
+        );
+        
+        if (dangerousPermissions) {
+          bridgeRequest.dangerousPermissions = true;
+          console.log("[Main Process] Developer mode enabled for Claude Code");
+        }
+      } catch (error) {
+        console.error("[Main Process] Failed to check developer mode setting:", error);
+      }
       
       // Add file context if provided
       if (params.contextFiles && Array.isArray(params.contextFiles)) {

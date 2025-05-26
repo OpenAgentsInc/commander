@@ -426,9 +426,12 @@ wss.on('connection', (ws) => {
     }
     claudeArgs.push('--output-format', 'stream-json');
     
-    // Add --dangerously-skip-permissions flag to avoid permission prompts
-    if (!claudeArgs.includes('--dangerously-skip-permissions')) {
+    // Add --dangerously-skip-permissions flag if enabled via configuration
+    // Note: Bridge service reads from request, not from config directly
+    // The main process should pass this flag based on config
+    if (request.dangerousPermissions && !claudeArgs.includes('--dangerously-skip-permissions')) {
       claudeArgs.push('--dangerously-skip-permissions');
+      log('Developer mode enabled: adding --dangerously-skip-permissions flag');
     }
     
     // If we have file context, prepend it to the prompt

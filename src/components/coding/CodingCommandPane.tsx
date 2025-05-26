@@ -19,6 +19,7 @@ import {
 import { useAgentChat } from "@/hooks/ai/useAgentChat";
 import { AgentChatMessage } from "@/services/ai/core/AgentChatMessage";
 import { cn } from "@/utils/tailwind";
+import { useConfigurationService } from "@/hooks/useConfigurationService";
 
 interface CodingCommandPaneProps {
   sessionId?: string;
@@ -32,7 +33,9 @@ export const CodingCommandPane: React.FC<CodingCommandPaneProps> = ({
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [showDiffView, setShowDiffView] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [developerMode, setDeveloperMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { getConfig, setConfig } = useConfigurationService();
   
   // Force Claude Code provider
   const {
@@ -53,6 +56,18 @@ export const CodingCommandPane: React.FC<CodingCommandPaneProps> = ({
       setSelectedProvider("claude_code");
     }
   }, [selectedProvider, setSelectedProvider]);
+
+  // Load developer mode setting
+  useEffect(() => {
+    getConfig("CLAUDE_CODE_DANGEROUS_PERMISSIONS_ENABLED")
+      .then((value) => {
+        setDeveloperMode(value === "true");
+      })
+      .catch(() => {
+        // Default to false if not set
+        setDeveloperMode(false);
+      });
+  }, [getConfig]);
 
   const handleSendMessage = (content: string) => {
     // Send message with file context via the sessionId mechanism
@@ -118,6 +133,15 @@ export const CodingCommandPane: React.FC<CodingCommandPaneProps> = ({
     }
     
     return blocks;
+  };
+
+  const handleDeveloperModeToggle = async (pressed: boolean) => {
+    try {
+      await setConfig("CLAUDE_CODE_DANGEROUS_PERMISSIONS_ENABLED", pressed ? "true" : "false");
+      setDeveloperMode(pressed);
+    } catch (error) {
+      console.error("Failed to update developer mode setting:", error);
+    }
   };
 
   return (
@@ -308,16 +332,31 @@ export const CodingCommandPane: React.FC<CodingCommandPaneProps> = ({
               <div>
                 <h3 className="text-sm font-medium">Developer Mode</h3>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Enable dangerous permissions for advanced file system operations
+                  Enable dangerous permissions for advanced file system operations. This allows Claude Code to execute commands and modify files without confirmation prompts.
                 </p>
-                <Toggle
-                  size="sm"
-                  className="mt-2"
-                  aria-label="Toggle developer mode"
-                >
-                  <Settings className="mr-1 h-3 w-3" />
-                  Enable --dangerously-skip-permissions
-                </Toggle>
+                <div className="mt-2 flex items-center gap-2">
+                  <Toggle
+                    size="sm"
+                    pressed={developerMode}
+                    onPressedChange={handleDeveloperModeToggle}
+                    aria-label="Toggle developer mode"
+                  >
+                    <Settings className="mr-1 h-3 w-3" />
+                    Enable --dangerously-skip-permissions
+                  </Toggle>
+                  {developerMode && (
+                    <Badge variant="destructive" className="text-xs">
+                      DANGEROUS
+                    </Badge>
+                  )}
+                </div>
+                {developerMode && (
+                  <div className="mt-2 rounded-md bg-destructive/10 p-2">
+                    <p className="text-xs text-destructive">
+                      ⚠️ Claude Code can now execute system commands and modify files without asking for permission.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </TabsContent>
