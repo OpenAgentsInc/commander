@@ -168,6 +168,8 @@ Consider bypassing a library abstraction when:
 
 - [019 - AiModel API Misuse](./019-aimodel-api-misuse.md) - The initial attempt to fix the usage
 - [020 - Config Service Context Isolation](./020-config-service-context-isolation.md) - Why manual provision failed
+- [001 - AiModel to Provider Type Inference](./001-aimodel-provider-type-inference.md) - Correct pattern without abstraction bypass
+- [014 - Double Yield Provider Error](./014-double-yield-provider-error.md) - Runtime errors from misusing abstractions
 - Effect's execution context isolation patterns
 - Library abstractions that create their own service contexts
 

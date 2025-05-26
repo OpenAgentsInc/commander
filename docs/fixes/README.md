@@ -15,7 +15,7 @@ As we work with Effect's sophisticated type system, we encounter various TypeScr
 
 ### 001 - [AiModel to Provider Type Inference](./001-aimodel-provider-type-inference.md)
 **Problem**: TypeScript fails to infer that yielding an `AiModel` produces a `Provider` in Effect generators  
-**Solution**: Explicit type cast to help TypeScript understand the inheritance chain  
+**Solution**: Single yield pattern - get provider directly from configured Effect, no double yielding  
 **Affects**: All AI provider implementations using `@effect/ai-openai`
 
 ### 002 - [Provider Service Access Pattern](./002-provider-service-access-pattern.md)
@@ -133,6 +133,11 @@ As we work with Effect's sophisticated type system, we encounter various TypeScr
 **Solution**: Synchronize database paths using platform-aware calculations, fix SQL injection vulnerabilities  
 **Affects**: All external services accessing the database, chat history persistence, cross-process data sharing
 
+### 025 - [Library Abstraction Bypass Pattern](./025-library-abstraction-bypass-pattern.md)
+**Problem**: Complex library abstractions like @effect/ai's AiModel → Provider pattern create persistent internal service errors  
+**Solution**: Bypass the abstraction entirely and use lower-level APIs directly when abstractions become obstacles  
+**Affects**: All @effect/ai provider integrations when Config service errors persist despite correct usage
+
 ## Fix Documentation Template
 
 When adding new fixes, please follow this structure:
@@ -204,6 +209,7 @@ When you solve a tricky TypeScript issue with Effect:
 - [010 - Generated.Client Interface Completion](./010-generated-client-interface-completion.md)
 - [019 - AiModel API Misuse](./019-aimodel-api-misuse.md)
 - [020 - Config Service Context Isolation](./020-config-service-context-isolation.md)
+- [025 - Library Abstraction Bypass Pattern](./025-library-abstraction-bypass-pattern.md)
 
 ### Testing Patterns
 - [009 - Test Type Import Conflicts](./009-test-type-import-conflicts.md)
@@ -259,6 +265,7 @@ Common patterns that often need fixes:
 18. **Credential Fallbacks**: Using `|| "test_value"` pattern causing shared test credentials ([022](./022-no-fallback-credentials-pattern.md))
 19. **Stale Runtime References**: React components using outdated Effect runtime after reinitialization ([023](./023-effect-runtime-stale-references.md))
 20. **Database Path Mismatch**: External services using different database paths than Electron app ([024](./024-database-path-synchronization.md))
+21. **Library Abstraction Obstacles**: When library abstractions create more problems than they solve ([025](./025-library-abstraction-bypass-pattern.md))
 
 ### High-Impact Fixes (Batch Applicable)
 - **Service Tag Access**: `yield* _(ServiceName)` → `yield* _(ServiceName.Tag)` 
