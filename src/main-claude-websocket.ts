@@ -2,6 +2,8 @@
 
 import { ipcMain, dialog, BrowserWindow } from "electron";
 import * as crypto from "crypto";
+import { Effect } from "effect";
+import type { DBSession, DBMessage, DBToolExecution } from "@/services/db";
 
 const WebSocket = require('ws');
 
@@ -9,109 +11,45 @@ const WebSocket = require('ws');
 const BRIDGE_SERVICE_URL = 'ws://localhost:45671';
 const activeConnections = new Map<string, WebSocket>();
 
-// Database operation helpers
-async function saveSessionToDatabase(session: any): Promise<void> {
-  const ws = new WebSocket(BRIDGE_SERVICE_URL);
-  return new Promise((resolve, reject) => {
-    ws.on('open', () => {
-      ws.send(JSON.stringify({
-        type: 'db',
-        id: `db-save-session-${Date.now()}`,
-        operation: 'saveSession',
-        params: session
-      }));
-    });
-    
-    ws.on('message', (data: string) => {
-      const response = JSON.parse(data);
-      ws.close();
-      if (response.type === 'db_result') {
-        resolve();
-      } else if (response.type === 'db_error') {
-        reject(new Error(response.error));
-      }
-    });
-    
-    ws.on('error', reject);
-  });
+// Import database functions from db-listeners
+import { runDbEffect } from "@/helpers/ipc/db/db-listeners";
+import { DatabaseService } from "@/services/db";
+
+// Database operation helpers - now use the Electron app's DatabaseService
+async function saveSessionToDatabase(session: DBSession): Promise<void> {
+  const result = await runDbEffect(
+    Effect.flatMap(DatabaseService, db => db.saveSession(session))
+  );
+  if (result && typeof result === 'object' && '__error' in result) {
+    throw new Error(result.message);
+  }
 }
 
-async function saveMessageToDatabase(message: any): Promise<void> {
-  const ws = new WebSocket(BRIDGE_SERVICE_URL);
-  return new Promise((resolve, reject) => {
-    ws.on('open', () => {
-      ws.send(JSON.stringify({
-        type: 'db',
-        id: `db-save-message-${Date.now()}`,
-        operation: 'saveMessage',
-        params: message
-      }));
-    });
-    
-    ws.on('message', (data: string) => {
-      const response = JSON.parse(data);
-      ws.close();
-      if (response.type === 'db_result') {
-        resolve();
-      } else if (response.type === 'db_error') {
-        reject(new Error(response.error));
-      }
-    });
-    
-    ws.on('error', reject);
-  });
+async function saveMessageToDatabase(message: DBMessage): Promise<void> {
+  const result = await runDbEffect(
+    Effect.flatMap(DatabaseService, db => db.saveMessage(message))
+  );
+  if (result && typeof result === 'object' && '__error' in result) {
+    throw new Error(result.message);
+  }
 }
 
-async function saveToolCallToDatabase(toolCall: any): Promise<void> {
-  const ws = new WebSocket(BRIDGE_SERVICE_URL);
-  return new Promise((resolve, reject) => {
-    ws.on('open', () => {
-      ws.send(JSON.stringify({
-        type: 'db',
-        id: `db-save-toolcall-${Date.now()}`,
-        operation: 'saveToolCall',
-        params: toolCall
-      }));
-    });
-    
-    ws.on('message', (data: string) => {
-      const response = JSON.parse(data);
-      ws.close();
-      if (response.type === 'db_result') {
-        resolve();
-      } else if (response.type === 'db_error') {
-        reject(new Error(response.error));
-      }
-    });
-    
-    ws.on('error', reject);
-  });
+async function saveToolCallToDatabase(toolCall: DBToolExecution): Promise<void> {
+  const result = await runDbEffect(
+    Effect.flatMap(DatabaseService, db => db.saveToolExecution(toolCall))
+  );
+  if (result && typeof result === 'object' && '__error' in result) {
+    throw new Error(result.message);
+  }
 }
 
-async function updateSessionInDatabase(sessionId: string, updates: any): Promise<void> {
-  const ws = new WebSocket(BRIDGE_SERVICE_URL);
-  return new Promise((resolve, reject) => {
-    ws.on('open', () => {
-      ws.send(JSON.stringify({
-        type: 'db',
-        id: `db-update-session-${Date.now()}`,
-        operation: 'updateSession',
-        params: { sessionId, updates }
-      }));
-    });
-    
-    ws.on('message', (data: string) => {
-      const response = JSON.parse(data);
-      ws.close();
-      if (response.type === 'db_result') {
-        resolve();
-      } else if (response.type === 'db_error') {
-        reject(new Error(response.error));
-      }
-    });
-    
-    ws.on('error', reject);
-  });
+async function updateSessionInDatabase(sessionId: string, updates: Partial<DBSession>): Promise<void> {
+  const result = await runDbEffect(
+    Effect.flatMap(DatabaseService, db => db.updateSession(sessionId, updates))
+  );
+  if (result && typeof result === 'object' && '__error' in result) {
+    throw new Error(result.message);
+  }
 }
 
 // Check if bridge service is running
@@ -251,15 +189,17 @@ export function setupClaudeWebSocketHandler() {
       
       if (lastUserMessage) {
         try {
-          const userDbMessage = {
+          const userDbMessage: DBMessage = {
             id: generateId(),
             session_id: sessionId,
-            role: "user",
+            role: "user" as const,
             content: lastUserMessage.content,
             timestamp: now,
-            model: params.model || "claude-3-opus-20240229",
             tool_calls_json: null,
-            metadata_json: null
+            metadata_json: null,
+            name: null,
+            tool_call_id: null,
+            provider_message_id: null
           };
           
           await saveMessageToDatabase(userDbMessage);
@@ -334,14 +274,17 @@ export function setupClaudeWebSocketHandler() {
               // Save the assistant message to database
               (async () => {
                 try {
-                  const assistantDbMessage = {
+                  const assistantDbMessage: DBMessage = {
                     id: assistantMessageId,
                     session_id: sessionId,
-                    role: "assistant",
+                    role: "assistant" as const,
                     content: assistantMessage.content.filter((p: any) => p.type === 'text').map((p: any) => p.text).join(''),
-                    tool_calls_json: toolCalls.length > 0 ? JSON.stringify(toolCalls) : undefined,
+                    tool_calls_json: toolCalls.length > 0 ? JSON.stringify(toolCalls) : null,
                     timestamp: Math.floor(Date.now() / 1000),
                     provider_message_id: claudeMessage.id,
+                    metadata_json: null,
+                    name: null,
+                    tool_call_id: null
                   };
                   
                   await saveMessageToDatabase(assistantDbMessage);
@@ -350,12 +293,13 @@ export function setupClaudeWebSocketHandler() {
                   // Save tool executions if any
                   const toolUses = assistantMessage.content.filter((p: any) => p.type === 'tool_use');
                   for (const tu of toolUses) {
-                    const toolExecution = {
+                    const toolExecution: DBToolExecution = {
                       id: tu.id,
                       message_id: assistantMessageId,
                       tool_name: tu.name,
                       arguments_json: JSON.stringify(tu.input || {}),
-                      status: "pending",
+                      result_json: null,
+                      status: "pending" as const,
                       created_at: Math.floor(Date.now() / 1000),
                       updated_at: Math.floor(Date.now() / 1000),
                     };
@@ -463,13 +407,17 @@ export function setupClaudeWebSocketHandler() {
             if (message.exitCode === 0 && fullAssistantContent) {
               (async () => {
                 try {
-                  const assistantDbMessage = {
+                  const assistantDbMessage: DBMessage = {
                     id: assistantMessageId,
                     session_id: sessionId,
-                    role: "assistant",
+                    role: "assistant" as const,
                     content: fullAssistantContent,
-                    tool_calls_json: toolCalls.length > 0 ? JSON.stringify(toolCalls) : undefined,
+                    tool_calls_json: toolCalls.length > 0 ? JSON.stringify(toolCalls) : null,
                     timestamp: Math.floor(Date.now() / 1000),
+                    metadata_json: null,
+                    name: null,
+                    tool_call_id: null,
+                    provider_message_id: null
                   };
                   
                   await saveMessageToDatabase(assistantDbMessage);
@@ -478,12 +426,13 @@ export function setupClaudeWebSocketHandler() {
                   // Save tool executions if any
                   if (toolCalls.length > 0) {
                     for (const tc of toolCalls) {
-                      const toolExecution = {
+                      const toolExecution: DBToolExecution = {
                         id: tc.id,
                         message_id: assistantMessageId,
                         tool_name: tc.function.name,
                         arguments_json: tc.function.arguments,
-                        status: "pending",
+                        result_json: null,
+                        status: "pending" as const,
                         created_at: Math.floor(Date.now() / 1000),
                         updated_at: Math.floor(Date.now() / 1000),
                       };

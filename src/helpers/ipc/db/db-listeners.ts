@@ -69,6 +69,23 @@ export async function initializeDatabaseService() {
   }
 }
 
+// Export runDbEffect for use by other modules like main-claude-websocket
+export async function runDbEffect<A, E extends DatabaseError>(
+  effect: Effect.Effect<A, E, DatabaseService>
+): Promise<A | IpcErrorObject> {
+  try {
+    if (!databaseRuntime) {
+      await initializeDatabaseService();
+    }
+    if (!databaseRuntime) {
+      throw new Error("Database runtime not available");
+    }
+    return await Effect.runPromise(Effect.provide(effect, databaseRuntime));
+  } catch (error) {
+    return extractErrorForIPC(error);
+  }
+}
+
 export function addDatabaseEventListeners() {
   if ((global as any).__databaseEventListenersRegistered) {
     console.log("[DB IPC] Database event listeners already registered, skipping...");
@@ -76,22 +93,6 @@ export function addDatabaseEventListeners() {
   }
 
   console.log("[DB IPC] Registering database event listeners...");
-
-  const runDbEffect = async <A, E extends DatabaseError>(
-    effect: Effect.Effect<A, E, DatabaseService>
-  ): Promise<A | IpcErrorObject> => {
-    try {
-      if (!databaseRuntime) {
-        await initializeDatabaseService();
-      }
-      if (!databaseRuntime) {
-        throw new Error("Database runtime not available");
-      }
-      return await Effect.runPromise(Effect.provide(effect, databaseRuntime));
-    } catch (error) {
-      return extractErrorForIPC(error);
-    }
-  };
 
   ipcMain.handle(dbChannels.initDB, () =>
     runDbEffect(Effect.flatMap(DatabaseService, db => db.initDB()))
@@ -118,7 +119,7 @@ export function addDatabaseEventListeners() {
   );
 
   ipcMain.handle(dbChannels.saveToolCall, (_, toolCall: DBToolExecution) =>
-    runDbEffect(Effect.flatMap(DatabaseService, db => db.saveToolCall(toolCall)))
+    runDbEffect(Effect.flatMap(DatabaseService, db => db.saveToolExecution(toolCall)))
   );
 
   ipcMain.handle(dbChannels.updateToolCallResult, (_, toolCallId: string, resultJson: string, status: "executed_success" | "executed_error") =>
