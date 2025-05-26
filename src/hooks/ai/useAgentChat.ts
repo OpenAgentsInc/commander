@@ -13,6 +13,7 @@ import {
 import { getMainRuntime } from "@/services/runtime";
 import { TelemetryService, type TelemetryEvent } from "@/services/telemetry";
 import { useAgentChatStore } from "@/stores/ai/agentChatStore";
+import { useClaudeCodeStore } from "@/stores/ai/claudeCodeStore";
 import { DatabaseService } from "@/services/db";
 import type { DBMessage, DBToolExecution } from "@/services/db";
 
@@ -247,10 +248,14 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
         ...conversationHistoryForLLM,
       ];
 
+      const { activeFolderPath: claudeActiveFolder } = useClaudeCodeStore.getState(); // Get state directly
+      
       const orchestratorOptions: Parameters<ChatOrchestratorService['streamConversation']>[0]['options'] = {
         temperature: 0.7,
         maxTokens: 2048,
         sessionId: sessionId, // Pass sessionId for Claude Code provider
+        // Add activeFolder if Claude Code is selected and folder is set
+        ...(selectedProviderKey === "claude_code" && claudeActiveFolder && { activeFolder: claudeActiveFolder }),
       } as any;
 
       const currentRuntime = getMainRuntime(); // Get fresh runtime

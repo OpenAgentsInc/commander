@@ -2,14 +2,17 @@ import React, { useEffect } from "react";
 import { ChatContainer } from "@/components/chat";
 import { useAgentChat, type UIAgentChatMessage } from "@/hooks/ai/useAgentChat";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, FolderOpen } from "lucide-react";
 import { Effect } from "effect";
 import { TelemetryService } from "@/services/telemetry";
 import { getMainRuntime } from "@/services/runtime";
 import { AGENT_CHAT_PANE_TITLE } from "@/stores/panes/constants";
 import { useAgentChatStore } from "@/stores/ai/agentChatStore";
+import { useClaudeCodeStore } from "@/stores/ai/claudeCodeStore";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfigurationService } from "@/services/configuration";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface AgentChatPaneProps {
   sessionId?: string;
@@ -32,11 +35,13 @@ const AgentChatPane: React.FC<AgentChatPaneProps> = ({ sessionId, sessionTitle }
 
   const runtime = getMainRuntime();
   const { selectedProviderKey, availableProviders, setSelectedProviderKey, loadAvailableProviders } = useAgentChatStore();
+  const { activeFolderPath, setActiveFolderPath } = useClaudeCodeStore();
 
   // Get the current provider info
   const currentProvider = availableProviders.find(p => p.key === selectedProviderKey);
   const currentProviderName = currentProvider?.name || "Loading...";
   const currentModelName = currentProvider?.modelName || "Default";
+  const isClaudeCodeProviderSelected = selectedProviderKey === "claude_code";
 
   useEffect(() => {
     // Track pane open event
@@ -71,6 +76,39 @@ const AgentChatPane: React.FC<AgentChatPaneProps> = ({ sessionId, sessionTitle }
     );
   };
 
+  const handleSelectFolder = async () => {
+    if (window.electronAPI?.claudeCode?.selectFolder) {
+      try {
+        const folderPath = await window.electronAPI.claudeCode.selectFolder();
+        if (folderPath) {
+          setActiveFolderPath(folderPath);
+          Effect.runFork(
+            Effect.flatMap(TelemetryService, (ts) =>
+              ts.trackEvent({
+                category: "ui:agent_chat",
+                action: "claude_code_folder_selected",
+                label: folderPath,
+              }),
+            ).pipe(Effect.provide(runtime)),
+          );
+        }
+      } catch (error) {
+        console.error("Error selecting folder:", error);
+        Effect.runFork(
+          Effect.flatMap(TelemetryService, (ts) =>
+            ts.trackEvent({
+              category: "ui:agent_chat:error",
+              action: "claude_code_folder_selection_failed",
+              label: error instanceof Error ? error.message : String(error),
+            }),
+          ).pipe(Effect.provide(runtime)),
+        );
+      }
+    } else {
+      console.warn("selectFolder API not available on window.electronAPI.claudeCode");
+    }
+  };
+
   const handleSend = () => {
     if (currentInput.trim()) {
       sendMessage(currentInput);
@@ -95,6 +133,34 @@ const AgentChatPane: React.FC<AgentChatPaneProps> = ({ sessionId, sessionTitle }
             </SelectContent>
           </Select>
           <span className="ml-2">Model: {currentModelName}</span>
+          {isClaudeCodeProviderSelected && (
+            <>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-7 w-7 ml-2"
+                      onClick={handleSelectFolder}
+                      title="Select Active Folder for Claude Code"
+                    >
+                      <FolderOpen className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Select Active Folder for Claude Code</p>
+                    {activeFolderPath && <p className="text-xs text-muted-foreground mt-1">Current: {activeFolderPath.length > 30 ? `...${activeFolderPath.slice(-27)}` : activeFolderPath}</p>}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              {activeFolderPath && (
+                <div className="ml-2 text-[10px] text-muted-foreground truncate max-w-[150px]" title={activeFolderPath}>
+                  Folder: {activeFolderPath.length > 20 ? `...${activeFolderPath.slice(-17)}` : activeFolderPath}
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
 

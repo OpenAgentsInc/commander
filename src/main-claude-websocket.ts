@@ -1,6 +1,6 @@
 // WebSocket implementation for Claude CLI via external bridge service
 
-import { ipcMain } from "electron";
+import { ipcMain, dialog } from "electron";
 import * as crypto from "crypto";
 
 const WebSocket = require('ws');
@@ -281,8 +281,12 @@ export function setupClaudeWebSocketHandler() {
     
     ws.on('open', () => {
       console.log("[Main Process] Connected to bridge service");
-      // Send the command
-      ws.send(JSON.stringify({ id: requestId, args }));
+      // Send the command with activeFolder if provided
+      ws.send(JSON.stringify({ 
+        id: requestId, 
+        args,
+        activeFolder: params.activeFolder // Forward the activeFolder if present
+      }));
     });
     
     ws.on('message', (data: string) => {
@@ -563,5 +567,19 @@ export function setupClaudeWebSocketHandler() {
       ws.close();
       activeConnections.delete(requestId);
     }
+  });
+  
+  // Handle folder selection
+  ipcMain.handle("claude-code:select-folder", async () => {
+    console.log("[Main Process] Received claude-code:select-folder request");
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory', 'dontAddToRecent']
+    });
+    if (!result.canceled && result.filePaths.length > 0) {
+      console.log("[Main Process] Folder selected:", result.filePaths[0]);
+      return result.filePaths[0];
+    }
+    console.log("[Main Process] Folder selection cancelled or no path selected.");
+    return null;
   });
 }

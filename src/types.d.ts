@@ -8,6 +8,7 @@ declare global {
     max_tokens?: number;
     temperature?: number;
     sessionId?: string; // Add sessionId for database integration
+    activeFolder?: string; // New field for the active folder path
     [key: string]: any;
   }
 
@@ -48,6 +49,7 @@ declare global {
       onDone: () => void,
       onError: (error: any) => void
     ) => () => void;
+    selectFolder: () => Promise<string | null>; // Add this method
   }
 
   interface OllamaAPI {

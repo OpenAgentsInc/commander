@@ -263,7 +263,8 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                         model: options.model || "claude-3-opus-20240229",
                         max_tokens: options.maxTokens,
                         temperature: options.temperature,
-                        sessionId: (options as any).sessionId, // Pass sessionId for database persistence
+                        sessionId: (options as any).sessionId, // Pass sessionId for database persistence,
+                        activeFolder: (options as any).activeFolder, // Pass activeFolder for Claude Code context
                       }),
                       catch: (error) => {
                         const serializedCause = getErrorMessage(error);
@@ -326,7 +327,8 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                           model: options.model || "claude-sonnet",
                           max_tokens: options.maxTokens,
                           temperature: options.temperature,
-                          sessionId: (options as any).sessionId, // Pass sessionId for database persistence
+                          sessionId: (options as any).sessionId, // Pass sessionId for database persistence,
+                          activeFolder: (options as any).activeFolder, // Pass activeFolder for Claude Code context
                         },
                         (chunk: string) => {
                           // Emit each chunk as a text delta
@@ -392,7 +394,8 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                         model: options.model || "claude-3-opus-20240229",
                         max_tokens: options.maxTokens,
                         temperature: options.temperature,
-                        sessionId: (options as any).sessionId, // Pass sessionId for database persistence
+                        sessionId: (options as any).sessionId, // Pass sessionId for database persistence,
+                        activeFolder: (options as any).activeFolder, // Pass activeFolder for Claude Code context
                       }),
                       catch: (error) => {
                         const serializedCause = getErrorMessage(error);
