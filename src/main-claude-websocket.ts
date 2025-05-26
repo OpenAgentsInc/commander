@@ -574,46 +574,58 @@ export function setupClaudeWebSocketHandler() {
     console.log("[Main Process] Received claude-code:select-folder request");
     
     try {
+      // Workaround: Focus the window first
       const mainWindow = BrowserWindow.fromWebContents(event.sender);
       console.log("[Main Process] Main window found:", !!mainWindow);
       
-      // Use more explicit properties
+      if (mainWindow) {
+        console.log("[Main Process] Focusing main window before dialog");
+        mainWindow.focus();
+        
+        // Small delay to ensure focus
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      // Try different property combinations as workaround
       const dialogOptions: Electron.OpenDialogOptions = {
-        properties: ['openDirectory'],
-        title: 'Select Project Folder for Claude Code',
-        buttonLabel: 'Select Folder',
-        message: 'Choose a folder for Claude Code to use as the project context',
-        defaultPath: process.env.HOME || process.cwd()
+        properties: ['openDirectory', 'createDirectory', 'promptToCreate'],
+        title: 'Select Project Folder',
+        buttonLabel: 'Select',
       };
       
-      console.log("[Main Process] Showing dialog with options:", JSON.stringify(dialogOptions, null, 2));
+      console.log("[Main Process] Showing dialog with options:", dialogOptions);
       
-      // Try showOpenDialogSync as a workaround
-      if (mainWindow) {
-        console.log("[Main Process] Using synchronous dialog with main window");
-        const result = dialog.showOpenDialogSync(mainWindow, dialogOptions);
-        console.log("[Main Process] Sync dialog result:", result);
-        
-        if (result && result.length > 0) {
-          console.log("[Main Process] Folder selected (sync):", result[0]);
+      // Try without specifying browserWindow to see if that helps
+      const result = await dialog.showOpenDialog(dialogOptions);
+      
+      console.log("[Main Process] Dialog result:", JSON.stringify(result, null, 2));
+      console.log("[Main Process] Result type:", typeof result);
+      console.log("[Main Process] Result keys:", result ? Object.keys(result) : 'null');
+      
+      // Check both possible result formats
+      if (result) {
+        // Handle the result object format
+        if ('filePaths' in result && Array.isArray(result.filePaths) && result.filePaths.length > 0) {
+          console.log("[Main Process] Folder selected from filePaths:", result.filePaths[0]);
+          return result.filePaths[0];
+        }
+        // Handle if result is directly an array (older Electron versions)
+        if (Array.isArray(result) && result.length > 0) {
+          console.log("[Main Process] Folder selected from array result:", result[0]);
           return result[0];
         }
-      } else {
-        console.log("[Main Process] Using async dialog without main window");
-        const asyncResult = await dialog.showOpenDialog(dialogOptions);
-        console.log("[Main Process] Async dialog result:", JSON.stringify(asyncResult, null, 2));
-        
-        if (!asyncResult.canceled && asyncResult.filePaths && asyncResult.filePaths.length > 0) {
-          console.log("[Main Process] Folder selected (async):", asyncResult.filePaths[0]);
-          return asyncResult.filePaths[0];
+        // Check canceled property
+        if ('canceled' in result && !result.canceled && 'filePaths' in result) {
+          console.log("[Main Process] Not canceled but filePaths is:", result.filePaths);
         }
       }
       
-      console.log("[Main Process] Folder selection cancelled or no path selected.");
+      console.log("[Main Process] No folder was selected");
       return null;
     } catch (error) {
       console.error("[Main Process] Error showing folder dialog:", error);
-      console.error("[Main Process] Error stack:", error.stack);
+      console.error("[Main Process] Error stack:", error?.stack);
+      console.error("[Main Process] Error type:", error?.constructor?.name);
       return null;
     }
   });
