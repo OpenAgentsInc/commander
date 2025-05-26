@@ -29,7 +29,14 @@ log(`Working directory: ${PROJECT_ROOT}`);
 
 // Initialize PGLite database
 let db = null;
-const dbPath = path.join(process.env.HOME || '/tmp', '.commander', 'database', 'main_v1');
+// Use the same path as Electron app: ~/Library/Application Support/Commander/commander-data/database/main_v1
+const electronUserDataPath = process.platform === 'darwin' 
+  ? path.join(process.env.HOME, 'Library', 'Application Support', 'Commander')
+  : process.platform === 'win32'
+  ? path.join(process.env.APPDATA, 'Commander')
+  : path.join(process.env.HOME, '.config', 'Commander');
+
+const dbPath = path.join(electronUserDataPath, 'commander-data', 'database', 'main_v1');
 
 async function initDatabase() {
   try {
@@ -83,6 +90,17 @@ async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
       CREATE INDEX IF NOT EXISTS idx_tool_executions_message_id ON tool_executions(message_id);
     `);
+    
+    // Add missing columns if they don't exist (for migration)
+    try {
+      await db.exec(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS name TEXT`);
+      await db.exec(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS tool_call_id TEXT`);
+      await db.exec(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS provider_message_id TEXT`);
+      await db.exec(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS title TEXT`);
+      log('Added missing columns to existing tables');
+    } catch (e) {
+      log('Migration: Some columns may already exist, continuing...');
+    }
     
     log('Database initialized successfully');
   } catch (error) {
@@ -145,111 +163,160 @@ async function handleDatabaseOperation(ws, request) {
     
     switch (operation) {
       case 'saveSession':
-        await db.exec(
+        await db.query(
           `INSERT INTO sessions (id, created_at, last_updated_at, provider_key, model_name, system_prompt, metadata_json, title) 
-           VALUES ('${params.id}', ${params.created_at}, ${params.last_updated_at}, '${params.provider_key}', 
-                   '${params.model_name || ''}', '${(params.system_prompt || '').replace(/'/g, "''")}', 
-                   '${params.metadata_json || ''}', '${params.title || ''}') 
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
            ON CONFLICT (id) DO UPDATE SET 
-             last_updated_at = ${params.last_updated_at},
-             provider_key = '${params.provider_key}',
-             model_name = '${params.model_name || ''}',
-             system_prompt = '${(params.system_prompt || '').replace(/'/g, "''")}',
-             metadata_json = '${params.metadata_json || ''}',
-             title = '${params.title || ''}'`
+             last_updated_at = $3,
+             provider_key = $4,
+             model_name = $5,
+             system_prompt = $6,
+             metadata_json = $7,
+             title = $8`,
+          [
+            params.id,
+            params.created_at,
+            params.last_updated_at,
+            params.provider_key,
+            params.model_name || null,
+            params.system_prompt || null,
+            params.metadata_json || null,
+            params.title || null
+          ]
         );
         result = { success: true };
         break;
         
       case 'getSession':
-        const sessionResult = await db.exec(
-          `SELECT * FROM sessions WHERE id = '${params.sessionId}'`
+        const sessionResult = await db.query(
+          `SELECT * FROM sessions WHERE id = $1`,
+          [params.sessionId]
         );
         result = sessionResult.rows ? sessionResult.rows[0] : null;
         break;
         
       case 'saveMessage':
-        await db.exec(
+        await db.query(
           `INSERT INTO messages (id, session_id, role, content, name, tool_call_id, tool_calls_json, timestamp, provider_message_id, metadata_json)
-           VALUES ('${params.id}', '${params.session_id}', '${params.role}', 
-                   '${(params.content || '').replace(/'/g, "''")}', '${params.name || ''}', '${params.tool_call_id || ''}',
-                   '${params.tool_calls_json || ''}', ${params.timestamp}, '${params.provider_message_id || ''}', 
-                   '${params.metadata_json || ''}')`
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          [
+            params.id,
+            params.session_id,
+            params.role,
+            params.content || null,
+            params.name || null,
+            params.tool_call_id || null,
+            params.tool_calls_json || null,
+            params.timestamp,
+            params.provider_message_id || null,
+            params.metadata_json || null
+          ]
         );
         result = { success: true };
         break;
         
       case 'getMessagesForSession':
         log(`Getting messages for session: ${params.sessionId}`);
-        const messagesResult = await db.exec(
-          `SELECT * FROM messages WHERE session_id = '${params.sessionId}' ORDER BY timestamp ASC LIMIT ${params.limit || 100} OFFSET ${params.offset || 0}`
+        const messagesResult = await db.query(
+          `SELECT * FROM messages WHERE session_id = $1 ORDER BY timestamp ASC LIMIT $2 OFFSET $3`,
+          [params.sessionId, params.limit || 100, params.offset || 0]
         );
         result = messagesResult.rows || [];
         log(`Found ${result.length} messages for session ${params.sessionId}`);
         break;
         
       case 'saveToolCall':
-        await db.exec(
+        await db.query(
           `INSERT INTO tool_executions (id, message_id, tool_name, arguments_json, result_json, status, created_at, updated_at)
-           VALUES ('${params.id}', '${params.message_id}', '${params.tool_name}', 
-                   '${params.arguments_json.replace(/'/g, "''")}', '${params.result_json || ''}', 
-                   '${params.status}', ${params.created_at}, ${params.updated_at})`
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            params.id,
+            params.message_id,
+            params.tool_name,
+            params.arguments_json,
+            params.result_json || null,
+            params.status,
+            params.created_at,
+            params.updated_at
+          ]
         );
         result = { success: true };
         break;
         
       case 'updateSession':
         const updateClauses = [];
+        const updateValues = [];
         const updates = params.updates || {};
+        let paramIndex = 2; // $1 is for sessionId
         
         if (updates.last_updated_at !== undefined) {
-          updateClauses.push(`last_updated_at = ${updates.last_updated_at}`);
+          updateClauses.push(`last_updated_at = $${paramIndex++}`);
+          updateValues.push(updates.last_updated_at);
         }
         if (updates.provider_key !== undefined) {
-          updateClauses.push(`provider_key = '${updates.provider_key}'`);
+          updateClauses.push(`provider_key = $${paramIndex++}`);
+          updateValues.push(updates.provider_key);
         }
         if (updates.model_name !== undefined) {
-          updateClauses.push(`model_name = '${updates.model_name || ''}'`);
+          updateClauses.push(`model_name = $${paramIndex++}`);
+          updateValues.push(updates.model_name || null);
         }
         if (updates.system_prompt !== undefined) {
-          updateClauses.push(`system_prompt = '${(updates.system_prompt || '').replace(/'/g, "''")}'`);
+          updateClauses.push(`system_prompt = $${paramIndex++}`);
+          updateValues.push(updates.system_prompt || null);
         }
         if (updates.metadata_json !== undefined) {
-          updateClauses.push(`metadata_json = '${updates.metadata_json || ''}'`);
+          updateClauses.push(`metadata_json = $${paramIndex++}`);
+          updateValues.push(updates.metadata_json || null);
         }
         if (updates.title !== undefined) {
-          updateClauses.push(`title = '${(updates.title || '').replace(/'/g, "''")}'`);
+          updateClauses.push(`title = $${paramIndex++}`);
+          updateValues.push(updates.title || null);
         }
         
         if (updateClauses.length > 0) {
-          await db.exec(
-            `UPDATE sessions SET ${updateClauses.join(', ')} WHERE id = '${params.sessionId}'`
+          await db.query(
+            `UPDATE sessions SET ${updateClauses.join(', ')} WHERE id = $1`,
+            [params.sessionId, ...updateValues]
           );
         }
         result = { success: true };
         break;
         
       case 'updateToolCallResult':
-        await db.exec(
+        await db.query(
           `UPDATE tool_executions 
-           SET result_json = '${params.resultJson.replace(/'/g, "''")}', 
-               status = '${params.status}', updated_at = ${Math.floor(Date.now() / 1000)}
-           WHERE id = '${params.toolCallId}'`
+           SET result_json = $1, 
+               status = $2, updated_at = $3
+           WHERE id = $4`,
+          [
+            params.resultJson,
+            params.status,
+            Math.floor(Date.now() / 1000),
+            params.toolCallId
+          ]
         );
         result = { success: true };
         break;
         
       case 'getToolCallsForMessage':
         const toolCallsResult = await db.query(
-          `SELECT * FROM tool_executions WHERE message_id = '${params.messageId}' ORDER BY created_at`
+          `SELECT * FROM tool_executions WHERE message_id = $1 ORDER BY created_at`,
+          [params.messageId]
         );
         result = toolCallsResult.rows || [];
         break;
         
       case 'getAllSessions':
         const { limit = 100, offset = 0, sortBy = 'last_updated_at', sortOrder = 'DESC' } = params || {};
-        const sessionsResult = await db.exec(
-          `SELECT * FROM sessions ORDER BY ${sortBy} ${sortOrder} LIMIT ${limit} OFFSET ${offset}`
+        // Validate sortBy to prevent SQL injection
+        const allowedSortColumns = ['created_at', 'last_updated_at'];
+        const safeSortBy = allowedSortColumns.includes(sortBy) ? sortBy : 'last_updated_at';
+        const safeSortOrder = sortOrder === 'ASC' ? 'ASC' : 'DESC';
+        
+        const sessionsResult = await db.query(
+          `SELECT * FROM sessions ORDER BY ${safeSortBy} ${safeSortOrder} LIMIT $1 OFFSET $2`,
+          [limit, offset]
         );
         result = sessionsResult.rows || [];
         log(`Found ${result.length} sessions`);
