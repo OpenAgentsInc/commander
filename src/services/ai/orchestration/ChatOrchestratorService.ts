@@ -67,8 +67,8 @@ export const ChatOrchestratorServiceLive = Layer.effect(
     const runTelemetry = (event: any) => Effect.runFork(telemetry.trackEvent(event).pipe(Effect.ignoreLogged));
 
     // Helper to get provider-specific AgentLanguageModel
-    const getProviderLanguageModel = (providerKey: string, modelName?: string): Effect.Effect<AgentLanguageModel, AiConfigurationError | AiProviderError> => {
-      return Effect.gen(function* (_) {
+    const getProviderLanguageModel = (providerKey: string, modelName?: string): Effect.Effect<AgentLanguageModel, AiConfigurationError | AiProviderError, never> => {
+      return (Effect.gen(function* (_) {
         runTelemetry({ category: "orchestrator", action: "get_provider_model_start", label: providerKey, value: modelName });
         
         switch (providerKey.toLowerCase()) {
@@ -107,12 +107,18 @@ export const ChatOrchestratorServiceLive = Layer.effect(
             console.log("[ChatOrchestratorService] Building NIP90 provider with config:", nip90Config);
             
             // Dynamically import NIP90 provider to avoid loading in renderer
-            const { NIP90AgentLanguageModelLive } = yield* _(
-              Effect.promise(() => import("@/services/ai/providers/nip90/NIP90AgentLanguageModelLive"))
+            const nip90Module: any = yield* _(
+              Effect.tryPromise({
+                try: () => import("@/services/ai/providers/nip90" as any),
+                catch: (error) => new AiProviderError({
+                  message: `Failed to load NIP90 provider: ${error}`,
+                  cause: error,
+                  isRetryable: false,
+                  provider: "nip90"
+                })
+              })
             );
-            const { NIP90ProviderConfigTag } = yield* _(
-              Effect.promise(() => import("@/services/ai/providers/nip90/NIP90ProviderConfig"))
-            );
+            const { NIP90AgentLanguageModelLive, NIP90ProviderConfigTag } = nip90Module;
             
             // Create NIP90 provider config layer
             const nip90ConfigLayer = Layer.succeed(NIP90ProviderConfigTag, nip90Config);
@@ -132,7 +138,13 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                 Effect.map((context) =>
                   Context.get(context, AgentLanguageModel.Tag)
                 ),
-                Effect.scoped
+                Effect.scoped,
+                Effect.mapError((error) => new AiProviderError({
+                  message: `Failed to build NIP90 provider: ${error}`,
+                  cause: error,
+                  isRetryable: false,
+                  provider: "nip90"
+                }))
               )
             );
             
@@ -183,12 +195,18 @@ export const ChatOrchestratorServiceLive = Layer.effect(
             };
 
             // Dynamically import NIP90 provider to avoid loading in renderer
-            const { NIP90AgentLanguageModelLive: NIP90AgentLanguageModelLiveCustom } = yield* _(
-              Effect.promise(() => import("@/services/ai/providers/nip90/NIP90AgentLanguageModelLive"))
+            const nip90ModuleCustom: any = yield* _(
+              Effect.tryPromise({
+                try: () => import("@/services/ai/providers/nip90" as any),
+                catch: (error) => new AiProviderError({
+                  message: `Failed to load NIP90 provider: ${error}`,
+                  cause: error,
+                  isRetryable: false,
+                  provider: "nip90_custom"
+                })
+              })
             );
-            const { NIP90ProviderConfigTag: NIP90ProviderConfigTagCustom } = yield* _(
-              Effect.promise(() => import("@/services/ai/providers/nip90/NIP90ProviderConfig"))
-            );
+            const { NIP90AgentLanguageModelLive: NIP90AgentLanguageModelLiveCustom, NIP90ProviderConfigTag: NIP90ProviderConfigTagCustom } = nip90ModuleCustom;
 
             const nip90ConfigLayerCustom = Layer.succeed(NIP90ProviderConfigTagCustom, nip90ConfigCustom);
 
@@ -204,7 +222,13 @@ export const ChatOrchestratorServiceLive = Layer.effect(
             const nip90AgentLMCustomInstance = yield* _(
               Layer.build(nip90AgentLMLayerCustom).pipe(
                 Effect.map((context) => Context.get(context, AgentLanguageModel.Tag)),
-                Effect.scoped
+                Effect.scoped,
+                Effect.mapError((error) => new AiProviderError({
+                  message: `Failed to build NIP90 custom provider: ${error}`,
+                  cause: error,
+                  isRetryable: false,
+                  provider: "nip90_custom"
+                }))
               )
             );
             runTelemetry({ category: "orchestrator", action: "get_provider_model_success_nip90_custom", label: providerKey });
@@ -417,7 +441,16 @@ export const ChatOrchestratorServiceLive = Layer.effect(
             runTelemetry({ category: "orchestrator", action: "get_provider_model_unknown", label: providerKey });
             return yield* _(Effect.fail(new AiConfigurationError({ message: `Unsupported provider key: ${providerKey}` })));
         }
-      });
+      }) as Effect.Effect<AgentLanguageModel, AiConfigurationError | AiProviderError, unknown>).pipe(
+        Effect.catchAllDefect((defect) => 
+          Effect.fail(new AiProviderError({
+            message: `Unexpected error in provider ${providerKey}: ${defect}`,
+            cause: defect,
+            isRetryable: false,
+            provider: providerKey
+          }))
+        )
+      ) as Effect.Effect<AgentLanguageModel, AiConfigurationError | AiProviderError, never>;
     };
 
     return {

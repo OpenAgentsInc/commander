@@ -113,7 +113,6 @@ const AgentChatPane: React.FC = () => {
       <div className="min-h-0 flex-grow">
         {" "}
         {/* Essential for ScrollArea in ChatContainer */}
-        {console.log("[AgentChatPane] Rendering messages:", messages.length, messages)}
         <ChatContainer
           className="!border-0 !bg-transparent !p-0 !shadow-none" // Adjusted for pane context
           messages={messages.map((m: UIAgentChatMessage) => ({

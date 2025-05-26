@@ -17,7 +17,6 @@ export interface ClaudeExecParams {
   disallowedTools?: string[];
   mcpConfig?: string;
   maxTurns?: number;
-  sessionId?: string; // Add sessionId for database integration
   // OpenAI/Anthropic style params, to be converted to CLI flags
   model?: string; // Will be used for --model if CLI supports, or just for logging
   temperature?: number;

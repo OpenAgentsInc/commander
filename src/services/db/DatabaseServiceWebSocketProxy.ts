@@ -100,6 +100,11 @@ export const DatabaseServiceWebSocketProxyLive = Layer.succeed(
     updateToolCallResult: (toolCallId, resultJson, status) => Effect.tryPromise({
       try: () => sendDatabaseRequest('updateToolCallResult', { toolCallId, resultJson, status }),
       catch: (e) => new DatabaseError({ message: `WebSocket updateToolCallResult failed: ${e}`, cause: e })
+    }),
+    
+    getToolCallsForMessage: (messageId) => Effect.tryPromise({
+      try: () => sendDatabaseRequest('getToolCallsForMessage', { messageId }),
+      catch: (e) => new DatabaseError({ message: `WebSocket getToolCallsForMessage failed: ${e}`, cause: e })
     })
   })
 );

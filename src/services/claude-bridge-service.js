@@ -202,6 +202,13 @@ async function handleDatabaseOperation(ws, request) {
         result = { success: true };
         break;
         
+      case 'getToolCallsForMessage':
+        const toolCallsResult = await db.query(
+          `SELECT * FROM tool_executions WHERE message_id = '${params.messageId}' ORDER BY started_at`
+        );
+        result = toolCallsResult.rows || [];
+        break;
+        
       default:
         throw new Error(`Unknown database operation: ${operation}`);
     }
