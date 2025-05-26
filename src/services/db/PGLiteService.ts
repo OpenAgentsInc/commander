@@ -38,7 +38,8 @@ export const PGLiteServiceLive = Layer.effect(
 
     const pgliteClient = yield* _(Effect.tryPromise({
       try: async () => {
-        const client = new PGlite(`file://${dataDir}`); // Ensure file:// prefix for Node persistence
+        // Use simple string path - PGLite should detect Node environment automatically
+        const client = new PGlite(dataDir);
         await client.waitReady;
         return client;
       },

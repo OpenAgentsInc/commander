@@ -1,4 +1,10 @@
 // src/services/ai/providers/nip90/NIP90AgentLanguageModelLive.ts
+
+// Prevent loading in renderer process
+if (typeof window !== 'undefined') {
+  throw new Error("NIP90AgentLanguageModelLive cannot be loaded in renderer process");
+}
+
 import { Layer, Effect, Stream, Option } from "effect";
 import {
   AgentLanguageModel,
@@ -19,7 +25,7 @@ import { getMainRuntime } from "@/services/runtime";
 import { NIP90ProviderConfigTag } from "./NIP90ProviderConfig";
 
 // Log when this module is loaded
-console.log("Loading NIP90AgentLanguageModelLive module");
+console.log("Loading NIP90AgentLanguageModelLive module in main process");
 
 // Dynamic import for ESM module
 const nostrToolsImport = async () => {

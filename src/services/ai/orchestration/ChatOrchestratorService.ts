@@ -13,11 +13,12 @@ import {
 } from "@/services/ai/core";
 import { ConfigurationService } from "@/services/configuration";
 import { TelemetryService } from "@/services/telemetry";
-import { NIP90AgentLanguageModelLive } from "@/services/ai/providers/nip90/NIP90AgentLanguageModelLive";
-import { NIP90ProviderConfigTag, type NIP90ProviderConfig } from "@/services/ai/providers/nip90/NIP90ProviderConfig";
+// Import NIP90 types only, not the implementation
+import { type NIP90ProviderConfig } from "@/services/ai/providers/nip90/NIP90ProviderConfig";
 import { NIP90Service } from "@/services/nip90";
 import { NostrService } from "@/services/nostr";
 import { NIP04Service } from "@/services/nip04";
+import { SparkService } from "@/services/spark";
 
 // Helper to safely access error message
 const getErrorMessage = (error: unknown): string => {
@@ -28,7 +29,6 @@ const getErrorMessage = (error: unknown): string => {
     JSON.stringify(error, Object.getOwnPropertyNames(error)) : 
     String(error);
 };
-import { SparkService } from "@/services/spark";
 import { DEFAULT_RELAYS_ARRAY } from "@/services/relays";
 
 export interface PreferredProviderConfig {
@@ -106,6 +106,14 @@ export const ChatOrchestratorServiceLive = Layer.effect(
             
             console.log("[ChatOrchestratorService] Building NIP90 provider with config:", nip90Config);
             
+            // Dynamically import NIP90 provider to avoid loading in renderer
+            const { NIP90AgentLanguageModelLive } = yield* _(
+              Effect.promise(() => import("@/services/ai/providers/nip90/NIP90AgentLanguageModelLive"))
+            );
+            const { NIP90ProviderConfigTag } = yield* _(
+              Effect.promise(() => import("@/services/ai/providers/nip90/NIP90ProviderConfig"))
+            );
+            
             // Create NIP90 provider config layer
             const nip90ConfigLayer = Layer.succeed(NIP90ProviderConfigTag, nip90Config);
             
@@ -174,9 +182,17 @@ export const ChatOrchestratorServiceLive = Layer.effect(
               modelIdentifier: modelIdFromConfig,
             };
 
-            const nip90ConfigLayerCustom = Layer.succeed(NIP90ProviderConfigTag, nip90ConfigCustom);
+            // Dynamically import NIP90 provider to avoid loading in renderer
+            const { NIP90AgentLanguageModelLive: NIP90AgentLanguageModelLiveCustom } = yield* _(
+              Effect.promise(() => import("@/services/ai/providers/nip90/NIP90AgentLanguageModelLive"))
+            );
+            const { NIP90ProviderConfigTag: NIP90ProviderConfigTagCustom } = yield* _(
+              Effect.promise(() => import("@/services/ai/providers/nip90/NIP90ProviderConfig"))
+            );
 
-            const nip90AgentLMLayerCustom = NIP90AgentLanguageModelLive.pipe(
+            const nip90ConfigLayerCustom = Layer.succeed(NIP90ProviderConfigTagCustom, nip90ConfigCustom);
+
+            const nip90AgentLMLayerCustom = NIP90AgentLanguageModelLiveCustom.pipe(
               Layer.provide(nip90ConfigLayerCustom),
               Layer.provide(Layer.succeed(NIP90Service, nip90Service)),
               Layer.provide(Layer.succeed(NostrService, nostrService)),

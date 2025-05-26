@@ -1,7 +1,9 @@
 // src/helpers/ipc/db/db-listeners.ts
 import { ipcMain } from "electron";
 import { Effect, Layer, Runtime, Cause } from "effect";
-import { DatabaseService, DatabaseError, DatabaseServiceLive, PGLiteServiceLive } from "@/services/db";
+import { DatabaseService, DatabaseError } from "@/services/db";
+import { DatabaseServiceLive } from "@/services/db/DatabaseServiceImpl";
+import { PGLiteServiceLive } from "@/services/db/PGLiteService";
 import type { DBSession, DBMessage, DBToolExecution } from "@/services/db";
 import { dbChannels } from "./db-channels";
 import { ConfigurationService, ConfigurationServiceLive, DefaultDevConfigLayer } from "@/services/configuration";
