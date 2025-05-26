@@ -126,6 +126,30 @@ export const DatabaseServiceLive = Layer.effect(
         ).pipe(Effect.asVoid);
       },
 
+      getAllSessions: (options = {}) => {
+        const { 
+          limit = 100, 
+          offset = 0, 
+          sortBy = "last_updated_at", 
+          sortOrder = "DESC" 
+        } = options;
+        
+        return runQuery<DBSession>(
+          `SELECT * FROM sessions ORDER BY ${sortBy} ${sortOrder} LIMIT $1 OFFSET $2;`,
+          [limit, offset]
+        ).pipe(
+          Effect.map(result => result.rows),
+          Effect.tap((sessions) => 
+            telemetry.trackEvent({ 
+              category: "db_query", 
+              action: "get_all_sessions", 
+              label: `Found ${sessions.length} sessions`,
+              value: sessions.length
+            }).pipe(Effect.ignore)
+          )
+        );
+      },
+
       saveMessage: (message) => runQuery(
         `INSERT INTO messages (id, session_id, role, content, name, tool_call_id, tool_calls_json, timestamp, provider_message_id, metadata_json)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);`,

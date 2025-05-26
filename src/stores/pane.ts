@@ -27,6 +27,9 @@ import {
   // Agent chat pane actions
   openAgentChatPaneAction,
   toggleAgentChatPaneAction,
+  // Previous chats pane actions
+  openPreviousChatsPaneAction,
+  togglePreviousChatsPaneAction,
 } from "./panes/actions";
 import {
   DEFAULT_NIP28_PANE_ID,
@@ -125,6 +128,9 @@ export const usePaneStore = create<PaneStoreType>()(
       // Agent chat pane
       openAgentChatPane: () => openAgentChatPaneAction(set),
       toggleAgentChatPane: () => toggleAgentChatPaneAction(set, get),
+      // Previous chats pane
+      openPreviousChatsPane: () => openPreviousChatsPaneAction(set),
+      togglePreviousChatsPane: () => togglePreviousChatsPaneAction(set, get),
       resetHUDState: () => {
         // Force recreate initial panes with current screen dimensions
         const screenWidth =

@@ -1,13 +1,14 @@
 import React from "react";
 import { cn } from "@/utils/tailwind";
 import { HotbarItem } from "./HotbarItem";
-import { Store, History, Hand, Wallet, Bot } from "lucide-react";
+import { Store, History, Hand, Wallet, Bot, MessageSquare } from "lucide-react";
 import { usePaneStore } from "@/stores/pane";
 import { useShallow } from "zustand/react/shallow";
 import {
   SELL_COMPUTE_PANE_ID_CONST,
   WALLET_PANE_ID,
   AGENT_CHAT_PANE_ID,
+  PREVIOUS_CHATS_PANE_ID,
 } from "@/stores/panes/constants";
 import { DVM_JOB_HISTORY_PANE_ID } from "@/stores/panes/actions/openDvmJobHistoryPane";
 
@@ -19,6 +20,7 @@ interface HotbarProps {
   onToggleWalletPane: () => void;
   onToggleDvmJobHistoryPane: () => void;
   onToggleAgentChatPane: () => void;
+  onTogglePreviousChatsPane?: () => void;
 }
 
 export const Hotbar: React.FC<HotbarProps> = ({
@@ -29,7 +31,9 @@ export const Hotbar: React.FC<HotbarProps> = ({
   onToggleWalletPane,
   onToggleDvmJobHistoryPane,
   onToggleAgentChatPane,
+  onTogglePreviousChatsPane,
 }) => {
+  console.log("[Hotbar] onTogglePreviousChatsPane provided:", !!onTogglePreviousChatsPane);
   const { activePaneId } = usePaneStore(
     useShallow((state) => ({
       activePaneId: state.activePaneId,
@@ -80,10 +84,23 @@ export const Hotbar: React.FC<HotbarProps> = ({
       >
         <Bot className="text-muted-foreground h-5 w-5" />
       </HotbarItem>
+      {onTogglePreviousChatsPane && (
+        <HotbarItem
+          slotNumber={5}
+          onClick={() => {
+            console.log("[Hotbar] Previous Chats button clicked");
+            onTogglePreviousChatsPane();
+          }}
+          title="Chat History"
+          isActive={activePaneId === PREVIOUS_CHATS_PANE_ID}
+        >
+          <MessageSquare className="text-muted-foreground h-5 w-5" />
+        </HotbarItem>
+      )}
 
       {/* Fill the remaining slots with empty HotbarItems */}
-      {Array.from({ length: 4 }).map((_, i) => (
-        <HotbarItem key={`empty-slot-${i}`} slotNumber={i + 5} isGhost>
+      {Array.from({ length: onTogglePreviousChatsPane ? 3 : 4 }).map((_, i) => (
+        <HotbarItem key={`empty-slot-${i}`} slotNumber={i + (onTogglePreviousChatsPane ? 6 : 5)} isGhost>
           <span className="h-5 w-5" />
         </HotbarItem>
       ))}

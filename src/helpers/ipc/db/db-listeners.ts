@@ -129,6 +129,10 @@ export function addDatabaseEventListeners() {
     runDbEffect(Effect.flatMap(DatabaseService, db => db.getToolCallsForMessage(messageId)))
   );
 
+  ipcMain.handle(dbChannels.getAllSessions, (_, options?: { limit?: number; offset?: number; sortBy?: "created_at" | "last_updated_at"; sortOrder?: "ASC" | "DESC" }) =>
+    runDbEffect(Effect.flatMap(DatabaseService, db => db.getAllSessions(options)))
+  );
+
   (global as any).__databaseEventListenersRegistered = true;
   console.log("[DB IPC] Database event listeners registered successfully");
 }

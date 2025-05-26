@@ -18,6 +18,7 @@ import type { DBMessage, DBToolExecution } from "@/services/db";
 
 interface UseAgentChatOptions {
   initialSystemMessage?: string;
+  sessionId?: string;
   // Future: providerKey?: string; modelName?: string;
 }
 
@@ -43,8 +44,8 @@ export interface UIAgentChatMessage extends AgentChatMessage {
 const generateId = () => `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
 export function useAgentChat(options: UseAgentChatOptions = {}) {
-  const { initialSystemMessage = "You are a helpful AI assistant." } = options;
-  const { selectedProviderKey } = useAgentChatStore();
+  const { initialSystemMessage = "You are a helpful AI assistant.", sessionId } = options;
+  const { selectedProviderKey, setSelectedProviderKey } = useAgentChatStore();
 
   // Use useMemo to create stable system message instance
   const systemMessageInstance = useMemo<UIAgentChatMessage>(() => ({
@@ -60,7 +61,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
   const [currentInput, setCurrentInput] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<AiProviderError | null>(null);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(sessionId || null);
 
   // Remove stale runtime reference - get fresh runtime at execution time
   const streamAbortControllerRef = useRef<AbortController | null>(null);
@@ -74,6 +75,13 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
     );
   }, []); // No runtime in deps
 
+  // Update current session ID when prop changes
+  useEffect(() => {
+    if (sessionId && sessionId !== currentSessionId) {
+      setCurrentSessionId(sessionId);
+    }
+  }, [sessionId]);
+
   // Load chat history from database when sessionId changes
   useEffect(() => {
     if (!currentSessionId) return;
@@ -84,8 +92,11 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
         const program = Effect.gen(function* (_) {
           const dbService = yield* _(DatabaseService);
           
+          // Load session details
+          const session = yield* _(dbService.getSession(currentSessionId));
+          
           // Load messages for this session
-          const dbMessages = yield* _(dbService.getMessagesForSession(currentSessionId, 100));
+          const dbMessages = yield* _(dbService.getMessagesForSession(currentSessionId, 500));
           
           // Convert DB messages to UI messages
           const uiMessages: UIAgentChatMessage[] = [];
@@ -111,12 +122,17 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
             uiMessages.push(uiMsg);
           }
           
-          return uiMessages;
+          return { session, messages: uiMessages };
         });
         
-        const historicalMessages = await Effect.runPromise(
+        const { session, messages: historicalMessages } = await Effect.runPromise(
           program.pipe(Effect.provide(runtime))
         );
+        
+        // Set provider from session if available
+        if (session?.provider_key) {
+          setSelectedProviderKey(session.provider_key);
+        }
         
         // Update messages state with history (preserve system message)
         // Only set messages if we actually loaded some history, otherwise keep current messages
@@ -142,7 +158,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
     };
     
     loadHistory();
-  }, [currentSessionId, systemMessageInstance, runTelemetry]);
+  }, [currentSessionId, systemMessageInstance, runTelemetry, setSelectedProviderKey]);
 
   const sendMessage = useCallback(
     async (promptText: string) => {

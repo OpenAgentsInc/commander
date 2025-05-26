@@ -71,6 +71,7 @@ declare global {
     saveToolCall: (toolCall: DBToolExecution) => Promise<void | IpcErrorObject>;
     updateToolCallResult: (toolCallId: string, resultJson: string, status: "executed_success" | "executed_error") => Promise<void | IpcErrorObject>;
     getToolCallsForMessage: (messageId: string) => Promise<DBToolExecution[] | IpcErrorObject>;
+    getAllSessions: (options?: { limit?: number; offset?: number; sortBy?: "created_at" | "last_updated_at"; sortOrder?: "ASC" | "DESC" }) => Promise<DBSession[] | IpcErrorObject>;
   }
 
   interface ElectronAPI {

@@ -178,8 +178,13 @@ export function setupClaudeWebSocketHandler() {
       // Ensure session exists
       const session = {
         id: sessionId,
-        title: "Claude Code Chat",
-        model: params.model || "claude-3-opus-20240229"
+        created_at: now,
+        last_updated_at: now,
+        provider_key: "claude_code",
+        model_name: params.model || "claude-3-opus-20240229",
+        system_prompt: params.messages?.find((m: any) => m.role === "system")?.content || "",
+        metadata_json: JSON.stringify({}),
+        title: "Claude Code Chat"
       };
       
       await saveSessionToDatabase(session);

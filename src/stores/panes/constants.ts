@@ -56,3 +56,9 @@ export const AGENT_CHAT_PANE_ID = "agent_chat_main";
 export const AGENT_CHAT_PANE_TITLE = "Agent Chat";
 export const AGENT_CHAT_PANE_DEFAULT_WIDTH = 500;
 export const AGENT_CHAT_PANE_DEFAULT_HEIGHT = 600;
+
+// Constants for Previous Chats List pane
+export const PREVIOUS_CHATS_PANE_ID = "previous_chats_list_pane";
+export const PREVIOUS_CHATS_PANE_TITLE = "Chat History";
+export const PREVIOUS_CHATS_PANE_DEFAULT_WIDTH = 300;
+export const PREVIOUS_CHATS_PANE_DEFAULT_HEIGHT = 450;

@@ -86,5 +86,14 @@ export const DatabaseServiceRendererProxyLive = Layer.succeed(
       },
       catch: (e) => new DatabaseError({ message: "IPC getToolCallsForMessage failed", cause: e })
     }),
+    
+    getAllSessions: (options) => Effect.tryPromise({
+      try: async () => {
+        const res = await window.electronAPI.database.getAllSessions(options);
+        if (res && (res as any).__error) throw res;
+        return res as DBSession[];
+      },
+      catch: (e) => new DatabaseError({ message: "IPC getAllSessions failed", cause: e })
+    }),
   })
 );

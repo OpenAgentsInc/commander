@@ -15,6 +15,12 @@ export interface DatabaseService {
   saveSession(session: DBSession): Effect.Effect<void, DatabaseError>;
   getSession(sessionId: string): Effect.Effect<DBSession | null, DatabaseError>;
   updateSession(sessionId: string, updates: Partial<Omit<DBSession, "id" | "created_at">>): Effect.Effect<void, DatabaseError>;
+  getAllSessions(options?: {
+    limit?: number;
+    offset?: number;
+    sortBy?: "created_at" | "last_updated_at";
+    sortOrder?: "ASC" | "DESC";
+  }): Effect.Effect<DBSession[], DatabaseError>;
 
   saveMessage(message: DBMessage): Effect.Effect<void, DatabaseError>;
   getMessagesForSession(sessionId: string, limit?: number, offset?: number): Effect.Effect<DBMessage[], DatabaseError>;

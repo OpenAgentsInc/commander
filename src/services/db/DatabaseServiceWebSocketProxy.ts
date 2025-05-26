@@ -105,6 +105,11 @@ export const DatabaseServiceWebSocketProxyLive = Layer.succeed(
     getToolCallsForMessage: (messageId) => Effect.tryPromise({
       try: () => sendDatabaseRequest('getToolCallsForMessage', { messageId }),
       catch: (e) => new DatabaseError({ message: `WebSocket getToolCallsForMessage failed: ${e}`, cause: e })
+    }),
+    
+    getAllSessions: (options) => Effect.tryPromise({
+      try: () => sendDatabaseRequest('getAllSessions', options),
+      catch: (e) => new DatabaseError({ message: `WebSocket getAllSessions failed: ${e}`, cause: e })
     })
   })
 );
