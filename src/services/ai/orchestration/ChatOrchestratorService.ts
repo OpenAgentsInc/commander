@@ -264,6 +264,9 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                         max_tokens: options.maxTokens,
                         temperature: options.temperature,
                         sessionId: (options as any).sessionId, // Pass sessionId for database persistence
+                        dangerousPermissions: (options as any).dangerousPermissions,
+                        contextFiles: (options as any).contextFiles,
+                        contextDirectories: (options as any).contextDirectories,
                       }),
                       catch: (error) => {
                         const serializedCause = getErrorMessage(error);
@@ -327,6 +330,9 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                           max_tokens: options.maxTokens,
                           temperature: options.temperature,
                           sessionId: (options as any).sessionId, // Pass sessionId for database persistence
+                          dangerousPermissions: (options as any).dangerousPermissions,
+                          contextFiles: (options as any).contextFiles,
+                          contextDirectories: (options as any).contextDirectories,
                         },
                         (chunk: string) => {
                           // Emit each chunk as a text delta
@@ -393,6 +399,9 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                         max_tokens: options.maxTokens,
                         temperature: options.temperature,
                         sessionId: (options as any).sessionId, // Pass sessionId for database persistence
+                        dangerousPermissions: (options as any).dangerousPermissions,
+                        contextFiles: (options as any).contextFiles,
+                        contextDirectories: (options as any).contextDirectories,
                       }),
                       catch: (error) => {
                         const serializedCause = getErrorMessage(error);
