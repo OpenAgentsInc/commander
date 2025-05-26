@@ -572,19 +572,36 @@ export function setupClaudeWebSocketHandler() {
   // Handle folder selection
   ipcMain.handle("claude-code:select-folder", async (event) => {
     console.log("[Main Process] Received claude-code:select-folder request");
-    const mainWindow = BrowserWindow.fromWebContents(event.sender);
     
-    const result = await dialog.showOpenDialog(mainWindow, {
-      properties: ['openDirectory', 'createDirectory'],
-      title: 'Select Project Folder for Claude Code',
-      buttonLabel: 'Select Folder'
-    });
-    
-    if (!result.canceled && result.filePaths.length > 0) {
-      console.log("[Main Process] Folder selected:", result.filePaths[0]);
-      return result.filePaths[0];
+    try {
+      const mainWindow = BrowserWindow.fromWebContents(event.sender);
+      console.log("[Main Process] Main window found:", !!mainWindow);
+      
+      // Try without specifying parent window if mainWindow is null
+      const dialogOptions = {
+        properties: ['openDirectory'] as any,
+        title: 'Select Project Folder for Claude Code',
+        buttonLabel: 'Select Folder',
+        message: 'Choose a folder for Claude Code to use as the project context'
+      };
+      
+      console.log("[Main Process] Showing dialog with options:", dialogOptions);
+      
+      const result = mainWindow 
+        ? await dialog.showOpenDialog(mainWindow, dialogOptions)
+        : await dialog.showOpenDialog(dialogOptions);
+      
+      console.log("[Main Process] Dialog result:", result);
+      
+      if (!result.canceled && result.filePaths.length > 0) {
+        console.log("[Main Process] Folder selected:", result.filePaths[0]);
+        return result.filePaths[0];
+      }
+      console.log("[Main Process] Folder selection cancelled or no path selected.");
+      return null;
+    } catch (error) {
+      console.error("[Main Process] Error showing folder dialog:", error);
+      return null;
     }
-    console.log("[Main Process] Folder selection cancelled or no path selected.");
-    return null;
   });
 }
