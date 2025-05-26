@@ -277,18 +277,16 @@ const CoderPane: React.FC = () => {
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[80%] rounded-lg p-3 ${
+                  className={`p-3 text-sm text-white ${
                     message.role === 'user'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-800 text-white border border-gray-700'
+                      ? 'max-w-[80%] bg-transparent border border-white'
+                      : 'w-full bg-transparent'
                   }`}
                 >
-                  <div className="prose prose-invert prose-sm max-w-none">
-                    {message.content}
-                    {message.isStreaming && (
-                      <span className="inline-block w-2 h-4 ml-1 bg-white animate-pulse" />
-                    )}
-                  </div>
+                  {message.content}
+                  {message.isStreaming && (
+                    <span className="inline-block w-2 h-4 ml-1 bg-white animate-pulse" />
+                  )}
                 </div>
               </div>
             ))}
