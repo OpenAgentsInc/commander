@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ConfigurationService } from "@/services/configuration";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 interface AgentChatPaneProps {
   sessionId?: string;
@@ -36,6 +38,10 @@ const AgentChatPane: React.FC<AgentChatPaneProps> = ({ sessionId, sessionTitle }
   const runtime = getMainRuntime();
   const { selectedProviderKey, availableProviders, setSelectedProviderKey, loadAvailableProviders } = useAgentChatStore();
   const { activeFolderPath, setActiveFolderPath } = useClaudeCodeStore();
+  
+  // State for manual folder input dialog
+  const [showManualFolderDialog, setShowManualFolderDialog] = React.useState(false);
+  const [manualFolderPath, setManualFolderPath] = React.useState("");
 
   // Get the current provider info
   const currentProvider = availableProviders.find(p => p.key === selectedProviderKey);
@@ -91,9 +97,17 @@ const AgentChatPane: React.FC<AgentChatPaneProps> = ({ sessionId, sessionTitle }
               }),
             ).pipe(Effect.provide(runtime)),
           );
+        } else {
+          // If dialog didn't return a path, show manual input as fallback
+          console.log("No folder selected from dialog, showing manual input");
+          setManualFolderPath(activeFolderPath || "");
+          setShowManualFolderDialog(true);
         }
       } catch (error) {
         console.error("Error selecting folder:", error);
+        // Show manual input on error
+        setManualFolderPath(activeFolderPath || "");
+        setShowManualFolderDialog(true);
         Effect.runFork(
           Effect.flatMap(TelemetryService, (ts) =>
             ts.trackEvent({
@@ -106,6 +120,25 @@ const AgentChatPane: React.FC<AgentChatPaneProps> = ({ sessionId, sessionTitle }
       }
     } else {
       console.warn("selectFolder API not available on window.electronAPI.claudeCode");
+      // Show manual input as fallback
+      setManualFolderPath(activeFolderPath || "");
+      setShowManualFolderDialog(true);
+    }
+  };
+  
+  const handleManualFolderSubmit = () => {
+    if (manualFolderPath.trim()) {
+      setActiveFolderPath(manualFolderPath.trim());
+      setShowManualFolderDialog(false);
+      Effect.runFork(
+        Effect.flatMap(TelemetryService, (ts) =>
+          ts.trackEvent({
+            category: "ui:agent_chat",
+            action: "claude_code_folder_manually_entered",
+            label: manualFolderPath.trim(),
+          }),
+        ).pipe(Effect.provide(runtime)),
+      );
     }
   };
 
@@ -210,6 +243,41 @@ const AgentChatPane: React.FC<AgentChatPaneProps> = ({ sessionId, sessionTitle }
           isLoading={isLoading}
         />
       </div>
+      
+      {/* Manual folder input dialog */}
+      <Dialog open={showManualFolderDialog} onOpenChange={setShowManualFolderDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Enter Project Folder Path</DialogTitle>
+            <DialogDescription>
+              Due to a system dialog issue, please manually enter the folder path for Claude Code to use as context.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <Input
+              placeholder="/path/to/your/project"
+              value={manualFolderPath}
+              onChange={(e) => setManualFolderPath(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleManualFolderSubmit();
+                }
+              }}
+            />
+            <p className="text-sm text-muted-foreground">
+              Example: /Users/username/projects/my-app
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowManualFolderDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleManualFolderSubmit}>
+              Set Folder
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
