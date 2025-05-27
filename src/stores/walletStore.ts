@@ -7,6 +7,7 @@ import { BIP39Service } from "@/services/bip39";
 import { SparkService } from "@/services/spark";
 import { getMainRuntime, reinitializeRuntime } from "@/services/runtime";
 import { globalWalletConfig } from "@/services/walletConfig";
+import { maskSensitiveData, auditLog, SecureStorage } from "@/utils/security";
 
 interface WalletState {
   seedPhrase: string | null;
@@ -83,6 +84,20 @@ export const useWalletStore = create<WalletState & WalletActions>()(
           // Initialize the SparkService and other dependent services
           await get()._initializeServices(mnemonic);
 
+          // Log wallet initialization audit event
+          const runtime = getMainRuntime();
+          Effect.runFork(
+            auditLog({
+              operation: isNewWallet ? "wallet_generated" : "wallet_restored",
+              resource: "wallet",
+              timestamp: Date.now(),
+              metadata: {
+                mnemonicPreview: maskSensitiveData(mnemonic, 'mnemonic')
+              }
+            }),
+            runtime
+          );
+
           set({
             seedPhrase: mnemonic, // Now store the seed
             isInitialized: true,
@@ -94,7 +109,7 @@ export const useWalletStore = create<WalletState & WalletActions>()(
           });
           return true;
         } catch (error) {
-          console.error("Failed to initialize wallet with seed:", error);
+          console.error("Failed to initialize wallet with seed:", maskSensitiveData(mnemonic, 'mnemonic'));
           set({
             isLoading: false,
             error:

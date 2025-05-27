@@ -290,3 +290,56 @@ From the refactor suggestions:
    - **Consistency**: Centralized error handling patterns
    - **Recovery**: Error boundary prevents full app crashes
    - **Monitoring**: All errors tracked in telemetry for analysis
+
+### 5. Security Improvements - Starting 05:45
+
+#### Current State Analysis
+From the refactor suggestions:
+- Need input validation utilities
+- Missing secure key storage patterns
+- No centralized sanitization
+- Need audit logging for sensitive operations
+
+#### Goal
+- Implement input validation utilities
+- Create secure storage patterns
+- Add sanitization for user inputs
+- Implement audit logging
+
+#### Implementation Complete ✓ (05:55)
+1. Created `/src/utils/security.ts` with comprehensive security utilities:
+   - **ValidationSchemas**: Pre-built schemas for common inputs (Nostr keys, Bitcoin addresses, Lightning invoices, etc.)
+   - **sanitizeHtml/sanitizeText**: XSS prevention utilities
+   - **maskSensitiveData**: Safe logging of sensitive data (keys, mnemonics, addresses)
+   - **SecureStorage**: Wrapper for temporary sensitive data storage (sessionStorage based)
+   - **auditLog**: Security audit event logging with telemetry
+   - **validateInput**: Schema validation with audit logging
+   - **RateLimiter**: Rate limiting for operations
+   - **CSP_HEADERS**: Content Security Policy configuration
+   
+2. Security validations implemented:
+   - Nostr public/private key format validation
+   - Bitcoin address validation
+   - Lightning invoice validation
+   - BIP39 mnemonic validation (12/24 words)
+   - Safe URL validation
+   - Channel name validation (alphanumeric, limited special chars)
+   - Message content validation (length limits)
+   - Numeric amount validation (positive numbers, satoshis)
+   
+3. Updated wallet store with security enhancements:
+   - Added audit logging for wallet operations (generate/restore)
+   - Masked sensitive data in logs (mnemonics shown as "word1 ... wordN")
+   - Secure error logging without exposing full keys
+   
+4. Updated Nostr channel chat with input validation:
+   - Sanitize all user messages before sending
+   - Validate message content against schema
+   - Prevent XSS and injection attacks
+   
+5. Benefits achieved:
+   - **Data Protection**: Sensitive data never logged in clear text
+   - **Audit Trail**: All security operations tracked for compliance
+   - **Input Validation**: Prevent malformed/malicious inputs
+   - **XSS Prevention**: HTML/script sanitization for user content
+   - **Rate Limiting**: Prevent abuse of sensitive operations

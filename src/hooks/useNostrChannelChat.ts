@@ -12,6 +12,8 @@ import { getPublicKey } from "nostr-tools/pure";
 import { getMainRuntime } from "@/services/runtime";
 import { NostrRequestError, NostrPublishError } from "@/services/nostr";
 import { NIP04DecryptError, NIP04EncryptError } from "@/services/nip04";
+import { ValidationSchemas, sanitizeText, validateInput } from "@/utils/security";
+import { Schema } from "effect";
 
 // Demo user key for testing - in a real app this would come from user identity management
 const DEMO_USER_SK_HEX =
@@ -308,7 +310,17 @@ export function useNostrChannelChat({ channelId }: UseNostrChannelChatOptions) {
       return;
     }
 
-    const contentToSend = userInput.trim();
+    // Sanitize and validate the input
+    const sanitizedInput = sanitizeText(userInput.trim());
+    
+    // Validate the message content
+    const validationResult = Schema.decodeUnknownSync(ValidationSchemas.MessageContent)(sanitizedInput);
+    if (!validationResult) {
+      console.warn("[Hook] Invalid message content");
+      return;
+    }
+    
+    const contentToSend = sanitizedInput;
     // Create a more reliable content hash for tracking the message across temp and real versions
     const contentHash = `${contentToSend}-${Date.now()}`;
 
