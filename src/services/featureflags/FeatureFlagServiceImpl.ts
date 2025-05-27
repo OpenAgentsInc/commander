@@ -14,7 +14,7 @@ export const FeatureFlagServiceLive = Layer.effect(
     let initialized = false;
 
     const initialize = Effect.gen(function* (_) {
-      if (initialized) return Effect.succeed(undefined);
+      if (initialized) return undefined;
       const enabledFlagsString = yield* _(
         configService.get("FEATURE_FLAGS_ENABLED_LIST").pipe(
           Effect.orElseSucceed(() => "")
@@ -34,9 +34,8 @@ export const FeatureFlagServiceLive = Layer.effect(
         value: JSON.stringify(Array.from(enabledFeaturesSet))
       }).pipe(Effect.ignoreLogged));
       
-      return Effect.succeed(undefined);
+      return undefined;
     }).pipe(
-      Effect.flatten,
       Effect.catchAll((e: unknown) => {
         const errorMessage = (e && typeof e === 'object' && 'message' in e) ? String((e as any).message) : String(e);
         // Log error without using runFork (which requires a scope)
