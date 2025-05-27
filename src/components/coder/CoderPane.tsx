@@ -123,8 +123,8 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
   // Find the coder pane to persist session ID
   const coderPane = panes.find(p => p.id === 'coder_pane');
   
-  // Use provided session ID or generate new one
-  const sessionIdRef = useRef<string>(initialSessionId || `coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`);
+  // Use provided session ID or generate new one with ui- prefix to avoid conflicts
+  const sessionIdRef = useRef<string>(initialSessionId || `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`);
   
   // Chat state
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -229,9 +229,9 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
     if (!content.trim() || isLoading) return;
 
     const sessionId = sessionIdRef.current;
-    const now = Math.floor(Date.now() / 1000); // Unix timestamp in seconds
+    const now = Math.floor(Date.now() / 1000);
 
-    // Ensure session exists in database
+    // First ensure our UI session exists
     try {
       const ensureSession = Effect.gen(function* (_) {
         const dbService = yield* _(DatabaseService);
@@ -240,15 +240,15 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
         const existingSession = yield* _(dbService.getSession(sessionId));
         
         if (!existingSession) {
-          // Create new session
+          // Create new UI session
           const newSession: DBSession = {
             id: sessionId,
             created_at: now,
             last_updated_at: now,
-            provider_key: 'claude_code',
+            provider_key: 'coder_ui', // Different from claude_code to avoid conflicts
             model_name: 'claude-3-sonnet-20240229',
             system_prompt: messages.find(m => m.role === 'system')?.content || 'You are Claude Code, a helpful AI coding assistant.',
-            metadata_json: JSON.stringify({ source: 'coder_pane', title: 'Coder Session' }),
+            metadata_json: JSON.stringify({ source: 'coder_pane', title: 'Coder UI Session' }),
           };
           yield* _(dbService.saveSession(newSession));
         }
@@ -256,11 +256,11 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
       
       await Effect.runPromise(ensureSession.pipe(Effect.provide(runtime)));
     } catch (error) {
-      console.error('Failed to ensure session:', error);
+      console.error('Failed to ensure UI session:', error);
     }
 
     // Add user message
-    const userMessageId = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    const userMessageId = `ui-msg-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
     const userMessage: ChatMessage = {
       id: userMessageId,
       role: 'user',
@@ -270,7 +270,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
 
-    // Save user message to database
+    // Save user message to our UI session
     try {
       const saveUserMsg = Effect.gen(function* (_) {
         const dbService = yield* _(DatabaseService);
@@ -292,7 +292,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
     }
 
     // Create assistant message placeholder
-    const assistantMessageId = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    const assistantMessageId = `ui-msg-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
     const assistantMessage: ChatMessage = {
       id: assistantMessageId,
       role: 'assistant',
@@ -335,41 +335,15 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
           );
         },
         async () => {
-          // Stream completed - save assistant message to database
-          setMessages(prev => {
-            const lastMsg = prev[prev.length - 1];
-            if (lastMsg && lastMsg.role === 'assistant') {
-              // Save assistant message
-              const saveAssistantMsg = Effect.gen(function* (_) {
-                const dbService = yield* _(DatabaseService);
-                const dbMessage: DBMessage = {
-                  id: assistantMessageId,
-                  session_id: sessionId,
-                  role: 'assistant',
-                  content: lastMsg.content,
-                  timestamp: Math.floor(Date.now() / 1000),
-                  tool_calls_json: undefined,
-                  metadata_json: undefined,
-                };
-                yield* _(dbService.saveMessage(dbMessage));
-                
-                // Update session last_updated_at
-                yield* _(dbService.updateSession(sessionId, {
-                  last_updated_at: Math.floor(Date.now() / 1000),
-                }));
-              });
-              
-              Effect.runPromise(saveAssistantMsg.pipe(Effect.provide(runtime))).catch(error => {
-                console.error('Failed to save assistant message:', error);
-              });
-            }
-            
-            return prev.map((msg, idx) => 
+          // Stream completed - update UI state only
+          // Note: The Claude Code bridge service handles saving messages to the database
+          setMessages(prev => 
+            prev.map((msg, idx) => 
               idx === prev.length - 1 && msg.role === 'assistant'
                 ? { ...msg, isStreaming: false }
                 : msg
-            );
-          });
+            )
+          );
           setIsLoading(false);
           streamCancelRef.current = null;
         },
