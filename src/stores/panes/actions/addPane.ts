@@ -66,10 +66,17 @@ export function addPaneActionLogic(
   });
 
   const newPane: Pane = ensurePaneIsVisible(paneBeforeEnsure);
+  
+  if (newPane.x !== paneBeforeEnsure.x || newPane.y !== paneBeforeEnsure.y) {
+    console.log('[addPaneActionLogic] Position was adjusted by ensurePaneIsVisible:', {
+      before: { x: paneBeforeEnsure.x, y: paneBeforeEnsure.y },
+      after: { x: newPane.x, y: newPane.y }
+    });
+  }
 
   const updatedPanes = state.panes.map((p) => ({ ...p, isActive: false }));
 
-  return {
+  const result = {
     panes: [...updatedPanes, newPane],
     activePaneId: newPane.id,
     lastPanePosition: {
@@ -79,6 +86,16 @@ export function addPaneActionLogic(
       height: newPane.height,
     },
   };
+  
+  console.log('[addPaneActionLogic] Final pane in result:', {
+    id: newPane.id,
+    x: newPane.x,
+    y: newPane.y,
+    width: newPane.width,
+    height: newPane.height,
+  });
+  
+  return result;
 }
 
 export function addPaneAction(

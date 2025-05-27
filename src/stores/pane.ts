@@ -185,6 +185,7 @@ export const usePaneStore = create<PaneStoreType>()(
           togglePaneAction(set, state, {
             paneId: CODER_PANE_ID,
             createPaneInput: (screenWidth, screenHeight, storedPosition) => {
+              console.log('[toggleCoderPane] Screen dimensions:', { screenWidth, screenHeight });
               let x, y, width, height;
               
               if (storedPosition) {

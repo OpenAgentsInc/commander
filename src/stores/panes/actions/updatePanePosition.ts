@@ -8,6 +8,7 @@ export function updatePanePositionAction(
   x: number,
   y: number,
 ) {
+  console.log(`[updatePanePosition] Moving pane ${id} to:`, { x, y });
   set((state: PaneStoreType) => {
     let updatedPaneRef: {
       x: number;
