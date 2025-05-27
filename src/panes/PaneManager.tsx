@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { usePaneStore } from "@/stores/pane";
 import { useShallow } from "zustand/react/shallow";
 import { Pane as PaneComponent } from "@/panes/Pane";
@@ -69,6 +69,20 @@ export const PaneManager = () => {
 
   // Base z-index for all panes
   const baseZIndex = 10;
+  
+  // Ref for coder pane title bar buttons
+  const coderTitleBarButtonsRef = useRef<React.ReactNode | null>(null);
+  const [coderTitleBarButtons, setCoderTitleBarButtons] = useState<React.ReactNode | null>(null);
+  
+  // Update state when ref changes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (coderTitleBarButtonsRef.current !== coderTitleBarButtons) {
+        setCoderTitleBarButtons(coderTitleBarButtonsRef.current);
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, [coderTitleBarButtons]);
 
   return (
     <>
@@ -89,6 +103,7 @@ export const PaneManager = () => {
           dismissable={pane.dismissable !== false} // Use dismissable prop directly
           content={pane.content} // Pass content for 'diff' or other types
           headerMenus={pane.headerMenus} // Pass this through
+          titleBarButtons={pane.type === "coder" ? coderTitleBarButtons : undefined} // Pass coder buttons
         >
           {pane.type === "chat" && (
             <PlaceholderChatComponent threadId={stripIdPrefix(pane.id)} />
@@ -132,7 +147,7 @@ export const PaneManager = () => {
           )}
           {pane.type === "agent_chat" && <AgentChatPane sessionId={pane.content?.sessionId as string | undefined} sessionTitle={pane.content?.sessionTitle as string | undefined} />}
           {pane.type === "previous_chats_list" && <PreviousChatsPane />}
-          {pane.type === "coder" && <CoderPane sessionId={pane.content?.sessionId as string | undefined} />}
+          {pane.type === "coder" && <CoderPane sessionId={pane.content?.sessionId as string | undefined} titleBarButtonsRef={coderTitleBarButtonsRef} />}
           {pane.type === "default" && (
             <PlaceholderDefaultComponent type={pane.type} />
           )}

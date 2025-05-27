@@ -64,18 +64,26 @@ Successfully implemented dropdown menu system for panes:
    - Menus appear with non-bold triggers next to bold pane titles
 
 2. **CoderPane History Menu**:
-   - Added custom title bar with bold "Coder" title
-   - Implemented "History" dropdown menu (non-bold trigger)
+   - Implemented history menu in Pane's title bar (not separate header)
+   - Used zinc colors instead of gray
    - Fetches last 5 chat sessions from database
    - Displays sessions as "YY-MM-DD HH:MM | sess_id..."
    - Most recent sessions appear at top
-   - Clicking a session logs to console and tracks telemetry
+   - Clicking a session loads the actual messages into the coder pane
    - Menu refreshes when opened
+   - New Chat button also in title bar
 
-The implementation follows the instructions exactly:
-- Pane names are in bold
+## Fixed Issues
+
+- ✅ Moved menu to Pane's title bar using titleBarButtons prop
+- ✅ Changed colors from gray to zinc
+- ✅ Implemented proper message loading using DatabaseService.getMessagesForSession
+- ✅ Fixed TypeScript errors with null content handling
+- ✅ Used ref pattern to pass dynamic title bar buttons from CoderPane to PaneManager
+
+The implementation now correctly:
+- Uses the existing Pane title bar (bold "Coder" title)
 - Menu triggers are non-bold, same font size
-- Using shadcn dropdown-menu component
-- CoderPane has working history menu with proper formatting
+- Loads and displays actual messages when clicking history items
 - All typechecks pass (except unrelated files)
 - All tests pass
