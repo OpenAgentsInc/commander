@@ -89,13 +89,38 @@ const AutoFocusEditor: React.FC<{
     }
   }, [disabled]);
 
+  // Function to serialize document to text with line breaks
+  const serializeDocToText = (doc: any) => {
+    let text = "";
+    let isFirstParagraph = true;
+    
+    doc.forEach((node: any, offset: number, index: number) => {
+      if (node.type.name === "paragraph") {
+        if (!isFirstParagraph) {
+          text += "\n";
+        }
+        isFirstParagraph = false;
+        
+        node.forEach((child: any) => {
+          if (child.isText) {
+            text += child.text;
+          } else if (child.type.name === "hard_break") {
+            text += "\n";
+          }
+        });
+      }
+    });
+    
+    return text;
+  };
+
   // Handle Enter (submit) - Shift+Enter is handled by the keymap
   useEditorEventListener("keydown", (view: any, event: KeyboardEvent) => {
     if (event.key === "Enter" && !event.shiftKey && !disabled) {
       event.preventDefault();
 
-      // Get the text content from the editor
-      const text = view.state.doc.textContent || "";
+      // Get the text content from the editor, preserving line breaks
+      const text = serializeDocToText(view.state.doc);
 
       if (text.trim()) {
         // Submit the message
