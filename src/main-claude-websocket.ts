@@ -338,49 +338,7 @@ export function setupClaudeWebSocketHandler() {
                 }
               }
               
-              // Check if this is the final assistant message (has stop_reason)
-              if (assistantMessage.stop_reason && !messageAlreadySaved) {
-                messageAlreadySaved = true;
-                
-                // Save the complete assistant message to database
-                (async () => {
-                  try {
-                    const assistantDbMessage = {
-                      id: assistantMessageId,
-                      session_id: sessionId,
-                      role: "assistant",
-                      content: accumulatedContent.filter((p: any) => p.type === 'text').map((p: any) => p.text).join(''),
-                      tool_calls_json: toolCalls.length > 0 ? JSON.stringify(toolCalls) : undefined,
-                      timestamp: Math.floor(Date.now() / 1000),
-                      provider_message_id: claudeMessage.id,
-                    };
-                    
-                    await saveMessageToDatabase(assistantDbMessage);
-                    console.log("[Main Process] Assistant message saved to database");
-                    
-                    // Save tool executions if any
-                    const toolUses = accumulatedContent.filter((p: any) => p.type === 'tool_use');
-                    for (const tu of toolUses) {
-                      const toolExecution = {
-                        id: tu.id,
-                        message_id: assistantMessageId,
-                        tool_name: tu.name,
-                        arguments_json: JSON.stringify(tu.input || {}),
-                        status: "pending",
-                        created_at: Math.floor(Date.now() / 1000),
-                        updated_at: Math.floor(Date.now() / 1000),
-                      };
-                      
-                      await saveToolCallToDatabase(toolExecution);
-                    }
-                    if (toolUses.length > 0) {
-                      console.log(`[Main Process] ${toolUses.length} tool calls saved to database`);
-                    }
-                  } catch (error) {
-                    console.error("[Main Process] Failed to save assistant message:", error);
-                  }
-                })();
-              }
+              // Removed save logic from here - it now happens only in the 'exit' or 'claude_stream_done' handler
             } else if (claudeMessage.type === "init") {
               console.log("[Main Process] Stream initialized:", claudeMessage);
             } else if (claudeMessage.type === "result") {
@@ -465,14 +423,47 @@ export function setupClaudeWebSocketHandler() {
             ws.close();
             activeConnections.delete(requestId);
             
-            // Update session last_updated_at
-            (async () => {
-              try {
-                await updateSessionInDatabase(sessionId, { last_updated_at: Math.floor(Date.now() / 1000) });
-              } catch (error) {
-                console.error("[Main Process] Failed to update session:", error);
-              }
-            })();
+            // Save assistant message to database on successful completion
+            if (message.exitCode === 0 && fullAssistantContent) {
+              (async () => {
+                try {
+                  const assistantDbMessage = {
+                    id: assistantMessageId,
+                    session_id: sessionId,
+                    role: "assistant",
+                    content: fullAssistantContent,
+                    tool_calls_json: toolCalls.length > 0 ? JSON.stringify(toolCalls) : undefined,
+                    timestamp: Math.floor(Date.now() / 1000),
+                  };
+                  
+                  await saveMessageToDatabase(assistantDbMessage);
+                  console.log("[Main Process] Assistant message saved to database");
+                  
+                  // Save tool executions if any
+                  if (toolCalls.length > 0) {
+                    for (const tc of toolCalls) {
+                      const toolExecution = {
+                        id: tc.id,
+                        message_id: assistantMessageId,
+                        tool_name: tc.function.name,
+                        arguments_json: tc.function.arguments,
+                        status: "pending",
+                        created_at: Math.floor(Date.now() / 1000),
+                        updated_at: Math.floor(Date.now() / 1000),
+                      };
+                      
+                      await saveToolCallToDatabase(toolExecution);
+                    }
+                    console.log(`[Main Process] ${toolCalls.length} tool calls saved to database`);
+                  }
+                  
+                  // Update session last_updated_at
+                  await updateSessionInDatabase(sessionId, { last_updated_at: Math.floor(Date.now() / 1000) });
+                } catch (error) {
+                  console.error("[Main Process] Failed to save assistant message:", error);
+                }
+              })();
+            }
             
             if (message.exitCode === 0) {
               event.sender.send(`claude-code:chat-stream:done`, requestId);

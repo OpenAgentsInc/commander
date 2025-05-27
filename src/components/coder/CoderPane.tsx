@@ -10,6 +10,9 @@ import { history } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import { baseKeymap } from "prosemirror-commands";
 import { ChatMessage as UIChatMessage, type Message } from '@/components/ui/chat-message';
+import ToolCallDisplay from './ToolCallDisplay';
+import ToolResultDisplay from './ToolResultDisplay';
+import { cn } from "@/utils/tailwind";
 
 
 // ProseMirror Editor component that's loaded after the dynamic import
@@ -158,92 +161,73 @@ const AutoFocusEditor: React.FC<{
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
-  content: string;
+  content: string; // Holds full textual content for DB
+  parts?: Array< // For UI rendering
+    | { type: 'text'; text: string }
+    | { type: 'tool_call'; id: string; name: string; input: Record<string, any> }
+    | { type: 'tool_result'; tool_use_id: string; content: any; isError?: boolean; isLoading?: boolean }
+  >;
   timestamp: number;
   isStreaming?: boolean;
-  toolInvocations?: any[];
-  parts?: any[];
 }
 
 // Custom styled ChatMessage component wrapper
 const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ message, index }) => {
-  // Parse message content to extract parts
-  const messageParts = React.useMemo(() => {
-    if (message.parts) return message.parts;
-    
-    const parts: any[] = [];
-    const content = message.content;
-    
-    // Split content by tool markers
-    const segments = content.split(/(\[\[TOOL_(?:CALL|RESULT):[^\]]+\]\])/);
-    
-    segments.forEach((segment) => {
-      // Check if this is a tool call marker
-      const toolCallMatch = segment.match(/\[\[TOOL_CALL:(.+?)\]\]/);
-      if (toolCallMatch) {
-        try {
-          const toolData = JSON.parse(toolCallMatch[1]);
-          parts.push({
-            type: 'tool-invocation',
-            toolInvocation: {
-              state: 'call',
-              toolName: toolData.name,
-              toolCallId: `tool-${Date.now()}`,
-              args: toolData.parameters
-            }
-          });
-        } catch (e) {
-          console.error('Failed to parse tool call data:', e);
-        }
-        return;
-      }
-      
-      // Check if this is a tool result marker
-      const toolResultMatch = segment.match(/\[\[TOOL_RESULT:(.+?)\]\]/);
-      if (toolResultMatch) {
-        try {
-          const resultData = JSON.parse(toolResultMatch[1]);
-          parts.push({
-            type: 'tool-invocation',
-            toolInvocation: {
-              state: 'result',
-              toolName: 'Tool',
-              result: { output: resultData.result }
-            }
-          });
-        } catch (e) {
-          console.error('Failed to parse tool result data:', e);
-        }
-        return;
-      }
-      
-      // Regular text content
-      if (segment.trim()) {
-        parts.push({
-          type: 'text',
-          text: segment
-        });
-      }
-    });
-    
-    return parts;
-  }, [message.content, message.parts]);
-  
-  // Use the rich ChatMessage component for better formatting
+  const renderContentPart = (part: any, partIndex: number) => {
+    switch (part.type) {
+      case 'text':
+        return <span key={partIndex} className="whitespace-pre-wrap">{part.text}</span>;
+      case 'tool_call':
+        return (
+          <ToolCallDisplay
+            key={partIndex}
+            toolName={part.name}
+            toolCallId={part.id}
+            args={part.input}
+          />
+        );
+      case 'tool_result':
+        return (
+          <ToolResultDisplay
+            key={partIndex}
+            toolCallId={part.tool_use_id}
+            result={part.content}
+            isError={part.isError}
+          />
+        );
+      default:
+        // Fallback for unknown parts: render as stringified JSON
+        return <pre key={partIndex} className="text-xs whitespace-pre-wrap bg-gray-800 p-1 rounded">{JSON.stringify(part, null, 2)}</pre>;
+    }
+  };
+
+  const containerClasses = cn(
+    "w-full flex mb-2",
+    message.role === 'user' ? 'justify-end' : 'justify-start'
+  );
+
+  const bubbleClasses = cn(
+    "max-w-[90%] rounded-md p-2 text-xs shadow",
+    message.role === 'user'
+      ? "bg-blue-600 text-white"
+      : "bg-gray-700 text-gray-200"
+  );
+
   return (
-    <div className={`coder-chat-message ${message.role === 'user' ? 'user-message' : 'assistant-message'}`}>
-      <UIChatMessage
-        id={message.id}
-        role={message.role === 'user' ? 'user' : 'assistant'}
-        content={message.content}
-        parts={messageParts.length > 0 ? messageParts : undefined}
-        createdAt={new Date(message.timestamp)}
-        animation="none"
-        showTimeStamp={false}
-      />
-      {message.isStreaming && message.role === 'assistant' && (
-        <span className="inline-block w-2 h-4 ml-1 bg-white animate-pulse" />
-      )}
+    <div className={containerClasses}>
+      <div className={bubbleClasses}>
+        <div className="font-semibold mb-1 capitalize text-xs">
+          {message.role === 'assistant' ? 'Claude Code' : message.role}
+        </div>
+        <div>
+          {message.parts && message.parts.length > 0
+            ? message.parts.map(renderContentPart)
+            : <span className="whitespace-pre-wrap">{message.content}</span>}
+          {message.isStreaming && message.role === 'assistant' && (
+            <span className="inline-block w-2 h-3 ml-1 bg-white animate-pulse" />
+          )}
+        </div>
+      </div>
     </div>
   );
 };
@@ -365,27 +349,53 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
           temperature: 0.7,
           sessionId: sessionIdRef.current,
         },
-        (chunk: string) => {
-          // Check if this is a structured message (JSON)
+        (chunk: string) => { // chunk is a string, potentially JSON from main process
+          let parsedData;
+          let isStructured = false;
+
           try {
-            const parsedChunk = JSON.parse(chunk);
-            if (parsedChunk.type === 'tool_call') {
-              // Add tool call display to content
-              assistantContentRef.current += `\n[[TOOL_CALL:${JSON.stringify(parsedChunk)}]]\n`;
-            } else if (parsedChunk.type === 'tool_result') {
-              // Add tool result display to content
-              assistantContentRef.current += `\n[[TOOL_RESULT:${JSON.stringify(parsedChunk)}]]\n`;
-            } else {
-              // Unknown structured message type
-              assistantContentRef.current += chunk;
+            parsedData = JSON.parse(chunk);
+            if (parsedData && (parsedData.type === 'tool_call' || parsedData.type === 'tool_result')) {
+              isStructured = true;
             }
           } catch (e) {
-            // Not JSON, treat as plain text
-            assistantContentRef.current += chunk;
+            // Not JSON, assume it's a plain text chunk
+            parsedData = { type: 'text', text: chunk };
           }
-          
-          updateMessage(assistantMessageId, {
-            content: assistantContentRef.current
+
+          updateMessage(assistantMessageId, (prevMessage) => {
+            const newParts = prevMessage.parts ? [...prevMessage.parts] : [];
+            let newContentForDb = prevMessage.content || ""; // For DB, accumulate textual representation
+
+            if (isStructured) {
+              if (parsedData.type === 'tool_call') {
+                newParts.push({
+                  type: 'tool_call',
+                  id: parsedData.id || `tool_call_${Date.now()}`,
+                  name: parsedData.name,
+                  input: parsedData.parameters // Ensure 'parameters' matches what main sends
+                });
+                newContentForDb += `\n[Tool Call: ${parsedData.name} Args: ${JSON.stringify(parsedData.parameters)}]\n`;
+              } else if (parsedData.type === 'tool_result') {
+                // This typically comes from a User message, but handling if Assistant streams it
+                newParts.push({
+                  type: 'tool_result',
+                  tool_use_id: parsedData.tool_use_id,
+                  content: parsedData.content,
+                  isError: parsedData.is_error,
+                });
+                newContentForDb += `\n[Tool Result for ${parsedData.tool_use_id}: ${JSON.stringify(parsedData.content)}]\n`;
+              }
+            } else { // Text chunk
+              newContentForDb += parsedData.text;
+              const lastPart = newParts.length > 0 ? newParts[newParts.length - 1] : null;
+              if (lastPart && lastPart.type === 'text') {
+                lastPart.text += parsedData.text;
+              } else {
+                newParts.push({ type: 'text', text: parsedData.text });
+              }
+            }
+            return { ...prevMessage, content: newContentForDb, parts: newParts, isStreaming: true };
           });
         },
         async () => {

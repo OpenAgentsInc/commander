@@ -5,6 +5,11 @@ interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  parts?: Array<
+    | { type: 'text'; text: string }
+    | { type: 'tool_call'; id: string; name: string; input: Record<string, any> }
+    | { type: 'tool_result'; tool_use_id: string; content: any; isError?: boolean; isLoading?: boolean }
+  >;
   timestamp: number;
   isStreaming?: boolean;
 }
@@ -12,7 +17,7 @@ interface ChatMessage {
 interface CoderChatState {
   messages: ChatMessage[];
   addMessage: (message: ChatMessage) => void;
-  updateMessage: (id: string, updates: Partial<ChatMessage>) => void;
+  updateMessage: (id: string, updates: Partial<ChatMessage> | ((prevMessage: ChatMessage) => Partial<ChatMessage>)) => void;
   clearMessages: () => void;
   setMessages: (messages: ChatMessage[]) => void;
 }
@@ -36,9 +41,13 @@ export const useCoderChatStore = create<CoderChatState>()(
       
       updateMessage: (id, updates) =>
         set((state) => ({
-          messages: state.messages.map((msg) =>
-            msg.id === id ? { ...msg, ...updates } : msg
-          ),
+          messages: state.messages.map((msg) => {
+            if (msg.id === id) {
+              const newUpdates = typeof updates === 'function' ? updates(msg) : updates;
+              return { ...msg, ...newUpdates };
+            }
+            return msg;
+          }),
         })),
       
       clearMessages: () =>
