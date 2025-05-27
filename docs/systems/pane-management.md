@@ -83,9 +83,9 @@ The Pane Management System is a cornerstone of the OpenAgents Commander's user i
 
 ## 3. Component & Module Breakdown
 
-### 3.1. Data Structures (`src/types/pane.ts`)
+### 3.1. Data Structures (`src/types/pane.ts` & `src/types/paneMenu.ts`)
 
-The core data structure representing a pane and its input type.
+The core data structures representing a pane and its menu system.
 
 ```typescript
 // src/types/pane.ts
@@ -96,7 +96,7 @@ export type Pane = {
     | "nip28_channel" | "nip90_dashboard" | "sell_compute" | "dvm_job_history"
     | "nip90_dvm_test" | "nip90_consumer_chat" | "nip90_global_feed" | "wallet"
     | "second_page_content" | "wallet_setup_content" | "seed_phrase_backup_content"
-    | "restore_wallet_content" | "agent_chat" | "previous_chats_list"
+    | "restore_wallet_content" | "agent_chat" | "previous_chats_list" | "coder"
     | string; // Allows for custom pane types
   title: string;
   x: number;
@@ -105,6 +105,7 @@ export type Pane = {
   height: number;
   isActive?: boolean;
   dismissable?: boolean;
+  headerMenus?: PaneHeaderMenu[]; // Optional dropdown menus for the title bar
   content?: {
     oldContent?: string;
     newContent?: string;
@@ -129,8 +130,58 @@ export type PaneInput = Omit<
   height?: number;
 };
 ```
-- **`Pane`**: Defines all properties of a pane, including its ID, content type, title, position, dimensions, active state, and dismissibility. The `content` field is a flexible object for passing type-specific data.
+
+**Menu Type Definitions (`src/types/paneMenu.ts`):**
+```typescript
+// Menu item types
+export interface PaneDropdownItemAction {
+  label: string;
+  action: () => void;
+  disabled?: boolean;
+  icon?: React.ReactNode;
+}
+
+export interface PaneDropdownItemSeparator {
+  type: 'separator';
+}
+
+export interface PaneDropdownItemLabel {
+  type: 'label';
+  label: string;
+}
+
+export interface PaneDropdownItemGroup {
+  type: 'group';
+  label?: string;
+  items: PaneDropdownItem[];
+}
+
+export interface PaneDropdownItemSub {
+  type: 'submenu';
+  label: string;
+  icon?: React.ReactNode;
+  items: PaneDropdownItem[];
+}
+
+export type PaneDropdownItem = 
+  | PaneDropdownItemAction
+  | PaneDropdownItemSeparator
+  | PaneDropdownItemLabel
+  | PaneDropdownItemGroup
+  | PaneDropdownItemSub;
+
+// Top-level menu structure
+export interface PaneHeaderMenu {
+  id: string;
+  triggerLabel: string;
+  items: PaneDropdownItem[];
+}
+```
+
+- **`Pane`**: Defines all properties of a pane, including its ID, content type, title, position, dimensions, active state, dismissibility, and optional header menus. The `content` field is a flexible object for passing type-specific data.
 - **`PaneInput`**: A partial type used when creating new panes, where ID, position, and size might be optional or calculated.
+- **`PaneHeaderMenu`**: Defines the structure for dropdown menus in the pane's title bar, with a trigger label and menu items.
+- **`PaneDropdownItem`**: Union type supporting various menu item types including actions, separators, labels, groups, and submenus.
 
 ### 3.2. Zustand Store (`src/stores/pane.ts` & `src/stores/panes/*`)
 
@@ -194,7 +245,7 @@ The `Pane` component is the visual representation of an individual pane.
 
 **Key Responsibilities:**
 -   Renders the pane's frame (background, border, title bar).
--   Displays the `title` and `titleBarButtons` (if any).
+-   Displays the `title` (in bold), `headerMenus` (dropdown menus on the left), and `titleBarButtons` (on the right).
 -   Hosts the `children` (actual content based on `pane.type`).
 -   Handles drag-to-move functionality for the title bar using `useDrag` from `@use-gesture/react`.
 -   Implements resize handles (8 of them) around its borders, also using `useDrag` for each.
@@ -202,6 +253,22 @@ The `Pane` component is the visual representation of an individual pane.
 -   Communicates with `usePaneStore` to update its global state and to bring itself to the front when clicked/dragged.
 -   Ensures it stays within viewport bounds (via `ensurePaneIsVisible` and `bounds` in `useDrag`).
 -   Styling is done via Tailwind CSS classes and inline styles for dynamic properties.
+
+**Title Bar Layout:**
+- **Title** (left side): Displayed in bold font using `font-bold` class
+- **Header Menus** (left side, after title): Optional dropdown menus with non-bold triggers (`text-gray-300`)
+- **Title Bar Buttons** (right side): Optional custom buttons or controls
+- **Close Button** (far right): Dismissable panes show an 'X' button
+
+**Dropdown Menu System:**
+- Uses Shadcn UI's `DropdownMenu` components
+- Menu structure defined by `PaneHeaderMenu` type with:
+  - `id`: Unique identifier for the menu
+  - `triggerLabel`: Text shown on the menu trigger button
+  - `items`: Array of `PaneDropdownItem` (actions, separators, labels, groups, submenus)
+- Menu triggers have `cursor-pointer` and hover states
+- Supports controlled open/close state for dynamic menus
+- Helper function `renderDropdownItems` recursively builds menu structure
 
 **Internal Hook: `useResizeHandlers`**
 - Encapsulates the complex logic for all eight resize handles.
@@ -249,6 +316,13 @@ export const PaneManager = () => {
 -   For each `Pane` object, it renders a `PaneComponent`.
 -   It dynamically renders the content of each pane by selecting the appropriate child component based on `pane.type`.
 -   Assigns a `zIndex` style to each `PaneComponent` based on its index in the `panes` array, ensuring the active pane (last in the array) is visually on top.
+
+**Dynamic Menu Support:**
+For panes that need dynamic menus (e.g., CoderPane with its history menu), PaneManager supports:
+- Using refs to pass menu configuration from content components to PaneComponent
+- Dynamic menu items that can be updated based on component state
+- Controlled open/close state for menus
+- Example: CoderPane creates its own history menu that fetches recent chat sessions and updates when opened
 
 ### 3.5. Interaction Triggers (e.g., `HomePage.tsx`, `Hotbar.tsx`)
 
@@ -342,7 +416,11 @@ Detailed flow covered in 4.2 and 4.3. Key points:
     -   `bg-black/90 backdrop-blur-sm`: Semi-transparent, blurred background.
     -   `border rounded-lg shadow-lg`: Standard frame.
     -   Active pane: `border-primary ring-1 ring-primary`.
-    -   Title bar: `bg-black/80`, specific height, padding, font.
+    -   Title bar: `bg-black/80`, specific height (h-8), padding, font-mono.
+      - Title text: `font-bold text-xs` (bold, small size)
+      - Menu triggers: `text-gray-300 text-xs` (non-bold, same size as title)
+      - Hover states: `hover:bg-white/10` for interactive elements
+      - All clickable elements have `cursor-pointer`
     -   Content area: `bg-black/60` (slightly more transparent than title bar), `overflow-auto`, padding.
 -   **Custom Scrollbars (`global.css`):** `-webkit-scrollbar` styles for a thin, dark-themed scrollbar within pane content areas.
 -   **HUD Background (`SimpleGrid.tsx`):** A subtle, static SVG grid pattern rendered as the rearmost layer, styled with `rgba(255, 255, 255, 0.15)` lines on a black background. `pointer-events-none` ensures it doesn't interfere with interactions.
