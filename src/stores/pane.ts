@@ -259,6 +259,7 @@ export const usePaneStore = create<PaneStoreType>()(
             width: newSellComputePane.width,
             height: newSellComputePane.height,
           },
+          closedPanePositions: {},
         };
 
         // Apply the new state

@@ -416,7 +416,7 @@ export const Pane: React.FC<PaneProps> = ({
     }
   };
 
-  const resizeHandleClasses = "absolute bg-transparent pointer-events-auto hover:bg-blue-500/20";
+  const resizeHandleClasses = "absolute bg-transparent pointer-events-auto";
   const resizeHandleSize = "12px";
   const resizeHandleOffset = "-6px";
 
