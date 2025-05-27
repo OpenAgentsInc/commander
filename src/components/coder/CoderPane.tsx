@@ -5,6 +5,8 @@ import { getMainRuntime } from '@/services/runtime';
 import { usePaneStore } from '@/stores/pane';
 import { EditorState } from "prosemirror-state";
 import { schema } from "prosemirror-schema-basic";
+import { DatabaseService } from '@/services/db';
+import type { DBMessage, DBSession } from '@/services/db';
 
 
 // ProseMirror Editor component that's loaded after the dynamic import
@@ -105,11 +107,24 @@ interface ChatMessage {
   content: string;
   timestamp: number;
   isStreaming?: boolean;
+  id?: string; // Add ID for database tracking
 }
 
-const CoderPane: React.FC = () => {
+interface CoderPaneProps {
+  sessionId?: string; // Passed from pane content
+}
+
+const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) => {
   const runtime = getMainRuntime(); // For telemetry
   const removePane = usePaneStore((state) => state.removePane);
+  const panes = usePaneStore((state) => state.panes);
+  const updatePaneSize = usePaneStore((state) => state.updatePaneSize);
+  
+  // Find the coder pane to persist session ID
+  const coderPane = panes.find(p => p.id === 'coder_pane');
+  
+  // Use provided session ID or generate new one
+  const sessionIdRef = useRef<string>(initialSessionId || `coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`);
   
   // Chat state
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -120,8 +135,8 @@ const CoderPane: React.FC = () => {
     }
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const [messagesLoaded, setMessagesLoaded] = useState(false);
   const streamCancelRef = useRef<(() => void) | null>(null);
-  const sessionIdRef = useRef<string>(`coder-${Date.now()}`);
 
   const handleExitCoderMode = React.useCallback(() => {
     // Cancel any ongoing stream
@@ -154,7 +169,7 @@ const CoderPane: React.FC = () => {
     };
   }, [handleExitCoderMode]);
 
-  // Track Coder Mode open event
+  // Track Coder Mode open event and load messages
   React.useEffect(() => {
     Effect.runFork(
       Effect.flatMap(TelemetryService, (ts) =>
@@ -164,14 +179,90 @@ const CoderPane: React.FC = () => {
         }),
       ).pipe(Effect.provide(runtime)),
     );
-  }, [runtime]);
+    
+    // Load messages from database
+    if (!messagesLoaded) {
+      const loadMessages = async () => {
+        try {
+          const program = Effect.gen(function* (_) {
+            const dbService = yield* _(DatabaseService);
+            
+            // Check if session exists
+            const session = yield* _(dbService.getSession(sessionIdRef.current));
+            
+            if (session) {
+              // Load messages for existing session
+              const dbMessages = yield* _(dbService.getMessagesForSession(sessionIdRef.current, 500));
+              
+              // Convert DB messages to UI messages
+              const uiMessages: ChatMessage[] = dbMessages.map(dbMsg => ({
+                id: dbMsg.id,
+                role: dbMsg.role as 'user' | 'assistant' | 'system',
+                content: dbMsg.content || '',
+                timestamp: dbMsg.timestamp * 1000, // Convert seconds to milliseconds
+              }));
+              
+              // Keep system message at beginning if messages exist
+              if (uiMessages.length > 0) {
+                const systemMsg = messages.find(m => m.role === 'system');
+                const nonSystemMessages = uiMessages.filter(m => m.role !== 'system');
+                setMessages([systemMsg!, ...nonSystemMessages]);
+              }
+            }
+            
+            setMessagesLoaded(true);
+          });
+          
+          await Effect.runPromise(program.pipe(Effect.provide(runtime)));
+        } catch (error) {
+          console.error('Failed to load coder messages:', error);
+          setMessagesLoaded(true);
+        }
+      };
+      
+      loadMessages();
+    }
+  }, [runtime, messagesLoaded, messages]);
 
   // Send message to Claude Code
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim() || isLoading) return;
 
+    const sessionId = sessionIdRef.current;
+    const now = Math.floor(Date.now() / 1000); // Unix timestamp in seconds
+
+    // Ensure session exists in database
+    try {
+      const ensureSession = Effect.gen(function* (_) {
+        const dbService = yield* _(DatabaseService);
+        
+        // Check if session exists
+        const existingSession = yield* _(dbService.getSession(sessionId));
+        
+        if (!existingSession) {
+          // Create new session
+          const newSession: DBSession = {
+            id: sessionId,
+            created_at: now,
+            last_updated_at: now,
+            provider_key: 'claude_code',
+            model_name: 'claude-3-sonnet-20240229',
+            system_prompt: messages.find(m => m.role === 'system')?.content || 'You are Claude Code, a helpful AI coding assistant.',
+            metadata_json: JSON.stringify({ source: 'coder_pane', title: 'Coder Session' }),
+          };
+          yield* _(dbService.saveSession(newSession));
+        }
+      });
+      
+      await Effect.runPromise(ensureSession.pipe(Effect.provide(runtime)));
+    } catch (error) {
+      console.error('Failed to ensure session:', error);
+    }
+
     // Add user message
+    const userMessageId = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
     const userMessage: ChatMessage = {
+      id: userMessageId,
       role: 'user',
       content: content.trim(),
       timestamp: Date.now(),
@@ -179,8 +270,31 @@ const CoderPane: React.FC = () => {
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
 
+    // Save user message to database
+    try {
+      const saveUserMsg = Effect.gen(function* (_) {
+        const dbService = yield* _(DatabaseService);
+        const dbMessage: DBMessage = {
+          id: userMessageId,
+          session_id: sessionId,
+          role: 'user',
+          content: userMessage.content,
+          timestamp: now,
+          tool_calls_json: undefined,
+          metadata_json: undefined,
+        };
+        yield* _(dbService.saveMessage(dbMessage));
+      });
+      
+      await Effect.runPromise(saveUserMsg.pipe(Effect.provide(runtime)));
+    } catch (error) {
+      console.error('Failed to save user message:', error);
+    }
+
     // Create assistant message placeholder
+    const assistantMessageId = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
     const assistantMessage: ChatMessage = {
+      id: assistantMessageId,
       role: 'assistant',
       content: '',
       timestamp: Date.now(),
@@ -220,15 +334,42 @@ const CoderPane: React.FC = () => {
             )
           );
         },
-        () => {
-          // Stream completed
-          setMessages(prev => 
-            prev.map((msg, idx) => 
+        async () => {
+          // Stream completed - save assistant message to database
+          setMessages(prev => {
+            const lastMsg = prev[prev.length - 1];
+            if (lastMsg && lastMsg.role === 'assistant') {
+              // Save assistant message
+              const saveAssistantMsg = Effect.gen(function* (_) {
+                const dbService = yield* _(DatabaseService);
+                const dbMessage: DBMessage = {
+                  id: assistantMessageId,
+                  session_id: sessionId,
+                  role: 'assistant',
+                  content: lastMsg.content,
+                  timestamp: Math.floor(Date.now() / 1000),
+                  tool_calls_json: undefined,
+                  metadata_json: undefined,
+                };
+                yield* _(dbService.saveMessage(dbMessage));
+                
+                // Update session last_updated_at
+                yield* _(dbService.updateSession(sessionId, {
+                  last_updated_at: Math.floor(Date.now() / 1000),
+                }));
+              });
+              
+              Effect.runPromise(saveAssistantMsg.pipe(Effect.provide(runtime))).catch(error => {
+                console.error('Failed to save assistant message:', error);
+              });
+            }
+            
+            return prev.map((msg, idx) => 
               idx === prev.length - 1 && msg.role === 'assistant'
                 ? { ...msg, isStreaming: false }
                 : msg
-            )
-          );
+            );
+          });
           setIsLoading(false);
           streamCancelRef.current = null;
         },

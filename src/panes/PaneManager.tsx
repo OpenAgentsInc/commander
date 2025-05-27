@@ -131,7 +131,7 @@ export const PaneManager = () => {
           )}
           {pane.type === "agent_chat" && <AgentChatPane sessionId={pane.content?.sessionId as string | undefined} sessionTitle={pane.content?.sessionTitle as string | undefined} />}
           {pane.type === "previous_chats_list" && <PreviousChatsPane />}
-          {pane.type === "coder" && <CoderPane />}
+          {pane.type === "coder" && <CoderPane sessionId={pane.content?.sessionId as string | undefined} />}
           {pane.type === "default" && (
             <PlaceholderDefaultComponent type={pane.type} />
           )}

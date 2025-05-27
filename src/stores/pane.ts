@@ -158,6 +158,9 @@ export const usePaneStore = create<PaneStoreType>()(
             const width = screenWidth - (PANE_MARGIN * 2);
             const height = screenHeight - (PANE_MARGIN * 2) - 100; // Extra space for title bar and hotbar
 
+            // Generate a unique session ID for this coder pane instance
+            const sessionId = `coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+
             const newPaneInput: PaneInput = {
               id: paneId,
               type: "coder",
@@ -167,7 +170,7 @@ export const usePaneStore = create<PaneStoreType>()(
               width: width,
               height: height,
               dismissable: true,
-              content: {},
+              content: { sessionId },
             };
 
             return addPaneActionLogic(state, newPaneInput, false);
