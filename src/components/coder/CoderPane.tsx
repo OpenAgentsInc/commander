@@ -368,7 +368,7 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
 
 export interface CoderPaneProps {
   sessionId?: string; // Passed from pane content
-  titleBarButtonsRef?: React.MutableRefObject<any>; // Ref to set title bar buttons and menus
+  titleBarButtonsRef?: { current: any; set: (value: any) => void }; // Ref to set title bar buttons and menus
 }
 
 const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titleBarButtonsRef }) => {
@@ -698,7 +698,11 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
   useEffect(() => {
     if (initialSessionId && !initialSessionId.startsWith('ui-coder-')) {
       // This is an existing session ID, load its messages
-      loadSessionMessages(initialSessionId);
+      // We need to do this after a short delay to ensure the component is fully mounted
+      const timer = setTimeout(() => {
+        loadSessionMessages(initialSessionId);
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, []); // Only run on mount
 
@@ -855,13 +859,13 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
 
   // Set title bar buttons in ref if provided
   useEffect(() => {
-    if (titleBarButtonsRef) {
-      titleBarButtonsRef.current = {
+    if (titleBarButtonsRef && titleBarButtonsRef.set) {
+      titleBarButtonsRef.set({
         buttons: titleBarButtons,
         menus: headerMenus,
         menuOpenState: historyMenuOpen,
         onMenuOpenChange: handleMenuOpenChange
-      };
+      });
     }
   }, [titleBarButtons, headerMenus, historyMenuOpen, handleMenuOpenChange, titleBarButtonsRef]);
 

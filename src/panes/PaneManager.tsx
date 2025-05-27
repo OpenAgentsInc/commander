@@ -70,15 +70,25 @@ export const PaneManager = () => {
   // Base z-index for all panes
   const baseZIndex = 10;
   
-  // Ref for coder pane title bar data
-  const coderTitleBarRef = useRef<any>(null);
-  const [coderTitleBarData, setCoderTitleBarData] = useState<any>(null);
+  // Refs for coder pane title bar data - one per pane
+  const coderTitleBarRefs = useRef<Record<string, any>>({});
+  const [coderTitleBarData, setCoderTitleBarData] = useState<Record<string, any>>({});
   
-  // Update state when ref changes
+  // Update state when refs change
   useEffect(() => {
     const interval = setInterval(() => {
-      if (coderTitleBarRef.current !== coderTitleBarData) {
-        setCoderTitleBarData(coderTitleBarRef.current);
+      const newData: Record<string, any> = {};
+      let hasChanges = false;
+      
+      Object.keys(coderTitleBarRefs.current).forEach(paneId => {
+        if (coderTitleBarRefs.current[paneId] !== coderTitleBarData[paneId]) {
+          hasChanges = true;
+        }
+        newData[paneId] = coderTitleBarRefs.current[paneId];
+      });
+      
+      if (hasChanges) {
+        setCoderTitleBarData(newData);
       }
     }, 100);
     return () => clearInterval(interval);
@@ -90,12 +100,12 @@ export const PaneManager = () => {
         // For coder pane, we need to handle dynamic header menus with open state
         let paneHeaderMenus = pane.headerMenus;
         
-        if (pane.type === "coder" && coderTitleBarData && coderTitleBarData.menus) {
+        if (pane.type === "coder" && coderTitleBarData[pane.id] && coderTitleBarData[pane.id].menus) {
           // Clone the menus and add onOpenChange handler
-          paneHeaderMenus = coderTitleBarData.menus.map((menu: any) => ({
+          paneHeaderMenus = coderTitleBarData[pane.id].menus.map((menu: any) => ({
             ...menu,
-            open: coderTitleBarData.menuOpenState,
-            onOpenChange: (open: boolean) => coderTitleBarData.onMenuOpenChange?.(menu.id, open)
+            open: coderTitleBarData[pane.id].menuOpenState,
+            onOpenChange: (open: boolean) => coderTitleBarData[pane.id].onMenuOpenChange?.(menu.id, open)
           }));
         }
         
@@ -116,7 +126,7 @@ export const PaneManager = () => {
           dismissable={pane.dismissable !== false} // Use dismissable prop directly
           content={pane.content} // Pass content for 'diff' or other types
           headerMenus={paneHeaderMenus} // Pass processed header menus
-          titleBarButtons={pane.type === "coder" && coderTitleBarData ? coderTitleBarData.buttons : undefined} // Pass coder buttons
+          titleBarButtons={pane.type === "coder" && coderTitleBarData[pane.id] ? coderTitleBarData[pane.id].buttons : undefined} // Pass coder buttons
         >
           {pane.type === "chat" && (
             <PlaceholderChatComponent threadId={stripIdPrefix(pane.id)} />
@@ -160,7 +170,13 @@ export const PaneManager = () => {
           )}
           {pane.type === "agent_chat" && <AgentChatPane sessionId={pane.content?.sessionId as string | undefined} sessionTitle={pane.content?.sessionTitle as string | undefined} />}
           {pane.type === "previous_chats_list" && <PreviousChatsPane />}
-          {pane.type === "coder" && <CoderPane sessionId={pane.content?.sessionId as string | undefined} titleBarButtonsRef={coderTitleBarRef} />}
+          {pane.type === "coder" && <CoderPane 
+            sessionId={pane.content?.sessionId as string | undefined} 
+            titleBarButtonsRef={{
+              current: coderTitleBarRefs.current[pane.id],
+              set: (value: any) => { coderTitleBarRefs.current[pane.id] = value; }
+            }} 
+          />}
           {pane.type === "default" && (
             <PlaceholderDefaultComponent type={pane.type} />
           )}
