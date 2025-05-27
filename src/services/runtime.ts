@@ -111,41 +111,56 @@ let mainRuntimeInstance: Runtime.Runtime<FullAppContext>;
 
 // Function to build all layers - can be called with updated configuration
 export function buildFullAppLayer() {
+  console.log("[Runtime] buildFullAppLayer() starting...");
+  
   // Compose individual services with their direct dependencies
+  console.log("[Runtime] Creating telemetryLayer...");
   const telemetryLayer = TelemetryServiceLive.pipe(
     Layer.provide(DefaultTelemetryConfigLayer),
   );
-  const configLayer = ConfigurationServiceLive.pipe(
-    Layer.provide(telemetryLayer),
-  );
-  const devConfigLayer = DefaultDevConfigLayer.pipe(Layer.provide(configLayer));
+  console.log("[Runtime] telemetryLayer created");
+  
+  console.log("[Runtime] Creating devConfigLayer with defaults...");
+  const devConfigLayer = DefaultDevConfigLayer;
+  console.log("[Runtime] devConfigLayer created");
 
+  console.log("[Runtime] Creating nip13Layer...");
   const nip13Layer = NIP13ServiceLive;
   
   // Database layer for renderer (uses IPC proxy)
   // Use WebSocket proxy for database instead of IPC
+  console.log("[Runtime] Creating databaseLayer...");
   const databaseLayer = DatabaseServiceWebSocketProxyLive;
+  console.log("[Runtime] databaseLayer created");
   
+  console.log("[Runtime] Creating nostrLayer...");
   const nostrLayer = NostrServiceLive.pipe(
     Layer.provide(NostrServiceConfigLive),
     Layer.provide(telemetryLayer),
     Layer.provide(nip13Layer),
   );
+  console.log("[Runtime] nostrLayer created");
 
+  console.log("[Runtime] Creating ollamaLayer...");
   const ollamaLayer = OllamaServiceLive.pipe(
     Layer.provide(
       Layer.merge(UiOllamaConfigLive, BrowserHttpClient.layerXMLHttpRequest),
     ),
     Layer.provide(telemetryLayer),
   );
+  console.log("[Runtime] ollamaLayer created");
 
+  console.log("[Runtime] Creating nip04Layer...");
   const nip04Layer = NIP04ServiceLive;
+  console.log("[Runtime] Creating nip28Layer...");
   const nip28Layer = NIP28ServiceLive.pipe(
     Layer.provide(Layer.mergeAll(nostrLayer, nip04Layer, telemetryLayer)),
   );
+  console.log("[Runtime] nip28Layer created");
 
   // Create SparkService layer - use mock when no wallet is initialized
   // NEVER use the test mnemonic in production runtime
+  console.log("[Runtime] Creating sparkLayer...");
   let sparkLayer: Layer.Layer<SparkService, any, TelemetryService>;
   
   if (globalWalletConfig.mnemonic) {
@@ -163,9 +178,11 @@ export function buildFullAppLayer() {
       }
     );
     
+    console.log("[Runtime] Creating SparkServiceLive with config...");
     sparkLayer = SparkServiceLive.pipe(
       Layer.provide(Layer.merge(sparkConfigLayer, telemetryLayer)),
     );
+    console.log("[Runtime] SparkServiceLive created");
   } else {
     console.log(`[Runtime] Building SparkService layer with MOCK implementation (no wallet initialized)`);
     
@@ -180,21 +197,29 @@ export function buildFullAppLayer() {
       }
     );
     
+    console.log("[Runtime] Creating SparkServiceTestLive (mock)...");
     sparkLayer = SparkServiceTestLive.pipe(
       Layer.provide(Layer.merge(mockConfigLayer, telemetryLayer)),
     );
+    console.log("[Runtime] SparkServiceTestLive created");
   }
+  console.log("[Runtime] sparkLayer complete");
 
+  console.log("[Runtime] Creating nip90Layer...");
   const nip90Layer = NIP90ServiceLive.pipe(
     Layer.provide(Layer.mergeAll(nostrLayer, nip04Layer, telemetryLayer)),
   );
+  console.log("[Runtime] nip90Layer created");
 
   // AI service layers - Ollama provider
+  console.log("[Runtime] Creating ollamaAdapterLayer...");
   const ollamaAdapterLayer = OllamaProvider.OllamaAsOpenAIClientLive.pipe(
     Layer.provide(Layer.mergeAll(ollamaLayer, telemetryLayer)),
   );
+  console.log("[Runtime] ollamaAdapterLayer created");
 
   // Create a base layer with all common dependencies
+  console.log("[Runtime] Creating baseLayer...");
   const baseLayer = Layer.mergeAll(
     telemetryLayer,
     devConfigLayer,
@@ -202,13 +227,17 @@ export function buildFullAppLayer() {
     ollamaLayer,
     ollamaAdapterLayer,
   );
+  console.log("[Runtime] baseLayer created");
 
   // Create the language model layer with its dependencies
+  console.log("[Runtime] Creating ollamaLanguageModelLayer...");
   const ollamaLanguageModelLayer = OllamaProvider.OllamaAgentLanguageModelLiveLayer.pipe(
     Layer.provide(baseLayer),
   );
+  console.log("[Runtime] ollamaLanguageModelLayer created");
 
   // Create the DVM layer with its dependencies, including the language model
+  console.log("[Runtime] Creating kind5050DVMLayer...");
   const kind5050DVMLayer = Kind5050DVMServiceLive.pipe(
     Layer.provide(
       Layer.mergeAll(
@@ -221,15 +250,21 @@ export function buildFullAppLayer() {
       ),
     ),
   );
+  console.log("[Runtime] kind5050DVMLayer created");
 
   // Create the provider factory layer - now simplified since it uses Layer.succeed
+  console.log("[Runtime] Creating providerFactoryLayer...");
   const providerFactoryLayer = ProviderFactoryServiceLive;
+  console.log("[Runtime] providerFactoryLayer created");
 
   // Create the chat orchestrator layer - now simplified since it uses Layer.succeed
+  console.log("[Runtime] Creating chatOrchestratorLayer...");
   const chatOrchestratorLayer = ChatOrchestratorServiceLive;
+  console.log("[Runtime] chatOrchestratorLayer created");
 
   // Full application layer - compose services incrementally
-  return Layer.mergeAll(
+  console.log("[Runtime] Creating FullAppLayer with Layer.mergeAll...");
+  const fullAppLayer = Layer.mergeAll(
     baseLayer,
     nostrLayer,
     nip04Layer,
@@ -245,6 +280,8 @@ export function buildFullAppLayer() {
     kind5050DVMLayer,
     databaseLayer,
   );
+  console.log("[Runtime] FullAppLayer created successfully");
+  return fullAppLayer;
 }
 
 // Build the initial full app layer
