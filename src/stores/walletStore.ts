@@ -84,20 +84,27 @@ export const useWalletStore = create<WalletState & WalletActions>()(
           // Initialize the SparkService and other dependent services
           await get()._initializeServices(mnemonic);
 
-          // Log wallet initialization audit event
-          const runtime = getMainRuntime();
-          const auditProgram = auditLog({
-            operation: isNewWallet ? "wallet_generated" : "wallet_restored",
-            resource: "wallet",
-            timestamp: Date.now(),
-            metadata: {
-              mnemonicPreview: maskSensitiveData(mnemonic, 'mnemonic')
+          // Log wallet initialization audit event (only if runtime is available)
+          try {
+            const runtime = getMainRuntime();
+            if (runtime) {
+              const auditProgram = auditLog({
+                operation: isNewWallet ? "wallet_generated" : "wallet_restored",
+                resource: "wallet",
+                timestamp: Date.now(),
+                metadata: {
+                  mnemonicPreview: maskSensitiveData(mnemonic, 'mnemonic')
+                }
+              }).pipe(
+                Effect.catchAll(() => Effect.void)
+              );
+              
+              Runtime.runFork(runtime)(auditProgram);
             }
-          }).pipe(
-            Effect.catchAll(() => Effect.void)
-          );
-          
-          Runtime.runFork(runtime)(auditProgram);
+          } catch (error) {
+            // Runtime might not be initialized yet during startup
+            console.debug("Audit logging skipped - runtime not yet initialized");
+          }
 
           set({
             seedPhrase: mnemonic, // Now store the seed
