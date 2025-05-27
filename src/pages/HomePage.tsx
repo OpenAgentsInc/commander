@@ -51,6 +51,7 @@ export default function HomePage() {
     toggleDvmJobHistoryPane,
     toggleAgentChatPane,
     togglePreviousChatsPane,
+    toggleCoderPane,
   } = usePaneStore(
     useShallow((state) => ({
       panes: state.panes,
@@ -62,6 +63,7 @@ export default function HomePage() {
       toggleDvmJobHistoryPane: state.toggleDvmJobHistoryPane,
       toggleAgentChatPane: state.toggleAgentChatPane,
       togglePreviousChatsPane: state.togglePreviousChatsPane,
+      toggleCoderPane: state.toggleCoderPane,
     })),
   );
 
@@ -234,32 +236,37 @@ export default function HomePage() {
 
       // Call the appropriate toggle function based on the digit
       switch (digit) {
-        case 1:
+        case 1: // New: Coder Mode
+          console.log("Keyboard: Toggle Coder Mode");
+          toggleCoderPane();
+          break;
+        case 2: // Was 1: Sell Compute
           console.log("Keyboard: Toggle Sell Compute");
           toggleSellComputePane();
           break;
-        case 2:
+        case 3: // Was 2: Wallet Pane
           console.log("Keyboard: Toggle Wallet Pane");
           toggleWalletPane();
           break;
-        case 3:
+        case 4: // Was 3: DVM Job History
           console.log("Keyboard: Toggle DVM Job History Pane");
           toggleDvmJobHistoryPane();
           break;
-        case 4:
+        case 5: // Was 4: Agent Chat
           console.log("Keyboard: Toggle Agent Chat Pane");
           toggleAgentChatPane();
           break;
-        case 5:
-          console.log("Keyboard: Toggle Previous Chats Pane");
-          togglePreviousChatsPane();
+        case 6: // Was 5: Previous Chats (if enabled)
+          if (togglePreviousChatsPane) {
+            console.log("Keyboard: Toggle Previous Chats Pane");
+            togglePreviousChatsPane();
+          }
           break;
-        case 6:
+        // Slots 7 and 8 are currently unassigned
         case 7:
         case 8:
-          // No operation for slots 6-8
           break;
-        case 9:
+        case 9: // Hand Tracking (remains 9)
           console.log("Keyboard: Toggle Hand Tracking");
           toggleHandTracking();
           break;
@@ -274,6 +281,7 @@ export default function HomePage() {
       window.removeEventListener("keydown", handleGlobalKeyDown);
     };
   }, [
+    toggleCoderPane,
     toggleSellComputePane,
     toggleWalletPane,
     toggleHandTracking,
@@ -314,6 +322,7 @@ export default function HomePage() {
           onToggleDvmJobHistoryPane={toggleDvmJobHistoryPane}
           onToggleAgentChatPane={toggleAgentChatPane}
           onTogglePreviousChatsPane={togglePreviousChatsPane}
+          onToggleCoderPane={toggleCoderPane}
         />
       </div>
     </KeyboardControls>

@@ -48,52 +48,22 @@ import {
   AGENT_CHAT_PANE_TITLE,
   AGENT_CHAT_PANE_DEFAULT_WIDTH,
   AGENT_CHAT_PANE_DEFAULT_HEIGHT,
+  CODER_PANE_ID,
+  CODER_PANE_TITLE,
 } from "./panes/constants";
 import { DVM_JOB_HISTORY_PANE_ID } from "./panes/actions/openDvmJobHistoryPane";
 
 // Function to get initial panes
 const getInitialPanes = (): Pane[] => {
-  const screenWidth = typeof window !== "undefined" ? window.innerWidth : 1920;
-  const screenHeight =
-    typeof window !== "undefined" ? window.innerHeight : 1080;
-
-  // Only return the Sell Compute pane for focused "Compute Market" launch
-  return [
-    {
-      id: SELL_COMPUTE_PANE_ID_CONST,
-      type: "sell_compute",
-      title: "Sell Compute",
-      x: Math.max(PANE_MARGIN, (screenWidth - SELL_COMPUTE_INITIAL_WIDTH) / 2),
-      y: Math.max(
-        PANE_MARGIN,
-        (screenHeight - SELL_COMPUTE_INITIAL_HEIGHT) / 3,
-      ),
-      width: SELL_COMPUTE_INITIAL_WIDTH,
-      height: SELL_COMPUTE_INITIAL_HEIGHT,
-      isActive: true,
-      dismissable: true,
-      content: {},
-    },
-  ];
+  // Start with no panes open
+  return [];
 };
 
 const initialState: PaneState = {
   panes: getInitialPanes(),
-  activePaneId: SELL_COMPUTE_PANE_ID_CONST,
-  lastPanePosition: null, // Will be set below
+  activePaneId: null, // No active pane on startup
+  lastPanePosition: null,
 };
-
-const sellComputePaneInitial = initialState.panes.find(
-  (p) => p.id === SELL_COMPUTE_PANE_ID_CONST,
-);
-if (sellComputePaneInitial) {
-  initialState.lastPanePosition = {
-    x: sellComputePaneInitial.x,
-    y: sellComputePaneInitial.y,
-    width: sellComputePaneInitial.width,
-    height: sellComputePaneInitial.height,
-  };
-}
 
 export const usePaneStore = create<PaneStoreType>()(
   persist(
@@ -131,6 +101,81 @@ export const usePaneStore = create<PaneStoreType>()(
       // Previous chats pane
       openPreviousChatsPane: () => openPreviousChatsPaneAction(set),
       togglePreviousChatsPane: () => togglePreviousChatsPaneAction(set, get),
+      // Coder pane
+      toggleCoderPane: () =>
+        set((state) => {
+          const paneId = CODER_PANE_ID;
+          const existingPane = state.panes.find((p) => p.id === paneId);
+
+          // If the pane exists
+          if (existingPane) {
+            // If it's already the active pane, close it
+            if (state.activePaneId === paneId) {
+              const remainingPanes = state.panes.filter(
+                (pane) => pane.id !== paneId,
+              );
+              let newActivePaneId: string | null = null;
+              if (remainingPanes.length > 0) {
+                newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
+              }
+              const updatedPanes = remainingPanes.map((p) => ({
+                ...p,
+                isActive: p.id === newActivePaneId,
+              }));
+
+              return {
+                ...state,
+                panes: updatedPanes,
+                activePaneId: newActivePaneId,
+              };
+            }
+            // If it exists but isn't active, bring it to front
+            else {
+              // Move the pane to the end of the array to bring it to the front
+              const panesWithoutTarget = state.panes.filter(
+                (p) => p.id !== paneId,
+              );
+              const updatedTargetPane = { ...existingPane, isActive: true };
+              const updatedOtherPanes = panesWithoutTarget.map((p) => ({
+                ...p,
+                isActive: false,
+              }));
+
+              return {
+                ...state,
+                panes: [...updatedOtherPanes, updatedTargetPane],
+                activePaneId: paneId,
+              };
+            }
+          } else {
+            // Pane doesn't exist, create it
+            const screenWidth =
+              typeof window !== "undefined" ? window.innerWidth : 1920;
+            const screenHeight =
+              typeof window !== "undefined" ? window.innerHeight : 1080;
+
+            // Calculate fullscreen-ish dimensions (leave some margin for the window chrome)
+            const width = screenWidth - (PANE_MARGIN * 2);
+            const height = screenHeight - (PANE_MARGIN * 2) - 100; // Extra space for title bar and hotbar
+
+            // Generate a unique UI session ID for this coder pane instance
+            const sessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+
+            const newPaneInput: PaneInput = {
+              id: paneId,
+              type: "coder",
+              title: CODER_PANE_TITLE,
+              x: PANE_MARGIN,
+              y: PANE_MARGIN + 10,
+              width: width,
+              height: height,
+              dismissable: true,
+              content: { sessionId },
+            };
+
+            return addPaneActionLogic(state, newPaneInput, false);
+          }
+        }),
       resetHUDState: () => {
         // Force recreate initial panes with current screen dimensions
         const screenWidth =
@@ -395,28 +440,12 @@ export const usePaneStore = create<PaneStoreType>()(
         activePaneId: state.activePaneId,
       }),
       merge: (persistedState, currentState) => {
-        // For the focused "Compute Market" launch, we'll force the initial state
-        // to have just the Sell Compute pane
-        const defaultInitialPanes = getInitialPanes();
-        const defaultActiveId = SELL_COMPUTE_PANE_ID_CONST;
-        const defaultSellComputePane = defaultInitialPanes.find(
-          (p) => p.id === SELL_COMPUTE_PANE_ID_CONST,
-        );
-
-        // Start with a clean initial state (ignoring persisted state)
-        // This ensures we only have Sell Compute pane visible on startup
+        // Start with no panes open but preserve all methods
         return {
           ...currentState,
-          panes: defaultInitialPanes,
-          activePaneId: defaultActiveId,
-          lastPanePosition: defaultSellComputePane
-            ? {
-              x: defaultSellComputePane.x,
-              y: defaultSellComputePane.y,
-              width: defaultSellComputePane.width,
-              height: defaultSellComputePane.height,
-            }
-            : null,
+          panes: [],
+          activePaneId: null,
+          lastPanePosition: null,
         };
       },
     },
