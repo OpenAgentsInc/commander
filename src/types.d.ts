@@ -84,6 +84,7 @@ declare global {
     themeMode: ThemeModeContext;
     electronWindow: ElectronWindow;
     electronAPI: ElectronAPI; // Make electronAPI non-optional
+    effectRuntime?: any; // Effect runtime instance for error handling
   }
 }
 

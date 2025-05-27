@@ -15,6 +15,7 @@ import { TelemetryService, type TelemetryEvent } from "@/services/telemetry";
 import { useAgentChatStore } from "@/stores/ai/agentChatStore";
 import { DatabaseService } from "@/services/db";
 import type { DBMessage, DBToolExecution } from "@/services/db";
+import { withErrorReporting } from "@/utils/error-handling";
 
 interface UseAgentChatOptions {
   initialSystemMessage?: string;
@@ -354,12 +355,23 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
                 cause: Cause.pretty(cause)
               });
               setError(squashedError);
-              runTelemetry({
-                category: "agent_chat",
-                action: "send_message_failure_stream",
-                label: (squashedError as Error).message,
-                value: Cause.pretty(cause),
-              });
+              
+              // Use enhanced error reporting
+              withErrorReporting(
+                Effect.fail(squashedError),
+                {
+                  operation: "stream_conversation",
+                  category: "agent_chat",
+                  metadata: {
+                    messageId: assistantMsgId,
+                    provider: selectedProviderKey,
+                    causeDetails: Cause.pretty(cause)
+                  }
+                },
+                { showToast: true }
+              ).pipe(
+                Effect.catchAll(() => Effect.void)
+              );
             }
           }),
         ),

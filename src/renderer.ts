@@ -16,6 +16,10 @@ async function startApp() {
 
     // Optionally, log successful initialization using the now available runtime
     const runtime = getMainRuntime(); // This will now return the initialized runtime
+    
+    // Make runtime available globally for error handling
+    window.effectRuntime = runtime;
+    
     runFork(
       Effect.flatMap(TelemetryService, (ts) =>
         ts.trackEvent({

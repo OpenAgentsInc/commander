@@ -208,3 +208,85 @@ Benefits:
 3. Extensible - Easy to add new providers
 4. Reusable - Other services can use factory
 5. Clean orchestrator - Focus on conversation management
+
+#### Implementation Complete ✓ (05:25)
+1. Created `ProviderFactoryService` interface in `/src/services/ai/providers/ProviderFactoryService.ts`
+   - `createProvider` method for instantiating providers
+   - `listProviders` method for discovering available providers
+   
+2. Created `ProviderFactoryServiceImpl.ts` with full implementation
+   - Extracted all provider instantiation logic from ChatOrchestratorService
+   - Handles Ollama, Claude Code, and NIP90 providers
+   - Manages dynamic imports and layer composition
+   - Centralized error handling and telemetry
+   
+3. Refactored `ChatOrchestratorService` to use ProviderFactoryService
+   - Removed 400+ lines of provider resolution code
+   - Simplified to pure orchestration logic
+   - Now only handles conversation flow and message formatting
+   - Delegates all provider creation to factory
+   
+4. Updated runtime.ts to include ProviderFactoryService
+   - Added to FullAppContext type
+   - Created providerFactoryLayer with proper dependencies
+   - Updated chatOrchestratorLayer to depend on factory
+   
+5. Tests: All 260 tests passing
+
+Benefits achieved:
+- **Separation of Concerns**: Provider creation is now isolated from orchestration
+- **Better Testing**: Can test provider creation without orchestration logic
+- **Easier Extension**: Adding new providers only requires updating factory
+- **Code Reduction**: Removed ~400 lines from ChatOrchestratorService
+- **Cleaner Architecture**: Each service has a single, clear responsibility
+
+### 4. Error Handling Improvements - Starting 05:30
+
+#### Current State Analysis
+From the refactor suggestions:
+- Need comprehensive error types and mapping
+- Missing user-friendly error messages
+- No centralized error tracking/reporting
+- Need better error context and debugging info
+
+#### Goal
+- Implement comprehensive error type system
+- Add user-friendly error messages
+- Create error reporting utilities
+- Improve error context for debugging
+
+#### Implementation Complete ✓ (05:40)
+1. Created `/src/utils/error-handling.ts` with comprehensive error utilities:
+   - `getUserFriendlyMessage` - Maps technical errors to user-friendly messages
+   - `getErrorDetails` - Extracts error details for debugging
+   - `reportError` - Centralized error reporting with telemetry
+   - `withErrorReporting` - Effect wrapper for automatic error reporting
+   - `createErrorHandler` - UI component error handler
+   - `handleAsyncError` - Async operation error wrapper
+   
+2. Created comprehensive error message mapping:
+   - AI service errors (provider, configuration, context window, etc.)
+   - Nostr errors (connection, publish, subscription)
+   - Database errors (connection, query)
+   - NIP errors (encryption, decryption, invalid input)
+   - Spark/Lightning errors (init, balance, invoice, payment)
+   - Configuration errors
+   
+3. Created `/src/components/ErrorBoundary.tsx`:
+   - Global React error boundary component
+   - Catches and reports React component errors
+   - Shows user-friendly error UI
+   - Provides recovery options (retry, go home)
+   - Development mode shows detailed error info
+   
+4. Updated application setup:
+   - Added `window.effectRuntime` for global error handling access
+   - Wrapped App component with ErrorBoundary
+   - Updated `useAgentChat` hook to use new error reporting
+   
+5. Benefits achieved:
+   - **User Experience**: Clear, actionable error messages instead of technical jargon
+   - **Debugging**: Comprehensive error context with telemetry tracking
+   - **Consistency**: Centralized error handling patterns
+   - **Recovery**: Error boundary prevents full app crashes
+   - **Monitoring**: All errors tracked in telemetry for analysis

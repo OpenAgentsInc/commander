@@ -14,6 +14,7 @@ import {
   SEED_PHRASE_BACKUP_PANE_ID,
   RESTORE_WALLET_PANE_ID,
 } from "@/stores/panes/constants";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 // Create a client
 const queryClient = new QueryClient();
@@ -67,10 +68,12 @@ export default function App() {
   // }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <RouterProvider router={router} />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <RouterProvider router={router} />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
