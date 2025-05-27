@@ -121,10 +121,22 @@ export const usePaneStore = create<PaneStoreType>()(
                 isActive: p.id === newActivePaneId,
               }));
 
+              // Save the pane's position before removing it
+              const closedPanePositions = {
+                ...state.closedPanePositions,
+                [paneId]: {
+                  x: existingPane.x,
+                  y: existingPane.y,
+                  width: existingPane.width,
+                  height: existingPane.height,
+                },
+              };
+
               return {
                 ...state,
                 panes: updatedPanes,
                 activePaneId: newActivePaneId,
+                closedPanePositions,
               };
             }
             // If it exists but isn't active, bring it to front
@@ -218,10 +230,22 @@ export const usePaneStore = create<PaneStoreType>()(
                 isActive: p.id === newActivePaneId,
               }));
 
+              // Save the pane's position before removing it
+              const closedPanePositions = {
+                ...state.closedPanePositions,
+                [paneId]: {
+                  x: existingPane.x,
+                  y: existingPane.y,
+                  width: existingPane.width,
+                  height: existingPane.height,
+                },
+              };
+
               return {
                 ...state,
                 panes: updatedPanes,
                 activePaneId: newActivePaneId,
+                closedPanePositions,
               };
             }
             // If it exists but isn't active, bring it to front
@@ -314,10 +338,22 @@ export const usePaneStore = create<PaneStoreType>()(
                 isActive: p.id === newActivePaneId,
               }));
 
+              // Save the pane's position before removing it
+              const closedPanePositions = {
+                ...state.closedPanePositions,
+                [paneId]: {
+                  x: existingPane.x,
+                  y: existingPane.y,
+                  width: existingPane.width,
+                  height: existingPane.height,
+                },
+              };
+
               return {
                 ...state,
                 panes: updatedPanes,
                 activePaneId: newActivePaneId,
+                closedPanePositions,
               };
             }
             // If it exists but isn't active, bring it to front
@@ -457,10 +493,22 @@ export const usePaneStore = create<PaneStoreType>()(
                 isActive: p.id === newActivePaneId,
               }));
 
+              // Save the pane's position before removing it
+              const closedPanePositions = {
+                ...state.closedPanePositions,
+                [paneId]: {
+                  x: existingPane.x,
+                  y: existingPane.y,
+                  width: existingPane.width,
+                  height: existingPane.height,
+                },
+              };
+
               return {
                 ...state,
                 panes: updatedPanes,
                 activePaneId: newActivePaneId,
+                closedPanePositions,
               };
             }
             // If it exists but isn't active, bring it to front
@@ -559,10 +607,22 @@ export const usePaneStore = create<PaneStoreType>()(
                 isActive: p.id === newActivePaneId,
               }));
 
+              // Save the pane's position before removing it
+              const closedPanePositions = {
+                ...state.closedPanePositions,
+                [paneId]: {
+                  x: existingPane.x,
+                  y: existingPane.y,
+                  width: existingPane.width,
+                  height: existingPane.height,
+                },
+              };
+
               return {
                 ...state,
                 panes: updatedPanes,
                 activePaneId: newActivePaneId,
+                closedPanePositions,
               };
             }
             // If it exists but isn't active, bring it to front
@@ -655,10 +715,22 @@ export const usePaneStore = create<PaneStoreType>()(
                 isActive: p.id === newActivePaneId,
               }));
 
+              // Save the pane's position before removing it
+              const closedPanePositions = {
+                ...state.closedPanePositions,
+                [paneId]: {
+                  x: existingPane.x,
+                  y: existingPane.y,
+                  width: existingPane.width,
+                  height: existingPane.height,
+                },
+              };
+
               return {
                 ...state,
                 panes: updatedPanes,
                 activePaneId: newActivePaneId,
+                closedPanePositions,
               };
             }
             // If it exists but isn't active, bring it to front
