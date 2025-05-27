@@ -49,27 +49,15 @@ export const ProviderFactoryServiceLive = Layer.effect(
       Context.add(SparkService, spark)
     );
     
-    const runTelemetry = (telemetryEffect: Effect.Effect<void, Error, TelemetryService>) => {
-      Runtime.runFork(Runtime.defaultRuntime)(
-        telemetryEffect.pipe(
-          Effect.provideService(TelemetryService, telemetry),
-          Effect.catchAll((error) =>
-            Console.error(`Telemetry error in ProviderFactory: ${error.message}`)
-          )
-        )
-      );
-    };
+    // Note: Telemetry logging removed from Layer construction
+    // Effects cannot be executed during Layer building
     
     const service: ProviderFactoryService = {
       _tag: "ProviderFactoryService",
       
       createProvider: (providerKey: string, modelName?: string): Effect.Effect<AgentLanguageModel, AiProviderError | AiConfigurationError, never> =>
         Effect.gen(function* (_) {
-          runTelemetry(telemetry.trackEvent({
-            category: "provider_factory",
-            action: "create_provider_start",
-            label: providerKey
-          }));
+          // Telemetry removed - cannot execute effects during Layer construction
           
           switch (providerKey) {
             case "ollama": {
@@ -131,11 +119,7 @@ export const ProviderFactoryServiceLive = Layer.effect(
                 )
               );
               
-              runTelemetry(telemetry.trackEvent({
-                category: "provider_factory",
-                action: "create_provider_success",
-                label: "ollama"
-              }));
+              // Telemetry removed - cannot execute effects during Layer construction
               
               return ollamaAgentLM;
             }
@@ -291,11 +275,7 @@ export const ProviderFactoryServiceLive = Layer.effect(
                   })
               });
               
-              runTelemetry(telemetry.trackEvent({
-                category: "provider_factory",
-                action: "create_provider_success",
-                label: "claude_code"
-              }));
+              // Telemetry removed - cannot execute effects during Layer construction
               
               return claudeCodeAgentLM;
             }
@@ -362,11 +342,7 @@ export const ProviderFactoryServiceLive = Layer.effect(
                   )
                 );
                 
-                runTelemetry(telemetry.trackEvent({
-                  category: "provider_factory",
-                  action: "create_provider_success",
-                  label: providerKey
-                }));
+                // Telemetry removed - cannot execute effects during Layer construction
                 
                 return nip90AgentLM;
               }
