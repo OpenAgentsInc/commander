@@ -83,8 +83,9 @@ const ProseMirrorEditor: React.FC<{ onSubmit: (text: string) => void, disabled?:
 const AutoFocusEditor: React.FC<{
   onSubmit: (text: string) => void,
   disabled?: boolean,
-  components: any
-}> = ({ onSubmit, disabled, components }) => {
+  components: any,
+  focusKey?: number
+}> = ({ onSubmit, disabled, components, focusKey }) => {
   const { useEditorState, useEditorEffect, useEditorEventListener, ProseMirrorDoc } = components;
   const editorState = useEditorState();
 
@@ -93,6 +94,13 @@ const AutoFocusEditor: React.FC<{
       view.focus();
     }
   }, [disabled]);
+
+  // Re-focus when focusKey changes (e.g., after clicking New Chat)
+  useEditorEffect((view: any) => {
+    if (view && focusKey !== undefined) {
+      view.focus();
+    }
+  }, [focusKey]);
 
   // Function to serialize document to text with line breaks
   const serializeDocToText = (doc: any) => {
@@ -351,8 +359,9 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
   // Get messages from Zustand store
   const { messages, addMessage, updateMessage, clearMessages } = useCoderChatStore();
   
-  // Local state for loading
+  // Local state for loading and focus
   const [isLoading, setIsLoading] = useState(false);
+  const [focusKey, setFocusKey] = useState(0);
   const streamCancelRef = useRef<(() => void) | null>(null);
   
   // Auto-scroll hook
@@ -409,6 +418,9 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
 
     // Set loading state to false
     setIsLoading(false);
+    
+    // Trigger focus on the editor by updating focusKey
+    setFocusKey(prev => prev + 1);
   }, [clearMessages, runtime]);
 
   React.useEffect(() => {
@@ -735,7 +747,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
       {/* ProseMirror editor at the bottom */}
       <div className="flex items-center justify-center pb-4 px-4">
         <div className="h-[100px] w-[750px] overflow-auto rounded border border-white bg-black">
-          <ProseMirrorEditor onSubmit={sendMessage} disabled={isLoading} />
+          <ProseMirrorEditor onSubmit={sendMessage} disabled={isLoading} focusKey={focusKey} />
         </div>
       </div>
     </div>
