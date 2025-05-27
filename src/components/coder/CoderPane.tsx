@@ -4,8 +4,11 @@ import { TelemetryService } from '@/services/telemetry';
 import { getMainRuntime } from '@/services/runtime';
 import { usePaneStore } from '@/stores/pane';
 import { useCoderChatStore } from '@/stores/coderChatStore';
-import { EditorState } from "prosemirror-state";
+import { EditorState, Plugin } from "prosemirror-state";
 import { schema } from "prosemirror-schema-basic";
+import { history } from "prosemirror-history";
+import { keymap } from "prosemirror-keymap";
+import { baseKeymap } from "prosemirror-commands";
 import { ChatMessage as UIChatMessage, type Message } from '@/components/ui/chat-message';
 
 
@@ -33,11 +36,33 @@ const ProseMirrorEditor: React.FC<{ onSubmit: (text: string) => void, disabled?:
 
   const { ProseMirror, ProseMirrorDoc, reactKeys } = components;
 
+  // Create custom keymap for handling Enter and Shift+Enter
+  const customKeymap = keymap({
+    "Enter": (state, dispatch, view) => {
+      // Plain Enter submits
+      return false; // Let our event listener handle it
+    },
+    "Shift-Enter": (state, dispatch) => {
+      // Shift+Enter inserts a line break
+      if (dispatch) {
+        const br = schema.nodes.hard_break.create();
+        const tr = state.tr.replaceSelectionWith(br).scrollIntoView();
+        dispatch(tr);
+      }
+      return true;
+    }
+  });
+
   return (
     <ProseMirror
       defaultState={EditorState.create({
         schema,
-        plugins: [reactKeys()],
+        plugins: [
+          history(),
+          keymap(baseKeymap),
+          customKeymap,
+          reactKeys(),
+        ],
       })}
     >
       <AutoFocusEditor
@@ -64,28 +89,25 @@ const AutoFocusEditor: React.FC<{
     }
   }, [disabled]);
 
-  // Handle Enter (submit) and Shift+Enter (new line)
+  // Handle Enter (submit) - Shift+Enter is handled by the keymap
   useEditorEventListener("keydown", (view: any, event: KeyboardEvent) => {
     if (event.key === "Enter" && !event.shiftKey && !disabled) {
       event.preventDefault();
 
       // Get the text content from the editor
-      const text = editorState?.doc.textContent || "";
+      const text = view.state.doc.textContent || "";
 
       if (text.trim()) {
         // Submit the message
         onSubmit(text);
 
         // Clear the editor
-        if (view) {
-          const tr = view.state.tr.delete(0, view.state.doc.content.size);
-          view.dispatch(tr);
-        }
+        const tr = view.state.tr.delete(0, view.state.doc.content.size);
+        view.dispatch(tr);
       }
 
       return true;
     }
-    // Shift+Enter will naturally create a new line, no need to handle
     return false;
   });
 
@@ -94,7 +116,13 @@ const AutoFocusEditor: React.FC<{
       as={
         <div
           className="p-4 prose prose-invert h-full w-full outline-none text-white box-border"
-          style={{ minHeight: '100%', padding: '12px', opacity: disabled ? 0.5 : 1 }}
+          style={{ 
+            minHeight: '100%', 
+            padding: '12px', 
+            opacity: disabled ? 0.5 : 1,
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word'
+          }}
         />
       }
     />
