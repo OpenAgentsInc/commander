@@ -237,6 +237,12 @@ export const usePaneStore = create<PaneStoreType>()(
 );
 ```
 - **Actions (`src/stores/panes/actions/*`)**: Functions that modify the store's state (e.g., `addPaneAction`, `removePaneAction`). These are designed to be reusable and often call `addPaneActionLogic` for common pane creation tasks.
+  - **`togglePaneAction`**: Common implementation for all toggle functions that:
+    - Handles close/open/bring-to-front logic consistently
+    - Saves position when closing panes
+    - Restores position when reopening panes
+    - Includes console logging for debugging
+    - Eliminates code duplication across toggle functions
 - **Constants (`src/stores/panes/constants.ts`)**: Defines IDs, default dimensions, and titles for standard panes.
 - **Utilities (`src/stores/panes/utils/*`)**: Helper functions like `calculateNewPanePosition` for tiling new panes and `ensurePaneIsVisible` for boundary checks.
 - **Persistence**: Uses `zustand/middleware/persist` to save pane state (positions, sizes, types) to `localStorage`, allowing the layout to be restored across sessions. The `merge` function ensures that default essential panes (like "Sell Compute") are present even if the persisted state is corrupted or empty.
@@ -401,12 +407,16 @@ Components like `HomePage.tsx` and `Hotbar.tsx` contain UI elements (buttons) th
 
 When a pane is closed and later reopened (common with toggle-able panes like Coder, Wallet, etc.):
 
-1. **On Close**: `removePaneAction` saves the pane's current position/size to `closedPanePositions[paneId]`.
-2. **On Reopen**: Toggle actions (e.g., `toggleCoderPane`) check for a stored position:
+1. **On Close**: Toggle actions save the pane's current position/size to `closedPanePositions[paneId]` when closing.
+2. **On Reopen**: Toggle actions check for a stored position:
    - If found: Restore the pane at its previous location (with bounds checking) and remove the stored position.
    - If not found: Create the pane at the default position.
 3. **One-time Use**: Stored positions are removed after being used to prevent stale data.
-4. This ensures panes remember their last position across close/open cycles while always using the most recent position.
+4. **Common Implementation**: All toggle functions use `togglePaneAction` for consistent behavior:
+   - Reduces code duplication
+   - Ensures all panes handle position persistence the same way
+   - Includes console logging for debugging position save/restore operations
+5. This ensures panes remember their last position across close/open cycles while always using the most recent position.
 
 ## 5. Pane Lifecycle & Interactions
 
