@@ -32,6 +32,7 @@ import {
   togglePaneAction,
   // Coder pane action
   toggleAllCoderPanesAction,
+  openNewCoderPaneAction,
 } from "./panes/actions";
 import {
   DEFAULT_NIP28_PANE_ID,
@@ -180,8 +181,8 @@ export const usePaneStore = create<PaneStoreType>()(
               };
             },
           }),
-      // Coder pane - toggles ALL coder panes
-      toggleCoderPane: () => toggleAllCoderPanesAction(set, get),
+      // Coder pane - opens a new coder pane (changed from toggle all)
+      toggleCoderPane: () => openNewCoderPaneAction(set, get),
       resetHUDState: () => {
         // Force recreate initial panes with current screen dimensions
         const screenWidth =

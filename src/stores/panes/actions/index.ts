@@ -29,3 +29,4 @@ export * from "./togglePreviousChatsPane";
 export * from "./togglePane";
 // Coder pane actions
 export * from "./toggleAllCoderPanes";
+export * from "./openNewCoderPane";

@@ -422,8 +422,9 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
   const [isLoading, setIsLoading] = useState(false);
   const [focusKey, setFocusKey] = useState(0);
   const streamCancelRef = useRef<(() => void) | null>(null);
+  const isLoadingRef = useRef(false); // Track loading state across renders
 
-  // Auto-scroll hook
+  // Auto-scroll hook - trigger on messages change
   const {
     containerRef,
     scrollToBottom,
@@ -431,6 +432,15 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
     shouldAutoScroll,
     handleTouchStart,
   } = useAutoScroll([messages]);
+  
+  // Scroll to bottom on initial load
+  useEffect(() => {
+    // Small delay to ensure DOM is ready
+    const timer = setTimeout(() => {
+      scrollToBottom();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []); // Only on mount
 
 
   const handleExitCoderMode = React.useCallback(() => {
@@ -462,9 +472,13 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
     // Generate new session ID
     const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
     sessionIdRef.current = newSessionId;
+    lastLoadedSessionIdRef.current = newSessionId; // Mark as loaded to prevent reload
 
     // Clear all messages from the store
     clearMessages();
+    
+    // Update pane content with new session ID
+    updatePaneContent(paneId, { sessionId: newSessionId });
 
     // Track the new chat action
     Effect.runFork(
@@ -481,7 +495,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
 
     // Trigger focus on the editor by updating focusKey
     setFocusKey(prev => prev + 1);
-  }, [clearMessages, runtime]);
+  }, [clearMessages, runtime, updatePaneContent, paneId]);
 
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -652,6 +666,14 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
   const loadMessagesForSessionInternal = useCallback(async (sessionIdToLoad: string) => {
     const componentName = `[CoderPane ${paneId?.substring(0, 8) || 'NEW'}]`;
     console.log(`${componentName} Attempting to load messages for session: ${sessionIdToLoad}`);
+    
+    // Prevent loading if already loading
+    if (isLoadingRef.current) {
+      console.log(`${componentName} Already loading, skipping duplicate load for ${sessionIdToLoad}`);
+      return;
+    }
+    
+    isLoadingRef.current = true;
     setIsLoading(true);
     clearMessages();
 
@@ -705,6 +727,11 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
         sessionIdRef.current = sessionIdToLoad; // Ensure current session ID is also set
         updatePaneContent(paneId, { sessionId: sessionIdToLoad });
         console.log(`${componentName} Session ${sessionIdToLoad} loaded and pane content updated.`);
+        
+        // Scroll to bottom after loading messages
+        setTimeout(() => {
+          scrollToBottom();
+        }, 100);
       } else {
         console.error(`${componentName} Failed to load messages for ${sessionIdToLoad}:`, Cause.pretty(exitResult.cause));
         addMessage({ id: `error-load-${Date.now()}`, role: 'system', content: `Error loading session ${sessionIdToLoad.substring(0,8)}...`, timestamp: Date.now() });
@@ -713,10 +740,11 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
       console.error(`${componentName} Exception loading session ${sessionIdToLoad}:`, error);
       addMessage({ id: `error-load-exc-${Date.now()}`, role: 'system', content: `Critical error loading session.`, timestamp: Date.now() });
     } finally {
+      isLoadingRef.current = false;
       setIsLoading(false);
       setFocusKey(prev => prev + 1);
     }
-  }, [paneId, clearMessages, updatePaneContent, runtime, addMessage, setMessages, setIsLoading, setFocusKey]);
+  }, [paneId, runtime]); // Minimize dependencies to prevent recreating the function
 
   // Legacy function for backward compatibility
   const loadSessionMessages = async (sessionId: string): Promise<boolean> => {
@@ -746,7 +774,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
       console.log(`${componentName} No session load required by this effect run.`);
       setIsLoading(false); // Ensure loading is false if no load occurs
     }
-  }, [initialSessionId, paneId, clearMessages, updatePaneContent, addMessage, messages.length, loadMessagesForSessionInternal]); // Use messages.length to detect if messages array was cleared
+  }, [initialSessionId, paneId]); // Only re-run when these critical props change
 
   // State for history menu
   const [historyMenuOpen, setHistoryMenuOpen] = useState(false);
@@ -1028,7 +1056,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
       {/* Chat messages area */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-auto p-4 flex flex-col-reverse"
+        className="flex-1 overflow-auto p-4"
         onScroll={handleScroll}
         onTouchStart={handleTouchStart}
       >
