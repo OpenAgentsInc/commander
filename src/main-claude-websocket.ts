@@ -294,6 +294,7 @@ export function setupClaudeWebSocketHandler() {
             hasReceivedData = true;
             const claudeMessage = message.payload;
             console.log("[Main Process] Received stream chunk:", claudeMessage.type);
+            console.log("[Main Process] Full Claude message:", JSON.stringify(claudeMessage, null, 2));
             
             if (claudeMessage.type === "assistant" && claudeMessage.message) {
               // Extract text content from assistant message
@@ -306,8 +307,11 @@ export function setupClaudeWebSocketHandler() {
                     // Collect for database
                     fullAssistantContent += contentPart.text;
                   } else if (contentPart.type === "tool_use") {
-                    // Send tool usage info
-                    const toolInfo = `\n[Using tool: ${contentPart.name}]\n`;
+                    // Send tool usage info with details
+                    let toolInfo = `\n[Using tool: ${contentPart.name}]\n`;
+                    if (contentPart.input) {
+                      toolInfo += `Parameters: ${JSON.stringify(contentPart.input, null, 2)}\n`;
+                    }
                     event.sender.send(`claude-code:chat-stream:chunk`, requestId, toolInfo);
                     // Collect tool call for database
                     toolCalls.push({
@@ -369,6 +373,24 @@ export function setupClaudeWebSocketHandler() {
               console.log("[Main Process] Stream initialized:", claudeMessage);
             } else if (claudeMessage.type === "result") {
               console.log("[Main Process] Stream result:", claudeMessage);
+              // Send result info to UI if it contains the final result
+              if (claudeMessage.result) {
+                event.sender.send(`claude-code:chat-stream:chunk`, requestId, `\n\n[Result: ${claudeMessage.result}]\n`);
+              }
+            } else if (claudeMessage.type === "tool_result") {
+              console.log("[Main Process] Tool result:", claudeMessage);
+              // Format and send tool results to UI
+              if (claudeMessage.content && Array.isArray(claudeMessage.content)) {
+                for (const contentPart of claudeMessage.content) {
+                  if (contentPart.type === "text" && contentPart.text) {
+                    event.sender.send(`claude-code:chat-stream:chunk`, requestId, `\n[Tool Result]:\n${contentPart.text}\n`);
+                  }
+                }
+              }
+            } else {
+              // Log any other message types we're not handling
+              console.log("[Main Process] Unhandled Claude message type:", claudeMessage.type);
+              console.log("[Main Process] Message content:", JSON.stringify(claudeMessage, null, 2));
             }
             break;
             
@@ -390,8 +412,11 @@ export function setupClaudeWebSocketHandler() {
                     // Collect for database
                     fullAssistantContent += contentPart.text;
                   } else if (contentPart.type === "tool_use") {
-                    // Send tool usage info
-                    const toolInfo = `\n[Using tool: ${contentPart.name}]\n`;
+                    // Send tool usage info with details
+                    let toolInfo = `\n[Using tool: ${contentPart.name}]\n`;
+                    if (contentPart.input) {
+                      toolInfo += `Parameters: ${JSON.stringify(contentPart.input, null, 2)}\n`;
+                    }
                     event.sender.send(`claude-code:chat-stream:chunk`, requestId, toolInfo);
                     // Collect tool call for database
                     toolCalls.push({
