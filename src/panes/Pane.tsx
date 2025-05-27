@@ -382,6 +382,7 @@ export const Pane: React.FC<PaneProps> = ({
         setPosition({ x: newX, y: newY });
 
         if (last) {
+          console.log(`[Pane] Drag ended for ${id}, updating position to:`, { x: newX, y: newY });
           updatePanePosition(id, newX, newY);
           setIsDragging(false);
         }
