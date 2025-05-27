@@ -335,15 +335,41 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
           );
         },
         async () => {
-          // Stream completed - update UI state only
-          // Note: The Claude Code bridge service handles saving messages to the database
-          setMessages(prev => 
-            prev.map((msg, idx) => 
+          // Stream completed - save assistant message to our UI session
+          setMessages(prev => {
+            const lastMsg = prev[prev.length - 1];
+            if (lastMsg && lastMsg.role === 'assistant') {
+              // Save assistant message to our UI session
+              const saveAssistantMsg = Effect.gen(function* (_) {
+                const dbService = yield* _(DatabaseService);
+                const dbMessage: DBMessage = {
+                  id: assistantMessageId,
+                  session_id: sessionId,
+                  role: 'assistant',
+                  content: lastMsg.content,
+                  timestamp: Math.floor(Date.now() / 1000),
+                  tool_calls_json: undefined,
+                  metadata_json: undefined,
+                };
+                yield* _(dbService.saveMessage(dbMessage));
+                
+                // Update session last_updated_at
+                yield* _(dbService.updateSession(sessionId, {
+                  last_updated_at: Math.floor(Date.now() / 1000),
+                }));
+              });
+              
+              Effect.runPromise(saveAssistantMsg.pipe(Effect.provide(runtime))).catch(error => {
+                console.error('Failed to save assistant message:', error);
+              });
+            }
+            
+            return prev.map((msg, idx) => 
               idx === prev.length - 1 && msg.role === 'assistant'
                 ? { ...msg, isStreaming: false }
                 : msg
-            )
-          );
+            );
+          });
           setIsLoading(false);
           streamCancelRef.current = null;
         },
