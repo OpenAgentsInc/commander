@@ -107,12 +107,19 @@ const AutoFocusEditor: React.FC<{
     }
   }, [disabled]);
 
-  // Re-focus when focusKey changes (e.g., after clicking New Chat)
+  // Re-focus when focusKey changes (e.g., after clicking New Chat or loading history)
   useEditorEffect((view: any) => {
-    if (view && focusKey !== undefined) {
-      view.focus();
+    if (view && focusKey !== undefined && !disabled) {
+      // Use requestAnimationFrame to ensure focus happens after any pending updates
+      requestAnimationFrame(() => {
+        if (view && view.focus) {
+          view.focus();
+          // Also ensure the view is scrolled into view if needed
+          view.dom.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      });
     }
-  }, [focusKey]);
+  }, [focusKey, disabled]);
 
   // Function to serialize document to text with line breaks
   const serializeDocToText = (doc: any) => {
@@ -354,7 +361,7 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
 
 export interface CoderPaneProps {
   sessionId?: string; // Passed from pane content
-  titleBarButtonsRef?: React.MutableRefObject<React.ReactNode | null>; // Ref to set title bar buttons
+  titleBarButtonsRef?: React.MutableRefObject<any>; // Ref to set title bar buttons and menus
 }
 
 const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titleBarButtonsRef }) => {
@@ -601,6 +608,8 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
       }
     };
   }, []);
+  
+  // No need for initial scroll - flex-direction: column-reverse handles it
 
   // Load messages for a session
   const loadSessionMessages = async (sessionId: string) => {
@@ -639,6 +648,8 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
             timestamp: dbMsg.timestamp * 1000, // Convert from seconds to milliseconds
           });
         });
+        
+        // No need to scroll - flex-direction: column-reverse keeps messages at bottom
         
         return true;
       } else {
@@ -681,6 +692,10 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
     const date = new Date(session.last_updated_at * 1000);
     const dateStr = date.toLocaleDateString(undefined, { year: '2-digit', month: '2-digit', day: '2-digit' });
     const timeStr = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    // Don't show ui-coder sessions in the menu display
+    if (session.id.startsWith('ui-coder-')) {
+      return `${dateStr} ${timeStr}`;
+    }
     const idPrefix = session.id.substring(0, 8);
     return `${dateStr} ${timeStr} | ${idPrefix}...`;
   };
@@ -717,45 +732,27 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
             timestamp: Date.now(),
           });
         }
+        
+        // Close the history menu
+        setHistoryMenuOpen(false);
+        
+        // Focus on the text input after a delay to ensure menu is fully closed
+        // and the component has settled. Use multiple attempts to ensure focus sticks.
+        setTimeout(() => {
+          setFocusKey(prev => prev + 1);
+          // Second attempt after a bit more time
+          setTimeout(() => {
+            setFocusKey(prev => prev + 1);
+          }, 200);
+        }, 400);
       },
     }));
-  }, [chatHistorySessions, runtime, loadSessionMessages, addMessage]);
+  }, [chatHistorySessions, runtime, loadSessionMessages, addMessage, setFocusKey]);
 
   // Create title bar buttons with history menu
   const titleBarButtons = useMemo(() => (
     <>
-      {/* History Dropdown Menu */}
-      <DropdownMenu onOpenChange={setHistoryMenuOpen}>
-        <DropdownMenuTrigger asChild>
-          <button
-            className="text-xs px-1.5 py-0.5 hover:bg-zinc-700 rounded-sm focus:outline-none text-zinc-300"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            History
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-64 text-xs" onMouseDown={(e) => e.stopPropagation()}>
-          <ScrollArea className="max-h-72">
-            {historyMenuItems.length > 0 ? (
-              historyMenuItems.map((item, index) => (
-                <DropdownMenuItem
-                  key={`${(item as PaneDropdownItemAction).label}-${index}`}
-                  onClick={(e) => { e.stopPropagation(); (item as PaneDropdownItemAction).action(); }}
-                  disabled={(item as PaneDropdownItemAction).disabled}
-                  className="text-xs"
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  {(item as PaneDropdownItemAction).label}
-                </DropdownMenuItem>
-              ))
-            ) : (
-              <DropdownMenuItem disabled className="text-xs">No recent chats</DropdownMenuItem>
-            )}
-          </ScrollArea>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      
-      {/* New Chat Button */}
+      {/* New Chat Button - will be on right side */}
       <Button
         onClick={handleNewChat}
         variant="outline"
@@ -767,14 +764,35 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
         New Chat
       </Button>
     </>
-  ), [historyMenuOpen, historyMenuItems, handleNewChat]);
+  ), [handleNewChat]);
+  
+  // Create header menus for left side
+  const headerMenus = useMemo(() => [
+    {
+      id: "coderHistoryMenu",
+      triggerLabel: "History",
+      items: historyMenuItems,
+    }
+  ], [historyMenuItems]);
+  
+  // Handle menu open state changes
+  const handleMenuOpenChange = useCallback((menuId: string, open: boolean) => {
+    if (menuId === 'coderHistoryMenu') {
+      setHistoryMenuOpen(open);
+    }
+  }, []);
 
   // Set title bar buttons in ref if provided
   useEffect(() => {
     if (titleBarButtonsRef) {
-      titleBarButtonsRef.current = titleBarButtons;
+      titleBarButtonsRef.current = {
+        buttons: titleBarButtons,
+        menus: headerMenus,
+        menuOpenState: historyMenuOpen,
+        onMenuOpenChange: handleMenuOpenChange
+      };
     }
-  }, [titleBarButtons, titleBarButtonsRef]);
+  }, [titleBarButtons, headerMenus, historyMenuOpen, handleMenuOpenChange, titleBarButtonsRef]);
 
   return (
     <div className="h-full w-full flex flex-col bg-black relative">
@@ -906,16 +924,18 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
       {/* Chat messages area */}
       <div 
         ref={containerRef}
-        className="flex-1 overflow-auto p-4"
+        className="flex-1 overflow-auto p-4 flex flex-col-reverse"
         onScroll={handleScroll}
         onTouchStart={handleTouchStart}
       >
-        <div className="max-w-[750px] mx-auto space-y-4">
-          {messages
-            .filter(msg => msg.role !== 'system') // Don't show system messages
-            .map((message, idx) => (
-              <CoderChatMessage key={message.id || idx} message={message} index={idx} />
-            ))}
+        <div className="max-w-[750px] mx-auto w-full">
+          <div className="flex flex-col gap-4">
+            {messages
+              .filter(msg => msg.role !== 'system') // Don't show system messages
+              .map((message, idx) => (
+                <CoderChatMessage key={message.id || idx} message={message} index={idx} />
+              ))}
+          </div>
         </div>
       </div>
       {/* ProseMirror editor at the bottom */}

@@ -262,6 +262,7 @@ const renderDropdownItems = (items: PaneDropdownItem[], parentId: string): React
           }}
           disabled={actionItem.disabled}
           onSelect={(e) => e.preventDefault()}
+          className="cursor-pointer"
         >
           {actionItem.icon && <span className="mr-2">{actionItem.icon}</span>}
           {actionItem.label}
@@ -442,10 +443,14 @@ export const Pane: React.FC<PaneProps> = ({
           <span className="text-xs truncate font-bold">{title}</span>
           {/* Render Dropdown Menus */}
           {headerMenus && headerMenus.map(menu => (
-            <DropdownMenu key={menu.id}>
+            <DropdownMenu 
+              key={menu.id}
+              open={(menu as any).open}
+              onOpenChange={(menu as any).onOpenChange}
+            >
               <DropdownMenuTrigger asChild>
                 <button
-                  className="text-xs px-1.5 py-0.5 hover:bg-white/10 rounded-sm focus:outline-none focus:ring-1 focus:ring-primary text-gray-300"
+                  className="text-xs px-1.5 py-0.5 hover:bg-white/10 rounded-sm focus:outline-none text-gray-300 cursor-pointer"
                   onMouseDown={(e) => e.stopPropagation()}
                 >
                   {menu.triggerLabel}

@@ -81,9 +81,36 @@ Successfully implemented dropdown menu system for panes:
 - ✅ Fixed TypeScript errors with null content handling
 - ✅ Used ref pattern to pass dynamic title bar buttons from CoderPane to PaneManager
 
+## Final Adjustments
+
+- ✅ Moved "History" menu to the left side of the title bar (using headerMenus)
+- ✅ Kept "New Chat" button on the right side (using titleBarButtons)
+- ✅ Added cursor-pointer to menu triggers and menu items
+
+## Additional Improvements
+
+- ✅ Menu closes automatically after selecting a chat session
+- ✅ Text input gets focus after loading a chat session
+- ✅ Removed "ui-coder" prefix from history items (shows only timestamp for ui-coder sessions)
+- ✅ Fixed focus persistence issue by:
+  - Increasing delay to 400ms before initial focus attempt
+  - Adding a second focus attempt after 600ms total
+  - Using requestAnimationFrame in the editor component for better timing
+  - Ensuring the editor scrolls into view when focused
+- ✅ Fixed menu trigger active state (removed white border)
+- ✅ Made chats naturally start at the bottom using CSS:
+  - Changed container to use `flex flex-col-reverse`
+  - Messages now naturally align to bottom without scrolling
+  - No scroll animation - messages just appear at the bottom
+  - Removed all scrollToBottom() calls as they're no longer needed
+
 The implementation now correctly:
 - Uses the existing Pane title bar (bold "Coder" title)
+- "History" menu on left, "New Chat" button on right
 - Menu triggers are non-bold, same font size
+- All interactive elements have cursor-pointer
 - Loads and displays actual messages when clicking history items
+- Menu closes and focuses text input after selection
+- Clean history display without redundant session ID prefixes
 - All typechecks pass (except unrelated files)
-- All tests pass
+- All tests pass (260 passed | 21 skipped)

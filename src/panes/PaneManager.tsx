@@ -70,23 +70,36 @@ export const PaneManager = () => {
   // Base z-index for all panes
   const baseZIndex = 10;
   
-  // Ref for coder pane title bar buttons
-  const coderTitleBarButtonsRef = useRef<React.ReactNode | null>(null);
-  const [coderTitleBarButtons, setCoderTitleBarButtons] = useState<React.ReactNode | null>(null);
+  // Ref for coder pane title bar data
+  const coderTitleBarRef = useRef<any>(null);
+  const [coderTitleBarData, setCoderTitleBarData] = useState<any>(null);
   
   // Update state when ref changes
   useEffect(() => {
     const interval = setInterval(() => {
-      if (coderTitleBarButtonsRef.current !== coderTitleBarButtons) {
-        setCoderTitleBarButtons(coderTitleBarButtonsRef.current);
+      if (coderTitleBarRef.current !== coderTitleBarData) {
+        setCoderTitleBarData(coderTitleBarRef.current);
       }
     }, 100);
     return () => clearInterval(interval);
-  }, [coderTitleBarButtons]);
+  }, [coderTitleBarData]);
 
   return (
     <>
-      {panes.map((pane: PaneType, index: number) => (
+      {panes.map((pane: PaneType, index: number) => {
+        // For coder pane, we need to handle dynamic header menus with open state
+        let paneHeaderMenus = pane.headerMenus;
+        
+        if (pane.type === "coder" && coderTitleBarData && coderTitleBarData.menus) {
+          // Clone the menus and add onOpenChange handler
+          paneHeaderMenus = coderTitleBarData.menus.map((menu: any) => ({
+            ...menu,
+            open: coderTitleBarData.menuOpenState,
+            onOpenChange: (open: boolean) => coderTitleBarData.onMenuOpenChange?.(menu.id, open)
+          }));
+        }
+        
+        return (
         <PaneComponent
           key={pane.id}
           title={pane.title}
@@ -102,8 +115,8 @@ export const PaneManager = () => {
           }}
           dismissable={pane.dismissable !== false} // Use dismissable prop directly
           content={pane.content} // Pass content for 'diff' or other types
-          headerMenus={pane.headerMenus} // Pass this through
-          titleBarButtons={pane.type === "coder" ? coderTitleBarButtons : undefined} // Pass coder buttons
+          headerMenus={paneHeaderMenus} // Pass processed header menus
+          titleBarButtons={pane.type === "coder" && coderTitleBarData ? coderTitleBarData.buttons : undefined} // Pass coder buttons
         >
           {pane.type === "chat" && (
             <PlaceholderChatComponent threadId={stripIdPrefix(pane.id)} />
@@ -147,7 +160,7 @@ export const PaneManager = () => {
           )}
           {pane.type === "agent_chat" && <AgentChatPane sessionId={pane.content?.sessionId as string | undefined} sessionTitle={pane.content?.sessionTitle as string | undefined} />}
           {pane.type === "previous_chats_list" && <PreviousChatsPane />}
-          {pane.type === "coder" && <CoderPane sessionId={pane.content?.sessionId as string | undefined} titleBarButtonsRef={coderTitleBarButtonsRef} />}
+          {pane.type === "coder" && <CoderPane sessionId={pane.content?.sessionId as string | undefined} titleBarButtonsRef={coderTitleBarRef} />}
           {pane.type === "default" && (
             <PlaceholderDefaultComponent type={pane.type} />
           )}
@@ -176,7 +189,8 @@ export const PaneManager = () => {
             pane.type === "default"
           ) && <PlaceholderDefaultComponent type={pane.type} />}
         </PaneComponent>
-      ))}
+        );
+      })}
     </>
   );
 };
