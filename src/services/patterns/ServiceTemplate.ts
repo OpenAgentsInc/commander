@@ -65,8 +65,9 @@ export class ExampleServiceImpl implements ExampleService {
     private readonly config: ExampleServiceConfig
   ) {}
 
-  readonly doSomething = (input: string) =>
-    Effect.gen(function* () {
+  readonly doSomething = (input: string) => {
+    const config = this.config
+    return Effect.gen(function* () {
       try {
         // Your implementation here
         if (input.length === 0) {
@@ -75,7 +76,7 @@ export class ExampleServiceImpl implements ExampleService {
           )
         }
         
-        if (this.config.enableDebug) {
+        if (config.enableDebug) {
           yield* Effect.log(`Processing: ${input}`)
         }
         
@@ -86,9 +87,11 @@ export class ExampleServiceImpl implements ExampleService {
         )
       }
     })
+  }
 
-  readonly doSomethingAsync = (input: number) =>
-    Effect.gen(function* () {
+  readonly doSomethingAsync = (input: number) => {
+    const config = this.config
+    return Effect.gen(function* () {
       try {
         // Simulate async operation
         yield* Effect.sleep(100)
@@ -102,11 +105,11 @@ export class ExampleServiceImpl implements ExampleService {
         // Example of calling external API with timeout
         const result = yield* pipe(
           Effect.promise(() => 
-            fetch(`${this.config.apiUrl}/data/${input}`)
+            fetch(`${config.apiUrl}/data/${input}`)
               .then(res => res.json())
               .then(data => data.value as number)
           ),
-          Effect.timeout(this.config.timeout),
+          Effect.timeout(config.timeout),
           Effect.catchAll((error) => 
             Effect.fail(new ExampleServiceError('API call failed', error))
           )
@@ -119,6 +122,7 @@ export class ExampleServiceImpl implements ExampleService {
         )
       }
     })
+  }
 }
 
 /**

@@ -164,14 +164,15 @@ export const createAsyncMock = <T extends Record<string, any>>(
   const resolvers: Record<string, any[]> = {}
   const pendingCalls: Record<string, Promise<void>[]> = {}
   
-  const implementation = {} as T
+  const implementation: any = {}
   
-  for (const method of methods) {
-    resolvers[method as string] = []
-    pendingCalls[method as string] = []
+  methods.forEach((method) => {
+    const methodName = String(method)
+    resolvers[methodName] = []
+    pendingCalls[methodName] = []
     
-    implementation[method as string] = (() => {
-      return Effect.async((resume) => {
+    implementation[methodName] = () => {
+      return Effect.async<any, any>((resume) => {
         const promise = new Promise<void>((resolve) => {
           const resolverObj = {
             resolve: (value: any) => {
@@ -183,19 +184,19 @@ export const createAsyncMock = <T extends Record<string, any>>(
               resolve()
             }
           }
-          resolvers[method as string].push(resolverObj)
+          resolvers[methodName].push(resolverObj)
         })
-        pendingCalls[method as string].push(promise)
+        pendingCalls[methodName].push(promise)
       })
-    }) as any
-  }
+    }
+  })
   
   const asyncMock: AsyncMock<T> = {
     implementation,
     resolvers: resolvers as any,
     waitForCall: async (method: string, callIndex = 0) => {
       const calls = pendingCalls[method]
-      if (calls && calls[callIndex]) {
+      if (calls && calls[callIndex] !== undefined) {
         await calls[callIndex]
       }
     }

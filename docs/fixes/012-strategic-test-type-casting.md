@@ -1,5 +1,7 @@
 # Fix 012: Strategic Test Type Casting for Effect Testing
 
+**⚠️ WARNING: This document describes `as any` casting as a LAST RESORT when all other approaches have been exhaustively attempted and failed. Always try proper typing solutions first.**
+
 ## Problem
 When testing complex Effect/Stream types with mocks, TypeScript's strict type checking creates "test type hell" where test execution becomes impossible due to deep generic type mismatches that have no runtime impact.
 
@@ -21,105 +23,155 @@ Type 'Error' is not assignable to type 'never'.
 3. **Test vs Runtime Context**: Tests need type safety but shouldn't be blocked by inference limitations
 4. **Mock Return Type Alignment**: Effect failures using different error types than expected channels
 
-## Solution
-**Apply strategic type casting to bypass test-specific type inference issues while maintaining runtime safety:**
+## Solution Hierarchy (Try These First)
 
-### Pattern 1: Effect.runPromise Casting
+### 1. FIRST: Fix the Actual Types
 ```typescript
-// ❌ Type inference hell
-const result = await Effect.runPromise(
-  program.pipe(Effect.provide(TestLayers))  // TS error: unknown ≠ never
+// ✅ BEST: Ensure mock returns correct type
+mockService.generateText.mockImplementation(() =>
+  Effect.succeed<AiResponse>({
+    text: "response",
+    metadata: { usage: { totalTokens: 100 } }
+  })
 );
 
-// ✅ Strategic cast at execution boundary
-const result = await Effect.runPromise(
-  program.pipe(Effect.provide(TestLayers)) as any
+// ✅ BEST: Use proper Layer composition
+const TestLayer = Layer.merge(
+  MockProviderLayer,
+  ConfigLayer
 );
 ```
 
-### Pattern 2: Result Type Restoration
+### 2. SECOND: Use Type Parameters
 ```typescript
-// After casting Effect.runPromise, restore specific types for assertions
-const result = await Effect.runPromise(
-  program.pipe(Effect.provide(TestLayers)) as any
+// ✅ GOOD: Specify type parameters explicitly
+const result = await Effect.runPromise<AiResponse>(
+  program.pipe(Effect.provide(TestLayers))
 );
 
-// ✅ Re-cast results for meaningful assertions
-expect((result as AiResponse).text).toBe("expected");
-expect((result as AiResponse).metadata?.usage?.totalTokens).toBe(100);
+// ✅ GOOD: Use Effect.provideService for specific services
+const result = await Effect.runPromise(
+  program.pipe(
+    Effect.provideService(ServiceTag, mockImplementation)
+  )
+);
 ```
 
-### Pattern 3: Either Type Handling
+### 3. THIRD: Use Proper Test Utilities
 ```typescript
+// ✅ GOOD: Create typed test utilities
+export const runTestEffect = <A, E>(
+  effect: Effect.Effect<A, E, TestServices>
+): Promise<A> => {
+  return Effect.runPromise(
+    effect.pipe(Effect.provide(TestServiceLayer))
+  );
+};
+```
+
+### 4. LAST RESORT: Strategic Type Assertions
+**Only when all above approaches fail:**
+
+```typescript
+// ⚠️ LAST RESORT: Type assertion at execution boundary
+const result = await Effect.runPromise(
+  program.pipe(Effect.provide(TestLayers)) as Effect.Effect<AiResponse, never, never>
+);
+
+// ⚠️ AVOID: Never use 'as any' unless absolutely necessary
+// If you must use 'as any', document WHY other solutions failed
+const result = await Effect.runPromise(
+  program.pipe(Effect.provide(TestLayers)) as any // TODO: Fix when Effect type inference improves
+);
+```
+
+### Better Pattern: Proper Either Type Handling
+```typescript
+// ✅ BEST: Use proper type parameters with Either
 const result = await Effect.runPromise(
   program.pipe(
     Effect.either,
     Effect.provide(TestLayers)
-  ) as any
-);
+  )
+) as Either.Either<AiResponse, AiProviderError>;
 
-// ✅ Cast Either types for proper Left/Right access
-expect(Either.isLeft(result as any)).toBe(true);
-if (Either.isLeft(result as any)) {
-  const error = (result as any).left;
-  expect((error as AiProviderError).message).toContain("expected");
+// Now TypeScript knows the types
+if (Either.isLeft(result)) {
+  expect(result.left.message).toContain("expected");
+} else {
+  expect(result.right.text).toBe("expected");
 }
 ```
 
-### Pattern 4: Mock Failure Type Alignment
+### Better Pattern: Mock Failure Type Alignment
 ```typescript
-// ❌ Wrong error type in mock
-mockService.generateText.mockImplementation(() =>
-  Effect.fail(new Error("API Error"))  // Generic Error ≠ AiProviderError channel
-);
+// ✅ BEST: Ensure error types match from the start
+interface MockService {
+  generateText: (input: any) => Effect.Effect<AiResponse, AiProviderError, never>
+}
 
-// ✅ Correct error type with cast for complex generics
 mockService.generateText.mockImplementation(() =>
   Effect.fail(new AiProviderError({
     message: "API Error",
     provider: "TestProvider",
     isRetryable: false
-  })) as any  // Cast to bypass complex Effect generic inference
+  }))
 );
 ```
 
 ## Complete Example
 
-### Test with Strategic Casting
+### Test with Proper Typing (Preferred)
 ```typescript
 describe("Complex Effect Service", () => {
-  it("should handle complex Effect patterns", async () => {
-    // Mock with domain-specific error types
-    mockProvider.generateText.mockImplementationOnce(() =>
-      Effect.fail(new AiProviderError({
-        message: "Test error",
-        provider: "TestProvider", 
-        isRetryable: false
-      })) as any  // Cast mock return type
-    );
+  // Define proper mock type
+  interface MockProvider {
+    generateText: (input: any) => Effect.Effect<AiResponse, AiProviderError, never>
+  }
 
-    const program = Effect.gen(function* (_) {
-      const service = yield* _(ServiceTag);
-      return yield* _(service.generateText({ prompt: "test" }));
+  it("should handle complex Effect patterns", async () => {
+    // Create properly typed mock
+    const mockProvider: MockProvider = {
+      generateText: jest.fn(() =>
+        Effect.fail(new AiProviderError({
+          message: "Test error",
+          provider: "TestProvider", 
+          isRetryable: false
+        }))
+      )
+    };
+
+    const program = Effect.gen(function* () {
+      const service = yield* ServiceTag;
+      return yield* service.generateText({ prompt: "test" });
     });
 
-    // Cast at execution boundary
+    // Use proper type parameters
     const result = await Effect.runPromise(
       program.pipe(
         Effect.either,
-        Effect.provide(TestLayer)
-      ) as any
-    );
+        Effect.provide(Layer.succeed(ServiceTag, mockProvider))
+      )
+    ) as Either.Either<AiResponse, AiProviderError>;
 
-    // Restore types for assertions
-    expect(Either.isLeft(result as any)).toBe(true);
-    if (Either.isLeft(result as any)) {
-      const error = (result as any).left;
-      expect(error).toBeInstanceOf(AiProviderError);
-      expect((error as AiProviderError).message).toBe("Test error");
+    // Type-safe assertions
+    expect(Either.isLeft(result)).toBe(true);
+    if (Either.isLeft(result)) {
+      expect(result.left).toBeInstanceOf(AiProviderError);
+      expect(result.left.message).toBe("Test error");
     }
   });
 });
+```
+
+### Only If Above Fails: Last Resort Casting
+```typescript
+// ⚠️ ONLY if proper typing solutions have been exhausted
+// Document WHY this is necessary
+const result = await Effect.runPromise(
+  program.pipe(Effect.provide(TestLayer)) as Effect.Effect<AiResponse, never, never>
+  // TODO: Remove when Effect v3.x improves type inference for deep generics
+);
 ```
 
 ### Why This Pattern is Safe
@@ -132,47 +184,64 @@ describe("Complex Effect Service", () => {
 
 ## When to Apply This Fix
 
-### Apply Strategic Casting When:
-- Complex Effect/Stream/Provider type inference blocks test execution
-- Mock implementations have correct behavior but type mismatches
-- Test assertions need specific types but Effect.runPromise returns `unknown`
-- R=never requirements can't be satisfied despite correct layer composition
+### Try These Solutions First:
+1. **Fix the actual types** - Ensure mocks return correct Effect types
+2. **Use type parameters** - Explicitly specify generics: `Effect.runPromise<T>`
+3. **Proper Layer composition** - Use Layer.succeed, Layer.merge correctly
+4. **Create test utilities** - Build properly typed test helpers
+5. **Type assertions over `any`** - Use `as Effect.Effect<A, E, R>` not `as any`
 
-### DO NOT Apply When:
+### Only Apply Last Resort Casting When:
+- All proper typing approaches have been exhaustively attempted
+- Complex Effect/Stream/Provider type inference genuinely blocks test execution
+- The issue is clearly a TypeScript limitation, not a code error
+- You've documented WHY other solutions failed
+
+### NEVER Apply When:
 - Production code has type issues (fix the actual types)
-- Simple type mismatches can be resolved with proper imports
-- Layer composition issues (use proper Layer imports instead)
-- Mock implementations are fundamentally wrong
+- You haven't tried proper type parameters first
+- The mock implementation is actually wrong
+- You're just being lazy about types
 
 ## Testing Best Practices
 
-### 1. Cast at Boundaries, Not Throughout
+### 1. Always Try Proper Types First
 ```typescript
-// ✅ Good - cast at execution boundary
-const result = await Effect.runPromise(program as any);
-expect((result as ExpectedType).property).toBe(value);
+// ✅ BEST - properly typed from the start
+const mockService: ServiceInterface = {
+  method: () => Effect.succeed({ text: "result" })
+};
 
-// ❌ Bad - casting throughout logic  
-const service = (yield* _(ServiceTag)) as any;
-const result = service.method() as any;
+// ✅ GOOD - type assertion instead of any
+const result = await Effect.runPromise(
+  program as Effect.Effect<ExpectedType, never, never>
+);
+
+// ⚠️ LAST RESORT - only with justification
+const result = await Effect.runPromise(program as any); // TODO: Fix when...
 ```
 
 ### 2. Use Domain-Specific Error Types
 ```typescript
-// ✅ Good - proper error type with cast for generics
-Effect.fail(new AiProviderError({...})) as any
+// ✅ BEST - proper error type from the start
+const mockService: ServiceInterface = {
+  method: () => Effect.fail(new AiProviderError({...}))
+};
 
-// ❌ Bad - generic error type
-Effect.fail(new Error("...")) as any
+// ❌ AVOID - generic error type
+Effect.fail(new Error("..."))
 ```
 
-### 3. Restore Types for Assertions
+### 3. Type-Safe Assertions
 ```typescript
-// ✅ Good - meaningful typed assertions
-expect((result as AiResponse).text).toBe("expected");
+// ✅ BEST - proper typing throughout
+const result: Either.Either<AiResponse, Error> = await Effect.runPromise(
+  Effect.either(program)
+);
 
-// ❌ Bad - untyped assertions
-expect(result.text).toBe("expected");  // result is unknown
+if (Either.isRight(result)) {
+  expect(result.right.text).toBe("expected");
+}
 ```
 
 ## Related Issues

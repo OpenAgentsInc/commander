@@ -70,8 +70,9 @@ As we work with Effect's sophisticated type system, we encounter various TypeScr
 
 ### 012 - [Strategic Test Type Casting](./012-strategic-test-type-casting.md)
 **Problem**: Complex Effect/Stream type inference creates "test type hell" that blocks test execution  
-**Solution**: Strategic `as any` casting at execution boundaries with type restoration for assertions  
-**Affects**: All complex Effect testing scenarios with deep generic types and mocks
+**Solution**: Proper typing first, type assertions second, `as any` only as documented last resort  
+**Affects**: All complex Effect testing scenarios with deep generic types and mocks  
+**Updated**: 2025-05-27 - Emphasized proper typing solutions over casting
 
 ### 013 - [Runtime Error Detection Testing](./013-runtime-error-detection-testing.md)
 **Problem**: TypeScript compilation passes while runtime "yield* not iterable" errors occur in Effect generators  

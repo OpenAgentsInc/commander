@@ -5,9 +5,8 @@
  * Addresses issues from docs/fixes/023-effect-runtime-stale-references.md
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Effect, Exit, Runtime, pipe } from 'effect'
-import type { Context } from 'effect'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { Effect, Exit, Runtime, pipe, Context, Layer, Stream, Fiber } from 'effect'
 
 /**
  * Hook for using Effect services in React components
@@ -48,26 +47,40 @@ export function useEffectService<A, E, R>(
     setLoading(true)
     setError(null)
     
-    const fiber = Effect.runFork(effect, {
-      signal: abortController.signal
-    })(runtimeRef.current)
+    const fiber = Runtime.runFork(
+      runtimeRef.current,
+      effect
+    )
     
-    fiber.await.then((exit) => {
-      if (!abortController.signal.aborted) {
-        if (Exit.isSuccess(exit)) {
-          setData(exit.value)
-          setError(null)
-        } else {
-          setData(null)
-          setError(exit.cause as unknown as E)
-        }
-        setLoading(false)
-      }
-    })
+    // Use Fiber.await to observe the result
+    Runtime.runFork(
+      runtimeRef.current,
+      Fiber.await(fiber).pipe(
+        Effect.tap((exit) => 
+          Effect.sync(() => {
+            if (!abortController.signal.aborted) {
+              if (Exit.isSuccess(exit)) {
+                setData(exit.value as A)
+                setError(null)
+              } else {
+                setData(null)
+                setError(exit.cause as unknown as E)
+              }
+              setLoading(false)
+            }
+          })
+        )
+      )
+    )
     
-    return () => {
+    // Store cleanup function
+    const cleanup = () => {
       abortController.abort()
+      // Interrupt the fiber
+      Runtime.runFork(runtimeRef.current, Fiber.interrupt(fiber))
     }
+    
+    return cleanup
   }, [...deps, effect])
   
   // Cleanup on unmount
@@ -104,7 +117,7 @@ export function useEffectServiceAuto<A, E, R>(
  * Prevents recreation on every render
  */
 export function useEffectRuntime<R>(
-  layer: Effect.Layer<R, never, never>,
+  layer: Layer.Layer<R, never, never>,
   deps: React.DependencyList = []
 ): Runtime.Runtime<R> | null {
   const [runtime, setRuntime] = useState<Runtime.Runtime<R> | null>(null)
@@ -160,7 +173,7 @@ export function useService<T>(
  * Useful for real-time updates, progress tracking, etc.
  */
 export function useEffectStream<A, E, R>(
-  stream: Effect.Stream<A, E, R>,
+  stream: Stream.Stream<A, E, R>,
   runtime: Runtime.Runtime<R>,
   onValue: (value: A) => void,
   onError?: (error: E) => void,
@@ -172,19 +185,21 @@ export function useEffectStream<A, E, R>(
   }, [runtime])
   
   useEffect(() => {
-    const fiber = Effect.runFork(
-      stream.pipe(
-        Effect.tap((value) => Effect.sync(() => onValue(value))),
+    const fiber = Runtime.runFork(
+      runtimeRef.current,
+      Stream.runForEach(stream, (value) =>
+        Effect.sync(() => onValue(value))
+      ).pipe(
         Effect.catchAll((error) =>
           Effect.sync(() => {
-            if (onError) onError(error)
+            if (onError) onError(error as E)
           })
         )
       )
-    )(runtimeRef.current)
+    )
     
     return () => {
-      fiber.interrupt
+      Runtime.runFork(runtimeRef.current, Fiber.interrupt(fiber))
     }
   }, deps)
 }
