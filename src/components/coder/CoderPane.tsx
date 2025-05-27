@@ -5,15 +5,13 @@ import { getMainRuntime } from '@/services/runtime';
 import { usePaneStore } from '@/stores/pane';
 import { EditorState } from "prosemirror-state";
 import { schema } from "prosemirror-schema-basic";
-import { DatabaseService } from '@/services/db';
-import type { DBMessage, DBSession } from '@/services/db';
 import { ChatMessage as UIChatMessage, type Message } from '@/components/ui/chat-message';
 
 
 // ProseMirror Editor component that's loaded after the dynamic import
 const ProseMirrorEditor: React.FC<{ onSubmit: (text: string) => void, disabled?: boolean }> = ({ onSubmit, disabled }) => {
   const [components, setComponents] = useState<any>(null);
-  
+
   useEffect(() => {
     // Load ProseMirror components
     import("@handlewithcare/react-prosemirror").then(module => {
@@ -29,7 +27,7 @@ const ProseMirrorEditor: React.FC<{ onSubmit: (text: string) => void, disabled?:
   }, []);
 
   if (!components) {
-    return <div className="h-full w-full flex items-center justify-center text-gray-500">Loading editor...</div>;
+    return null;
   }
 
   const { ProseMirror, ProseMirrorDoc, reactKeys } = components;
@@ -41,8 +39,8 @@ const ProseMirrorEditor: React.FC<{ onSubmit: (text: string) => void, disabled?:
         plugins: [reactKeys()],
       })}
     >
-      <AutoFocusEditor 
-        onSubmit={onSubmit} 
+      <AutoFocusEditor
+        onSubmit={onSubmit}
         disabled={disabled}
         components={components}
       />
@@ -51,14 +49,14 @@ const ProseMirrorEditor: React.FC<{ onSubmit: (text: string) => void, disabled?:
 };
 
 // Component that autofocuses the editor and fills container
-const AutoFocusEditor: React.FC<{ 
-  onSubmit: (text: string) => void, 
+const AutoFocusEditor: React.FC<{
+  onSubmit: (text: string) => void,
   disabled?: boolean,
-  components: any 
+  components: any
 }> = ({ onSubmit, disabled, components }) => {
   const { useEditorState, useEditorEffect, useEditorEventListener, ProseMirrorDoc } = components;
   const editorState = useEditorState();
-  
+
   useEditorEffect((view: any) => {
     if (view && !disabled) {
       view.focus();
@@ -69,21 +67,21 @@ const AutoFocusEditor: React.FC<{
   useEditorEventListener("keydown", (view: any, event: KeyboardEvent) => {
     if (event.key === "Enter" && !event.shiftKey && !disabled) {
       event.preventDefault();
-      
+
       // Get the text content from the editor
       const text = editorState?.doc.textContent || "";
-      
+
       if (text.trim()) {
         // Submit the message
         onSubmit(text);
-        
+
         // Clear the editor
         if (view) {
           const tr = view.state.tr.delete(0, view.state.doc.content.size);
           view.dispatch(tr);
         }
       }
-      
+
       return true;
     }
     // Shift+Enter will naturally create a new line, no need to handle
@@ -140,13 +138,13 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
   const removePane = usePaneStore((state) => state.removePane);
   const panes = usePaneStore((state) => state.panes);
   const updatePaneSize = usePaneStore((state) => state.updatePaneSize);
-  
+
   // Find the coder pane to persist session ID
   const coderPane = panes.find(p => p.id === 'coder_pane');
-  
+
   // Use provided session ID or generate new one with ui- prefix to avoid conflicts
   const sessionIdRef = useRef<string>(initialSessionId || `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`);
-  
+
   // Chat state
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -165,7 +163,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
       streamCancelRef.current();
       streamCancelRef.current = null;
     }
-    
+
     Effect.runFork(
       Effect.flatMap(TelemetryService, (ts) =>
         ts.trackEvent({
@@ -200,87 +198,17 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
         }),
       ).pipe(Effect.provide(runtime)),
     );
-    
-    // Load messages from database
-    if (!messagesLoaded) {
-      const loadMessages = async () => {
-        try {
-          const program = Effect.gen(function* (_) {
-            const dbService = yield* _(DatabaseService);
-            
-            // Check if session exists
-            const session = yield* _(dbService.getSession(sessionIdRef.current));
-            
-            if (session) {
-              // Load messages for existing session
-              const dbMessages = yield* _(dbService.getMessagesForSession(sessionIdRef.current, 500));
-              
-              // Convert DB messages to UI messages
-              const uiMessages: ChatMessage[] = dbMessages.map(dbMsg => ({
-                id: dbMsg.id,
-                role: dbMsg.role as 'user' | 'assistant' | 'system',
-                content: dbMsg.content || '',
-                timestamp: dbMsg.timestamp * 1000, // Convert seconds to milliseconds
-              }));
-              
-              // Keep system message at beginning if messages exist
-              if (uiMessages.length > 0) {
-                const systemMsg = messages.find(m => m.role === 'system');
-                const nonSystemMessages = uiMessages.filter(m => m.role !== 'system');
-                setMessages([systemMsg!, ...nonSystemMessages]);
-              }
-            }
-            
-            setMessagesLoaded(true);
-          });
-          
-          await Effect.runPromise(program.pipe(Effect.provide(runtime)));
-        } catch (error) {
-          console.error('Failed to load coder messages:', error);
-          setMessagesLoaded(true);
-        }
-      };
-      
-      loadMessages();
-    }
+
+    // For now, we don't load messages from database since the bridge service
+    // manages its own session IDs and we can't reliably match them
+    setMessagesLoaded(true);
   }, [runtime, messagesLoaded, messages]);
 
   // Send message to Claude Code
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim() || isLoading) return;
 
-    const sessionId = sessionIdRef.current;
-    const now = Math.floor(Date.now() / 1000);
-
-    // First ensure our UI session exists
-    try {
-      const ensureSession = Effect.gen(function* (_) {
-        const dbService = yield* _(DatabaseService);
-        
-        // Check if session exists
-        const existingSession = yield* _(dbService.getSession(sessionId));
-        
-        if (!existingSession) {
-          // Create new UI session
-          const newSession: DBSession = {
-            id: sessionId,
-            created_at: now,
-            last_updated_at: now,
-            provider_key: 'coder_ui', // Different from claude_code to avoid conflicts
-            model_name: 'claude-3-sonnet-20240229',
-            system_prompt: messages.find(m => m.role === 'system')?.content || 'You are Claude Code, a helpful AI coding assistant.',
-            metadata_json: JSON.stringify({ source: 'coder_pane', title: 'Coder UI Session' }),
-          };
-          yield* _(dbService.saveSession(newSession));
-        }
-      });
-      
-      await Effect.runPromise(ensureSession.pipe(Effect.provide(runtime)));
-    } catch (error) {
-      console.error('Failed to ensure UI session:', error);
-    }
-
-    // Add user message
+    // Add user message to UI state only
     const userMessageId = `ui-msg-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
     const userMessage: ChatMessage = {
       id: userMessageId,
@@ -290,27 +218,6 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
     };
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
-
-    // Save user message to our UI session
-    try {
-      const saveUserMsg = Effect.gen(function* (_) {
-        const dbService = yield* _(DatabaseService);
-        const dbMessage: DBMessage = {
-          id: userMessageId,
-          session_id: sessionId,
-          role: 'user',
-          content: userMessage.content,
-          timestamp: now,
-          tool_calls_json: undefined,
-          metadata_json: undefined,
-        };
-        yield* _(dbService.saveMessage(dbMessage));
-      });
-      
-      await Effect.runPromise(saveUserMsg.pipe(Effect.provide(runtime)));
-    } catch (error) {
-      console.error('Failed to save user message:', error);
-    }
 
     // Create assistant message placeholder
     const assistantMessageId = `ui-msg-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
@@ -347,8 +254,8 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
         },
         (chunk: string) => {
           // Update assistant message with new chunk
-          setMessages(prev => 
-            prev.map((msg, idx) => 
+          setMessages(prev =>
+            prev.map((msg, idx) =>
               idx === prev.length - 1 && msg.role === 'assistant'
                 ? { ...msg, content: msg.content + chunk }
                 : msg
@@ -356,49 +263,22 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
           );
         },
         async () => {
-          // Stream completed - save assistant message to our UI session
-          setMessages(prev => {
-            const lastMsg = prev[prev.length - 1];
-            if (lastMsg && lastMsg.role === 'assistant') {
-              // Save assistant message to our UI session
-              const saveAssistantMsg = Effect.gen(function* (_) {
-                const dbService = yield* _(DatabaseService);
-                const dbMessage: DBMessage = {
-                  id: assistantMessageId,
-                  session_id: sessionId,
-                  role: 'assistant',
-                  content: lastMsg.content,
-                  timestamp: Math.floor(Date.now() / 1000),
-                  tool_calls_json: undefined,
-                  metadata_json: undefined,
-                };
-                yield* _(dbService.saveMessage(dbMessage));
-                
-                // Update session last_updated_at
-                yield* _(dbService.updateSession(sessionId, {
-                  last_updated_at: Math.floor(Date.now() / 1000),
-                }));
-              });
-              
-              Effect.runPromise(saveAssistantMsg.pipe(Effect.provide(runtime))).catch(error => {
-                console.error('Failed to save assistant message:', error);
-              });
-            }
-            
-            return prev.map((msg, idx) => 
+          // Stream completed - update UI state only
+          setMessages(prev =>
+            prev.map((msg, idx) =>
               idx === prev.length - 1 && msg.role === 'assistant'
                 ? { ...msg, isStreaming: false }
                 : msg
-            );
-          });
+            )
+          );
           setIsLoading(false);
           streamCancelRef.current = null;
         },
         (error: any) => {
           // Stream error
           console.error('Claude Code stream error:', error);
-          setMessages(prev => 
-            prev.map((msg, idx) => 
+          setMessages(prev =>
+            prev.map((msg, idx) =>
               idx === prev.length - 1 && msg.role === 'assistant'
                 ? { ...msg, content: `Error: ${error.message || 'Stream failed'}`, isStreaming: false }
                 : msg
@@ -435,47 +315,47 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
           color: white !important;
           border-radius: 0 !important;
         }
-        
+
         .coder-chat-message.user-message .group\\/message {
           max-width: 80% !important;
           border: 1px solid white !important;
         }
-        
+
         .coder-chat-message.assistant-message .group\\/message {
           max-width: 100% !important;
           border: none !important;
         }
-        
+
         /* Style the markdown content */
         .coder-chat-message .prose {
           color: white !important;
           max-width: none !important;
         }
-        
+
         .coder-chat-message .prose p {
           margin-bottom: 0.5em !important;
           line-height: 1.5 !important;
         }
-        
+
         .coder-chat-message .prose pre {
           background-color: rgba(255, 255, 255, 0.1) !important;
           border: 1px solid rgba(255, 255, 255, 0.2) !important;
           color: white !important;
           margin: 0.5em 0 !important;
         }
-        
+
         .coder-chat-message .prose code {
           color: white !important;
           background-color: rgba(255, 255, 255, 0.1) !important;
           padding: 0.125rem 0.25rem !important;
           border-radius: 0.25rem !important;
         }
-        
+
         .coder-chat-message .prose pre code {
           background-color: transparent !important;
           padding: 0 !important;
         }
-        
+
         /* Headings */
         .coder-chat-message .prose h1,
         .coder-chat-message .prose h2,
@@ -488,7 +368,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
           margin-top: 1em !important;
           margin-bottom: 0.5em !important;
         }
-        
+
         /* Lists */
         .coder-chat-message .prose ul,
         .coder-chat-message .prose ol {
@@ -496,33 +376,33 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
           margin: 0.5em 0 !important;
           padding-left: 1.5em !important;
         }
-        
+
         .coder-chat-message .prose li {
           color: white !important;
           margin: 0.25em 0 !important;
         }
-        
+
         /* Links */
         .coder-chat-message .prose a {
           color: #60a5fa !important;
           text-decoration: underline !important;
         }
-        
+
         .coder-chat-message .prose a:hover {
           color: #93bbfc !important;
         }
-        
+
         /* Strong and emphasis */
         .coder-chat-message .prose strong {
           color: white !important;
           font-weight: bold !important;
         }
-        
+
         .coder-chat-message .prose em {
           color: white !important;
           font-style: italic !important;
         }
-        
+
         /* Blockquotes */
         .coder-chat-message .prose blockquote {
           border-left: 4px solid rgba(255, 255, 255, 0.3) !important;
@@ -530,14 +410,14 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
           color: rgba(255, 255, 255, 0.8) !important;
           margin: 0.5em 0 !important;
         }
-        
+
         /* Copy button in code blocks */
         .coder-chat-message .copy-button {
           background-color: rgba(255, 255, 255, 0.1) !important;
           border: 1px solid rgba(255, 255, 255, 0.2) !important;
           color: white !important;
         }
-        
+
         .coder-chat-message .copy-button:hover {
           background-color: rgba(255, 255, 255, 0.2) !important;
         }
