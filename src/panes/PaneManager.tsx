@@ -88,6 +88,7 @@ export const PaneManager = () => {
           }}
           dismissable={pane.dismissable !== false} // Use dismissable prop directly
           content={pane.content} // Pass content for 'diff' or other types
+          headerMenus={pane.headerMenus} // Pass this through
         >
           {pane.type === "chat" && (
             <PlaceholderChatComponent threadId={stripIdPrefix(pane.id)} />

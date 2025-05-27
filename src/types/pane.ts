@@ -1,3 +1,5 @@
+import type { PaneHeaderMenu } from "./paneMenu";
+
 export type Pane = {
   id: string; // Unique identifier for the pane. For chat panes, this might be derived from a chat/thread ID.
   type:
@@ -30,6 +32,7 @@ export type Pane = {
   height: number; // Height of the pane.
   isActive?: boolean; // Indicates if the pane is currently active (focused).
   dismissable?: boolean; // If true, the pane can be closed by the user.
+  headerMenus?: PaneHeaderMenu[]; // Optional dropdown menus for the pane header
   content?: {
     // Optional content, used by 'diff' type or other custom types.
     oldContent?: string;

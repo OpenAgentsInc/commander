@@ -1,5 +1,5 @@
-import React, { useState, useRef, useCallback, useEffect, lazy, Suspense } from 'react';
-import { Effect } from 'effect';
+import React, { useState, useRef, useCallback, useEffect, lazy, Suspense, useMemo } from 'react';
+import { Effect, Exit, Cause } from 'effect';
 import { TelemetryService } from '@/services/telemetry';
 import { getMainRuntime } from '@/services/runtime';
 import { usePaneStore } from '@/stores/pane';
@@ -14,6 +14,18 @@ import { useAutoScroll } from '@/hooks/use-auto-scroll';
 import { ToolCallDisplay } from './ToolCallDisplay';
 import { MessageSquarePlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useQuery } from '@tanstack/react-query';
+import { DatabaseService, DBSession } from '@/services/db';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { PaneDropdownItem, PaneDropdownItemAction } from '@/types/paneMenu';
 
 
 // ProseMirror Editor component that's loaded after the dynamic import
@@ -589,20 +601,123 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
     };
   }, []);
 
+  // State for history menu
+  const [historyMenuOpen, setHistoryMenuOpen] = useState(false);
+
+  // Fetch chat history
+  const { data: chatHistorySessions, refetch: refetchHistory } = useQuery<DBSession[], Error>({
+    queryKey: ["allChatSessionsForCoderMenu"],
+    queryFn: async () => {
+      const dbProgram = Effect.flatMap(DatabaseService, (db) =>
+        db.getAllSessions({ sortBy: "last_updated_at", sortOrder: "DESC", limit: 5 }),
+      );
+      const exitResult = await Effect.runPromiseExit(Effect.provide(dbProgram, runtime));
+      if (Exit.isSuccess(exitResult)) return exitResult.value;
+      console.error("Failed to fetch chat history for menu:", Cause.pretty(exitResult.cause));
+      throw Cause.squash(exitResult.cause);
+    },
+    staleTime: 1000 * 60, // Cache for 1 minute
+  });
+
+  // Refetch history when menu opens
+  useEffect(() => {
+    if (historyMenuOpen) {
+      refetchHistory();
+    }
+  }, [historyMenuOpen, refetchHistory]);
+
+  // Format session for menu display
+  const formatSessionForMenu = (session: DBSession): string => {
+    const date = new Date(session.last_updated_at * 1000);
+    const dateStr = date.toLocaleDateString(undefined, { year: '2-digit', month: '2-digit', day: '2-digit' });
+    const timeStr = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    const idPrefix = session.id.substring(0, 8);
+    return `${dateStr} ${timeStr} | ${idPrefix}...`;
+  };
+
+  // Create history menu items
+  const historyMenuItems: PaneDropdownItem[] = useMemo(() => {
+    if (!chatHistorySessions || chatHistorySessions.length === 0) {
+      return [{ label: "No recent chats", action: () => {}, disabled: true }];
+    }
+    return chatHistorySessions.map(session => ({
+      label: formatSessionForMenu(session),
+      action: () => {
+        console.log("Load chat session:", session.id);
+        // Update session ID and clear messages
+        sessionIdRef.current = session.id;
+        clearMessages();
+        // Add a system message
+        addMessage({
+          id: `system-${Date.now()}`,
+          role: 'system',
+          content: `Switched to session ${session.id.substring(0, 8)}... (History loading not implemented for CoderPane)`,
+          timestamp: Date.now(),
+        });
+        // Track telemetry
+        Effect.runFork(
+          Effect.flatMap(TelemetryService, (ts) =>
+            ts.trackEvent({
+              category: 'coder_mode',
+              action: 'history_menu_item_click',
+              label: session.id,
+            }),
+          ).pipe(Effect.provide(runtime)),
+        );
+      },
+    }));
+  }, [chatHistorySessions, runtime, clearMessages, addMessage]);
+
   return (
     <div className="h-full w-full flex flex-col bg-black relative">
-      {/* New Chat button in top-right corner */}
-      <div className="absolute top-4 right-4 z-10">
-        <Button
-          onClick={handleNewChat}
-          variant="outline"
-          size="sm"
-          className="bg-black border-white text-white hover:bg-white hover:text-black transition-colors"
-          title="Start new chat session"
-        >
-          <MessageSquarePlus className="h-4 w-4 mr-2" />
-          New Chat
-        </Button>
+      {/* Title Bar for Coder Pane */}
+      <div className="flex-shrink-0 h-10 px-3 bg-black border-b border-gray-700/50 flex items-center justify-between">
+        <div className="flex items-center gap-x-2">
+          <span className="text-sm font-bold text-white">Coder</span>
+          {/* History Dropdown Menu */}
+          <DropdownMenu onOpenChange={setHistoryMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="text-sm px-2 py-1 hover:bg-gray-700 rounded-sm focus:outline-none text-gray-300"
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                History
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-64 text-xs" onMouseDown={(e) => e.stopPropagation()}>
+              <ScrollArea className="max-h-72">
+                {historyMenuItems.length > 0 ? (
+                  historyMenuItems.map((item, index) => (
+                    <DropdownMenuItem
+                      key={`${(item as PaneDropdownItemAction).label}-${index}`}
+                      onClick={(e) => { e.stopPropagation(); (item as PaneDropdownItemAction).action(); }}
+                      disabled={(item as PaneDropdownItemAction).disabled}
+                      className="text-xs"
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      {(item as PaneDropdownItemAction).label}
+                    </DropdownMenuItem>
+                  ))
+                ) : (
+                  <DropdownMenuItem disabled className="text-xs">No recent chats</DropdownMenuItem>
+                )}
+              </ScrollArea>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        {/* New Chat Button */}
+        <div className="flex items-center gap-x-2">
+          <Button
+            onClick={handleNewChat}
+            variant="outline"
+            size="sm"
+            className="bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors h-7 px-2 text-xs"
+            title="Start new chat session"
+          >
+            <MessageSquarePlus className="h-3 w-3 mr-1.5" />
+            New Chat
+          </Button>
+        </div>
       </div>
       <style>{`
         /* Custom styles for Coder pane messages */

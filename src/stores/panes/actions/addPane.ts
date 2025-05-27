@@ -52,6 +52,7 @@ export function addPaneActionLogic(
     dismissable:
       newPaneInput.dismissable !== undefined ? newPaneInput.dismissable : true,
     content: newPaneInput.content,
+    headerMenus: newPaneInput.headerMenus || [], // Default to empty array
   });
 
   const updatedPanes = state.panes.map((p) => ({ ...p, isActive: false }));
