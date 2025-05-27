@@ -8,6 +8,8 @@ import type { JobHistoryEntry, JobStatistics } from "@/types/dvm";
 import { OllamaError } from "@/services/ollama";
 import { SparkError } from "@/services/spark";
 import { NIP04EncryptError, NIP04DecryptError } from "@/services/nip04";
+import { ConfigurationService } from "@/services/configuration";
+import { CONFIG_KEYS, DEFAULT_CONFIGURATIONS } from "@/services/configuration/defaults";
 
 /**
  * DVM service errors
@@ -64,36 +66,84 @@ export interface Kind5050DVMServiceConfig {
 export const Kind5050DVMServiceConfigTag =
   Context.GenericTag<Kind5050DVMServiceConfig>("Kind5050DVMServiceConfig");
 
-// Use a hardcoded development keypair to ensure consistency across refreshes
-// This is just for development - in production, users should set their own keys
-const DEV_DVM_PRIVATE_KEY_HEX = "5d5b1b3c4e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b";
+// Export the default configuration values for UI components and tests
+// These come from the centralized defaults but are exposed as a constant
+// for convenience when not using the Effect layer
+const DEV_DVM_PRIVATE_KEY_HEX = DEFAULT_CONFIGURATIONS.kind5050DVM.privateKeyHex;
 const devDvmSkBytes = hexToBytes(DEV_DVM_PRIVATE_KEY_HEX);
-const devDvmSkHex = DEV_DVM_PRIVATE_KEY_HEX;
 const devDvmPkHex = getPublicKey(devDvmSkBytes);
 
-// Export the default configuration object directly
 export const defaultKind5050DVMServiceConfig: Kind5050DVMServiceConfig = {
-  active: false, // Start inactive by default
-  dvmPrivateKeyHex: devDvmSkHex, // Use a default development SK
-  dvmPublicKeyHex: devDvmPkHex, // Corresponding PK
-  relays: DVM_RELAYS_ARRAY,
-  supportedJobKinds: [5050, 5100], // Support kind 5050 and 5100 for text generation
+  active: false, // From DEFAULT_CONFIGURATIONS.kind5050DVM.active
+  dvmPrivateKeyHex: DEV_DVM_PRIVATE_KEY_HEX,
+  dvmPublicKeyHex: devDvmPkHex,
+  relays: JSON.parse(DEFAULT_CONFIGURATIONS.kind5050DVM.relays),
+  supportedJobKinds: JSON.parse(DEFAULT_CONFIGURATIONS.kind5050DVM.supportedJobKinds),
   defaultTextGenerationJobConfig: {
-    model: "gemma2:latest", // Default model for Ollama
-    max_tokens: 512,
-    temperature: 0.7,
-    top_k: 40,
-    top_p: 0.9,
-    frequency_penalty: 0.5,
-    minPriceSats: 3, // Minimum sats for any job
-    pricePer1kTokens: 2, // e.g., 2 sats per 1000 tokens
+    model: DEFAULT_CONFIGURATIONS.kind5050DVM.textGeneration.model,
+    max_tokens: Number(DEFAULT_CONFIGURATIONS.kind5050DVM.textGeneration.maxTokens),
+    temperature: Number(DEFAULT_CONFIGURATIONS.kind5050DVM.textGeneration.temperature),
+    top_k: Number(DEFAULT_CONFIGURATIONS.kind5050DVM.textGeneration.topK),
+    top_p: Number(DEFAULT_CONFIGURATIONS.kind5050DVM.textGeneration.topP),
+    frequency_penalty: Number(DEFAULT_CONFIGURATIONS.kind5050DVM.textGeneration.frequencyPenalty),
+    minPriceSats: Number(DEFAULT_CONFIGURATIONS.kind5050DVM.textGeneration.minPriceSats),
+    pricePer1kTokens: Number(DEFAULT_CONFIGURATIONS.kind5050DVM.textGeneration.pricePer1kTokens),
   },
 };
 
-// Default configuration for development
-export const DefaultKind5050DVMServiceConfigLayer = Layer.succeed(
+/**
+ * Creates a Kind5050DVMServiceConfig from ConfigurationService
+ * This ensures all defaults come from the centralized configuration
+ */
+export const DefaultKind5050DVMServiceConfigLayer = Layer.effect(
   Kind5050DVMServiceConfigTag,
-  defaultKind5050DVMServiceConfig,
+  Effect.gen(function* (_) {
+    const configService = yield* _(ConfigurationService);
+    const keys = CONFIG_KEYS;
+    
+    // Fetch all configuration values
+    const privateKeyHex = yield* _(configService.get(keys.DVM_5050_PRIVATE_KEY_HEX));
+    const publicKeyHex = getPublicKey(hexToBytes(privateKeyHex));
+    
+    const active = yield* _(configService.get(keys.DVM_5050_ACTIVE)
+      .pipe(Effect.map(val => val === "true")));
+    
+    const supportedJobKinds = yield* _(configService.get(keys.DVM_5050_SUPPORTED_JOB_KINDS)
+      .pipe(Effect.map(val => JSON.parse(val) as number[])));
+    
+    const relays = yield* _(configService.get(keys.DVM_5050_RELAYS)
+      .pipe(Effect.map(val => JSON.parse(val) as string[])));
+    
+    // Text generation config
+    const textGenConfig: DefaultTextGenerationJobConfig = {
+      model: yield* _(configService.get(keys.DVM_5050_TEXT_GEN_MODEL)),
+      max_tokens: yield* _(configService.get(keys.DVM_5050_TEXT_GEN_MAX_TOKENS)
+        .pipe(Effect.map(Number))),
+      temperature: yield* _(configService.get(keys.DVM_5050_TEXT_GEN_TEMPERATURE)
+        .pipe(Effect.map(Number))),
+      top_k: yield* _(configService.get(keys.DVM_5050_TEXT_GEN_TOP_K)
+        .pipe(Effect.map(Number))),
+      top_p: yield* _(configService.get(keys.DVM_5050_TEXT_GEN_TOP_P)
+        .pipe(Effect.map(Number))),
+      frequency_penalty: yield* _(configService.get(keys.DVM_5050_TEXT_GEN_FREQUENCY_PENALTY)
+        .pipe(Effect.map(Number))),
+      minPriceSats: yield* _(configService.get(keys.DVM_5050_TEXT_GEN_MIN_PRICE_SATS)
+        .pipe(Effect.map(Number))),
+      pricePer1kTokens: yield* _(configService.get(keys.DVM_5050_TEXT_GEN_PRICE_PER_1K_TOKENS)
+        .pipe(Effect.map(Number))),
+    };
+    
+    const config: Kind5050DVMServiceConfig = {
+      active,
+      dvmPrivateKeyHex: privateKeyHex,
+      dvmPublicKeyHex: publicKeyHex,
+      relays,
+      supportedJobKinds,
+      defaultTextGenerationJobConfig: textGenConfig,
+    };
+    
+    return config;
+  })
 );
 
 /**

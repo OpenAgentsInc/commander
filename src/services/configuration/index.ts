@@ -3,3 +3,6 @@ export * from "./ConfigurationService";
 
 // Export implementation
 export * from "./ConfigurationServiceImpl";
+
+// Export default configurations
+export * from "./defaults";

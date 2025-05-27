@@ -5,7 +5,7 @@ import {
   ConfigError,
   SecretNotFoundError,
 } from "./ConfigurationService";
-import { DEFAULT_RELAYS_ARRAY } from "@/services/relays";
+import { DEFAULT_CONFIGURATIONS, CONFIG_KEYS } from "./defaults";
 
 /**
  * In-memory implementation of the ConfigurationService
@@ -105,40 +105,56 @@ export const DefaultDevConfigLayer = Layer.effect(
   ConfigurationService,
   Effect.gen(function* (_) {
     const configService = yield* _(ConfigurationService);
+    const defaults = DEFAULT_CONFIGURATIONS;
+    const keys = CONFIG_KEYS;
 
-    // Set default values for development
-    yield* _(configService.set("OLLAMA_MODEL_NAME", "gemma3:1b"));
-    yield* _(configService.set("OLLAMA_MODEL_ENABLED", "true"));
+    // Ollama defaults
+    yield* _(configService.set(keys.OLLAMA_MODEL_NAME, defaults.ollama.modelName));
+    yield* _(configService.set(keys.OLLAMA_MODEL_ENABLED, defaults.ollama.modelEnabled));
 
     // NIP-90 Devstral DVM configuration
-    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_DVM_PUBKEY", "32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245")); // Actual Devstral service pubkey
-    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_RELAYS", JSON.stringify(DEFAULT_RELAYS_ARRAY)));
-    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_REQUEST_KIND", "5050")); // Text-to-text kind
-    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_REQUIRES_ENCRYPTION", "true")); // Enable encryption for privacy
-    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_USE_EPHEMERAL_REQUESTS", "true")); // Use ephemeral keys
-    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_MODEL_IDENTIFIER", "devstral")); // Model identifier for the DVM
-    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_MODEL_NAME", "Devstral (NIP-90)")); // User-facing name
-    yield* _(configService.set("AI_PROVIDER_DEVSTRAL_ENABLED", "true")); // Enable the provider
+    yield* _(configService.set(keys.AI_PROVIDER_DEVSTRAL_DVM_PUBKEY, defaults.nip90Devstral.pubkey));
+    yield* _(configService.set(keys.AI_PROVIDER_DEVSTRAL_RELAYS, defaults.nip90Devstral.relays));
+    yield* _(configService.set(keys.AI_PROVIDER_DEVSTRAL_REQUEST_KIND, defaults.nip90Devstral.requestKind));
+    yield* _(configService.set(keys.AI_PROVIDER_DEVSTRAL_REQUIRES_ENCRYPTION, defaults.nip90Devstral.requiresEncryption));
+    yield* _(configService.set(keys.AI_PROVIDER_DEVSTRAL_USE_EPHEMERAL_REQUESTS, defaults.nip90Devstral.useEphemeralRequests));
+    yield* _(configService.set(keys.AI_PROVIDER_DEVSTRAL_MODEL_IDENTIFIER, defaults.nip90Devstral.modelIdentifier));
+    yield* _(configService.set(keys.AI_PROVIDER_DEVSTRAL_MODEL_NAME, defaults.nip90Devstral.modelName));
+    yield* _(configService.set(keys.AI_PROVIDER_DEVSTRAL_ENABLED, defaults.nip90Devstral.enabled));
 
     // User-configurable NIP-90 DVM placeholders
-    yield* _(configService.set("USER_NIP90_DVM_PUBKEY", "")); // User needs to fill this
-    yield* _(configService.set("USER_NIP90_RELAYS", JSON.stringify(["wss://relay.damus.io", "wss://nostr.wine"])));
-    yield* _(configService.set("USER_NIP90_REQUEST_KIND", "5050"));
-    yield* _(configService.set("USER_NIP90_REQUIRES_ENCRYPTION", "false")); // Default to false for easier testing
-    yield* _(configService.set("USER_NIP90_USE_EPHEMERAL_REQUESTS", "true"));
-    yield* _(configService.set("USER_NIP90_MODEL_IDENTIFIER", "default_user_model"));
-    yield* _(configService.set("USER_NIP90_NAME", "My Custom NIP-90 DVM"));
-    yield* _(configService.set("USER_NIP90_ENABLED", "false")); // Start disabled by default
+    yield* _(configService.set(keys.USER_NIP90_DVM_PUBKEY, defaults.userNip90.pubkey));
+    yield* _(configService.set(keys.USER_NIP90_RELAYS, defaults.userNip90.relays));
+    yield* _(configService.set(keys.USER_NIP90_REQUEST_KIND, defaults.userNip90.requestKind));
+    yield* _(configService.set(keys.USER_NIP90_REQUIRES_ENCRYPTION, defaults.userNip90.requiresEncryption));
+    yield* _(configService.set(keys.USER_NIP90_USE_EPHEMERAL_REQUESTS, defaults.userNip90.useEphemeralRequests));
+    yield* _(configService.set(keys.USER_NIP90_MODEL_IDENTIFIER, defaults.userNip90.modelIdentifier));
+    yield* _(configService.set(keys.USER_NIP90_NAME, defaults.userNip90.name));
+    yield* _(configService.set(keys.USER_NIP90_ENABLED, defaults.userNip90.enabled));
 
-    // For Claude Code CLI Provider
-    yield* _(configService.set("ANTHROPIC_API_KEY", "YOUR_ANTHROPIC_API_KEY_HERE_OR_LEAVE_BLANK_FOR_ENV_VAR"));
-    yield* _(configService.set("CLAUDE_CODE_CLI_PATH", "")); // Optional: full path to @anthropic-ai/claude-code CLI if not in system PATH
-    yield* _(configService.set("CLAUDE_CODE_PROVIDER_ENABLED", "true")); // Enable for testing
-    yield* _(configService.set("CLAUDE_CODE_DEFAULT_MODEL", "claude-sonnet")); // Example model
-    yield* _(configService.set("CLAUDE_CODE_PROVIDER_NAME", "Claude Code (CLI)"));
+    // Claude Code CLI Provider
+    yield* _(configService.set(keys.ANTHROPIC_API_KEY, defaults.claudeCode.apiKey));
+    yield* _(configService.set(keys.CLAUDE_CODE_CLI_PATH, defaults.claudeCode.cliPath));
+    yield* _(configService.set(keys.CLAUDE_CODE_PROVIDER_ENABLED, defaults.claudeCode.enabled));
+    yield* _(configService.set(keys.CLAUDE_CODE_DEFAULT_MODEL, defaults.claudeCode.defaultModel));
+    yield* _(configService.set(keys.CLAUDE_CODE_PROVIDER_NAME, defaults.claudeCode.providerName));
 
     // Database configuration
-    yield* _(configService.set("DB_DATA_DIR", "commander-data/database/main_v1")); // Versioned subdir for database
+    yield* _(configService.set(keys.DB_DATA_DIR, defaults.database.dataDir));
+
+    // Kind 5050 DVM defaults
+    yield* _(configService.set(keys.DVM_5050_ACTIVE, defaults.kind5050DVM.active));
+    yield* _(configService.set(keys.DVM_5050_PRIVATE_KEY_HEX, defaults.kind5050DVM.privateKeyHex));
+    yield* _(configService.set(keys.DVM_5050_SUPPORTED_JOB_KINDS, defaults.kind5050DVM.supportedJobKinds));
+    yield* _(configService.set(keys.DVM_5050_RELAYS, defaults.kind5050DVM.relays));
+    yield* _(configService.set(keys.DVM_5050_TEXT_GEN_MODEL, defaults.kind5050DVM.textGeneration.model));
+    yield* _(configService.set(keys.DVM_5050_TEXT_GEN_MAX_TOKENS, defaults.kind5050DVM.textGeneration.maxTokens));
+    yield* _(configService.set(keys.DVM_5050_TEXT_GEN_TEMPERATURE, defaults.kind5050DVM.textGeneration.temperature));
+    yield* _(configService.set(keys.DVM_5050_TEXT_GEN_TOP_K, defaults.kind5050DVM.textGeneration.topK));
+    yield* _(configService.set(keys.DVM_5050_TEXT_GEN_TOP_P, defaults.kind5050DVM.textGeneration.topP));
+    yield* _(configService.set(keys.DVM_5050_TEXT_GEN_FREQUENCY_PENALTY, defaults.kind5050DVM.textGeneration.frequencyPenalty));
+    yield* _(configService.set(keys.DVM_5050_TEXT_GEN_MIN_PRICE_SATS, defaults.kind5050DVM.textGeneration.minPriceSats));
+    yield* _(configService.set(keys.DVM_5050_TEXT_GEN_PRICE_PER_1K_TOKENS, defaults.kind5050DVM.textGeneration.pricePer1kTokens));
 
     return configService;
   })
