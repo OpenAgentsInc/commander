@@ -50,11 +50,7 @@ export const FeatureFlagServiceLive = Layer.effect(
     return FeatureFlagService.of({
       isEnabled: (flag: Feature) =>
         ensureInitialized(
-          Effect.sync(() => {
-            const result = enabledFeaturesSet.has(flag);
-            console.log(`[DEBUG] isEnabled(${flag}): Set contains [${Array.from(enabledFeaturesSet).join(', ')}], has(${flag}) = ${result}`);
-            return result;
-          })
+          Effect.succeed(enabledFeaturesSet.has(flag))
         ),
       getEnabledFeatures: () =>
         ensureInitialized(
