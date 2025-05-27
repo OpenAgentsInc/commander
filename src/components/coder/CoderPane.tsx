@@ -170,43 +170,52 @@ interface ChatMessage {
 
 // Custom styled ChatMessage component wrapper
 const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ message, index }) => {
-  // Convert our parts format to the format expected by UIChatMessage
-  const toolInvocations = React.useMemo(() => {
-    if (!message.parts) return undefined;
-    
-    const invocations: any[] = [];
-    message.parts.forEach((part) => {
-      if (part.type === 'tool_call') {
-        invocations.push({
-          state: 'call',
-          toolName: part.name,
-          toolCallId: part.id,
-          args: part.input
-        });
-      } else if (part.type === 'tool_result') {
-        invocations.push({
-          state: 'result',
-          toolName: 'Tool',
-          toolCallId: part.tool_use_id,
-          result: part.content
-        });
-      }
-    });
-    
-    return invocations.length > 0 ? invocations : undefined;
-  }, [message.parts]);
-
   // Extract text content for the content prop
   const textContent = React.useMemo(() => {
-    if (!message.parts) return message.content;
+    if (!message.parts || message.parts.length === 0) return message.content;
     
+    // When we have parts, only use text from the parts, not the accumulated content
     const textParts = message.parts
       .filter(part => part.type === 'text')
       .map(part => part.text)
       .join('');
     
-    return textParts || message.content;
+    return textParts; // Don't fall back to message.content when we have parts
   }, [message.parts, message.content]);
+
+  // Create parts array for UIChatMessage - it expects a specific format
+  const messageParts = React.useMemo(() => {
+    if (!message.parts || message.parts.length === 0) return undefined;
+    
+    const parts = message.parts.map(part => {
+      if (part.type === 'text') {
+        return { type: 'text' as const, text: part.text };
+      } else if (part.type === 'tool_call') {
+        return {
+          type: 'tool-invocation' as const,
+          toolInvocation: {
+            state: 'call' as const,
+            toolName: part.name,
+            toolCallId: part.id,
+            args: part.input
+          }
+        };
+      } else if (part.type === 'tool_result') {
+        return {
+          type: 'tool-invocation' as const,
+          toolInvocation: {
+            state: 'result' as const,
+            toolName: 'Tool',
+            toolCallId: part.tool_use_id,
+            result: part.content
+          }
+        };
+      }
+      return null;
+    }).filter(Boolean) as any[];
+    
+    return parts;
+  }, [message.parts, textContent, message.content]);
 
   // Use the rich ChatMessage component for better formatting
   return (
@@ -214,8 +223,8 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
       <UIChatMessage
         id={message.id}
         role={message.role === 'user' ? 'user' : 'assistant'}
-        content={textContent}
-        toolInvocations={toolInvocations}
+        content={messageParts && messageParts.length > 0 ? '' : textContent}  // Empty content if we have parts
+        parts={messageParts}  // Use parts instead of toolInvocations
         createdAt={new Date(message.timestamp)}
         animation="none"
         showTimeStamp={false}

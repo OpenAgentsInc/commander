@@ -343,10 +343,7 @@ export function setupClaudeWebSocketHandler() {
               console.log("[Main Process] Stream initialized:", claudeMessage);
             } else if (claudeMessage.type === "result") {
               console.log("[Main Process] Stream result:", claudeMessage);
-              // Send result info to UI if it contains the final result
-              if (claudeMessage.result) {
-                event.sender.send(`claude-code:chat-stream:chunk`, requestId, `\n\n[Result: ${claudeMessage.result}]\n`);
-              }
+              // Don't send result to UI - it's already included in the assistant message
             } else if (claudeMessage.type === "tool_result") {
               console.log("[Main Process] Tool result:", claudeMessage);
               // Format and send tool results to UI
