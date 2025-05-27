@@ -7,7 +7,9 @@
 
 ## Build/Test Commands
 
-- `pnpm start` - Run electron app in dev mode
+**IMPORTANT: NEVER run `pnpm start` - the user will run the app themselves when needed**
+
+- `pnpm start` - Run electron app in dev mode (DO NOT USE - user will run this)
 - `pnpm package` - Package app into platform-specific bundles
 - `pnpm make` - Create distributable installers
 - `pnpm lint` - Run ESLint on codebase

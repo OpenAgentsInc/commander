@@ -12,10 +12,12 @@ import { baseKeymap } from "prosemirror-commands";
 import { ChatMessage as UIChatMessage, type Message } from '@/components/ui/chat-message';
 import { useAutoScroll } from '@/hooks/use-auto-scroll';
 import { ToolCallDisplay } from './ToolCallDisplay';
+import { MessageSquarePlus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 
 // ProseMirror Editor component that's loaded after the dynamic import
-const ProseMirrorEditor: React.FC<{ onSubmit: (text: string) => void, disabled?: boolean }> = ({ onSubmit, disabled }) => {
+const ProseMirrorEditor: React.FC<{ onSubmit: (text: string) => void, disabled?: boolean, focusKey?: number }> = ({ onSubmit, disabled, focusKey }) => {
   const [components, setComponents] = useState<any>(null);
 
   useEffect(() => {
@@ -71,6 +73,7 @@ const ProseMirrorEditor: React.FC<{ onSubmit: (text: string) => void, disabled?:
         onSubmit={onSubmit}
         disabled={disabled}
         components={components}
+        focusKey={focusKey}
       />
     </ProseMirror>
   );
@@ -346,7 +349,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
   const sessionIdRef = useRef<string>(initialSessionId || `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`);
 
   // Get messages from Zustand store
-  const { messages, addMessage, updateMessage } = useCoderChatStore();
+  const { messages, addMessage, updateMessage, clearMessages } = useCoderChatStore();
   
   // Local state for loading
   const [isLoading, setIsLoading] = useState(false);
@@ -379,6 +382,34 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
     // Close the coder pane
     removePane('coder_pane');
   }, [removePane, runtime]);
+
+  const handleNewChat = React.useCallback(() => {
+    // Cancel any ongoing stream
+    if (streamCancelRef.current) {
+      streamCancelRef.current();
+      streamCancelRef.current = null;
+    }
+
+    // Generate new session ID
+    const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    sessionIdRef.current = newSessionId;
+
+    // Clear all messages from the store
+    clearMessages();
+
+    // Track the new chat action
+    Effect.runFork(
+      Effect.flatMap(TelemetryService, (ts) =>
+        ts.trackEvent({
+          category: 'coder_mode',
+          action: 'new_chat_started',
+        }),
+      ).pipe(Effect.provide(runtime)),
+    );
+
+    // Set loading state to false
+    setIsLoading(false);
+  }, [clearMessages, runtime]);
 
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -434,8 +465,11 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
     const assistantContentRef = { current: '' };
 
     try {
-      // Prepare messages for Claude Code API
-      const apiMessages = messages
+      // Get current messages from the store to ensure we have the latest state
+      const currentMessages = useCoderChatStore.getState().messages;
+      
+      // Prepare messages for Claude Code API - only include messages from current session
+      const apiMessages = currentMessages
         .filter(m => m.role !== 'system')
         .concat(userMessage)
         .map(m => ({ role: m.role, content: m.content }));
@@ -443,7 +477,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
       // Add system message at the beginning
       apiMessages.unshift({
         role: 'system',
-        content: messages.find(m => m.role === 'system')?.content || 'You are Claude Code, a helpful AI coding assistant.'
+        content: currentMessages.find(m => m.role === 'system')?.content || 'You are Claude Code, a helpful AI coding assistant.'
       });
 
       // Stream response from Claude Code
@@ -532,7 +566,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
       setMessages(currentMessages.filter(m => m.id !== assistantMessageId));
       setIsLoading(false);
     }
-  }, [messages, isLoading, addMessage, updateMessage]);
+  }, [isLoading, addMessage, updateMessage]);
 
   // Cleanup on unmount
   React.useEffect(() => {
@@ -544,7 +578,20 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
   }, []);
 
   return (
-    <div className="h-full w-full flex flex-col bg-black">
+    <div className="h-full w-full flex flex-col bg-black relative">
+      {/* New Chat button in top-right corner */}
+      <div className="absolute top-4 right-4 z-10">
+        <Button
+          onClick={handleNewChat}
+          variant="outline"
+          size="sm"
+          className="bg-black border-white text-white hover:bg-white hover:text-black transition-colors"
+          title="Start new chat session"
+        >
+          <MessageSquarePlus className="h-4 w-4 mr-2" />
+          New Chat
+        </Button>
+      </div>
       <style>{`
         /* Custom styles for Coder pane messages */
         .coder-chat-message .group\\/message {
