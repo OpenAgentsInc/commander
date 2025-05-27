@@ -14,6 +14,8 @@ import {
   SEED_PHRASE_BACKUP_PANE_ID,
   RESTORE_WALLET_PANE_ID,
 } from "@/stores/panes/constants";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { Feature } from "@/services/featureflags/FeatureFlag";
 
 // Create a client
 const queryClient = new QueryClient();
@@ -54,6 +56,7 @@ function checkWalletSetupNeeded() {
 
 export default function App() {
   const { i18n } = useTranslation();
+  const [isWalletFeatureEnabled] = useFeatureFlag(Feature.WALLET_PANE);
 
   // Initial effects for theme and language
   useEffect(() => {
@@ -61,10 +64,12 @@ export default function App() {
     updateAppLanguage(i18n);
   }, [i18n]);
 
-  // DISABLED: Automatic wallet setup - users should explicitly choose to set up wallet
-  // useEffect(() => {
-  //   checkWalletSetupNeeded();
-  // }, []);
+  // Check wallet setup only if wallet feature is enabled
+  useEffect(() => {
+    if (isWalletFeatureEnabled) {
+      checkWalletSetupNeeded();
+    }
+  }, [isWalletFeatureEnabled]);
 
   return (
     <QueryClientProvider client={queryClient}>

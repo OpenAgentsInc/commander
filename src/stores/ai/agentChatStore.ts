@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { Effect, Option } from "effect";
 import { ConfigurationService } from "@/services/configuration";
+import { FeatureFlagService } from "@/services/featureflags/FeatureFlagService";
+import { Feature } from "@/services/featureflags/FeatureFlag";
 
 export interface AIProvider {
   key: string;
@@ -15,7 +17,7 @@ interface AgentChatState {
   selectedProviderKey: string;
   availableProviders: AIProvider[];
   setSelectedProviderKey: (key: string) => void;
-  loadAvailableProviders: (configService: ConfigurationService) => Effect.Effect<void, never, never>;
+  loadAvailableProviders: (configService: ConfigurationService, featureFlagService: FeatureFlagService) => Effect.Effect<void, never, never>;
 }
 
 export const useAgentChatStore = create<AgentChatState>()(
@@ -24,7 +26,7 @@ export const useAgentChatStore = create<AgentChatState>()(
       selectedProviderKey: "ollama_gemma3_1b", // Default to Ollama
       availableProviders: [],
       setSelectedProviderKey: (key: string) => set({ selectedProviderKey: key }),
-      loadAvailableProviders: (configService: ConfigurationService): Effect.Effect<void, never, never> =>
+      loadAvailableProviders: (configService: ConfigurationService, featureFlagService: FeatureFlagService): Effect.Effect<void, never, never> =>
         Effect.gen(function* (_) {
           const providers: AIProvider[] = [];
 
@@ -37,12 +39,19 @@ export const useAgentChatStore = create<AgentChatState>()(
               })
             );
 
-          const ollamaEnabledStr = yield* _(safeGetConfig("OLLAMA_MODEL_ENABLED", "true"));
-          if (ollamaEnabledStr === "true") {
-            const ollamaModelName = yield* _(safeGetConfig("OLLAMA_MODEL_NAME", "gemma3:1b"));
-            providers.push({ key: "ollama_gemma3_1b", name: "Ollama (Local)", type: "ollama", modelName: ollamaModelName });
+          // Ollama provider
+          const isOllamaProviderEnabled = yield* _(featureFlagService.isEnabled(Feature.OLLAMA_PROVIDER));
+          if (isOllamaProviderEnabled) {
+            const ollamaEnabledStr = yield* _(safeGetConfig("OLLAMA_MODEL_ENABLED", "true"));
+            if (ollamaEnabledStr === "true") {
+              const ollamaModelName = yield* _(safeGetConfig("OLLAMA_MODEL_NAME", "gemma3:1b"));
+              providers.push({ key: "ollama_gemma3_1b", name: "Ollama (Local)", type: "ollama", modelName: ollamaModelName });
+            }
           }
 
+          // NIP-90 DVM providers are disabled unless DVM_CONSUMER_TOOLS feature is enabled
+          // We don't have a specific DVM_CONSUMER_TOOLS flag defined, but these are DVM consumer tools
+          // For now, we'll just check the individual provider configs since they're DVM-related
           const devstralEnabledStr = yield* _(safeGetConfig("AI_PROVIDER_DEVSTRAL_ENABLED", "true"));
           if (devstralEnabledStr === "true") {
             const devstralModelName = yield* _(safeGetConfig("AI_PROVIDER_DEVSTRAL_MODEL_NAME", "Devstral (NIP-90)"));
@@ -77,17 +86,20 @@ export const useAgentChatStore = create<AgentChatState>()(
             }
           }
 
-          // Add Claude Code CLI provider
-          const claudeCodeEnabledStr = yield* _(safeGetConfig("CLAUDE_CODE_PROVIDER_ENABLED", "false"));
-          if (claudeCodeEnabledStr === "true") {
-            const claudeCodeProviderName = yield* _(safeGetConfig("CLAUDE_CODE_PROVIDER_NAME", "Claude Code (CLI)"));
-            const claudeCodeDefaultModel = yield* _(safeGetConfig("CLAUDE_CODE_DEFAULT_MODEL", "claude-sonnet"));
-            providers.push({
-              key: "claude_code",
-              name: claudeCodeProviderName,
-              type: "claude_code",
-              modelName: claudeCodeDefaultModel,
-            });
+          // Claude Code CLI provider
+          const isClaudeCodeProviderEnabled = yield* _(featureFlagService.isEnabled(Feature.CLAUDE_CODE_PROVIDER));
+          if (isClaudeCodeProviderEnabled) {
+            const claudeCodeEnabledStr = yield* _(safeGetConfig("CLAUDE_CODE_PROVIDER_ENABLED", "true"));
+            if (claudeCodeEnabledStr === "true") {
+              const claudeCodeProviderName = yield* _(safeGetConfig("CLAUDE_CODE_PROVIDER_NAME", "Claude Code (CLI)"));
+              const claudeCodeDefaultModel = yield* _(safeGetConfig("CLAUDE_CODE_DEFAULT_MODEL", "claude-sonnet"));
+              providers.push({
+                key: "claude_code",
+                name: claudeCodeProviderName,
+                type: "claude_code",
+                modelName: claudeCodeDefaultModel,
+              });
+            }
           }
 
           set({ availableProviders: providers });
