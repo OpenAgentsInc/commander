@@ -350,6 +350,17 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
         .coder-chat-message .prose p {
           margin-bottom: 0.5em !important;
           line-height: 1.5 !important;
+          white-space: pre-wrap !important;
+        }
+        
+        /* Ensure markdown content in our messages preserves whitespace */
+        .coder-chat-message div[class*="whitespace-pre-wrap"] {
+          white-space: pre-wrap !important;
+        }
+        
+        /* Force pre-wrap on all paragraph elements in messages */
+        .coder-chat-message p {
+          white-space: pre-wrap !important;
         }
 
         .coder-chat-message .prose pre {
