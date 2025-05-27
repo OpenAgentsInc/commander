@@ -161,10 +161,74 @@ interface ChatMessage {
   content: string;
   timestamp: number;
   isStreaming?: boolean;
+  toolInvocations?: any[];
+  parts?: any[];
 }
 
 // Custom styled ChatMessage component wrapper
 const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ message, index }) => {
+  // Parse message content to extract parts
+  const messageParts = React.useMemo(() => {
+    if (message.parts) return message.parts;
+    
+    const parts: any[] = [];
+    const content = message.content;
+    
+    // Split content by tool markers
+    const segments = content.split(/(\[\[TOOL_(?:CALL|RESULT):[^\]]+\]\])/);
+    
+    segments.forEach((segment) => {
+      // Check if this is a tool call marker
+      const toolCallMatch = segment.match(/\[\[TOOL_CALL:(.+?)\]\]/);
+      if (toolCallMatch) {
+        try {
+          const toolData = JSON.parse(toolCallMatch[1]);
+          parts.push({
+            type: 'tool-invocation',
+            toolInvocation: {
+              state: 'call',
+              toolName: toolData.name,
+              toolCallId: `tool-${Date.now()}`,
+              args: toolData.parameters
+            }
+          });
+        } catch (e) {
+          console.error('Failed to parse tool call data:', e);
+        }
+        return;
+      }
+      
+      // Check if this is a tool result marker
+      const toolResultMatch = segment.match(/\[\[TOOL_RESULT:(.+?)\]\]/);
+      if (toolResultMatch) {
+        try {
+          const resultData = JSON.parse(toolResultMatch[1]);
+          parts.push({
+            type: 'tool-invocation',
+            toolInvocation: {
+              state: 'result',
+              toolName: 'Tool',
+              result: { output: resultData.result }
+            }
+          });
+        } catch (e) {
+          console.error('Failed to parse tool result data:', e);
+        }
+        return;
+      }
+      
+      // Regular text content
+      if (segment.trim()) {
+        parts.push({
+          type: 'text',
+          text: segment
+        });
+      }
+    });
+    
+    return parts;
+  }, [message.content, message.parts]);
+  
   // Use the rich ChatMessage component for better formatting
   return (
     <div className={`coder-chat-message ${message.role === 'user' ? 'user-message' : 'assistant-message'}`}>
@@ -172,6 +236,7 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
         id={message.id}
         role={message.role === 'user' ? 'user' : 'assistant'}
         content={message.content}
+        parts={messageParts.length > 0 ? messageParts : undefined}
         createdAt={new Date(message.timestamp)}
         animation="none"
         showTimeStamp={false}
@@ -301,8 +366,24 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
           sessionId: sessionIdRef.current,
         },
         (chunk: string) => {
-          // Update assistant message with new chunk
-          assistantContentRef.current += chunk;
+          // Check if this is a structured message (JSON)
+          try {
+            const parsedChunk = JSON.parse(chunk);
+            if (parsedChunk.type === 'tool_call') {
+              // Add tool call display to content
+              assistantContentRef.current += `\n[[TOOL_CALL:${JSON.stringify(parsedChunk)}]]\n`;
+            } else if (parsedChunk.type === 'tool_result') {
+              // Add tool result display to content
+              assistantContentRef.current += `\n[[TOOL_RESULT:${JSON.stringify(parsedChunk)}]]\n`;
+            } else {
+              // Unknown structured message type
+              assistantContentRef.current += chunk;
+            }
+          } catch (e) {
+            // Not JSON, treat as plain text
+            assistantContentRef.current += chunk;
+          }
+          
           updateMessage(assistantMessageId, {
             content: assistantContentRef.current
           });

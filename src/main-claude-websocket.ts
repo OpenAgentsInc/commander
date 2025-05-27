@@ -278,6 +278,8 @@ export function setupClaudeWebSocketHandler() {
     let assistantMessageId = generateId();
     let fullAssistantContent = "";
     let toolCalls: any[] = [];
+    let messageAlreadySaved = false;
+    let accumulatedContent: any[] = [];
     
     ws.on('open', () => {
       console.log("[Main Process] Connected to bridge service");
@@ -299,7 +301,16 @@ export function setupClaudeWebSocketHandler() {
             if (claudeMessage.type === "assistant" && claudeMessage.message) {
               // Extract text content from assistant message
               const assistantMessage = claudeMessage.message;
+              
+              // Use the Claude message ID if we haven't set one yet
+              if (!assistantMessageId && claudeMessage.id) {
+                assistantMessageId = claudeMessage.id;
+              }
+              
+              // Accumulate all content parts
               if (assistantMessage.content && Array.isArray(assistantMessage.content)) {
+                accumulatedContent = accumulatedContent.concat(assistantMessage.content);
+                
                 for (const contentPart of assistantMessage.content) {
                   if (contentPart.type === "text" && contentPart.text) {
                     // Send plain text chunks directly
@@ -307,12 +318,13 @@ export function setupClaudeWebSocketHandler() {
                     // Collect for database
                     fullAssistantContent += contentPart.text;
                   } else if (contentPart.type === "tool_use") {
-                    // Send tool usage info with details
-                    let toolInfo = `\n[Using tool: ${contentPart.name}]\n`;
-                    if (contentPart.input) {
-                      toolInfo += `Parameters: ${JSON.stringify(contentPart.input, null, 2)}\n`;
-                    }
-                    event.sender.send(`claude-code:chat-stream:chunk`, requestId, toolInfo);
+                    // Send structured tool call info to UI
+                    const toolCallInfo = {
+                      type: 'tool_call',
+                      name: contentPart.name,
+                      parameters: contentPart.input
+                    };
+                    event.sender.send(`claude-code:chat-stream:chunk`, requestId, JSON.stringify(toolCallInfo));
                     // Collect tool call for database
                     toolCalls.push({
                       id: contentPart.id,
@@ -326,49 +338,49 @@ export function setupClaudeWebSocketHandler() {
                 }
               }
               
-              // Save complete assistant message immediately when received
-              if (!assistantMessageId) {
-                assistantMessageId = claudeMessage.id || generateId();
-              }
-              
-              // Save the assistant message to database
-              (async () => {
-                try {
-                  const assistantDbMessage = {
-                    id: assistantMessageId,
-                    session_id: sessionId,
-                    role: "assistant",
-                    content: assistantMessage.content.filter((p: any) => p.type === 'text').map((p: any) => p.text).join(''),
-                    tool_calls_json: toolCalls.length > 0 ? JSON.stringify(toolCalls) : undefined,
-                    timestamp: Math.floor(Date.now() / 1000),
-                    provider_message_id: claudeMessage.id,
-                  };
-                  
-                  await saveMessageToDatabase(assistantDbMessage);
-                  console.log("[Main Process] Assistant message saved to database");
-                  
-                  // Save tool executions if any
-                  const toolUses = assistantMessage.content.filter((p: any) => p.type === 'tool_use');
-                  for (const tu of toolUses) {
-                    const toolExecution = {
-                      id: tu.id,
-                      message_id: assistantMessageId,
-                      tool_name: tu.name,
-                      arguments_json: JSON.stringify(tu.input || {}),
-                      status: "pending",
-                      created_at: Math.floor(Date.now() / 1000),
-                      updated_at: Math.floor(Date.now() / 1000),
+              // Check if this is the final assistant message (has stop_reason)
+              if (assistantMessage.stop_reason && !messageAlreadySaved) {
+                messageAlreadySaved = true;
+                
+                // Save the complete assistant message to database
+                (async () => {
+                  try {
+                    const assistantDbMessage = {
+                      id: assistantMessageId,
+                      session_id: sessionId,
+                      role: "assistant",
+                      content: accumulatedContent.filter((p: any) => p.type === 'text').map((p: any) => p.text).join(''),
+                      tool_calls_json: toolCalls.length > 0 ? JSON.stringify(toolCalls) : undefined,
+                      timestamp: Math.floor(Date.now() / 1000),
+                      provider_message_id: claudeMessage.id,
                     };
                     
-                    await saveToolCallToDatabase(toolExecution);
+                    await saveMessageToDatabase(assistantDbMessage);
+                    console.log("[Main Process] Assistant message saved to database");
+                    
+                    // Save tool executions if any
+                    const toolUses = accumulatedContent.filter((p: any) => p.type === 'tool_use');
+                    for (const tu of toolUses) {
+                      const toolExecution = {
+                        id: tu.id,
+                        message_id: assistantMessageId,
+                        tool_name: tu.name,
+                        arguments_json: JSON.stringify(tu.input || {}),
+                        status: "pending",
+                        created_at: Math.floor(Date.now() / 1000),
+                        updated_at: Math.floor(Date.now() / 1000),
+                      };
+                      
+                      await saveToolCallToDatabase(toolExecution);
+                    }
+                    if (toolUses.length > 0) {
+                      console.log(`[Main Process] ${toolUses.length} tool calls saved to database`);
+                    }
+                  } catch (error) {
+                    console.error("[Main Process] Failed to save assistant message:", error);
                   }
-                  if (toolUses.length > 0) {
-                    console.log(`[Main Process] ${toolUses.length} tool calls saved to database`);
-                  }
-                } catch (error) {
-                  console.error("[Main Process] Failed to save assistant message:", error);
-                }
-              })();
+                })();
+              }
             } else if (claudeMessage.type === "init") {
               console.log("[Main Process] Stream initialized:", claudeMessage);
             } else if (claudeMessage.type === "result") {
@@ -383,7 +395,11 @@ export function setupClaudeWebSocketHandler() {
               if (claudeMessage.content && Array.isArray(claudeMessage.content)) {
                 for (const contentPart of claudeMessage.content) {
                   if (contentPart.type === "text" && contentPart.text) {
-                    event.sender.send(`claude-code:chat-stream:chunk`, requestId, `\n[Tool Result]:\n${contentPart.text}\n`);
+                    const toolResultInfo = {
+                      type: 'tool_result',
+                      result: contentPart.text
+                    };
+                    event.sender.send(`claude-code:chat-stream:chunk`, requestId, JSON.stringify(toolResultInfo));
                   }
                 }
               }
@@ -412,12 +428,13 @@ export function setupClaudeWebSocketHandler() {
                     // Collect for database
                     fullAssistantContent += contentPart.text;
                   } else if (contentPart.type === "tool_use") {
-                    // Send tool usage info with details
-                    let toolInfo = `\n[Using tool: ${contentPart.name}]\n`;
-                    if (contentPart.input) {
-                      toolInfo += `Parameters: ${JSON.stringify(contentPart.input, null, 2)}\n`;
-                    }
-                    event.sender.send(`claude-code:chat-stream:chunk`, requestId, toolInfo);
+                    // Send structured tool call info to UI
+                    const toolCallInfo = {
+                      type: 'tool_call',
+                      name: contentPart.name,
+                      parameters: contentPart.input
+                    };
+                    event.sender.send(`claude-code:chat-stream:chunk`, requestId, JSON.stringify(toolCallInfo));
                     // Collect tool call for database
                     toolCalls.push({
                       id: contentPart.id,
