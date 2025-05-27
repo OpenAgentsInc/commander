@@ -141,9 +141,8 @@ export const DefaultDevConfigLayer = Layer.effect(
     yield* _(configService.set("DB_DATA_DIR", "commander-data/database/main_v1")); // Versioned subdir for database
 
     // Feature flags configuration for v0.0.5
-    // Only enable Claude Code provider, Coder Pane, and Hand Tracking
-    // Also enabling NIP90 features for testing
-    yield* _(configService.set("FEATURE_FLAGS_ENABLED_LIST", "CLAUDE_CODE_PROVIDER,CODER_PANE,HAND_TRACKING,NIP90_DASHBOARD_PANE,NIP90_CONSUMER_CHAT_PANE,NIP90_GLOBAL_FEED_PANE"));
+    // Enable core features: Claude Code provider, Coder Pane, DVM features, Wallet, Previous Chats, and Hand Tracking
+    yield* _(configService.set("FEATURE_FLAGS_ENABLED_LIST", "CLAUDE_CODE_PROVIDER,CODER_PANE,DVM_PROVIDER_PANE,WALLET_PANE,DVM_JOB_HISTORY_PANE,PREVIOUS_CHATS_PANE,HAND_TRACKING"));
 
     return configService;
   })

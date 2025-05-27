@@ -57,6 +57,8 @@ import {
   PREVIOUS_CHATS_PANE_TITLE,
   PREVIOUS_CHATS_PANE_DEFAULT_WIDTH,
   PREVIOUS_CHATS_PANE_DEFAULT_HEIGHT,
+  NIP90_CONSUMER_CHAT_PANE_ID,
+  NIP90_CONSUMER_CHAT_PANE_TITLE,
 } from "./panes/constants";
 import { DVM_JOB_HISTORY_PANE_ID } from "./panes/actions/openDvmJobHistoryPane";
 
@@ -183,6 +185,45 @@ export const usePaneStore = create<PaneStoreType>()(
           }),
       // Coder pane - toggles all coder panes
       toggleCoderPane: () => toggleAllCoderPanesAction(set, get),
+      
+      // NIP90 Consumer Chat pane
+      toggleNip90ConsumerChatPane: () =>
+        togglePaneAction(set, get, {
+          paneId: NIP90_CONSUMER_CHAT_PANE_ID,
+          createPaneInput: (screenWidth, screenHeight, storedPosition) => {
+            let x, y, width, height;
+            
+            if (storedPosition) {
+              // Use the stored position
+              ({ x, y, width, height } = storedPosition);
+              
+              // Ensure the pane is still visible on screen (in case window was resized)
+              x = Math.max(PANE_MARGIN, Math.min(x, screenWidth - 100));
+              y = Math.max(PANE_MARGIN, Math.min(y, screenHeight - 100));
+              width = Math.min(width, screenWidth - x - PANE_MARGIN);
+              height = Math.min(height, screenHeight - y - PANE_MARGIN);
+            } else {
+              // Calculate default position
+              x = Math.max(PANE_MARGIN, (screenWidth - 600) / 2 + 100);
+              y = Math.max(PANE_MARGIN, (screenHeight - 500) / 3 + 100);
+              width = 600;
+              height = 500;
+            }
+
+            return {
+              id: NIP90_CONSUMER_CHAT_PANE_ID,
+              type: "nip90_consumer_chat",
+              title: NIP90_CONSUMER_CHAT_PANE_TITLE,
+              x: x,
+              y: y,
+              width: width,
+              height: height,
+              dismissable: true,
+              content: {},
+            };
+          },
+        }),
+        
       resetHUDState: () => {
         // Force recreate initial panes with current screen dimensions
         const screenWidth =

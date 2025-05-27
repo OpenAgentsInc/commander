@@ -23,6 +23,7 @@ export const createFeatureFlagServiceTestLayer = (enabledFeatures: Feature[] = [
  * Default test layer with v0.0.5 feature set
  */
 export const FeatureFlagServiceTestLive = createFeatureFlagServiceTestLayer([
+  Feature.CLAUDE_CODE_PROVIDER,
   Feature.CODER_PANE,
   Feature.DVM_PROVIDER_PANE,
   Feature.WALLET_PANE,

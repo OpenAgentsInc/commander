@@ -32,13 +32,13 @@
                          COMMENTS
 +---------------------------------------------------------+
 |  21 May 2025                                            |
-|  OpenAgents Team                                        |
+|  OpenAgents Team - Accessibility Update                 |
 +---------------------------------------------------------+
-                                                 XX pages
+                                                 30 pages
 *********************************************************************************
                         OpenAgents Inc.
              Innovating the Future of Agent Interaction
-                 (contact@openagents.com)
+                 (contact@openagents.com) - Committed to Accessibility
 *********************************************************************************
 ```
 
@@ -49,7 +49,7 @@
 ```
 “DTCCOMMDOC-420-0-00.PICT” 154 KB 2001-05-03 dpi: 300h x 300v pix: 1795h x 2707v
 Commander UI Info : Document # 001 : User Interface Standards (21 May 2025)
-Source: OpenAgents Inc. Page 0001 of 00XX
+Source: OpenAgents Inc. Page 0001 of 0030
 ```
 
 ---
@@ -92,7 +92,7 @@ Apple Commander Computer Technical Information
 ```
 “DTCCOMMDOC-420-0-01.PICT” 149 KB 2001-05-03 dpi: 300h x 300v pix: 2091h x 2979v
 Commander UI Info : Document # 001 : User Interface Standards (21 May 2025)
-Source: OpenAgents Inc. Page 0002 of 00XX
+Source: OpenAgents Inc. Page 0002 of 0030
 ```
 
 ---
@@ -103,23 +103,25 @@ Source: OpenAgents Inc. Page 0002 of 00XX
 
 **Quick Overview of Key Design Principles & Departures from Traditional UIs:**
 
-1.  **NUI First:** Commander prioritizes Natural User Interfaces, including hand tracking and (future) voice commands, as primary interaction modalities, not merely as supplementary features.
+1.  **NUI First, Inclusive by Design:** Commander prioritizes Natural User Interfaces, including hand tracking and (future) voice commands, as primary interaction modalities, not merely as supplementary features, while ensuring robust alternative input methods (keyboard, mouse) for full accessibility.
 
-2.  **Dynamic Pane-Based Workspace:** The primary user workspace is composed of draggable, resizable, and dynamic panes, allowing for a highly customizable and fluid information layout.
+2.  **Dynamic Pane-Based Workspace:** The primary user workspace is composed of draggable, resizable, and dynamic panes, allowing for a highly customizable and fluid information layout, manageable via keyboard and other assistive technologies.
 
-3.  **Integrated Agent Command & Control:** The user interface is fundamentally designed around the concept of commanding and interacting with AI agents.
+3.  **Integrated Agent Command & Control:** The user interface is fundamentally designed around the concept of commanding and interacting with AI agents, with clear and accessible feedback mechanisms.
 
-4.  **Direct Bitcoin Integration:** The application features direct integration of Bitcoin functionalities, making earning and (future) payments a core part of the user experience.
+4.  **Direct Bitcoin Integration:** The application features direct integration of Bitcoin functionalities, making earning and (future) payments a core part of the user experience, with accessible transaction information.
 
-5.  **Immersive HUD-Style Interface:** Commander employs a game-like Heads-Up Display (HUD) to provide an immersive and intuitive environment for agent control and information monitoring.
+5.  **Immersive HUD-Style Interface:** Commander employs a game-like Heads-Up Display (HUD) to provide an immersive and intuitive environment, designed with clear information hierarchy, sufficient contrast, and perceivable feedback for agent control and monitoring.
 
-6.  **Advanced Keyboard Control (StarCraft-inspired Hotkeys):** While supporting standard keyboard input, Commander aims to implement a sophisticated system of hotkeys and keybindings, inspired by Real-Time Strategy (RTS) games, for efficient control by power users (future iterative development).
+6.  **Advanced & Accessible Keyboard Control:** Commander implements comprehensive keyboard support, including standard navigation and a sophisticated system of hotkeys (StarCraft-inspired), ensuring all functionality is operable via keyboard for efficiency and accessibility.
 
-7.  **Consistent Dark Theme:** The application enforces a dark theme across all UI elements to provide a focused, aesthetically consistent, and commander-centric visual environment.
+7.  **Consistent Dark Theme with Accessibility Focus:** The application enforces a dark theme with carefully chosen color palettes ensuring sufficient contrast ratios (aiming for WCAG AA). Future iterations will explore user-configurable high-contrast modes and other visual accessibility options.
 
 8.  **Telemetry for Continuous Improvement:** User-configurable telemetry is integrated to gather anonymized usage data, guiding iterative development and enhancement of the user experience.
 
 9.  **Modular and Service-Oriented Architecture:** Built with modern technologies like Effect-TS, enabling robust and maintainable integration of complex features like Nostr protocols and AI services.
+
+10. **Commitment to Accessibility Standards:** Commander is designed and developed with a commitment to accessibility, aiming to meet or exceed Web Content Accessibility Guidelines (WCAG) 2.1 Level AA, ensuring usability for people with diverse abilities. (See Section 39)
 
 Also several minor changes and many clarifications.
 
@@ -128,7 +130,7 @@ Also several minor changes and many clarifications.
 ```
 “DTCCOMMDOC-420-0-02.PICT” 55 KB 2001-05-03 dpi: 300h x 300v pix: 2079h x 1232v
 Commander UI Info : Document # 001 : User Interface Standards (21 May 2025)
-Source: OpenAgents Inc. Page 0003 of 00XX
+Source: OpenAgents Inc. Page 0003 of 0030
 ```
 
 ---
@@ -154,9 +156,11 @@ Source: OpenAgents Inc. Page 0003 of 00XX
        3.3.1 Pinch-to-Drag (Panes) ........................ 4
        3.3.2 Gestures for 3D Scenes ....................... 4
    3.4 Visual Feedback (Landmarks, Pointer) ............... 4
+   3.5 Accessibility Considerations for NUI ............... 4
 4. Keyboard .............................................. 5
    4.1 Standard Text Input ................................ 5
    4.2 Hotkeys & Keybindings (StarCraft Style Philosophy) . 5
+   4.3 Keyboard Navigation and Interaction Standards ...... 5
 5. System State and Persistence .......................... 6
 6. Initialization ........................................ 6
 7. Everyday Operation .................................... 7
@@ -177,8 +181,8 @@ Source: OpenAgents Inc. Page 0003 of 00XX
    9.2 Pane Lifecycle (Adding, Removing) .................. 9
    9.3 The Active Pane .................................... 10
    9.4 Making a Pane Active ............................... 10
-   9.5 Moving a Pane (Mouse & Hand) ....................... 10
-   9.6 Resizing a Pane (Mouse) ............................ 11
+   9.5 Moving a Pane (Mouse, Hand, Keyboard) .............. 10
+   9.6 Resizing a Pane (Mouse, Keyboard) .................. 11
    9.7 Scrolling within Panes ............................. 11
    9.8 Pane Types ......................................... 12
        9.8.1 Chat Panes (Ollama, NIP-28) .................. 12
@@ -216,6 +220,7 @@ Source: OpenAgents Inc. Page 0003 of 00XX
     33.2 Theme Settings (Forced Dark) .................... 21
     33.3 Pane Layout Persistence ......................... 21
     33.4 Telemetry Settings .............................. 21
+    33.5 Accessibility Settings (Future) ................. 21
 34. Voice Commands ....................................... 22
     34.1 Philosophy and Invocation ....................... 22
     34.2 Available Commands (Future) ..................... 22
@@ -227,9 +232,17 @@ Source: OpenAgents Inc. Page 0003 of 00XX
 36. Bitcoin Integration (Spark SDK) ...................... 24
 37. Agent Interaction Model .............................. 24
 38. Telemetry Standards .................................. 25
+39. Accessibility and Inclusivity Standards ............ 26
+    39.1 Core Principles (WCAG) ........................ 26
+    39.2 Keyboard Accessibility ........................ 26
+    39.3 Screen Reader Support (ARIA) .................. 26
+    39.4 Visual Accessibility (Color, Contrast, Text) .. 27
+    39.5 Interaction Modality Alternatives ............. 27
+    39.6 User-Configurable Options ..................... 27
+    39.7 Testing and Validation ........................ 27
 
-Screenshots .............................................. 26
-Last pages: 23
+Screenshots .............................................. 28
+Last pages: 30
 ```
 
 ---
@@ -237,7 +250,7 @@ Last pages: 23
 ```
 “DTCCOMMDOC-420-0-03.PICT” 196 KB 2001-05-03 dpi: 300h x 300v pix: 1928h x 2895v
 Commander UI Info : Document # 001 : User Interface Standards (21 May 2025)
-Source: OpenAgents Inc. Page 0004 of 00XX
+Source: OpenAgents Inc. Page 0004 of 0030
 ```
 
 ---
@@ -253,11 +266,11 @@ Source: OpenAgents Inc. Page 0004 of 00XX
 
 **0. INTRODUCTION**
 
-The Commander User Interface has two main goals: simplicity and power, achieved through deep integration of natural interaction modalities. We want Commander to be easy to learn and intuitive to use, so we try to do things in a simple and natural manner and to build on concepts already familiar to users from gaming and advanced computing environments. An integrated system with a consistent user interface is easier to learn and to use. An integrated system is also more powerful than a group of separate programs that don't interact.
+The Commander User Interface has two main goals: simplicity and power, underpinned by a commitment to inclusivity and accessibility, achieved through deep integration of natural interaction modalities. We want Commander to be easy to learn and intuitive to use for everyone, so we try to do things in a simple and natural manner and to build on concepts already familiar to users from gaming and advanced computing environments. An integrated system with a consistent and accessible user interface is easier to learn and to use. An integrated system is also more powerful than a group of separate programs that don't interact.
 
-This Commander User Interface Standards Document presents the external view of what Commander looks like to the user and expresses a set of guidelines that the Commander development team will use in an effort to achieve that simplicity and power.
+This Commander User Interface Standards Document presents the external view of what Commander looks like to the user and expresses a set of guidelines that the Commander development team will use in an effort to achieve that simplicity, power, and broad accessibility.
 
-We want all Commander-integrated applications and agent interactions to have the same "feel" to the user, so that learning is minimized when going from application to application. Where possible, the same operation in two programs should be done in the same way and behave the same to the user. A given user action should have a consistent meaning throughout the system. Principles used in constructing system features should be extensible to similar occasions, in order to minimize user frustration.
+We want all Commander-integrated applications and agent interactions to have the same "feel" to the user, so that learning is minimized when going from application to application. Where possible, the same operation in two programs should be done in the same way and behave the same to the user. A given user action should have a consistent meaning throughout the system. Principles used in constructing system features must be extensible and robust, considering diverse user needs and assistive technologies, in order to minimize user frustration.
 
 It is hoped that outside vendors and community contributors will find it to their advantage to use these conventions as well.
 
@@ -273,7 +286,7 @@ The primary interaction paradigm is a Heads-Up Display. This HUD consists of:
 - A system of draggable and resizable panes for displaying content and interacting with agents (see Section 9. Panes).
 - Fixed HUD elements for common actions and information display (see Section 8.3).
 
-The HUD is designed to be immersive and provide immediate access to command and control functions.
+The HUD is designed to be immersive and provide immediate access to command and control functions, while ensuring all information is perceivable and operable through various means.
 
 **(Page 6)**
 
@@ -1012,7 +1025,7 @@ _ The bottom section shows `Nip90EventList.tsx`, a scrollable list of NIP-90 job
 ```
 “DTCCOMMDOC-420-1-23.PICT” 247 KB 2001-05-04 dpi: 300h x 300v pix: 1899h x 3215v
 Commander UI Info : Document # 001 : User Interface Standards (21 May 2025)
-Source: OpenAgents Inc. Page 00XX of 00XX
+Source: OpenAgents Inc. Page 00XX of 0030
 ```
 
 ---

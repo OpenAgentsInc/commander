@@ -1,7 +1,7 @@
 import React from "react";
 import { cn } from "@/utils/tailwind";
 import { HotbarItem } from "./HotbarItem";
-import { Store, History, Hand, Wallet, Bot, MessageSquare, CodeXml } from "lucide-react";
+import { Store, History, Hand, Wallet, Bot, MessageSquare, CodeXml, Cpu } from "lucide-react";
 import { usePaneStore } from "@/stores/pane";
 import { useShallow } from "zustand/react/shallow";
 import { Feature } from '@/services/featureflags/FeatureFlag';
@@ -12,6 +12,7 @@ import {
   AGENT_CHAT_PANE_ID,
   PREVIOUS_CHATS_PANE_ID,
   CODER_PANE_ID,
+  NIP90_CONSUMER_CHAT_PANE_ID,
 } from "@/stores/panes/constants";
 import { DVM_JOB_HISTORY_PANE_ID } from "@/stores/panes/actions/openDvmJobHistoryPane";
 
@@ -25,6 +26,7 @@ interface HotbarProps {
   onToggleAgentChatPane: () => void;
   onTogglePreviousChatsPane?: () => void;
   onToggleCoderPane: () => void;
+  onToggleNip90ConsumerChatPane?: () => void;
 }
 
 export const Hotbar: React.FC<HotbarProps> = ({
@@ -37,6 +39,7 @@ export const Hotbar: React.FC<HotbarProps> = ({
   onToggleAgentChatPane,
   onTogglePreviousChatsPane,
   onToggleCoderPane,
+  onToggleNip90ConsumerChatPane,
 }) => {
   const { activePaneId } = usePaneStore(
     useShallow((state) => ({
@@ -52,6 +55,7 @@ export const Hotbar: React.FC<HotbarProps> = ({
   const [isAgentChatEnabled] = useFeatureFlag(Feature.AGENT_CHAT_PANE);
   const [isPreviousChatsEnabled] = useFeatureFlag(Feature.PREVIOUS_CHATS_PANE);
   const [isHandTrackingEnabled] = useFeatureFlag(Feature.HAND_TRACKING);
+  const [isNip90ConsumerChatEnabled] = useFeatureFlag(Feature.NIP90_CONSUMER_CHAT_PANE);
 
   return (
     <div
@@ -84,27 +88,27 @@ export const Hotbar: React.FC<HotbarProps> = ({
         </HotbarItem>
       ) : <HotbarItem slotNumber={2} isGhost><span className="h-5 w-5"/></HotbarItem>}
 
-      {/* Slot 3: Wallet */}
-      {isWalletEnabled ? (
-        <HotbarItem
-          slotNumber={3}
-          onClick={onToggleWalletPane}
-          title="Wallet"
-          isActive={activePaneId === WALLET_PANE_ID}
-        >
-          <Wallet className="text-muted-foreground h-5 w-5" />
-        </HotbarItem>
-      ) : <HotbarItem slotNumber={3} isGhost><span className="h-5 w-5"/></HotbarItem>}
-
-      {/* Slot 4: DVM Job History */}
+      {/* Slot 3: DVM Job History */}
       {isDvmHistoryEnabled ? (
         <HotbarItem
-          slotNumber={4}
+          slotNumber={3}
           onClick={onToggleDvmJobHistoryPane}
           title="DVM Job History"
           isActive={activePaneId === DVM_JOB_HISTORY_PANE_ID}
         >
           <History className="text-muted-foreground h-5 w-5" />
+        </HotbarItem>
+      ) : <HotbarItem slotNumber={3} isGhost><span className="h-5 w-5"/></HotbarItem>}
+
+      {/* Slot 4: Wallet */}
+      {isWalletEnabled ? (
+        <HotbarItem
+          slotNumber={4}
+          onClick={onToggleWalletPane}
+          title="Wallet"
+          isActive={activePaneId === WALLET_PANE_ID}
+        >
+          <Wallet className="text-muted-foreground h-5 w-5" />
         </HotbarItem>
       ) : <HotbarItem slotNumber={4} isGhost><span className="h-5 w-5"/></HotbarItem>}
 

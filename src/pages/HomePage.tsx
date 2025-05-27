@@ -10,7 +10,6 @@ import { usePaneStore } from "@/stores/pane";
 import { useShallow } from "zustand/react/shallow";
 import { Hotbar } from "@/components/hud/Hotbar";
 import BitcoinBalanceDisplay from "@/components/hud/BitcoinBalanceDisplay";
-import { Nip90DashboardButton } from "@/components/hud";
 import { KeyboardControls } from "@react-three/drei";
 // Create our own type that matches the one from the library
 interface KeyboardControlsState {
@@ -55,6 +54,7 @@ export default function HomePage() {
     toggleAgentChatPane,
     togglePreviousChatsPane,
     toggleCoderPane,
+    toggleNip90ConsumerChatPane,
   } = usePaneStore(
     useShallow((state) => ({
       panes: state.panes,
@@ -67,6 +67,7 @@ export default function HomePage() {
       toggleAgentChatPane: state.toggleAgentChatPane,
       togglePreviousChatsPane: state.togglePreviousChatsPane,
       toggleCoderPane: state.toggleCoderPane,
+      toggleNip90ConsumerChatPane: state.toggleNip90ConsumerChatPane,
     })),
   );
 
@@ -78,7 +79,7 @@ export default function HomePage() {
   const [isAgentChatEnabled] = useFeatureFlag(Feature.AGENT_CHAT_PANE);
   const [isPreviousChatsEnabled] = useFeatureFlag(Feature.PREVIOUS_CHATS_PANE);
   const [isHandTrackingEnabled] = useFeatureFlag(Feature.HAND_TRACKING);
-  const [isNip90DashboardEnabled] = useFeatureFlag(Feature.NIP90_DASHBOARD_PANE);
+  const [isNip90ConsumerChatEnabled] = useFeatureFlag(Feature.NIP90_CONSUMER_CHAT_PANE);
 
   // Wrap toggleHandTracking in useCallback to prevent unnecessary re-renders
   const toggleHandTracking = useCallback(() => {
@@ -256,22 +257,22 @@ export default function HomePage() {
             toggleCoderPane();
           }
           break;
-        case 2: // Was 1: Sell Compute
+        case 2: // Sell Compute
           if (isSellComputeEnabled) {
             console.log("Keyboard: Toggle Sell Compute");
             toggleSellComputePane();
           }
           break;
-        case 3: // Was 2: Wallet Pane
-          if (isWalletEnabled) {
-            console.log("Keyboard: Toggle Wallet Pane");
-            toggleWalletPane();
-          }
-          break;
-        case 4: // Was 3: DVM Job History
+        case 3: // DVM Job History
           if (isDvmHistoryEnabled) {
             console.log("Keyboard: Toggle DVM Job History Pane");
             toggleDvmJobHistoryPane();
+          }
+          break;
+        case 4: // Wallet Pane
+          if (isWalletEnabled) {
+            console.log("Keyboard: Toggle Wallet Pane");
+            toggleWalletPane();
           }
           break;
         case 5: // Was 4: Agent Chat
@@ -286,8 +287,14 @@ export default function HomePage() {
             togglePreviousChatsPane();
           }
           break;
-        // Slots 7 and 8 are currently unassigned
+        // Slot 7: NIP90 Consumer Chat
         case 7:
+          if (isNip90ConsumerChatEnabled) {
+            console.log("Keyboard: Toggle NIP90 Consumer Chat Pane");
+            toggleNip90ConsumerChatPane();
+          }
+          break;
+        // Slot 8 is currently unassigned
         case 8:
           break;
         case 9: // Hand Tracking (remains 9)
@@ -315,6 +322,7 @@ export default function HomePage() {
     isAgentChatEnabled,
     isPreviousChatsEnabled,
     isHandTrackingEnabled,
+    isNip90ConsumerChatEnabled,
     // Toggle functions
     toggleCoderPane,
     toggleSellComputePane,
@@ -323,6 +331,7 @@ export default function HomePage() {
     toggleDvmJobHistoryPane,
     toggleAgentChatPane,
     togglePreviousChatsPane,
+    toggleNip90ConsumerChatPane,
   ]);
 
   // Handler for keyboard shortcuts (kept as a backup, but we'll primarily use the global handler)
@@ -342,7 +351,6 @@ export default function HomePage() {
         <SimpleGrid />
         <PaneManager />
         <BitcoinBalanceDisplay />
-        {isNip90DashboardEnabled && <Nip90DashboardButton />}
 
         <HandTracking
           showHandTracking={isHandTrackingActive}
@@ -359,6 +367,7 @@ export default function HomePage() {
           onToggleAgentChatPane={toggleAgentChatPane}
           onTogglePreviousChatsPane={togglePreviousChatsPane}
           onToggleCoderPane={toggleCoderPane}
+          onToggleNip90ConsumerChatPane={toggleNip90ConsumerChatPane}
         />
       </div>
     </KeyboardControls>
