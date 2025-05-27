@@ -16,16 +16,7 @@ import { MessageSquarePlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import { DatabaseService, DBSession } from '@/services/db';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { PaneDropdownItem, PaneDropdownItemAction } from '@/types/paneMenu';
+import { PaneDropdownItem } from '@/types/paneMenu';
 
 
 // ProseMirror Editor component that's loaded after the dynamic import
@@ -125,14 +116,14 @@ const AutoFocusEditor: React.FC<{
   const serializeDocToText = (doc: any) => {
     let text = "";
     let isFirstParagraph = true;
-    
+
     doc.forEach((node: any, offset: number, index: number) => {
       if (node.type.name === "paragraph") {
         if (!isFirstParagraph) {
           text += "\n";
         }
         isFirstParagraph = false;
-        
+
         node.forEach((child: any) => {
           if (child.isText) {
             text += child.text;
@@ -142,7 +133,7 @@ const AutoFocusEditor: React.FC<{
         });
       }
     });
-    
+
     return text;
   };
 
@@ -173,9 +164,9 @@ const AutoFocusEditor: React.FC<{
       as={
         <div
           className="p-4 prose prose-invert h-full w-full outline-none text-white box-border"
-          style={{ 
-            minHeight: '100%', 
-            padding: '12px', 
+          style={{
+            minHeight: '100%',
+            padding: '12px',
             opacity: disabled ? 0.5 : 1,
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word'
@@ -205,27 +196,27 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
   // Extract text content for the content prop
   const textContent = React.useMemo(() => {
     if (!message.parts || message.parts.length === 0) return message.content;
-    
+
     // When we have parts, only use text from the parts, not the accumulated content
     let textParts = message.parts
       .filter(part => part.type === 'text')
       .map(part => part.text)
       .join('');
-    
+
     // Remove [Result: ...] sections to avoid duplication
     textParts = textParts.replace(/\[Result:\s*[\s\S]*?\]/g, '').trim();
-    
+
     return textParts; // Don't fall back to message.content when we have parts
   }, [message.parts, message.content]);
 
   // Create parts array for UIChatMessage - it expects a specific format
   const messageParts = React.useMemo(() => {
     if (!message.parts || message.parts.length === 0) return undefined;
-    
+
     const parts: any[] = [];
     const toolCalls = new Map<string, any>();
     const toolResults = new Map<string, any>();
-    
+
     // First pass: collect tool calls and results
     message.parts.forEach(part => {
       if (part.type === 'tool_call') {
@@ -234,7 +225,7 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
         toolResults.set(part.tool_use_id, part);
       }
     });
-    
+
     // Second pass: build parts array
     message.parts.forEach(part => {
       if (part.type === 'text') {
@@ -247,7 +238,7 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
         // Check if we have a result for this tool call
         const hasResult = toolResults.has(part.id);
         const result = toolResults.get(part.id);
-        
+
         parts.push({
           type: 'tool-invocation' as const,
           toolInvocation: {
@@ -261,7 +252,7 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
       }
       // Skip tool_result parts as they're already handled above
     });
-    
+
     return parts.length > 0 ? parts : undefined;
   }, [message.parts]);
 
@@ -281,13 +272,13 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
   // Render custom tool displays for better UX
   const renderParts = () => {
     if (!message.parts || message.parts.length === 0) return null;
-    
+
     return message.parts.map((part, idx) => {
       if (part.type === 'text' && part.text) {
         // Filter out [Result: ...] sections
         const cleanedText = part.text.replace(/\[Result:\s*[\s\S]*?\]/g, '').trim();
         if (!cleanedText) return null;
-        
+
         return (
           <div key={`text-${idx}`} className="prose prose-invert max-w-none">
             <UIChatMessage
@@ -302,7 +293,7 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
       } else if (part.type === 'tool_call') {
         const hasResult = toolResults.has(part.id);
         const result = toolResults.get(part.id);
-        
+
         return (
           <div key={`tool-${idx}`} className="space-y-1">
             <ToolCallDisplay
@@ -314,8 +305,8 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
               <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm ml-6">
                 <div className="text-xs text-muted-foreground mb-1">Result:</div>
                 <div className="whitespace-pre-wrap text-foreground">
-                  {typeof result.content === 'string' 
-                    ? result.content 
+                  {typeof result.content === 'string'
+                    ? result.content
                     : JSON.stringify(result.content, null, 2)}
                 </div>
               </div>
@@ -378,12 +369,12 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
 
   // Get messages from Zustand store
   const { messages, addMessage, updateMessage, clearMessages } = useCoderChatStore();
-  
+
   // Local state for loading and focus
   const [isLoading, setIsLoading] = useState(false);
   const [focusKey, setFocusKey] = useState(0);
   const streamCancelRef = useRef<(() => void) | null>(null);
-  
+
   // Auto-scroll hook
   const {
     containerRef,
@@ -438,7 +429,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
 
     // Set loading state to false
     setIsLoading(false);
-    
+
     // Trigger focus on the editor by updating focusKey
     setFocusKey(prev => prev + 1);
   }, [clearMessages, runtime]);
@@ -492,14 +483,14 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
       isStreaming: true,
     };
     addMessage(assistantMessage);
-    
+
     // Track assistant message content in a ref for streaming updates
     const assistantContentRef = { current: '' };
 
     try {
       // Get current messages from the store to ensure we have the latest state
       const currentMessages = useCoderChatStore.getState().messages;
-      
+
       // Prepare messages for Claude Code API - only include messages from current session
       const apiMessages = currentMessages
         .filter(m => m.role !== 'system')
@@ -608,7 +599,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
       }
     };
   }, []);
-  
+
   // No need for initial scroll - flex-direction: column-reverse handles it
 
   // Load messages for a session
@@ -620,11 +611,11 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
       const exitResult = await Effect.runPromiseExit(Effect.provide(dbProgram, runtime));
       if (Exit.isSuccess(exitResult)) {
         const dbMessages = exitResult.value;
-        
+
         // Clear current messages and set new session ID
         sessionIdRef.current = sessionId;
         clearMessages();
-        
+
         // Convert DB messages to chat messages and add them
         dbMessages.forEach(dbMsg => {
           // Parse the content which might have parts
@@ -639,7 +630,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
           } catch (e) {
             // Content is plain text, not JSON
           }
-          
+
           addMessage({
             id: dbMsg.id,
             role: dbMsg.role as 'user' | 'assistant' | 'system',
@@ -648,9 +639,9 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
             timestamp: dbMsg.timestamp * 1000, // Convert from seconds to milliseconds
           });
         });
-        
+
         // No need to scroll - flex-direction: column-reverse keeps messages at bottom
-        
+
         return true;
       } else {
         console.error("Failed to load messages:", Cause.pretty(exitResult.cause));
@@ -703,13 +694,13 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
   // Create history menu items
   const historyMenuItems: PaneDropdownItem[] = useMemo(() => {
     if (!chatHistorySessions || chatHistorySessions.length === 0) {
-      return [{ label: "No recent chats", action: () => {}, disabled: true }];
+      return [{ label: "No recent chats", action: () => { }, disabled: true }];
     }
     return chatHistorySessions.map(session => ({
       label: formatSessionForMenu(session),
       action: async () => {
         console.log("Load chat session:", session.id);
-        
+
         // Track telemetry
         Effect.runFork(
           Effect.flatMap(TelemetryService, (ts) =>
@@ -720,7 +711,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
             }),
           ).pipe(Effect.provide(runtime)),
         );
-        
+
         // Load messages for this session
         const success = await loadSessionMessages(session.id);
         if (!success) {
@@ -732,10 +723,10 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
             timestamp: Date.now(),
           });
         }
-        
+
         // Close the history menu
         setHistoryMenuOpen(false);
-        
+
         // Focus on the text input after a delay to ensure menu is fully closed
         // and the component has settled. Use multiple attempts to ensure focus sticks.
         setTimeout(() => {
@@ -765,7 +756,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
       </Button>
     </>
   ), [handleNewChat]);
-  
+
   // Create header menus for left side
   const headerMenus = useMemo(() => [
     {
@@ -774,7 +765,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
       items: historyMenuItems,
     }
   ], [historyMenuItems]);
-  
+
   // Handle menu open state changes
   const handleMenuOpenChange = useCallback((menuId: string, open: boolean) => {
     if (menuId === 'coderHistoryMenu') {
@@ -825,12 +816,12 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
           line-height: 1.5 !important;
           white-space: pre-wrap !important;
         }
-        
+
         /* Ensure markdown content in our messages preserves whitespace */
         .coder-chat-message div[class*="whitespace-pre-wrap"] {
           white-space: pre-wrap !important;
         }
-        
+
         /* Force pre-wrap on all paragraph elements in messages */
         .coder-chat-message p {
           white-space: pre-wrap !important;
@@ -922,7 +913,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
         }
       `}</style>
       {/* Chat messages area */}
-      <div 
+      <div
         ref={containerRef}
         className="flex-1 overflow-auto p-4 flex flex-col-reverse"
         onScroll={handleScroll}
