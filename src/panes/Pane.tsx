@@ -370,7 +370,7 @@ export const Pane: React.FC<PaneProps> = ({
       }
 
       // Use memo for stable position calculations throughout drag
-      if (active && memo) {
+      if (memo && (active || last)) {
         const deltaX = pointerX - memo.startX;
         const deltaY = pointerY - memo.startY;
 
@@ -388,7 +388,7 @@ export const Pane: React.FC<PaneProps> = ({
           updatePanePosition(id, newX, newY);
           setIsDragging(false);
         }
-      } else if (!active) {
+      } else if (!active && !last) {
         setIsDragging(false);
       }
 
