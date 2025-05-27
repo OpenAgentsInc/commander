@@ -127,7 +127,7 @@ export function buildFullAppLayer() {
 
   // Feature flag layer depends on configuration and telemetry
   const featureFlagLayer = FeatureFlagServiceLive.pipe(
-    Layer.provide(devConfigLayer) // devConfigLayer provides both ConfigurationService and TelemetryService
+    Layer.provide(Layer.mergeAll(devConfigLayer, telemetryLayer))
   );
 
   const nip13Layer = NIP13ServiceLive;
