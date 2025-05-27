@@ -293,17 +293,24 @@ The HUD is designed to be immersive and provide immediate access to command and 
 `Commander UI Info : Document # 001 : User Interface Standards (21 May 2025)`
 
 **1.3 Theme and Appearance**
-Commander enforces a **dark theme** to maintain a consistent and focused aesthetic. This is set at the Electron nativeTheme level (`nativeTheme.themeSource = "dark"`) and applied globally using Tailwind CSS v4 and custom CSS variables.
+Commander enforces a **dark theme** to maintain a consistent and focused aesthetic. This theme is designed to meet WCAG 2.1 Level AA contrast ratios for text and interactive elements against their backgrounds. This is set at the Electron nativeTheme level (`nativeTheme.themeSource = "dark"`) and applied globally using Tailwind CSS v4 and custom CSS variables.
 
 - **Background:** Predominantly black or very dark gray (`--background: oklch(0.1 0 0)`).
 - **Foreground:** Predominantly white or light gray for text and primary UI elements (`--foreground: oklch(0.9 0 0)`).
 - **Accent Colors:** Used sparingly for active states or highlights (e.g., blue for active pane borders).
+- **Contrast:** All UI text and graphical elements critical for understanding content or operating functionality MUST maintain a minimum contrast ratio of 4.5:1 (for normal text) or 3:1 (for large text and graphical objects/UI components) against their immediate background. Tools like a contrast checker MUST be used during design and development.
+- **Color Use:** Color MUST NOT be used as the sole means of conveying information, indicating an action, prompting a response, or distinguishing a visual element. Alternative visual cues (e.g., icons, text labels, underlines, shape changes) MUST be provided.
 - **Styling:** UI components are primarily styled using Shadcn UI and Tailwind CSS utility classes. Custom styles are defined in `src/styles/global.css`.
 
-The `ToggleTheme.tsx` component currently acts as an indicator of the forced dark mode rather than a functional toggle. User control over themes is not a current feature. Theme state is managed via `src/helpers/theme_helpers.ts` and IPC.
+The `ToggleTheme.tsx` component currently acts as an indicator of the forced dark mode rather than a functional toggle. While user control over themes is not a current primary feature, future iterations will explore options such as a high-contrast mode and light theme alternatives to cater to a wider range of visual preferences and needs. Theme state is managed via `src/helpers/theme_helpers.ts` and IPC.
 
 **1.4 Typography**
-The primary font used throughout the Commander application is **Berkeley Mono**. This monospaced font is applied globally for UI text, chat messages, and other content to reinforce the "commander" and technical aesthetic. Font definitions are in `src/styles/fonts.css` and applied via `src/styles/global.css`.
+The primary font used throughout the Commander application is **Berkeley Mono**. This font has been chosen for its clarity and legibility in a technical context. This monospaced font is applied globally for UI text, chat messages, and other content to reinforce the "commander" and technical aesthetic. Font definitions are in `src/styles/fonts.css` and applied via `src/styles/global.css`.
+
+- **Font Size:** Default font sizes MUST be sufficient for readability (e.g., minimum 12-14pt equivalent for body text, depending on context and viewing distance assumptions for a HUD).
+- **Text Scaling:** The UI MUST support text scaling up to 200% without loss of content or functionality, and without requiring horizontal scrolling for full lines of text. This can be achieved through browser zoom or application-specific settings (future).
+- **Line Spacing (Leading) and Spacing:** Sufficient line spacing (at least 1.5 times the font size) and paragraph spacing (at least 2 times the font size) should be used for blocks of text to improve readability. Letter spacing (tracking) and word spacing must also be adequate.
+- **Text on Images/Complex Backgrounds:** If text is rendered over images or dynamic backgrounds, it MUST have a solid or sufficiently opaque backing, or a text shadow/outline, to ensure contrast requirements are met.
 
 **2. MOUSE AND CURSOR**
 
@@ -318,6 +325,10 @@ Within Commander:
 - **Scrolling:** Mouse wheel scrolling is supported for scrollable content areas within panes.
 
 The cursor may take on different shapes to indicate its current function. For example, when hovering over resize handles of a pane, the cursor changes to the appropriate resize arrow. When hovering over a draggable title bar, it changes to a grab hand.
+
+**Accessibility Considerations:**
+- While the mouse is a supported input method, all functionalities achievable by mouse interaction MUST also be fully operable via keyboard (see Section 4 and 39.2) and, where appropriate, NUI (Section 3) or Voice Commands (Section 34). No functionality should be exclusively mouse-dependent.
+- Cursor changes that convey information (e.g., resize arrows, grab hand) MUST have alternative non-visual cues for users who cannot see the cursor or its shape. For custom interactive elements, ARIA attributes should be used to describe the element's role and state (see Section 39.3).
 
 The mouse system incorporates a button on its top surface that allows the user to signal a particular position on the screen to the computer. The system is always aware of the position indicated by the mouse. When the button is up, motion of the mouse causes cursor motion and may change the shape of the cursor, but no other changes occur to anything on the screen as a result of the motion.
 
