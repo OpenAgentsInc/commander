@@ -49,6 +49,7 @@ export const Hotbar: React.FC<HotbarProps> = ({
   const [isSellComputeEnabled] = useFeatureFlag(Feature.DVM_PROVIDER_PANE);
   const [isWalletEnabled] = useFeatureFlag(Feature.WALLET_PANE);
   const [isDvmHistoryEnabled] = useFeatureFlag(Feature.DVM_JOB_HISTORY_PANE);
+  const [isAgentChatEnabled] = useFeatureFlag(Feature.AGENT_CHAT_PANE);
   const [isPreviousChatsEnabled] = useFeatureFlag(Feature.PREVIOUS_CHATS_PANE);
   const [isHandTrackingEnabled] = useFeatureFlag(Feature.HAND_TRACKING);
 
@@ -107,15 +108,17 @@ export const Hotbar: React.FC<HotbarProps> = ({
         </HotbarItem>
       ) : <HotbarItem slotNumber={4} isGhost><span className="h-5 w-5"/></HotbarItem>}
 
-      {/* Slot 5: Agent Chat (Always visible as the main chat interface) */}
-      <HotbarItem
-        slotNumber={5}
-        onClick={onToggleAgentChatPane}
-        title="Agent Chat"
-        isActive={activePaneId === AGENT_CHAT_PANE_ID}
-      >
-        <Bot className="text-muted-foreground h-5 w-5" />
-      </HotbarItem>
+      {/* Slot 5: Agent Chat */}
+      {isAgentChatEnabled ? (
+        <HotbarItem
+          slotNumber={5}
+          onClick={onToggleAgentChatPane}
+          title="Agent Chat"
+          isActive={activePaneId === AGENT_CHAT_PANE_ID}
+        >
+          <Bot className="text-muted-foreground h-5 w-5" />
+        </HotbarItem>
+      ) : <HotbarItem slotNumber={5} isGhost><span className="h-5 w-5"/></HotbarItem>}
 
       {/* Slot 6: Previous Chats */}
       {onTogglePreviousChatsPane && isPreviousChatsEnabled ? (

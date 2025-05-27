@@ -22,4 +22,7 @@ export enum Feature {
   // NIP90_GLOBAL_FEED_PANE = "NIP90_GLOBAL_FEED_PANE",
 
   // NIP28_CHAT_PANE - Not directly on hotbar, related to NIP-28 functionality.
+  
+  // Agent Chat Pane - The old multi-provider chat interface
+  AGENT_CHAT_PANE = "AGENT_CHAT_PANE", // Agent Chat pane, toggled by Hotbar 5
 }

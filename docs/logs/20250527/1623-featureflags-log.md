@@ -38,3 +38,11 @@ const featureFlagLayer = FeatureFlagServiceLive.pipe(
   Layer.provide(Layer.mergeAll(devConfigLayer, telemetryLayer))
 );
 ```
+
+#### Fix 3: Add Feature Flag for Agent Chat Pane
+**Request**: User didn't want to see the old Agent Chat pane (hotbar slot 5)
+**Solution**: 
+1. Added `AGENT_CHAT_PANE` to the Feature enum
+2. Updated Hotbar.tsx to check the feature flag before rendering Agent Chat button
+3. Updated HomePage.tsx to check the feature flag before handling Ctrl+5 keyboard shortcut
+4. Since this feature is not in the enabled list, it will now be hidden

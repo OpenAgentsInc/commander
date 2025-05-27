@@ -74,6 +74,7 @@ export default function HomePage() {
   const [isSellComputeEnabled] = useFeatureFlag(Feature.DVM_PROVIDER_PANE);
   const [isWalletEnabled] = useFeatureFlag(Feature.WALLET_PANE);
   const [isDvmHistoryEnabled] = useFeatureFlag(Feature.DVM_JOB_HISTORY_PANE);
+  const [isAgentChatEnabled] = useFeatureFlag(Feature.AGENT_CHAT_PANE);
   const [isPreviousChatsEnabled] = useFeatureFlag(Feature.PREVIOUS_CHATS_PANE);
   const [isHandTrackingEnabled] = useFeatureFlag(Feature.HAND_TRACKING);
 
@@ -272,8 +273,10 @@ export default function HomePage() {
           }
           break;
         case 5: // Was 4: Agent Chat
-          console.log("Keyboard: Toggle Agent Chat Pane");
-          toggleAgentChatPane();
+          if (isAgentChatEnabled) {
+            console.log("Keyboard: Toggle Agent Chat Pane");
+            toggleAgentChatPane();
+          }
           break;
         case 6: // Was 5: Previous Chats (if enabled)
           if (togglePreviousChatsPane && isPreviousChatsEnabled) {
@@ -307,6 +310,7 @@ export default function HomePage() {
     isSellComputeEnabled,
     isWalletEnabled,
     isDvmHistoryEnabled,
+    isAgentChatEnabled,
     isPreviousChatsEnabled,
     isHandTrackingEnabled,
     // Toggle functions
