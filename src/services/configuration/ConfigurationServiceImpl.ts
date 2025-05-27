@@ -142,7 +142,8 @@ export const DefaultDevConfigLayer = Layer.effect(
 
     // Feature flags configuration for v0.0.5
     // Only enable Claude Code provider, Coder Pane, and Hand Tracking
-    yield* _(configService.set("FEATURE_FLAGS_ENABLED_LIST", "CLAUDE_CODE_PROVIDER,CODER_PANE,HAND_TRACKING"));
+    // Also enabling NIP90 features for testing
+    yield* _(configService.set("FEATURE_FLAGS_ENABLED_LIST", "CLAUDE_CODE_PROVIDER,CODER_PANE,HAND_TRACKING,NIP90_DASHBOARD_PANE,NIP90_CONSUMER_CHAT_PANE,NIP90_GLOBAL_FEED_PANE"));
 
     return configService;
   })

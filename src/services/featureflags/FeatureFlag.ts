@@ -17,9 +17,9 @@ export enum Feature {
   // For now, their visibility can be tied to a general DVM_CONSUMER_TOOLS or similar if needed,
   // or just implicitly disabled if their entry points are removed.
   // For v0.0.5, these are disabled by disabling their access points.
-  // NIP90_DASHBOARD_PANE = "NIP90_DASHBOARD_PANE",
-  // NIP90_CONSUMER_CHAT_PANE = "NIP90_CONSUMER_CHAT_PANE",
-  // NIP90_GLOBAL_FEED_PANE = "NIP90_GLOBAL_FEED_PANE",
+  NIP90_DASHBOARD_PANE = "NIP90_DASHBOARD_PANE",
+  NIP90_CONSUMER_CHAT_PANE = "NIP90_CONSUMER_CHAT_PANE",
+  NIP90_GLOBAL_FEED_PANE = "NIP90_GLOBAL_FEED_PANE",
 
   // NIP28_CHAT_PANE - Not directly on hotbar, related to NIP-28 functionality.
   
