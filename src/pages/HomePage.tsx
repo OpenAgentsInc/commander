@@ -205,7 +205,8 @@ export default function HomePage() {
           const activePane = panes.find((p) => p.id === activePaneId);
           
           // Ensure the pane exists and is dismissable (default true if undefined)
-          if (activePane && activePane.dismissable !== false) {
+          // Skip coder panes - they handle their own Escape key
+          if (activePane && activePane.dismissable !== false && activePane.type !== 'coder') {
             event.preventDefault(); // We are handling this Escape press
             removePane(activePaneId);
 

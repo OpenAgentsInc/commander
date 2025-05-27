@@ -448,9 +448,9 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
         }),
       ).pipe(Effect.provide(runtime)),
     );
-    // Close the coder pane
-    removePane('coder_pane');
-  }, [removePane, runtime]);
+    // Close THIS coder pane (not all of them)
+    removePane(paneId);
+  }, [removePane, paneId, runtime]);
 
   const handleNewChat = React.useCallback(() => {
     // Cancel any ongoing stream
@@ -486,14 +486,18 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        handleExitCoderMode();
+        // Only handle escape if this pane is active
+        const currentState = usePaneStore.getState();
+        if (currentState.activePaneId === paneId) {
+          handleExitCoderMode();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [handleExitCoderMode]);
+  }, [handleExitCoderMode, paneId]);
 
   // Track Coder Mode open event
   React.useEffect(() => {
