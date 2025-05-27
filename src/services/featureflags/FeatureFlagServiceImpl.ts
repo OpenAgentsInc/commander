@@ -33,16 +33,11 @@ export const FeatureFlagServiceLive = Layer.effect(
         label: "FeatureFlagService initialized",
         value: JSON.stringify(Array.from(enabledFeaturesSet))
       }).pipe(Effect.ignoreLogged));
-
-      return Effect.succeed(undefined);
     }).pipe(
       Effect.catchAll((e: unknown) => {
         const errorMessage = (e && typeof e === 'object' && 'message' in e) ? String((e as any).message) : String(e);
-        Effect.runFork(telemetryService.trackEvent({
-          category: "feature_flags:error",
-          action: "initialization_failed",
-          label: errorMessage,
-        }).pipe(Effect.ignoreLogged));
+        // Log error without using runFork (which requires a scope)
+        console.error(`FeatureFlagService initialization failed: ${errorMessage}`, e);
         return Effect.die(new FeatureFlagError({ message: `FeatureFlagService initialization failed: ${errorMessage}`, cause: e }));
       })
     );
