@@ -10,6 +10,7 @@ import { history } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import { baseKeymap } from "prosemirror-commands";
 import { ChatMessage as UIChatMessage, type Message } from '@/components/ui/chat-message';
+import { useAutoScroll } from '@/hooks/use-auto-scroll';
 
 
 // ProseMirror Editor component that's loaded after the dynamic import
@@ -187,35 +188,44 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
   const messageParts = React.useMemo(() => {
     if (!message.parts || message.parts.length === 0) return undefined;
     
-    const parts = message.parts.map(part => {
+    const parts: any[] = [];
+    const toolCalls = new Map<string, any>();
+    const toolResults = new Map<string, any>();
+    
+    // First pass: collect tool calls and results
+    message.parts.forEach(part => {
+      if (part.type === 'tool_call') {
+        toolCalls.set(part.id, part);
+      } else if (part.type === 'tool_result') {
+        toolResults.set(part.tool_use_id, part);
+      }
+    });
+    
+    // Second pass: build parts array
+    message.parts.forEach(part => {
       if (part.type === 'text') {
-        return { type: 'text' as const, text: part.text };
+        parts.push({ type: 'text' as const, text: part.text });
       } else if (part.type === 'tool_call') {
-        return {
+        // Check if we have a result for this tool call
+        const hasResult = toolResults.has(part.id);
+        const result = toolResults.get(part.id);
+        
+        parts.push({
           type: 'tool-invocation' as const,
           toolInvocation: {
-            state: 'call' as const,
+            state: hasResult ? 'result' as const : 'call' as const,
             toolName: part.name,
             toolCallId: part.id,
-            args: part.input
+            args: part.input,
+            result: hasResult ? result.content : undefined
           }
-        };
-      } else if (part.type === 'tool_result') {
-        return {
-          type: 'tool-invocation' as const,
-          toolInvocation: {
-            state: 'result' as const,
-            toolName: 'Tool',
-            toolCallId: part.tool_use_id,
-            result: part.content
-          }
-        };
+        });
       }
-      return null;
-    }).filter(Boolean) as any[];
+      // Skip tool_result parts as they're already handled above
+    });
     
-    return parts;
-  }, [message.parts, textContent, message.content]);
+    return parts.length > 0 ? parts : undefined;
+  }, [message.parts]);
 
   // Use the rich ChatMessage component for better formatting
   return (
@@ -230,7 +240,7 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
         showTimeStamp={false}
       />
       {message.isStreaming && message.role === 'assistant' && (
-        <span className="inline-block w-2 h-4 ml-1 bg-white animate-pulse" />
+        <span className="inline-block w-2 h-4 ml-1 mt-2 bg-white animate-pulse" />
       )}
     </div>
   );
@@ -258,6 +268,15 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
   // Local state for loading
   const [isLoading, setIsLoading] = useState(false);
   const streamCancelRef = useRef<(() => void) | null>(null);
+  
+  // Auto-scroll hook
+  const {
+    containerRef,
+    scrollToBottom,
+    handleScroll,
+    shouldAutoScroll,
+    handleTouchStart,
+  } = useAutoScroll([messages]);
 
   const handleExitCoderMode = React.useCallback(() => {
     // Cancel any ongoing stream
@@ -569,7 +588,12 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
         }
       `}</style>
       {/* Chat messages area */}
-      <div className="flex-1 overflow-auto p-4">
+      <div 
+        ref={containerRef}
+        className="flex-1 overflow-auto p-4"
+        onScroll={handleScroll}
+        onTouchStart={handleTouchStart}
+      >
         <div className="max-w-[750px] mx-auto space-y-4">
           {messages
             .filter(msg => msg.role !== 'system') // Don't show system messages

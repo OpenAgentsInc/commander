@@ -358,6 +358,23 @@ export function setupClaudeWebSocketHandler() {
                   }
                 }
               }
+            } else if (claudeMessage.type === "user" && claudeMessage.message) {
+              console.log("[Main Process] User message (tool result):", claudeMessage);
+              // Handle tool results that come as user messages (from Task tool subtools)
+              const userMessage = claudeMessage.message;
+              if (userMessage.content && Array.isArray(userMessage.content)) {
+                for (const contentPart of userMessage.content) {
+                  if (contentPart.type === "tool_result") {
+                    const toolResultInfo = {
+                      type: 'tool_result',
+                      tool_use_id: contentPart.tool_use_id,
+                      content: contentPart.content,
+                      is_error: contentPart.is_error
+                    };
+                    event.sender.send(`claude-code:chat-stream:chunk`, requestId, JSON.stringify(toolResultInfo));
+                  }
+                }
+              }
             } else {
               // Log any other message types we're not handling
               console.log("[Main Process] Unhandled Claude message type:", claudeMessage.type);
