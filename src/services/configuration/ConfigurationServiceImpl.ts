@@ -140,6 +140,10 @@ export const DefaultDevConfigLayer = Layer.effect(
     // Database configuration
     yield* _(configService.set("DB_DATA_DIR", "commander-data/database/main_v1")); // Versioned subdir for database
 
+    // Feature flags configuration for v0.0.5
+    // Only enable Claude Code provider, Coder Pane, and Hand Tracking
+    yield* _(configService.set("FEATURE_FLAGS_ENABLED_LIST", "CLAUDE_CODE_PROVIDER,CODER_PANE,HAND_TRACKING"));
+
     return configService;
   })
 );

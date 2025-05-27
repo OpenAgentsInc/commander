@@ -10,6 +10,7 @@ import { AGENT_CHAT_PANE_TITLE } from "@/stores/panes/constants";
 import { useAgentChatStore } from "@/stores/ai/agentChatStore";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfigurationService } from "@/services/configuration";
+import { FeatureFlagService } from "@/services/featureflags";
 
 interface AgentChatPaneProps {
   sessionId?: string;
@@ -52,9 +53,11 @@ const AgentChatPane: React.FC<AgentChatPaneProps> = ({ sessionId, sessionTitle }
 
     // Load available providers
     Effect.runFork(
-      Effect.flatMap(ConfigurationService, (cs) =>
-        loadAvailableProviders(cs)
-      ).pipe(Effect.provide(runtime)),
+      Effect.gen(function*(_) {
+        const cs = yield* _(ConfigurationService);
+        const ffs = yield* _(FeatureFlagService);
+        yield* _(loadAvailableProviders(cs, ffs));
+      }).pipe(Effect.provide(runtime)),
     );
   }, [runtime, loadAvailableProviders]);
 

@@ -69,6 +69,12 @@ import {
 } from "@/services/configuration";
 console.log("[Runtime] Imported ConfigurationService");
 
+import {
+  FeatureFlagService,
+  FeatureFlagServiceLive,
+} from "@/services/featureflags";
+console.log("[Runtime] Imported FeatureFlagService");
+
 // Import providers directly to avoid loading NIP90 in renderer
 import * as OllamaProvider from "@/services/ai/providers/ollama";
 import * as OpenAIProvider from "@/services/ai/providers/openai";
@@ -100,6 +106,7 @@ export type FullAppContext =
   | Kind5050DVMService
   | HttpClient.HttpClient
   | ConfigurationService
+  | FeatureFlagService
   | AgentLanguageModel
   | ChatOrchestratorService
   | DatabaseService;
@@ -117,6 +124,11 @@ export function buildFullAppLayer() {
     Layer.provide(telemetryLayer),
   );
   const devConfigLayer = DefaultDevConfigLayer.pipe(Layer.provide(configLayer));
+
+  // Feature flag layer depends on configuration and telemetry
+  const featureFlagLayer = FeatureFlagServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(devConfigLayer, telemetryLayer))
+  );
 
   const nip13Layer = NIP13ServiceLive;
   
@@ -251,6 +263,7 @@ export function buildFullAppLayer() {
     chatOrchestratorLayer,
     kind5050DVMLayer,
     databaseLayer,
+    featureFlagLayer,
   );
 }
 

@@ -20,6 +20,8 @@ import { isMacOs } from "@/utils/os";
 import { Effect } from "effect";
 import { getMainRuntime } from "@/services/runtime";
 import { TelemetryService } from "@/services/telemetry";
+import { Feature } from '@/services/featureflags/FeatureFlag';
+import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 
 interface HandDataContext {
   activeHandPose: HandPose;
@@ -66,6 +68,15 @@ export default function HomePage() {
       toggleCoderPane: state.toggleCoderPane,
     })),
   );
+
+  // Feature flag hooks
+  const [isCoderPaneEnabled] = useFeatureFlag(Feature.CODER_PANE);
+  const [isSellComputeEnabled] = useFeatureFlag(Feature.DVM_PROVIDER_PANE);
+  const [isWalletEnabled] = useFeatureFlag(Feature.WALLET_PANE);
+  const [isDvmHistoryEnabled] = useFeatureFlag(Feature.DVM_JOB_HISTORY_PANE);
+  const [isAgentChatEnabled] = useFeatureFlag(Feature.AGENT_CHAT_PANE);
+  const [isPreviousChatsEnabled] = useFeatureFlag(Feature.PREVIOUS_CHATS_PANE);
+  const [isHandTrackingEnabled] = useFeatureFlag(Feature.HAND_TRACKING);
 
   // Wrap toggleHandTracking in useCallback to prevent unnecessary re-renders
   const toggleHandTracking = useCallback(() => {
@@ -238,27 +249,37 @@ export default function HomePage() {
       // Call the appropriate toggle function based on the digit
       switch (digit) {
         case 1: // New: Coder Mode
-          console.log("Keyboard: Toggle Coder Mode");
-          toggleCoderPane();
+          if (isCoderPaneEnabled) {
+            console.log("Keyboard: Toggle Coder Mode");
+            toggleCoderPane();
+          }
           break;
         case 2: // Was 1: Sell Compute
-          console.log("Keyboard: Toggle Sell Compute");
-          toggleSellComputePane();
+          if (isSellComputeEnabled) {
+            console.log("Keyboard: Toggle Sell Compute");
+            toggleSellComputePane();
+          }
           break;
         case 3: // Was 2: Wallet Pane
-          console.log("Keyboard: Toggle Wallet Pane");
-          toggleWalletPane();
+          if (isWalletEnabled) {
+            console.log("Keyboard: Toggle Wallet Pane");
+            toggleWalletPane();
+          }
           break;
         case 4: // Was 3: DVM Job History
-          console.log("Keyboard: Toggle DVM Job History Pane");
-          toggleDvmJobHistoryPane();
+          if (isDvmHistoryEnabled) {
+            console.log("Keyboard: Toggle DVM Job History Pane");
+            toggleDvmJobHistoryPane();
+          }
           break;
         case 5: // Was 4: Agent Chat
-          console.log("Keyboard: Toggle Agent Chat Pane");
-          toggleAgentChatPane();
+          if (isAgentChatEnabled) {
+            console.log("Keyboard: Toggle Agent Chat Pane");
+            toggleAgentChatPane();
+          }
           break;
         case 6: // Was 5: Previous Chats (if enabled)
-          if (togglePreviousChatsPane) {
+          if (togglePreviousChatsPane && isPreviousChatsEnabled) {
             console.log("Keyboard: Toggle Previous Chats Pane");
             togglePreviousChatsPane();
           }
@@ -268,8 +289,10 @@ export default function HomePage() {
         case 8:
           break;
         case 9: // Hand Tracking (remains 9)
-          console.log("Keyboard: Toggle Hand Tracking");
-          toggleHandTracking();
+          if (isHandTrackingEnabled) {
+            console.log("Keyboard: Toggle Hand Tracking");
+            toggleHandTracking();
+          }
           break;
       }
     };
@@ -282,6 +305,15 @@ export default function HomePage() {
       window.removeEventListener("keydown", handleGlobalKeyDown);
     };
   }, [
+    // Feature flag states
+    isCoderPaneEnabled,
+    isSellComputeEnabled,
+    isWalletEnabled,
+    isDvmHistoryEnabled,
+    isAgentChatEnabled,
+    isPreviousChatsEnabled,
+    isHandTrackingEnabled,
+    // Toggle functions
     toggleCoderPane,
     toggleSellComputePane,
     toggleWalletPane,
