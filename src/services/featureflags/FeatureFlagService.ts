@@ -14,6 +14,3 @@ export interface FeatureFlagService {
 }
 
 export const FeatureFlagService = Context.GenericTag<FeatureFlagService>("FeatureFlagService");
-
-// Re-export for tests
-export { FeatureFlagServiceLive } from "./FeatureFlagServiceImpl";
