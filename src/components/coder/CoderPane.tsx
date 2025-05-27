@@ -164,12 +164,15 @@ const AutoFocusEditor: React.FC<{
       as={
         <div
           className="p-4 prose prose-invert h-full w-full outline-none text-white box-border"
+          spellCheck={false}
           style={{
             minHeight: '100%',
             padding: '12px',
             opacity: disabled ? 0.5 : 1,
             whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word'
+            wordBreak: 'break-word',
+            fontSize: '0.875rem', // 14px - equivalent to text-sm
+            lineHeight: '1.25rem' // 20px - matching text-sm line height
           }}
         />
       }
