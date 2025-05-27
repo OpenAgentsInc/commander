@@ -1,0 +1,390 @@
+import { Effect, Layer, Context, Exit, Console } from "effect";
+import { ProviderFactoryService } from "./ProviderFactoryService";
+import { AgentLanguageModel, makeAgentLanguageModel } from "@/services/ai/core/AgentLanguageModel";
+import { AiProviderError, AiConfigurationError } from "@/services/ai/core/AIError";
+import { ConfigurationService } from "@/services/configuration";
+import { TelemetryService } from "@/services/telemetry";
+import { OllamaService } from "@/services/ollama";
+import { NostrService } from "@/services/nostr";
+import { NIP04Service } from "@/services/nip04";
+import { NIP90Service } from "@/services/nip90";
+import { SparkService } from "@/services/spark";
+import { CONFIG_KEYS } from "@/services/configuration/defaults";
+import { GenerateTextOptions, StreamTextOptions, GenerateStructuredOptions } from "@/services/ai/core/AgentLanguageModel";
+import { AiResponse } from "@/services/ai/core/AiResponse";
+import * as Stream from "effect/Stream";
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String(error.message);
+  }
+  return String(error);
+};
+
+export const ProviderFactoryServiceLive = Layer.effect(
+  ProviderFactoryService,
+  Effect.gen(function* (_) {
+    const config = yield* _(ConfigurationService);
+    const telemetry = yield* _(TelemetryService);
+    const ollama = yield* _(OllamaService);
+    const nostr = yield* _(NostrService);
+    const nip04 = yield* _(NIP04Service);
+    const nip90 = yield* _(NIP90Service);
+    const spark = yield* _(SparkService);
+    
+    const runTelemetry = (telemetryEffect: Effect.Effect<void, Error>) => {
+      Effect.runFork(telemetryEffect.pipe(
+        Effect.catchAll((error) =>
+          Console.error(`Telemetry error in ProviderFactory: ${error.message}`)
+        )
+      ));
+    };
+    
+    const service: ProviderFactoryService = {
+      _tag: "ProviderFactoryService",
+      
+      createProvider: (providerKey: string, modelName?: string) =>
+        Effect.gen(function* (_) {
+          runTelemetry(telemetry.trackEvent({
+            category: "provider_factory",
+            action: "create_provider_start",
+            label: providerKey
+          }));
+          
+          switch (providerKey) {
+            case "ollama": {
+              const isEnabled = yield* _(
+                config.get(CONFIG_KEYS.ollama.modelEnabled).pipe(
+                  Effect.map(value => value === "true"),
+                  Effect.catchAll(() => Effect.succeed(false))
+                )
+              );
+              
+              if (!isEnabled) {
+                return yield* _(Effect.fail(new AiConfigurationError({
+                  message: "Ollama provider is disabled",
+                  provider: "ollama",
+                  isRetryable: false
+                })));
+              }
+              
+              // Use Ollama provider
+              const ollamaConfig = {
+                modelName: modelName || (yield* _(
+                  config.get(CONFIG_KEYS.ollama.modelName).pipe(
+                    Effect.catchAll(() => Effect.succeed("gemma3:1b"))
+                  )
+                ))
+              };
+              
+              // Import Ollama provider module
+              const ollamaModule = yield* _(
+                Effect.tryPromise({
+                  try: () => import("@/services/ai/providers/ollama" as any),
+                  catch: (error) => new AiProviderError({
+                    message: `Failed to load Ollama provider: ${error}`,
+                    cause: error,
+                    isRetryable: false,
+                    provider: "ollama"
+                  })
+                })
+              );
+              
+              const { OllamaAgentLanguageModelLive, OllamaProviderConfigTag } = ollamaModule;
+              
+              const ollamaConfigLayer = Layer.succeed(OllamaProviderConfigTag, ollamaConfig);
+              const ollamaAgentLMLayer = OllamaAgentLanguageModelLive.pipe(
+                Layer.provide(ollamaConfigLayer),
+                Layer.provide(Layer.succeed(OllamaService, ollama)),
+                Layer.provide(Layer.succeed(TelemetryService, telemetry))
+              );
+              
+              const ollamaAgentLM = yield* _(
+                Layer.build(ollamaAgentLMLayer).pipe(
+                  Effect.map((context) => Context.get(context, AgentLanguageModel.Tag)),
+                  Effect.scoped,
+                  Effect.mapError((error) => new AiProviderError({
+                    message: `Failed to build Ollama provider: ${error}`,
+                    cause: error,
+                    isRetryable: false,
+                    provider: "ollama"
+                  }))
+                )
+              );
+              
+              runTelemetry(telemetry.trackEvent({
+                category: "provider_factory",
+                action: "create_provider_success",
+                label: "ollama"
+              }));
+              
+              return ollamaAgentLM;
+            }
+            
+            case "claude_code": {
+              // Use Claude Code CLI provider via IPC (main process only)
+              const claudeCodeAgentLM: AgentLanguageModel = makeAgentLanguageModel({
+                generateText: (options: GenerateTextOptions) =>
+                  Effect.gen(function* (_) {
+                    // Parse messages from prompt string 
+                    let messages: any[];
+                    try {
+                      const parsed = JSON.parse(options.prompt);
+                      messages = parsed.messages || [];
+                    } catch {
+                      messages = [{ role: "user", content: options.prompt }];
+                    }
+                    
+                    // Use IPC to call main process Claude Code implementation
+                    const response = yield* _(
+                      Effect.tryPromise({
+                        try: () => window.electronAPI.claudeCode!.chatCompletion({
+                          messages: messages.map(msg => ({
+                            role: msg.role,
+                            content: msg.content
+                          })),
+                          model: options.model || "claude-3-opus-20240229",
+                          max_tokens: options.maxTokens,
+                          temperature: options.temperature,
+                          sessionId: (options as any).sessionId,
+                        }),
+                        catch: (error) => {
+                          const serializedCause = getErrorMessage(error);
+                          return new AiProviderError({
+                            message: `Claude Code IPC call failed: ${error}`,
+                            cause: serializedCause,
+                            isRetryable: false,
+                            provider: "claude_code"
+                          });
+                        }
+                      })
+                    );
+                    
+                    // Handle error response format
+                    if (typeof response === 'object' && response !== null && '__error' in response) {
+                      return yield* _(Effect.fail(new AiProviderError({
+                        message: `Claude Code CLI error: ${response.message}`,
+                        cause: response && typeof response === 'object' ? (response.message || JSON.stringify(response, Object.getOwnPropertyNames(response))) : String(response),
+                        isRetryable: false,
+                        provider: "claude_code"
+                      })));
+                    }
+                    
+                    // Parse successful response
+                    const content = typeof response === 'string' ? response : JSON.stringify(response);
+                    
+                    return AiResponse.fromSimple({
+                      text: content,
+                      metadata: {
+                        usage: {
+                          promptTokens: messages.reduce((acc, msg) => acc + msg.content.length / 4, 0),
+                          completionTokens: content.length / 4,
+                          totalTokens: 0
+                        }
+                      }
+                    });
+                  }),
+
+                streamText: (options: StreamTextOptions) =>
+                  Stream.asyncScoped((emit) =>
+                    Effect.gen(function* (_) {
+                      // Parse messages from prompt string 
+                      let messages: any[];
+                      try {
+                        const parsed = JSON.parse(options.prompt);
+                        messages = parsed.messages || [];
+                      } catch {
+                        messages = [{ role: "user", content: options.prompt }];
+                      }
+                      
+                      let cleanup: (() => void) | undefined;
+                      
+                      try {
+                        cleanup = window.electronAPI.claudeCode!.streamChat(
+                          {
+                            messages: messages.map(msg => ({
+                              role: msg.role,
+                              content: msg.content
+                            })),
+                            model: options.model || "claude-sonnet",
+                            max_tokens: options.maxTokens,
+                            temperature: options.temperature,
+                            sessionId: (options as any).sessionId,
+                          },
+                          (chunk: string) => {
+                            emit.single(AiResponse.fromSimple({
+                              text: chunk
+                            }));
+                          },
+                          () => {
+                            emit.end();
+                          },
+                          (error: any) => {
+                            const errorMessage = getErrorMessage(error);
+                            const serializedCause = getErrorMessage(error);
+                            emit.fail(new AiProviderError({
+                              message: `Claude Code stream error: ${errorMessage}`,
+                              cause: serializedCause,
+                              isRetryable: false,
+                              provider: "claude_code"
+                            }));
+                          }
+                        );
+                      } catch (error) {
+                        const errorMessage = getErrorMessage(error);
+                        const serializedCause = getErrorMessage(error);
+                        emit.fail(new AiProviderError({
+                          message: `Failed to start Claude Code stream: ${errorMessage}`,
+                          cause: serializedCause,
+                          isRetryable: false,
+                          provider: "claude_code"
+                        }));
+                      }
+                      
+                      return Effect.sync(() => {
+                        cleanup?.();
+                      });
+                    })
+                  ),
+                
+                generateStructured: (options: GenerateStructuredOptions) =>
+                  Effect.gen(function* (_) {
+                    // For now, just use generateText and try to parse
+                    const response = yield* _(this.generateText(options));
+                    
+                    try {
+                      const parsed = JSON.parse(response.text);
+                      return AiResponse.fromSimple({
+                        text: response.text,
+                        data: parsed,
+                        metadata: response.metadata
+                      });
+                    } catch (error) {
+                      return yield* _(Effect.fail(new AiProviderError({
+                        message: `Failed to parse structured response: ${error}`,
+                        cause: error,
+                        isRetryable: false,
+                        provider: "claude_code"
+                      })));
+                    }
+                  })
+              });
+              
+              runTelemetry(telemetry.trackEvent({
+                category: "provider_factory",
+                action: "create_provider_success",
+                label: "claude_code"
+              }));
+              
+              return claudeCodeAgentLM;
+            }
+            
+            // Handle NIP90 providers (nip90:pubkey or nip90:alias format)
+            default: {
+              if (providerKey.startsWith("nip90:")) {
+                const nip90Config = yield* _(Effect.gen(function* (_) {
+                  const pubkeyOrAlias = providerKey.substring(6);
+                  
+                  // Check if it's a known alias
+                  const aliasMap: Record<string, string> = {
+                    "testing_provider": "npub1hdhszmgmkfuzedpewx8tyh2krnmj30m6d2zjh3ua6xqhv5mxnfqqlmvq37"
+                  };
+                  
+                  const resolvedPubkey = aliasMap[pubkeyOrAlias] || pubkeyOrAlias;
+                  
+                  return {
+                    dvmPubkey: resolvedPubkey,
+                    modelName: modelName || "default"
+                  };
+                }));
+                
+                // Import NIP90 provider module
+                const nip90Module = yield* _(
+                  Effect.tryPromise({
+                    try: () => import("@/services/ai/providers/nip90" as any),
+                    catch: (error) => new AiProviderError({
+                      message: `Failed to load NIP90 provider: ${error}`,
+                      cause: error,
+                      isRetryable: false,
+                      provider: providerKey
+                    })
+                  })
+                );
+                
+                const { NIP90AgentLanguageModelLive, NIP90ProviderConfigTag } = nip90Module;
+                
+                const nip90ConfigLayer = Layer.succeed(NIP90ProviderConfigTag, nip90Config);
+                const nip90AgentLMLayer = NIP90AgentLanguageModelLive.pipe(
+                  Layer.provide(nip90ConfigLayer),
+                  Layer.provide(Layer.succeed(NIP90Service, nip90)),
+                  Layer.provide(Layer.succeed(NostrService, nostr)),
+                  Layer.provide(Layer.succeed(NIP04Service, nip04)),
+                  Layer.provide(Layer.succeed(TelemetryService, telemetry)),
+                  Layer.provide(Layer.succeed(SparkService, spark))
+                );
+                
+                const nip90AgentLM = yield* _(
+                  Layer.build(nip90AgentLMLayer).pipe(
+                    Effect.map((context) => Context.get(context, AgentLanguageModel.Tag)),
+                    Effect.scoped,
+                    Effect.mapError((error) => new AiProviderError({
+                      message: `Failed to build NIP90 provider: ${error}`,
+                      cause: error,
+                      isRetryable: false,
+                      provider: providerKey
+                    }))
+                  )
+                );
+                
+                runTelemetry(telemetry.trackEvent({
+                  category: "provider_factory",
+                  action: "create_provider_success",
+                  label: providerKey
+                }));
+                
+                return nip90AgentLM;
+              }
+              
+              // Unknown provider
+              return yield* _(Effect.fail(new AiConfigurationError({
+                message: `Unknown provider: ${providerKey}`,
+                provider: providerKey,
+                isRetryable: false
+              })));
+            }
+          }
+        }),
+      
+      listProviders: () =>
+        Effect.gen(function* (_) {
+          const providers: string[] = ["claude_code"];
+          
+          // Check if Ollama is enabled
+          const ollamaEnabled = yield* _(
+            config.get(CONFIG_KEYS.ollama.modelEnabled).pipe(
+              Effect.map(value => value === "true"),
+              Effect.catchAll(() => Effect.succeed(false))
+            )
+          );
+          
+          if (ollamaEnabled) {
+            providers.push("ollama");
+          }
+          
+          // TODO: Add logic to discover available NIP90 providers
+          // For now, just include the testing provider
+          providers.push("nip90:testing_provider");
+          
+          return providers;
+        })
+    };
+    
+    return service;
+  })
+);

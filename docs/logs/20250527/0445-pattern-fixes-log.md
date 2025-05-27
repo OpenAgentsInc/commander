@@ -166,3 +166,45 @@ Based on the refactor suggestions, implementing in this order:
    - Easy to add new toggle actions
 
 4. Tests: All 260 tests passing
+
+### 3. Service Granularity & Dependencies - Starting 05:17
+
+#### Current State Analysis
+- ChatOrchestratorServiceLive dynamically imports and builds layers for providers
+- Mixes service logic with layer composition
+- Complex dependency management
+
+#### Goal
+- Introduce ProviderFactoryService or AgentLanguageModelResolverService
+- Separate provider resolution from orchestration logic
+- Cleaner dependency graph
+
+#### Deep Analysis of ChatOrchestratorService (05:20)
+The service currently handles:
+1. **Provider Resolution** - Determining which provider to use based on key
+2. **Provider Instantiation** - Building provider instances with layers
+3. **Dynamic Imports** - Loading NIP90 providers dynamically
+4. **Orchestration** - Managing conversation flow and responses
+5. **Telemetry** - Tracking provider usage
+
+Problems identified:
+- 400+ lines in a single switch statement (lines 62-498)
+- Each provider case contains 30-80 lines of layer composition
+- Tight coupling between orchestration and provider creation
+- Difficult to test provider creation in isolation
+- Hard to add new providers without modifying orchestrator
+
+#### Design: ProviderFactoryService
+```typescript
+export interface ProviderFactoryService {
+  readonly _tag: "ProviderFactoryService";
+  createProvider(providerKey: string, modelName?: string): Effect.Effect<AgentLanguageModel, AiProviderError | AiConfigurationError>;
+}
+```
+
+Benefits:
+1. Single responsibility - Factory only creates providers
+2. Testable - Can test provider creation in isolation
+3. Extensible - Easy to add new providers
+4. Reusable - Other services can use factory
+5. Clean orchestrator - Focus on conversation management

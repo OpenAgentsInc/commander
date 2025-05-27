@@ -72,6 +72,7 @@ console.log("[Runtime] Imported ConfigurationService");
 // Import providers directly to avoid loading NIP90 in renderer
 import * as OllamaProvider from "@/services/ai/providers/ollama";
 import * as OpenAIProvider from "@/services/ai/providers/openai";
+import { ProviderFactoryService, ProviderFactoryServiceLive } from "@/services/ai/providers";
 console.log("[Runtime] Imported AI providers");
 
 import { AgentLanguageModel } from "@/services/ai/core";
@@ -102,6 +103,7 @@ export type FullAppContext =
   | ConfigurationService
   | AgentLanguageModel
   | ChatOrchestratorService
+  | ProviderFactoryService
   | DatabaseService;
 
 // Runtime instance - will be initialized asynchronously
@@ -220,18 +222,28 @@ export function buildFullAppLayer() {
     ),
   );
 
+  // Create the provider factory layer with its dependencies
+  const providerFactoryLayer = ProviderFactoryServiceLive.pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        devConfigLayer,              // For ConfigurationService
+        telemetryLayer,              // For TelemetryService
+        ollamaLayer,                 // For OllamaService
+        nostrLayer,                  // For NostrService
+        nip04Layer,                  // For NIP04Service
+        nip90Layer,                  // For NIP90Service
+        sparkLayer,                  // For SparkService
+      ),
+    ),
+  );
+
   // Create the chat orchestrator layer with all its dependencies
   const chatOrchestratorLayer = ChatOrchestratorServiceLive.pipe(
     Layer.provide(
       Layer.mergeAll(
         devConfigLayer,              // For ConfigurationService
-        BrowserHttpClient.layerXMLHttpRequest, // For HttpClient.HttpClient
         telemetryLayer,              // For TelemetryService
-        nip90Layer,                  // For NIP90Service
-        nostrLayer,                  // For NostrService
-        nip04Layer,                  // For NIP04Service
-        sparkLayer,                  // For SparkService
-        ollamaLanguageModelLayer,    // For default AgentLanguageModel.Tag
+        providerFactoryLayer,        // For ProviderFactoryService
       ),
     ),
   );
@@ -248,6 +260,7 @@ export function buildFullAppLayer() {
     sparkLayer,
     nip90Layer,
     ollamaLanguageModelLayer,
+    providerFactoryLayer,
     chatOrchestratorLayer,
     kind5050DVMLayer,
     databaseLayer,
