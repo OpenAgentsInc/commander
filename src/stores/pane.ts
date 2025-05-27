@@ -107,8 +107,7 @@ export const usePaneStore = create<PaneStoreType>()(
       // Agent chat pane
       openAgentChatPane: () => openAgentChatPaneAction(set),
       toggleAgentChatPane: () =>
-        set((state) => 
-          togglePaneAction(set, state, {
+        togglePaneAction(set, get, {
             paneId: AGENT_CHAT_PANE_ID,
             createPaneInput: (screenWidth, screenHeight, storedPosition) => {
               let x, y, width, height;
@@ -142,13 +141,11 @@ export const usePaneStore = create<PaneStoreType>()(
                 content: {},
               };
             },
-          })
-        ),
+          }),
       // Previous chats pane
       openPreviousChatsPane: () => openPreviousChatsPaneAction(set),
       togglePreviousChatsPane: () =>
-        set((state) => 
-          togglePaneAction(set, state, {
+        togglePaneAction(set, get, {
             paneId: PREVIOUS_CHATS_PANE_ID,
             createPaneInput: (screenWidth, screenHeight, storedPosition) => {
               let x, y, width, height;
@@ -182,10 +179,9 @@ export const usePaneStore = create<PaneStoreType>()(
                 content: {},
               };
             },
-          })
-        ),
+          }),
       // Coder pane - toggles ALL coder panes
-      toggleCoderPane: () => toggleAllCoderPanesAction(set),
+      toggleCoderPane: () => toggleAllCoderPanesAction(set, get),
       resetHUDState: () => {
         // Force recreate initial panes with current screen dimensions
         const screenWidth =
@@ -232,8 +228,7 @@ export const usePaneStore = create<PaneStoreType>()(
 
       // Toggle actions for keyboard shortcuts
       toggleSellComputePane: () =>
-        set((state) => 
-          togglePaneAction(set, state, {
+        togglePaneAction(set, get, {
             paneId: SELL_COMPUTE_PANE_ID_CONST,
             createPaneInput: (screenWidth, screenHeight, storedPosition) => {
               let x, y, width, height;
@@ -273,12 +268,10 @@ export const usePaneStore = create<PaneStoreType>()(
                 content: {},
               };
             },
-          })
-        ),
+          }),
 
       toggleWalletPane: () =>
-        set((state) => 
-          togglePaneAction(set, state, {
+        togglePaneAction(set, get, {
             paneId: WALLET_PANE_ID,
             createPaneInput: (screenWidth, screenHeight, storedPosition) => {
               let x, y, width, height;
@@ -312,12 +305,10 @@ export const usePaneStore = create<PaneStoreType>()(
                 content: {},
               };
             },
-          })
-        ),
+          }),
 
       toggleDvmJobHistoryPane: () =>
-        set((state) => 
-          togglePaneAction(set, state, {
+        togglePaneAction(set, get, {
             paneId: DVM_JOB_HISTORY_PANE_ID,
             createPaneInput: (screenWidth, screenHeight, storedPosition) => {
               let x, y, width, height;
@@ -351,8 +342,7 @@ export const usePaneStore = create<PaneStoreType>()(
                 content: {},
               };
             },
-          })
-        ),
+          }),
     }),
     {
       name: "commander-pane-storage-v5", // v5: Persist pane content including session IDs
@@ -367,7 +357,7 @@ export const usePaneStore = create<PaneStoreType>()(
         // Restore persisted state while preserving all methods
         const merged = {
           ...currentState,
-          ...persistedState,
+          ...(persistedState as Partial<PaneState>),
         };
         
         // Ensure we have valid arrays/objects even if persisted state is corrupted

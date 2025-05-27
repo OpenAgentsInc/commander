@@ -1,6 +1,6 @@
-import { SetState } from "../types";
+import { SetPaneStore } from "../types";
 
-export function updatePaneContentAction(set: SetState, id: string, content: any) {
+export function updatePaneContentAction(set: SetPaneStore, id: string, content: any) {
   set((state) => {
     const updatedPanes = state.panes.map((pane) => {
       if (pane.id === id) {

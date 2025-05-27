@@ -1,13 +1,13 @@
 import { Pane } from "@/types/pane";
-import { SetState } from "../types";
+import { type SetPaneStore, type GetPaneStore } from "../types";
 import { 
   CODER_PANE_ID,
   CODER_PANE_TITLE,
   PANE_MARGIN 
 } from "../constants";
 
-export const toggleAllCoderPanesAction = (set: SetState) => {
-  set((state) => {
+export const toggleAllCoderPanesAction = (set: SetPaneStore, get: GetPaneStore) => {
+  const state = get();
     // Check if ANY coder panes exist
     const coderPanes = state.panes.filter(p => p.type === "coder");
     
@@ -43,11 +43,11 @@ export const toggleAllCoderPanesAction = (set: SetState) => {
         isActive: p.id === newActivePaneId
       }));
       
-      return {
+      set({
         panes: finalPanes,
         activePaneId: newActivePaneId,
         closedPanePositions: newClosedPositions,
-      };
+      });
     } else {
       // No coder panes exist, restore ALL previously closed coder panes
       const screenWidth = typeof window !== "undefined" ? window.innerWidth : 1920;
@@ -129,7 +129,7 @@ export const toggleAllCoderPanesAction = (set: SetState) => {
       
       const lastPane = restoredPanes[restoredPanes.length - 1];
       
-      return {
+      set({
         panes: [...updatedPanes, ...restoredPanes],
         activePaneId: lastPane.id,
         lastPanePosition: {
@@ -139,7 +139,6 @@ export const toggleAllCoderPanesAction = (set: SetState) => {
           height: lastPane.height,
         },
         closedPanePositions: newClosedPositions,
-      };
+      });
     }
-  });
 };

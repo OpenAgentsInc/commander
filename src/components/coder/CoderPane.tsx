@@ -382,7 +382,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
 
   // Track the current session ID separately from initial
   const sessionIdRef = useRef<string>(initialSessionId || `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`);
-  const [hasLoadedMessages, setHasLoadedMessages] = useState(false);
+  const lastLoadedSessionIdRef = useRef<string | null>(null);
   
   // Local state for messages - each pane has its own
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -644,144 +644,105 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
 
   // No need for initial scroll - flex-direction: column-reverse handles it
 
-  // Load messages for a session - don't use useCallback to avoid dependency issues
-  const loadSessionMessages = async (sessionId: string) => {
+  // Extracted message loading logic as a callable function
+  const loadMessagesForSessionInternal = useCallback(async (sessionIdToLoad: string) => {
+    const componentName = `[CoderPane ${paneId?.substring(0, 8) || 'NEW'}]`;
+    console.log(`${componentName} Attempting to load messages for session: ${sessionIdToLoad}`);
+    setIsLoading(true);
+    clearMessages();
+
     try {
       const dbProgram = Effect.flatMap(DatabaseService, (db) =>
-        db.getMessagesForSession(sessionId, 100) // Get up to 100 messages
+        db.getMessagesForSession(sessionIdToLoad, 500)
       );
       const exitResult = await Effect.runPromiseExit(Effect.provide(dbProgram, runtime));
+
       if (Exit.isSuccess(exitResult)) {
         const dbMessages = exitResult.value;
+        console.log(`${componentName} Loaded ${dbMessages.length} messages from DB for session ${sessionIdToLoad}`);
 
-        // Clear current messages and set new session ID
-        sessionIdRef.current = sessionId;
-        clearMessages();
-        
-        // Update the pane's content to save the new session ID
-        updatePaneContent(paneId, { sessionId });
-        
-        // Mark that we've loaded messages for the new session
-        setHasLoadedMessages(true);
+        const newMessagesState: ChatMessage[] = [{
+          id: 'system',
+          role: 'system',
+          content: 'You are Claude Code, a helpful AI coding assistant.',
+          timestamp: Date.now(),
+        }];
 
-        // Convert DB messages to chat messages and add them
         dbMessages.forEach(dbMsg => {
-          // Parse the content which might have parts
-          let parts = undefined;
+          let parts;
           try {
-            if (dbMsg.content) {
-              const contentData = JSON.parse(dbMsg.content);
-              if (contentData.parts) {
-                parts = contentData.parts;
+            if (dbMsg.content && (dbMsg.content.startsWith('{"parts":') || (dbMsg.tool_calls_json && dbMsg.role === 'assistant'))) {
+              // If content contains parts, or if it's an assistant message with tool_calls_json, parse parts.
+              // Assistant messages from Claude Bridge store main text in content, and tool calls in tool_calls_json.
+              // We need to reconstruct parts array for UI.
+              if (dbMsg.role === 'assistant' && dbMsg.tool_calls_json) {
+                parts = [];
+                if (dbMsg.content) parts.push({type: 'text', text: dbMsg.content});
+                const toolCalls = JSON.parse(dbMsg.tool_calls_json);
+                toolCalls.forEach((tc: any) => parts.push({ type: 'tool_call', id: tc.id, name: tc.function.name, input: JSON.parse(tc.function.arguments)}));
+              } else if (dbMsg.content) {
+                const contentData = JSON.parse(dbMsg.content);
+                if (contentData.parts) parts = contentData.parts;
               }
             }
-          } catch (e) {
-            // Content is plain text, not JSON
-          }
+          } catch (e) { /* content is plain text or not parsable as parts */ }
 
-          addMessage({
+          newMessagesState.push({
             id: dbMsg.id,
-            role: dbMsg.role as 'user' | 'assistant' | 'system',
-            content: parts ? '' : (dbMsg.content || ''), // Use empty string if we have parts or null content
+            role: dbMsg.role as ChatMessage['role'],
+            content: parts ? '' : (dbMsg.content || ''), // UI content is from parts if they exist
             parts: parts,
-            timestamp: dbMsg.timestamp * 1000, // Convert from seconds to milliseconds
+            timestamp: dbMsg.timestamp * 1000,
           });
         });
 
-        // No need to scroll - flex-direction: column-reverse keeps messages at bottom
-
-        return true;
+        setMessages(newMessagesState);
+        lastLoadedSessionIdRef.current = sessionIdToLoad;
+        sessionIdRef.current = sessionIdToLoad; // Ensure current session ID is also set
+        updatePaneContent(paneId, { sessionId: sessionIdToLoad });
+        console.log(`${componentName} Session ${sessionIdToLoad} loaded and pane content updated.`);
       } else {
-        console.error("Failed to load messages:", Cause.pretty(exitResult.cause));
-        return false;
+        console.error(`${componentName} Failed to load messages for ${sessionIdToLoad}:`, Cause.pretty(exitResult.cause));
+        addMessage({ id: `error-load-${Date.now()}`, role: 'system', content: `Error loading session ${sessionIdToLoad.substring(0,8)}...`, timestamp: Date.now() });
       }
     } catch (error) {
-      console.error("Error loading session messages:", error);
-      return false;
+      console.error(`${componentName} Exception loading session ${sessionIdToLoad}:`, error);
+      addMessage({ id: `error-load-exc-${Date.now()}`, role: 'system', content: `Critical error loading session.`, timestamp: Date.now() });
+    } finally {
+      setIsLoading(false);
+      setFocusKey(prev => prev + 1);
     }
+  }, [paneId, clearMessages, updatePaneContent, runtime, addMessage, setMessages, setIsLoading, setFocusKey]);
+
+  // Legacy function for backward compatibility
+  const loadSessionMessages = async (sessionId: string): Promise<boolean> => {
+    await loadMessagesForSessionInternal(sessionId);
+    return true; // The new function handles errors internally
   };
 
   // Load initial session if provided
   useEffect(() => {
-    console.log('Session loading effect - initialSessionId:', initialSessionId, 'hasLoaded:', hasLoadedMessages);
-    // Only load if we have a sessionId and haven't loaded messages yet
-    if (initialSessionId && !hasLoadedMessages) {
-      setHasLoadedMessages(true);
-      console.log('Loading session messages for:', initialSessionId);
-      
-      // Load the session's messages after a longer delay to ensure runtime is ready
-      const timer = setTimeout(async () => {
-        try {
-          const dbProgram = Effect.flatMap(DatabaseService, (db) =>
-            db.getMessagesForSession(initialSessionId, 100)
-          );
-          const exitResult = await Effect.runPromiseExit(Effect.provide(dbProgram, runtime));
-          if (Exit.isSuccess(exitResult)) {
-            const dbMessages = exitResult.value;
-            console.log('Loaded', dbMessages.length, 'messages from DB');
+    const componentName = `[CoderPane ${paneId?.substring(0, 8) || 'NEW'}]`;
+    console.log(`${componentName} Effect for session loading. initialSessionId: ${initialSessionId}, current sessionIdRef: ${sessionIdRef.current}, lastLoaded: ${lastLoadedSessionIdRef.current}`);
 
-            // Only proceed if we have messages or if this is a valid session
-            if (dbMessages.length > 0 || initialSessionId.startsWith('ui-coder-')) {
-              // Clear current messages and set new session ID
-              sessionIdRef.current = initialSessionId;
-              setMessages([{
-                id: 'system',
-                role: 'system',
-                content: 'You are Claude Code, a helpful AI coding assistant.',
-                timestamp: Date.now(),
-              }]);
-              
-              // Update the pane's content to save the session ID
-              updatePaneContent(paneId, { sessionId: initialSessionId });
-
-              // Convert DB messages to chat messages and add them
-              const newMessages: ChatMessage[] = [{
-                id: 'system',
-                role: 'system',
-                content: 'You are Claude Code, a helpful AI coding assistant.',
-                timestamp: Date.now(),
-              }];
-              
-              dbMessages.forEach(dbMsg => {
-              // Parse the content which might have parts
-              let parts = undefined;
-              try {
-                if (dbMsg.content) {
-                  const contentData = JSON.parse(dbMsg.content);
-                  if (contentData.parts) {
-                    parts = contentData.parts;
-                  }
-                }
-              } catch (e) {
-                // Content is plain text, not JSON
-              }
-
-              newMessages.push({
-                id: dbMsg.id,
-                role: dbMsg.role as 'user' | 'assistant' | 'system',
-                content: parts ? '' : (dbMsg.content || ''), // Use empty string if we have parts or null content
-                parts: parts,
-                timestamp: dbMsg.timestamp * 1000, // Convert from seconds to milliseconds
-              });
-            });
-            
-              // Set all messages at once
-              console.log('Setting', newMessages.length, 'messages to state');
-              setMessages(newMessages);
-            } else {
-              console.log('No messages found for session:', initialSessionId);
-            }
-          } else {
-            console.error('Failed to load messages from DB:', Exit.isFailure(exitResult) ? exitResult.cause : 'Unknown error');
-          }
-        } catch (error) {
-          console.error("Error loading initial session:", error);
-        }
-      }, 500); // Increased delay to ensure runtime is ready
-      
-      return () => clearTimeout(timer);
+    if (initialSessionId && initialSessionId !== lastLoadedSessionIdRef.current) {
+      loadMessagesForSessionInternal(initialSessionId);
+    } else if (!initialSessionId && !sessionIdRef.current) {
+      const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+      console.log(`${componentName} No initial session, generated new: ${newSessionId}`);
+      sessionIdRef.current = newSessionId;
+      lastLoadedSessionIdRef.current = newSessionId;
+      clearMessages();
+      updatePaneContent(paneId, { sessionId: newSessionId });
+      setIsLoading(false);
+    } else if (initialSessionId && initialSessionId === lastLoadedSessionIdRef.current && messages.filter(m => m.role !== 'system').length === 0) {
+      console.log(`${componentName} initialSessionId matches lastLoaded, but UI messages are empty. Forcing reload for ${initialSessionId}.`);
+      loadMessagesForSessionInternal(initialSessionId);
+    } else {
+      console.log(`${componentName} No session load required by this effect run.`);
+      setIsLoading(false); // Ensure loading is false if no load occurs
     }
-  }, [initialSessionId, hasLoadedMessages, runtime]); // Depend on state and runtime
+  }, [initialSessionId, paneId, clearMessages, updatePaneContent, addMessage, messages.length, loadMessagesForSessionInternal]); // Use messages.length to detect if messages array was cleared
 
   // State for history menu
   const [historyMenuOpen, setHistoryMenuOpen] = useState(false);
@@ -872,34 +833,21 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
             content: { sessionId: session.id }, // Pass the existing session ID
           });
         } else {
-          // Load in current pane
-          const success = await loadSessionMessages(session.id);
-          if (!success) {
-            // If loading failed, add error message
-            addMessage({
-              id: `error-${Date.now()}`,
-              role: 'system',
-              content: `Failed to load session ${session.id.substring(0, 8)}...`,
-              timestamp: Date.now(),
-            });
-          }
+          const newSessionId = session.id;
+          const componentName = `[CoderPane ${paneId?.substring(0, 8) || 'HIST'}]`;
+          console.log(`${componentName} History item clicked, preparing to load session: ${newSessionId}`);
 
-          // Close the history menu
+          sessionIdRef.current = newSessionId; // Update current session ID
+          lastLoadedSessionIdRef.current = null; // Reset last loaded to force reload by useEffect OR call directly
+
+          // Call the extracted loading function
+          await loadMessagesForSessionInternal(newSessionId);
+
           setHistoryMenuOpen(false);
-
-          // Focus on the text input after a delay to ensure menu is fully closed
-          // and the component has settled. Use multiple attempts to ensure focus sticks.
-          setTimeout(() => {
-            setFocusKey(prev => prev + 1);
-            // Second attempt after a bit more time
-            setTimeout(() => {
-              setFocusKey(prev => prev + 1);
-            }, 200);
-          }, 400);
         }
       },
     }));
-  }, [chatHistorySessions, runtime, loadSessionMessages, addMessage, setFocusKey]);
+  }, [chatHistorySessions, runtime, paneId, loadMessagesForSessionInternal]);
 
   // Create title bar buttons with history menu
   const titleBarButtons = useMemo(() => (

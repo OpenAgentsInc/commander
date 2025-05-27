@@ -1,18 +1,19 @@
-import { PaneStoreType } from "../types";
-import { PaneInput } from "@/types/pane";
+import { type PaneStoreType, type SetPaneStore, type GetPaneStore } from "../types";
+import { type PaneInput } from "@/types/pane";
 import { addPaneActionLogic } from "./addPane";
 import { PANE_MARGIN } from "../constants";
 
 interface TogglePaneConfig {
   paneId: string;
-  createPaneInput: (screenWidth: number, screenHeight: number, storedPosition?: { x: number; y: number; width: number; height: number; content?: any }) => PaneInput;
+  createPaneInput: (screenWidth: number, screenHeight: number, storedData?: { x: number; y: number; width: number; height: number; content?: any }) => PaneInput;
 }
 
 export function togglePaneAction(
-  set: any,
-  state: PaneStoreType,
+  set: SetPaneStore,
+  get: GetPaneStore,
   config: TogglePaneConfig
 ) {
+  const state = get(); // Get current state
   const { paneId, createPaneInput } = config;
   const existingPane = state.panes.find((p) => p.id === paneId);
 
@@ -20,6 +21,7 @@ export function togglePaneAction(
   if (existingPane) {
     // If it's already the active pane, close it
     if (state.activePaneId === paneId) {
+      const paneToClose = existingPane;
       const remainingPanes = state.panes.filter((pane) => pane.id !== paneId);
       let newActivePaneId: string | null = null;
       if (remainingPanes.length > 0) {
@@ -33,20 +35,19 @@ export function togglePaneAction(
       // Save the position and content before closing
       const updatedClosedPanePositions = { ...state.closedPanePositions };
       updatedClosedPanePositions[paneId] = {
-        x: existingPane.x,
-        y: existingPane.y,
-        width: existingPane.width,
-        height: existingPane.height,
-        content: existingPane.content, // Save content including sessionId
+        x: paneToClose.x,
+        y: paneToClose.y,
+        width: paneToClose.width,
+        height: paneToClose.height,
+        content: paneToClose.content, // Save content including sessionId
         shouldRestore: true, // Toggled closed, should restore on next toggle
       };
 
-      return {
-        ...state,
+      set({
         panes: updatedPanes,
         activePaneId: newActivePaneId,
         closedPanePositions: updatedClosedPanePositions,
-      };
+      });
     }
     // If it exists but isn't active, bring it to front
     else {
@@ -58,11 +59,10 @@ export function togglePaneAction(
         isActive: false,
       }));
 
-      return {
-        ...state,
+      set({
         panes: [...updatedOtherPanes, updatedTargetPane],
         activePaneId: paneId,
-      };
+      });
     }
   } else {
     // Pane doesn't exist, create it
@@ -70,22 +70,33 @@ export function togglePaneAction(
     const screenHeight = typeof window !== "undefined" ? window.innerHeight : 1080;
 
     // Check if we have a stored position for this pane
-    const storedPosition = state.closedPanePositions[paneId];
+    const storedData = state.closedPanePositions[paneId];
+    let paneInputParams: PaneInput;
 
-    const newPaneInput = createPaneInput(screenWidth, screenHeight, storedPosition);
+    if (storedData && storedData.shouldRestore !== false) {
+      // Use content from storedData when creating pane input
+      console.log(`[TogglePane] Restoring pane ${paneId} with content:`, storedData.content);
+      paneInputParams = createPaneInput(screenWidth, screenHeight, storedData);
+    } else {
+      paneInputParams = createPaneInput(screenWidth, screenHeight);
+    }
 
-    // Create the pane
-    const newState = addPaneActionLogic(state, newPaneInput, false);
+    if (!paneInputParams.id) {
+      paneInputParams.id = paneId;
+    }
+
+    // Create the pane using addPaneActionLogic
+    const newStatePartial = addPaneActionLogic(state, paneInputParams, false);
     
     // Remove the stored position since we're using it now
-    if (storedPosition) {
-      const { [paneId]: _, ...remainingPositions } = state.closedPanePositions;
-      return {
-        ...newState,
-        closedPanePositions: remainingPositions,
-      };
+    const updatedClosedPanePositions = { ...state.closedPanePositions };
+    if (storedData && storedData.shouldRestore !== false) {
+      delete updatedClosedPanePositions[paneId]; // Remove after restoring
     }
     
-    return newState;
+    set({
+      ...newStatePartial,
+      closedPanePositions: updatedClosedPanePositions,
+    });
   }
 }
