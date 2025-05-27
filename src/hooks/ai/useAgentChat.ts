@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import { Effect, Stream, Cause } from "effect";
+import { Effect, Stream, Cause, Context } from "effect";
 import {
   type AiResponse,
   type AgentChatMessage,
@@ -15,6 +15,7 @@ import { TelemetryService, type TelemetryEvent } from "@/services/telemetry";
 import { useAgentChatStore } from "@/stores/ai/agentChatStore";
 import { DatabaseService } from "@/services/db";
 import type { DBMessage, DBToolExecution } from "@/services/db";
+import { usePaneStore } from "@/stores/pane";
 
 interface UseAgentChatOptions {
   initialSystemMessage?: string;
@@ -46,6 +47,7 @@ const generateId = () => `${Date.now()}-${Math.random().toString(36).substring(2
 export function useAgentChat(options: UseAgentChatOptions = {}) {
   const { initialSystemMessage = "You are a helpful AI assistant.", sessionId } = options;
   const { selectedProviderKey, setSelectedProviderKey } = useAgentChatStore();
+  const updatePaneContent = usePaneStore((state) => state.updatePaneContent);
 
   // Use useMemo to create stable system message instance
   const systemMessageInstance = useMemo<UIAgentChatMessage>(() => ({
@@ -84,7 +86,21 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
 
   // Load chat history from database when sessionId changes
   useEffect(() => {
-    if (!currentSessionId) return;
+    const hookId = `useAgentChat-${currentSessionId || 'new'}`;
+    console.log(`[${hookId}] Effect for history loading. currentSessionId: ${currentSessionId}`);
+    if (!currentSessionId) {
+      // Generate a new session ID if one isn't provided and messages array is just the system message
+      if (messages.length === 1 && messages[0].role === 'system') {
+        const newSessionId = `ui-agent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+        console.log(`[${hookId}] No currentSessionId, generated new: ${newSessionId}`);
+        setCurrentSessionId(newSessionId); // This will re-trigger the effect
+        // Persist this new session ID to the pane's content
+        if (options.sessionId !== newSessionId) { // Avoid loop if options.sessionId was initially null
+          updatePaneContent(`agent_chat_session_${newSessionId}`, { sessionId: newSessionId, sessionTitle: `Agent Chat (${newSessionId.substring(0,6)}...)` });
+        }
+      }
+      return;
+    }
 
     const loadHistory = async () => {
       try {
@@ -138,7 +154,16 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
         // Only set messages if we actually loaded some history, otherwise keep current messages
         if (historicalMessages.length > 0) {
           setMessages([systemMessageInstance, ...historicalMessages]);
+        } else {
+          // If no messages but session exists, still set system message
+          setMessages([systemMessageInstance]);
         }
+        
+        // Update pane content in the store AFTER loading history
+        updatePaneContent(`agent_chat_session_${currentSessionId}`, {
+          sessionId: currentSessionId,
+          sessionTitle: `Agent Chat (${currentSessionId.substring(0,6)}...)`
+        });
         
         runTelemetry({
           category: "agent_chat",
@@ -158,18 +183,24 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
     };
     
     loadHistory();
-  }, [currentSessionId, systemMessageInstance, runTelemetry, setSelectedProviderKey]);
+  }, [currentSessionId, systemMessageInstance, runTelemetry, setSelectedProviderKey, updatePaneContent, options.sessionId, messages.length]);
 
   const sendMessage = useCallback(
     async (promptText: string) => {
       if (!promptText.trim()) return;
 
       // Generate sessionId if this is the first message
-      let sessionId = currentSessionId;
-      if (!sessionId) {
-        sessionId = generateId();
-        setCurrentSessionId(sessionId);
+      let effectiveSessionId = currentSessionId;
+      if (!effectiveSessionId) {
+        effectiveSessionId = `ui-agent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+        setCurrentSessionId(effectiveSessionId);
+        // Persist this new session ID to the pane's content immediately
+        updatePaneContent(`agent_chat_session_${effectiveSessionId}`, {
+          sessionId: effectiveSessionId,
+          sessionTitle: `Agent Chat (${effectiveSessionId.substring(0,6)}...)`
+        });
       }
+      const finalSessionId = effectiveSessionId; // Use a const for closure
 
       const userMessage: UIAgentChatMessage = {
         id: `user-${Date.now()}`,
@@ -187,6 +218,23 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
         label: "User message sent",
         value: promptText.substring(0, 50),
       });
+
+      // Save user message to DB
+      const currentRuntimeForUserMsg = getMainRuntime();
+      const dbServiceForUserMsg = Context.get(currentRuntimeForUserMsg.context, DatabaseService);
+      const userDbMessage: DBMessage = {
+        id: userMessage.id,
+        session_id: finalSessionId,
+        role: "user",
+        content: userMessage.content,
+        timestamp: Math.floor(userMessage.timestamp / 1000),
+      };
+      Effect.runFork(
+        dbServiceForUserMsg.saveMessage(userDbMessage).pipe(
+          Effect.andThen(dbServiceForUserMsg.updateSession(finalSessionId, { last_updated_at: Math.floor(Date.now() / 1000) })),
+          Effect.provide(currentRuntimeForUserMsg)
+        )
+      );
 
       // Prepare conversation history for the LLM (core AgentChatMessage, no UI fields)
       const conversationHistoryForLLM: AgentChatMessage[] = messages
@@ -250,7 +298,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
       const orchestratorOptions: Parameters<ChatOrchestratorService['streamConversation']>[0]['options'] = {
         temperature: 0.7,
         maxTokens: 2048,
-        sessionId: sessionId, // Pass sessionId for Claude Code provider
+        sessionId: finalSessionId, // Pass sessionId for Claude Code provider
       } as any;
 
       const currentRuntime = getMainRuntime(); // Get fresh runtime
@@ -365,12 +413,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
         ),
         Effect.ensuring(
           Effect.sync(() => {
-            console.log("[useAgentChat] Ensuring block entered.", {
-              messageId: assistantMsgId,
-              abortController: streamAbortControllerRef.current ? "present" : "null",
-              signalAborted: signal.aborted,
-              isLoading
-            });
+            console.log(`[useAgentChat] Ensuring block for ${assistantMsgId}. Signal aborted: ${signal.aborted}`);
+            // Finalize UI state
             setMessages((prevMsgs) =>
               prevMsgs.map((msg) =>
                 msg.id === assistantMsgId
@@ -379,13 +423,45 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
               ),
             );
             setIsLoading(false);
-            // Only clear the controller if it's the one for the completed/failed stream
+
+            // Save the final assistant message to DB IF stream was not aborted
+            if (!signal.aborted) {
+              // Use setMessages to access current state
+              setMessages((currentMessages) => {
+                const finalAssistantMessage = currentMessages.find(m => m.id === assistantMsgId);
+                if (finalAssistantMessage && finalSessionId) {
+                const currentRuntimeForAssistantMsg = getMainRuntime();
+                const dbServiceForAssistantMsg = Context.get(currentRuntimeForAssistantMsg.context, DatabaseService);
+                const dbAssistantMessage: DBMessage = {
+                  id: finalAssistantMessage.id,
+                  session_id: finalSessionId,
+                  role: "assistant",
+                  content: finalAssistantMessage.content,
+                  tool_calls_json: finalAssistantMessage.tool_calls ? JSON.stringify(finalAssistantMessage.tool_calls) : undefined,
+                  timestamp: Math.floor(finalAssistantMessage.timestamp / 1000),
+                };
+                Effect.runFork(
+                  dbServiceForAssistantMsg.saveMessage(dbAssistantMessage).pipe(
+                    Effect.andThen(dbServiceForAssistantMsg.updateSession(finalSessionId, { last_updated_at: Math.floor(Date.now() / 1000) })),
+                    Effect.provide(currentRuntimeForAssistantMsg)
+                  )
+                );
+                runTelemetry({
+                  category: "agent_chat",
+                  action: "assistant_message_saved",
+                  label: assistantMsgId,
+                  value: finalSessionId
+                });
+              }
+                return currentMessages; // Return unchanged
+              });
+            }
+
+            // Cleanup refs
             if (streamAbortControllerRef.current?.signal === signal) {
-              console.log("[useAgentChat] Clearing abort controller for message:", assistantMsgId);
               streamAbortControllerRef.current = null;
             }
             if (currentAssistantMessageIdRef.current === assistantMsgId) {
-              console.log("[useAgentChat] Clearing current assistant message ID:", assistantMsgId);
               currentAssistantMessageIdRef.current = null;
             }
           }),
@@ -394,7 +470,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
 
       Effect.runFork(program);
     },
-    [messages, initialSystemMessage, runTelemetry, selectedProviderKey, currentSessionId],
+    [messages, initialSystemMessage, runTelemetry, selectedProviderKey, currentSessionId, updatePaneContent],
   );
 
   // Cleanup stream on unmount

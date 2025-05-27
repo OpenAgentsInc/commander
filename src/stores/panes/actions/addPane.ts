@@ -40,7 +40,7 @@ export function addPaneActionLogic(
     state.lastPanePosition,
   );
 
-  const newPane: Pane = ensurePaneIsVisible({
+  const paneBeforeEnsure = {
     id: newPaneInput.id || `pane-${paneIdCounter++}`,
     type: newPaneInput.type,
     title: newPaneInput.title || `Pane ${paneIdCounter - 1}`,
@@ -52,11 +52,14 @@ export function addPaneActionLogic(
     dismissable:
       newPaneInput.dismissable !== undefined ? newPaneInput.dismissable : true,
     content: newPaneInput.content,
-  });
+    headerMenus: newPaneInput.headerMenus || [], // Default to empty array
+  };
+
+  const newPane: Pane = ensurePaneIsVisible(paneBeforeEnsure);
 
   const updatedPanes = state.panes.map((p) => ({ ...p, isActive: false }));
 
-  return {
+  const result = {
     panes: [...updatedPanes, newPane],
     activePaneId: newPane.id,
     lastPanePosition: {
@@ -66,6 +69,8 @@ export function addPaneActionLogic(
       height: newPane.height,
     },
   };
+  
+  return result;
 }
 
 export function addPaneAction(

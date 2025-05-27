@@ -1,9 +1,8 @@
-import React, { useState, useRef, useCallback, useEffect, lazy, Suspense } from 'react';
-import { Effect } from 'effect';
+import React, { useState, useRef, useCallback, useEffect, lazy, Suspense, useMemo } from 'react';
+import { Effect, Exit, Cause } from 'effect';
 import { TelemetryService } from '@/services/telemetry';
 import { getMainRuntime } from '@/services/runtime';
 import { usePaneStore } from '@/stores/pane';
-import { useCoderChatStore } from '@/stores/coderChatStore';
 import { EditorState, Plugin } from "prosemirror-state";
 import { schema } from "prosemirror-schema-basic";
 import { history } from "prosemirror-history";
@@ -14,7 +13,24 @@ import { useAutoScroll } from '@/hooks/use-auto-scroll';
 import { ToolCallDisplay } from './ToolCallDisplay';
 import { MessageSquarePlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useQuery } from '@tanstack/react-query';
+import { DatabaseService, DBSession } from '@/services/db';
+import { PaneDropdownItem } from '@/types/paneMenu';
+import { CODER_PANE_ID } from '@/stores/panes/constants';
 
+// Local message interface - each pane has its own messages
+interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  parts?: Array<
+    | { type: 'text'; text: string }
+    | { type: 'tool_call'; id: string; name: string; input: Record<string, any> }
+    | { type: 'tool_result'; tool_use_id: string; content: any; isError?: boolean; isLoading?: boolean }
+  >;
+  timestamp: number;
+  isStreaming?: boolean;
+}
 
 // ProseMirror Editor component that's loaded after the dynamic import
 const ProseMirrorEditor: React.FC<{ onSubmit: (text: string) => void, disabled?: boolean, focusKey?: number }> = ({ onSubmit, disabled, focusKey }) => {
@@ -95,25 +111,32 @@ const AutoFocusEditor: React.FC<{
     }
   }, [disabled]);
 
-  // Re-focus when focusKey changes (e.g., after clicking New Chat)
+  // Re-focus when focusKey changes (e.g., after clicking New Chat or loading history)
   useEditorEffect((view: any) => {
-    if (view && focusKey !== undefined) {
-      view.focus();
+    if (view && focusKey !== undefined && !disabled) {
+      // Use requestAnimationFrame to ensure focus happens after any pending updates
+      requestAnimationFrame(() => {
+        if (view && view.focus) {
+          view.focus();
+          // Also ensure the view is scrolled into view if needed
+          view.dom.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      });
     }
-  }, [focusKey]);
+  }, [focusKey, disabled]);
 
   // Function to serialize document to text with line breaks
   const serializeDocToText = (doc: any) => {
     let text = "";
     let isFirstParagraph = true;
-    
+
     doc.forEach((node: any, offset: number, index: number) => {
       if (node.type.name === "paragraph") {
         if (!isFirstParagraph) {
           text += "\n";
         }
         isFirstParagraph = false;
-        
+
         node.forEach((child: any) => {
           if (child.isText) {
             text += child.text;
@@ -123,7 +146,7 @@ const AutoFocusEditor: React.FC<{
         });
       }
     });
-    
+
     return text;
   };
 
@@ -154,12 +177,15 @@ const AutoFocusEditor: React.FC<{
       as={
         <div
           className="p-4 prose prose-invert h-full w-full outline-none text-white box-border"
-          style={{ 
-            minHeight: '100%', 
-            padding: '12px', 
+          spellCheck={false}
+          style={{
+            minHeight: '100%',
+            padding: '12px',
             opacity: disabled ? 0.5 : 1,
             whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word'
+            wordBreak: 'break-word',
+            fontSize: '0.875rem', // 14px - equivalent to text-sm
+            lineHeight: '1.25rem' // 20px - matching text-sm line height
           }}
         />
       }
@@ -186,27 +212,27 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
   // Extract text content for the content prop
   const textContent = React.useMemo(() => {
     if (!message.parts || message.parts.length === 0) return message.content;
-    
+
     // When we have parts, only use text from the parts, not the accumulated content
     let textParts = message.parts
       .filter(part => part.type === 'text')
       .map(part => part.text)
       .join('');
-    
+
     // Remove [Result: ...] sections to avoid duplication
     textParts = textParts.replace(/\[Result:\s*[\s\S]*?\]/g, '').trim();
-    
+
     return textParts; // Don't fall back to message.content when we have parts
   }, [message.parts, message.content]);
 
   // Create parts array for UIChatMessage - it expects a specific format
   const messageParts = React.useMemo(() => {
     if (!message.parts || message.parts.length === 0) return undefined;
-    
+
     const parts: any[] = [];
     const toolCalls = new Map<string, any>();
     const toolResults = new Map<string, any>();
-    
+
     // First pass: collect tool calls and results
     message.parts.forEach(part => {
       if (part.type === 'tool_call') {
@@ -215,7 +241,7 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
         toolResults.set(part.tool_use_id, part);
       }
     });
-    
+
     // Second pass: build parts array
     message.parts.forEach(part => {
       if (part.type === 'text') {
@@ -228,7 +254,7 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
         // Check if we have a result for this tool call
         const hasResult = toolResults.has(part.id);
         const result = toolResults.get(part.id);
-        
+
         parts.push({
           type: 'tool-invocation' as const,
           toolInvocation: {
@@ -242,7 +268,7 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
       }
       // Skip tool_result parts as they're already handled above
     });
-    
+
     return parts.length > 0 ? parts : undefined;
   }, [message.parts]);
 
@@ -262,13 +288,13 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
   // Render custom tool displays for better UX
   const renderParts = () => {
     if (!message.parts || message.parts.length === 0) return null;
-    
+
     return message.parts.map((part, idx) => {
       if (part.type === 'text' && part.text) {
         // Filter out [Result: ...] sections
         const cleanedText = part.text.replace(/\[Result:\s*[\s\S]*?\]/g, '').trim();
         if (!cleanedText) return null;
-        
+
         return (
           <div key={`text-${idx}`} className="prose prose-invert max-w-none">
             <UIChatMessage
@@ -283,7 +309,7 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
       } else if (part.type === 'tool_call') {
         const hasResult = toolResults.has(part.id);
         const result = toolResults.get(part.id);
-        
+
         return (
           <div key={`tool-${idx}`} className="space-y-1">
             <ToolCallDisplay
@@ -295,8 +321,8 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
               <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm ml-6">
                 <div className="text-xs text-muted-foreground mb-1">Result:</div>
                 <div className="whitespace-pre-wrap text-foreground">
-                  {typeof result.content === 'string' 
-                    ? result.content 
+                  {typeof result.content === 'string'
+                    ? result.content
                     : JSON.stringify(result.content, null, 2)}
                 </div>
               </div>
@@ -340,31 +366,65 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
   );
 };
 
-interface CoderPaneProps {
+export interface CoderPaneProps {
+  paneId: string; // The pane's ID
   sessionId?: string; // Passed from pane content
+  titleBarButtonsRef?: { current: any; set: (value: any) => void }; // Ref to set title bar buttons and menus
 }
 
-const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) => {
+const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSessionId, titleBarButtonsRef }) => {
   const runtime = getMainRuntime(); // For telemetry
   const removePane = usePaneStore((state) => state.removePane);
-  const panes = usePaneStore((state) => state.panes);
   const updatePaneSize = usePaneStore((state) => state.updatePaneSize);
+  const updatePaneContent = usePaneStore((state) => state.updatePaneContent);
 
-  // Find the coder pane to persist session ID
-  const coderPane = panes.find(p => p.id === 'coder_pane');
+  // This component doesn't need to find itself in panes - remove this line
 
-  // Use provided session ID or generate new one with ui- prefix to avoid conflicts
+  // Track the current session ID separately from initial
   const sessionIdRef = useRef<string>(initialSessionId || `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`);
-
-  // Get messages from Zustand store
-  const { messages, addMessage, updateMessage, clearMessages } = useCoderChatStore();
+  const lastLoadedSessionIdRef = useRef<string | null>(null);
   
+  // Local state for messages - each pane has its own
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: 'system',
+      role: 'system',
+      content: 'You are Claude Code, a helpful AI coding assistant.',
+      timestamp: Date.now(),
+    }
+  ]);
+
+  // Message management functions
+  const addMessage = useCallback((message: ChatMessage) => {
+    setMessages(prev => [...prev, message]);
+  }, []);
+
+  const updateMessage = useCallback((id: string, updates: Partial<ChatMessage> | ((prevMessage: ChatMessage) => Partial<ChatMessage>)) => {
+    setMessages(prev => prev.map(msg => {
+      if (msg.id === id) {
+        const newUpdates = typeof updates === 'function' ? updates(msg) : updates;
+        return { ...msg, ...newUpdates };
+      }
+      return msg;
+    }));
+  }, []);
+
+  const clearMessages = useCallback(() => {
+    setMessages([{
+      id: 'system',
+      role: 'system',
+      content: 'You are Claude Code, a helpful AI coding assistant.',
+      timestamp: Date.now(),
+    }]);
+  }, []);
+
   // Local state for loading and focus
   const [isLoading, setIsLoading] = useState(false);
   const [focusKey, setFocusKey] = useState(0);
   const streamCancelRef = useRef<(() => void) | null>(null);
-  
-  // Auto-scroll hook
+  const isLoadingRef = useRef(false); // Track loading state across renders
+
+  // Auto-scroll hook - trigger on messages change
   const {
     containerRef,
     scrollToBottom,
@@ -372,6 +432,16 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
     shouldAutoScroll,
     handleTouchStart,
   } = useAutoScroll([messages]);
+  
+  // Scroll to bottom on initial load
+  useEffect(() => {
+    // Small delay to ensure DOM is ready
+    const timer = setTimeout(() => {
+      scrollToBottom();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []); // Only on mount
+
 
   const handleExitCoderMode = React.useCallback(() => {
     // Cancel any ongoing stream
@@ -388,9 +458,9 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
         }),
       ).pipe(Effect.provide(runtime)),
     );
-    // Close the coder pane
-    removePane('coder_pane');
-  }, [removePane, runtime]);
+    // Close THIS coder pane (not all of them)
+    removePane(paneId);
+  }, [removePane, paneId, runtime]);
 
   const handleNewChat = React.useCallback(() => {
     // Cancel any ongoing stream
@@ -402,9 +472,13 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
     // Generate new session ID
     const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
     sessionIdRef.current = newSessionId;
+    lastLoadedSessionIdRef.current = newSessionId; // Mark as loaded to prevent reload
 
     // Clear all messages from the store
     clearMessages();
+    
+    // Update pane content with new session ID
+    updatePaneContent(paneId, { sessionId: newSessionId });
 
     // Track the new chat action
     Effect.runFork(
@@ -418,22 +492,26 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
 
     // Set loading state to false
     setIsLoading(false);
-    
+
     // Trigger focus on the editor by updating focusKey
     setFocusKey(prev => prev + 1);
-  }, [clearMessages, runtime]);
+  }, [clearMessages, runtime, updatePaneContent, paneId]);
 
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        handleExitCoderMode();
+        // Only handle escape if this pane is active
+        const currentState = usePaneStore.getState();
+        if (currentState.activePaneId === paneId) {
+          handleExitCoderMode();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [handleExitCoderMode]);
+  }, [handleExitCoderMode, paneId]);
 
   // Track Coder Mode open event
   React.useEffect(() => {
@@ -472,25 +550,19 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
       isStreaming: true,
     };
     addMessage(assistantMessage);
-    
+
     // Track assistant message content in a ref for streaming updates
     const assistantContentRef = { current: '' };
 
     try {
-      // Get current messages from the store to ensure we have the latest state
-      const currentMessages = useCoderChatStore.getState().messages;
-      
+      // Use current messages from local state
+      const currentMessages = messages;
+
       // Prepare messages for Claude Code API - only include messages from current session
       const apiMessages = currentMessages
         .filter(m => m.role !== 'system')
         .concat(userMessage)
         .map(m => ({ role: m.role, content: m.content }));
-
-      // Add system message at the beginning
-      apiMessages.unshift({
-        role: 'system',
-        content: currentMessages.find(m => m.role === 'system')?.content || 'You are Claude Code, a helpful AI coding assistant.'
-      });
 
       // Stream response from Claude Code
       const cleanup = window.electronAPI.claudeCode?.streamChat(
@@ -574,11 +646,10 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
     } catch (error) {
       console.error('Failed to send message:', error);
       // Remove the assistant placeholder message by filtering it out
-      const { messages: currentMessages, setMessages } = useCoderChatStore.getState();
-      setMessages(currentMessages.filter(m => m.id !== assistantMessageId));
+      setMessages(prev => prev.filter(m => m.id !== assistantMessageId));
       setIsLoading(false);
     }
-  }, [isLoading, addMessage, updateMessage]);
+  }, [isLoading, messages, addMessage, updateMessage, setMessages]);
 
   // Cleanup on unmount
   React.useEffect(() => {
@@ -589,21 +660,274 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
     };
   }, []);
 
+  // No need for initial scroll - flex-direction: column-reverse handles it
+
+  // Extracted message loading logic as a callable function
+  const loadMessagesForSessionInternal = useCallback(async (sessionIdToLoad: string) => {
+    const componentName = `[CoderPane ${paneId?.substring(0, 8) || 'NEW'}]`;
+    console.log(`${componentName} Attempting to load messages for session: ${sessionIdToLoad}`);
+    
+    // Prevent loading if already loading
+    if (isLoadingRef.current) {
+      console.log(`${componentName} Already loading, skipping duplicate load for ${sessionIdToLoad}`);
+      return;
+    }
+    
+    isLoadingRef.current = true;
+    setIsLoading(true);
+    clearMessages();
+
+    try {
+      const dbProgram = Effect.flatMap(DatabaseService, (db) =>
+        db.getMessagesForSession(sessionIdToLoad, 500)
+      );
+      const exitResult = await Effect.runPromiseExit(Effect.provide(dbProgram, runtime));
+
+      if (Exit.isSuccess(exitResult)) {
+        const dbMessages = exitResult.value;
+        console.log(`${componentName} Loaded ${dbMessages.length} messages from DB for session ${sessionIdToLoad}`);
+
+        const newMessagesState: ChatMessage[] = [{
+          id: 'system',
+          role: 'system',
+          content: 'You are Claude Code, a helpful AI coding assistant.',
+          timestamp: Date.now(),
+        }];
+
+        dbMessages.forEach(dbMsg => {
+          let parts;
+          try {
+            if (dbMsg.content && (dbMsg.content.startsWith('{"parts":') || (dbMsg.tool_calls_json && dbMsg.role === 'assistant'))) {
+              // If content contains parts, or if it's an assistant message with tool_calls_json, parse parts.
+              // Assistant messages from Claude Bridge store main text in content, and tool calls in tool_calls_json.
+              // We need to reconstruct parts array for UI.
+              if (dbMsg.role === 'assistant' && dbMsg.tool_calls_json) {
+                parts = [];
+                if (dbMsg.content) parts.push({type: 'text', text: dbMsg.content});
+                const toolCalls = JSON.parse(dbMsg.tool_calls_json);
+                toolCalls.forEach((tc: any) => parts.push({ type: 'tool_call', id: tc.id, name: tc.function.name, input: JSON.parse(tc.function.arguments)}));
+              } else if (dbMsg.content) {
+                const contentData = JSON.parse(dbMsg.content);
+                if (contentData.parts) parts = contentData.parts;
+              }
+            }
+          } catch (e) { /* content is plain text or not parsable as parts */ }
+
+          newMessagesState.push({
+            id: dbMsg.id,
+            role: dbMsg.role as ChatMessage['role'],
+            content: parts ? '' : (dbMsg.content || ''), // UI content is from parts if they exist
+            parts: parts,
+            timestamp: dbMsg.timestamp * 1000,
+          });
+        });
+
+        setMessages(newMessagesState);
+        lastLoadedSessionIdRef.current = sessionIdToLoad;
+        sessionIdRef.current = sessionIdToLoad; // Ensure current session ID is also set
+        updatePaneContent(paneId, { sessionId: sessionIdToLoad });
+        console.log(`${componentName} Session ${sessionIdToLoad} loaded and pane content updated.`);
+        
+        // Scroll to bottom after loading messages
+        setTimeout(() => {
+          scrollToBottom();
+        }, 100);
+      } else {
+        console.error(`${componentName} Failed to load messages for ${sessionIdToLoad}:`, Cause.pretty(exitResult.cause));
+        addMessage({ id: `error-load-${Date.now()}`, role: 'system', content: `Error loading session ${sessionIdToLoad.substring(0,8)}...`, timestamp: Date.now() });
+      }
+    } catch (error) {
+      console.error(`${componentName} Exception loading session ${sessionIdToLoad}:`, error);
+      addMessage({ id: `error-load-exc-${Date.now()}`, role: 'system', content: `Critical error loading session.`, timestamp: Date.now() });
+    } finally {
+      isLoadingRef.current = false;
+      setIsLoading(false);
+      setFocusKey(prev => prev + 1);
+    }
+  }, [paneId, runtime]); // Minimize dependencies to prevent recreating the function
+
+  // Legacy function for backward compatibility
+  const loadSessionMessages = async (sessionId: string): Promise<boolean> => {
+    await loadMessagesForSessionInternal(sessionId);
+    return true; // The new function handles errors internally
+  };
+
+  // Load initial session if provided
+  useEffect(() => {
+    const componentName = `[CoderPane ${paneId?.substring(0, 8) || 'NEW'}]`;
+    console.log(`${componentName} Effect for session loading. initialSessionId: ${initialSessionId}, current sessionIdRef: ${sessionIdRef.current}, lastLoaded: ${lastLoadedSessionIdRef.current}`);
+
+    if (initialSessionId && initialSessionId !== lastLoadedSessionIdRef.current) {
+      loadMessagesForSessionInternal(initialSessionId);
+    } else if (!initialSessionId && !sessionIdRef.current) {
+      const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+      console.log(`${componentName} No initial session, generated new: ${newSessionId}`);
+      sessionIdRef.current = newSessionId;
+      lastLoadedSessionIdRef.current = newSessionId;
+      clearMessages();
+      updatePaneContent(paneId, { sessionId: newSessionId });
+      setIsLoading(false);
+    } else if (initialSessionId && initialSessionId === lastLoadedSessionIdRef.current && messages.filter(m => m.role !== 'system').length === 0) {
+      console.log(`${componentName} initialSessionId matches lastLoaded, but UI messages are empty. Forcing reload for ${initialSessionId}.`);
+      loadMessagesForSessionInternal(initialSessionId);
+    } else {
+      console.log(`${componentName} No session load required by this effect run.`);
+      setIsLoading(false); // Ensure loading is false if no load occurs
+    }
+  }, [initialSessionId, paneId]); // Only re-run when these critical props change
+
+  // State for history menu
+  const [historyMenuOpen, setHistoryMenuOpen] = useState(false);
+
+  // Fetch chat history
+  const { data: chatHistorySessions, refetch: refetchHistory } = useQuery<DBSession[], Error>({
+    queryKey: ["allChatSessionsForCoderMenu"],
+    queryFn: async () => {
+      const dbProgram = Effect.flatMap(DatabaseService, (db) =>
+        db.getAllSessions({ sortBy: "last_updated_at", sortOrder: "DESC", limit: 5 }),
+      );
+      const exitResult = await Effect.runPromiseExit(Effect.provide(dbProgram, runtime));
+      if (Exit.isSuccess(exitResult)) return exitResult.value;
+      console.error("Failed to fetch chat history for menu:", Cause.pretty(exitResult.cause));
+      throw Cause.squash(exitResult.cause);
+    },
+    staleTime: 1000 * 60, // Cache for 1 minute
+  });
+
+  // Refetch history when menu opens
+  useEffect(() => {
+    if (historyMenuOpen) {
+      refetchHistory();
+    }
+  }, [historyMenuOpen, refetchHistory]);
+
+  // Format session for menu display
+  const formatSessionForMenu = (session: DBSession): string => {
+    const date = new Date(session.last_updated_at * 1000);
+    const dateStr = date.toLocaleDateString(undefined, { year: '2-digit', month: '2-digit', day: '2-digit' });
+    const timeStr = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    // Don't show ui-coder sessions in the menu display
+    if (session.id.startsWith('ui-coder-')) {
+      return `${dateStr} ${timeStr}`;
+    }
+    const idPrefix = session.id.substring(0, 8);
+    return `${dateStr} ${timeStr} | ${idPrefix}...`;
+  };
+
+  // Create history menu items
+  const historyMenuItems: PaneDropdownItem[] = useMemo(() => {
+    if (!chatHistorySessions || chatHistorySessions.length === 0) {
+      return [{ label: "No recent chats", action: () => { }, disabled: true }];
+    }
+    return chatHistorySessions.map(session => ({
+      label: formatSessionForMenu(session),
+      action: async (event) => {
+        console.log("Load chat session:", session.id);
+        
+        // Check if Cmd/Ctrl key is held
+        const isModifierHeld = event && (event.metaKey || event.ctrlKey);
+
+        // Track telemetry
+        Effect.runFork(
+          Effect.flatMap(TelemetryService, (ts) =>
+            ts.trackEvent({
+              category: 'coder_mode',
+              action: isModifierHeld ? 'history_menu_item_cmd_click' : 'history_menu_item_click',
+              label: session.id,
+            }),
+          ).pipe(Effect.provide(runtime)),
+        );
+
+        if (isModifierHeld) {
+          // Open in new pane
+          const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+          
+          // Create a new coder pane with the messages from the selected session
+          const openCoderPane = usePaneStore.getState().addPane;
+          const screenWidth = window.innerWidth;
+          const screenHeight = window.innerHeight;
+          
+          // Position new pane offset from current one
+          const currentPanes = usePaneStore.getState().panes;
+          const currentCoderPane = currentPanes.find(p => p.id === CODER_PANE_ID);
+          const offsetX = 50;
+          const offsetY = 50;
+          
+          openCoderPane({
+            id: `coder_pane_${Date.now()}`,
+            type: "coder",
+            title: `Coder`,
+            x: currentCoderPane ? Math.min(currentCoderPane.x + offsetX, screenWidth - 600) : Math.floor((screenWidth - 569) / 2),
+            y: currentCoderPane ? Math.min(currentCoderPane.y + offsetY, screenHeight - 400) : 30,
+            width: 569,
+            height: Math.floor(screenHeight * 0.85),
+            dismissable: true,
+            content: { sessionId: session.id }, // Pass the existing session ID
+          });
+        } else {
+          const newSessionId = session.id;
+          const componentName = `[CoderPane ${paneId?.substring(0, 8) || 'HIST'}]`;
+          console.log(`${componentName} History item clicked, preparing to load session: ${newSessionId}`);
+
+          sessionIdRef.current = newSessionId; // Update current session ID
+          lastLoadedSessionIdRef.current = null; // Reset last loaded to force reload by useEffect OR call directly
+
+          // Call the extracted loading function
+          await loadMessagesForSessionInternal(newSessionId);
+
+          setHistoryMenuOpen(false);
+        }
+      },
+    }));
+  }, [chatHistorySessions, runtime, paneId, loadMessagesForSessionInternal]);
+
+  // Create title bar buttons with history menu
+  const titleBarButtons = useMemo(() => (
+    <>
+      {/* New Chat Button - will be on right side */}
+      <Button
+        onClick={handleNewChat}
+        variant="outline"
+        size="sm"
+        className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors h-6 px-2 text-xs"
+        title="Start new chat session"
+      >
+        <MessageSquarePlus className="h-3 w-3 mr-1" />
+        New Chat
+      </Button>
+    </>
+  ), [handleNewChat]);
+
+  // Create header menus for left side
+  const headerMenus = useMemo(() => [
+    {
+      id: "coderHistoryMenu",
+      triggerLabel: "History",
+      items: historyMenuItems,
+    }
+  ], [historyMenuItems]);
+
+  // Handle menu open state changes
+  const handleMenuOpenChange = useCallback((menuId: string, open: boolean) => {
+    if (menuId === 'coderHistoryMenu') {
+      setHistoryMenuOpen(open);
+    }
+  }, []);
+
+  // Set title bar buttons in ref if provided
+  useEffect(() => {
+    if (titleBarButtonsRef && titleBarButtonsRef.set) {
+      titleBarButtonsRef.set({
+        buttons: titleBarButtons,
+        menus: headerMenus,
+        menuOpenState: historyMenuOpen,
+        onMenuOpenChange: handleMenuOpenChange
+      });
+    }
+  }, [titleBarButtons, headerMenus, historyMenuOpen, handleMenuOpenChange, titleBarButtonsRef]);
+
   return (
     <div className="h-full w-full flex flex-col bg-black relative">
-      {/* New Chat button in top-right corner */}
-      <div className="absolute top-4 right-4 z-10">
-        <Button
-          onClick={handleNewChat}
-          variant="outline"
-          size="sm"
-          className="bg-black border-white text-white hover:bg-white hover:text-black transition-colors"
-          title="Start new chat session"
-        >
-          <MessageSquarePlus className="h-4 w-4 mr-2" />
-          New Chat
-        </Button>
-      </div>
       <style>{`
         /* Custom styles for Coder pane messages */
         .coder-chat-message .group\\/message {
@@ -633,12 +957,12 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
           line-height: 1.5 !important;
           white-space: pre-wrap !important;
         }
-        
+
         /* Ensure markdown content in our messages preserves whitespace */
         .coder-chat-message div[class*="whitespace-pre-wrap"] {
           white-space: pre-wrap !important;
         }
-        
+
         /* Force pre-wrap on all paragraph elements in messages */
         .coder-chat-message p {
           white-space: pre-wrap !important;
@@ -730,18 +1054,20 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
         }
       `}</style>
       {/* Chat messages area */}
-      <div 
+      <div
         ref={containerRef}
         className="flex-1 overflow-auto p-4"
         onScroll={handleScroll}
         onTouchStart={handleTouchStart}
       >
-        <div className="max-w-[750px] mx-auto space-y-4">
-          {messages
-            .filter(msg => msg.role !== 'system') // Don't show system messages
-            .map((message, idx) => (
-              <CoderChatMessage key={message.id || idx} message={message} index={idx} />
-            ))}
+        <div className="max-w-[750px] mx-auto w-full">
+          <div className="flex flex-col gap-4">
+            {messages
+              .filter(msg => msg.role !== 'system') // Don't show system messages
+              .map((message, idx) => (
+                <CoderChatMessage key={message.id || idx} message={message} index={idx} />
+              ))}
+          </div>
         </div>
       </div>
       {/* ProseMirror editor at the bottom */}
@@ -754,4 +1080,12 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
   );
 };
 
-export default CoderPane;
+// Memoize the component to prevent unnecessary re-renders
+const MemoizedCoderPane = React.memo(CoderPane, (prevProps, nextProps) => {
+  // Only re-render if props actually changed
+  return prevProps.paneId === nextProps.paneId &&
+         prevProps.sessionId === nextProps.sessionId && 
+         prevProps.titleBarButtonsRef === nextProps.titleBarButtonsRef;
+});
+
+export default MemoizedCoderPane;

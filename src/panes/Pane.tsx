@@ -2,14 +2,29 @@ import React, { useState, useEffect, useRef } from "react";
 import { useDrag } from "@use-gesture/react";
 import { X as IconX } from "lucide-react";
 import { Pane as PaneType } from "@/types/pane";
+import { PaneHeaderMenu, PaneDropdownItem, PaneDropdownItemAction } from "@/types/paneMenu";
 import { usePaneStore } from "@/stores/pane";
 import type { FullGestureState } from "@use-gesture/react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+  DropdownMenuGroup,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 type PaneProps = PaneType & {
   children?: React.ReactNode;
   titleBarButtons?: React.ReactNode;
   style?: React.CSSProperties;
   content?: PaneType["content"];
+  headerMenus?: PaneHeaderMenu[];
 };
 
 type ResizeCorner =
@@ -202,6 +217,61 @@ const useResizeHandlers = (
   return { position, size, setPosition, resizeHandlers };
 };
 
+// Helper function to render dropdown menu items recursively
+const renderDropdownItems = (items: PaneDropdownItem[], parentId: string): React.ReactNode => {
+  return items.map((item, index) => {
+    const key = `${parentId}-item-${index}`;
+    
+    if ('type' in item) {
+      switch (item.type) {
+        case 'separator':
+          return <DropdownMenuSeparator key={key} />;
+        case 'label':
+          return <DropdownMenuLabel key={key}>{item.label}</DropdownMenuLabel>;
+        case 'group':
+          return (
+            <DropdownMenuGroup key={key}>
+              {item.label && <DropdownMenuLabel>{item.label}</DropdownMenuLabel>}
+              {renderDropdownItems(item.items, `${key}-group`)}
+            </DropdownMenuGroup>
+          );
+        case 'submenu':
+          return (
+            <DropdownMenuSub key={key}>
+              <DropdownMenuSubTrigger>
+                {item.icon && <span className="mr-2">{item.icon}</span>}
+                {item.label}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <ScrollArea className="max-h-72">
+                  {renderDropdownItems(item.items, `${key}-sub`)}
+                </ScrollArea>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          );
+      }
+    } else {
+      // It's a PaneDropdownItemAction
+      const actionItem = item as PaneDropdownItemAction;
+      return (
+        <DropdownMenuItem
+          key={key}
+          onClick={(e) => {
+            e.stopPropagation();
+            actionItem.action(e);
+          }}
+          disabled={actionItem.disabled}
+          onSelect={(e) => e.preventDefault()}
+          className="cursor-pointer"
+        >
+          {actionItem.icon && <span className="mr-2">{actionItem.icon}</span>}
+          {actionItem.label}
+        </DropdownMenuItem>
+      );
+    }
+  });
+};
+
 export const Pane: React.FC<PaneProps> = ({
   id,
   title,
@@ -215,6 +285,7 @@ export const Pane: React.FC<PaneProps> = ({
   titleBarButtons,
   dismissable = true,
   style = {},
+  headerMenus,
 }) => {
   const [bounds, setBounds] = useState({
     left: 0,
@@ -297,7 +368,7 @@ export const Pane: React.FC<PaneProps> = ({
       }
 
       // Use memo for stable position calculations throughout drag
-      if (active && memo) {
+      if (memo && (active || last)) {
         const deltaX = pointerX - memo.startX;
         const deltaY = pointerY - memo.startY;
 
@@ -314,7 +385,7 @@ export const Pane: React.FC<PaneProps> = ({
           updatePanePosition(id, newX, newY);
           setIsDragging(false);
         }
-      } else if (!active) {
+      } else if (!active && !last) {
         setIsDragging(false);
       }
 
@@ -346,8 +417,8 @@ export const Pane: React.FC<PaneProps> = ({
   };
 
   const resizeHandleClasses = "absolute bg-transparent pointer-events-auto";
-  const resizeHandleSize = "8px";
-  const resizeHandleOffset = "-4px";
+  const resizeHandleSize = "12px";
+  const resizeHandleOffset = "-6px";
 
   return (
     <div
@@ -364,10 +435,36 @@ export const Pane: React.FC<PaneProps> = ({
     >
       <div
         {...bindDrag()}
-        className="pane-title-bar border-border/20 flex h-8 cursor-grab touch-none items-center justify-between border-b bg-black/80 px-3 py-1.5 font-bold text-white/90 select-none active:cursor-grabbing"
-        style={{ touchAction: "none" }} // Add this to fix the touch-action warning
+        className="pane-title-bar border-border/20 flex h-8 cursor-grab touch-none items-center justify-between border-b bg-black/80 px-3 py-1.5 font-mono text-white/90 select-none active:cursor-grabbing"
+        style={{ touchAction: "none" }}
       >
-        <span className="truncate text-xs">{title}</span>
+        {/* Container for title and menus */}
+        <div className="flex items-center gap-x-2 overflow-hidden">
+          <span className="text-xs truncate font-bold">{title}</span>
+          {/* Render Dropdown Menus */}
+          {headerMenus && headerMenus.map(menu => (
+            <DropdownMenu 
+              key={menu.id}
+              open={(menu as any).open}
+              onOpenChange={(menu as any).onOpenChange}
+            >
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="text-xs px-1.5 py-0.5 hover:bg-white/10 rounded-sm focus:outline-none text-gray-300 cursor-pointer"
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  {menu.triggerLabel}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56 text-xs" onMouseDown={(e) => e.stopPropagation()}>
+                <ScrollArea className="max-h-72">
+                  {renderDropdownItems(menu.items, menu.id)}
+                </ScrollArea>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ))}
+        </div>
+        {/* Existing close button and titleBarButtons */}
         <div className="title-bar-button-container flex items-center space-x-1">
           {titleBarButtons}
           {dismissable && (

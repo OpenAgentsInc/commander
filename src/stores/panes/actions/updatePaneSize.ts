@@ -28,6 +28,7 @@ export function updatePaneSizeAction(
       }
       return pane;
     });
+    
     return {
       panes: newPanes,
       lastPanePosition: updatedPaneRef || state.lastPanePosition,

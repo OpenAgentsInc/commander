@@ -2,6 +2,7 @@ export * from "./addPane";
 export * from "./removePane";
 export * from "./updatePanePosition";
 export * from "./updatePaneSize";
+export * from "./updatePaneContent";
 export * from "./bringPaneToFront";
 export * from "./setActivePane";
 export * from "./openChatPane";
@@ -24,3 +25,8 @@ export * from "./toggleAgentChatPane";
 // Previous chats pane actions
 export * from "./openPreviousChatsPane";
 export * from "./togglePreviousChatsPane";
+// Common toggle action
+export * from "./togglePane";
+// Coder pane actions
+export * from "./toggleAllCoderPanes";
+export * from "./openNewCoderPane";
