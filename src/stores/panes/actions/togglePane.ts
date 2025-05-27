@@ -16,23 +16,10 @@ export function togglePaneAction(
   const { paneId, createPaneInput } = config;
   const existingPane = state.panes.find((p) => p.id === paneId);
 
-  console.log(`[togglePane] Toggling pane ${paneId}`, {
-    exists: !!existingPane,
-    isActive: state.activePaneId === paneId,
-    storedPositions: state.closedPanePositions,
-  });
-
   // If the pane exists
   if (existingPane) {
     // If it's already the active pane, close it
     if (state.activePaneId === paneId) {
-      console.log(`[togglePane] Closing active pane ${paneId} at position:`, {
-        x: existingPane.x,
-        y: existingPane.y,
-        width: existingPane.width,
-        height: existingPane.height,
-      });
-
       const remainingPanes = state.panes.filter((pane) => pane.id !== paneId);
       let newActivePaneId: string | null = null;
       if (remainingPanes.length > 0) {
@@ -52,8 +39,6 @@ export function togglePaneAction(
         height: existingPane.height,
       };
 
-      console.log(`[togglePane] Saved position for ${paneId}:`, updatedClosedPanePositions[paneId]);
-
       return {
         ...state,
         panes: updatedPanes,
@@ -63,8 +48,6 @@ export function togglePaneAction(
     }
     // If it exists but isn't active, bring it to front
     else {
-      console.log(`[togglePane] Bringing pane ${paneId} to front`);
-      
       // Move the pane to the end of the array to bring it to the front
       const panesWithoutTarget = state.panes.filter((p) => p.id !== paneId);
       const updatedTargetPane = { ...existingPane, isActive: true };
@@ -86,12 +69,6 @@ export function togglePaneAction(
 
     // Check if we have a stored position for this pane
     const storedPosition = state.closedPanePositions[paneId];
-    
-    console.log(`[togglePane] Creating pane ${paneId}`, {
-      hasStoredPosition: !!storedPosition,
-      storedPosition,
-      allStoredPositions: state.closedPanePositions,
-    });
 
     const newPaneInput = createPaneInput(screenWidth, screenHeight, storedPosition);
 
@@ -100,7 +77,6 @@ export function togglePaneAction(
     
     // Remove the stored position since we're using it now
     if (storedPosition) {
-      console.log(`[togglePane] Removing stored position for ${paneId}`);
       const { [paneId]: _, ...remainingPositions } = state.closedPanePositions;
       return {
         ...newState,

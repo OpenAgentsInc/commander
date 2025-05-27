@@ -8,10 +8,7 @@ export function updatePanePositionAction(
   x: number,
   y: number,
 ) {
-  console.log(`[updatePanePosition] Moving pane ${id} to:`, { x, y });
   set((state: PaneStoreType) => {
-    console.log(`[updatePanePosition] Current position for ${id}:`, state.panes.find(p => p.id === id));
-    
     let updatedPaneRef: {
       x: number;
       y: number;

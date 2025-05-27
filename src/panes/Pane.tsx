@@ -339,8 +339,6 @@ export const Pane: React.FC<PaneProps> = ({
 
   const bindDrag = useDrag<DragStartMemo>(
     ({ active, xy: [pointerX, pointerY], first, last, event, memo }) => {
-      console.log(`[Pane] Drag event for ${id}:`, { active, first, last, x: pointerX, y: pointerY });
-      
       // Handle the event properly, checking both existence and type
       if (
         event &&
@@ -384,7 +382,6 @@ export const Pane: React.FC<PaneProps> = ({
         setPosition({ x: newX, y: newY });
 
         if (last) {
-          console.log(`[Pane] Drag ended for ${id}, updating position to:`, { x: newX, y: newY });
           updatePanePosition(id, newX, newY);
           setIsDragging(false);
         }

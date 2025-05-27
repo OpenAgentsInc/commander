@@ -185,12 +185,10 @@ export const usePaneStore = create<PaneStoreType>()(
           togglePaneAction(set, state, {
             paneId: CODER_PANE_ID,
             createPaneInput: (screenWidth, screenHeight, storedPosition) => {
-              console.log('[toggleCoderPane] Screen dimensions:', { screenWidth, screenHeight });
               let x, y, width, height;
               
               if (storedPosition) {
                 // Use the stored position
-                console.log('[toggleCoderPane] Using stored position:', storedPosition);
                 ({ x, y, width, height } = storedPosition);
                 
                 // Ensure the pane is still visible on screen (in case window was resized)
@@ -198,14 +196,12 @@ export const usePaneStore = create<PaneStoreType>()(
                 y = Math.max(PANE_MARGIN, Math.min(y, screenHeight - 100));
                 width = Math.min(width, screenWidth - x - PANE_MARGIN);
                 height = Math.min(height, screenHeight - y - PANE_MARGIN);
-                console.log('[toggleCoderPane] Adjusted position:', { x, y, width, height });
               } else {
                 // Calculate default position
                 width = Math.floor(screenWidth * 0.45);
                 height = Math.floor(screenHeight * 0.85);
                 x = Math.floor((screenWidth - width) / 2);
                 y = PANE_MARGIN + 10;
-                console.log('[toggleCoderPane] Using default position:', { x, y, width, height });
               }
 
               // Generate a unique UI session ID for this coder pane instance
@@ -222,7 +218,6 @@ export const usePaneStore = create<PaneStoreType>()(
                 dismissable: true,
                 content: { sessionId },
               };
-              console.log('[toggleCoderPane] Returning pane input:', paneInput);
               return paneInput;
             },
           })
@@ -267,7 +262,6 @@ export const usePaneStore = create<PaneStoreType>()(
         };
 
         // Apply the new state
-        console.log("Resetting HUD to initial state", newInitialState);
         set(newInitialState);
       },
 

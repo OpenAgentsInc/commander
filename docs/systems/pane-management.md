@@ -416,7 +416,11 @@ When a pane is closed and later reopened (common with toggle-able panes like Cod
    - Reduces code duplication
    - Ensures all panes handle position persistence the same way
    - Includes console logging for debugging position save/restore operations
-5. This ensures panes remember their last position across close/open cycles while always using the most recent position.
+5. **Critical Drag Handler Fix**: The drag handler must check `(active || last)` not just `active` because:
+   - When drag ends, the gesture library sets `active: false` and `last: true`
+   - Position updates must run when `last: true` to save the final position
+   - Without this, dragged positions are never saved to the store
+6. This ensures panes remember their last position across close/open cycles while always using the most recent position.
 
 ## 5. Pane Lifecycle & Interactions
 
@@ -451,7 +455,28 @@ Detailed flow covered in 4.2 and 4.3. Key points:
 -   **Custom Scrollbars (`global.css`):** `-webkit-scrollbar` styles for a thin, dark-themed scrollbar within pane content areas.
 -   **HUD Background (`SimpleGrid.tsx`):** A subtle, static SVG grid pattern rendered as the rearmost layer, styled with `rgba(255, 255, 255, 0.15)` lines on a black background. `pointer-events-none` ensures it doesn't interfere with interactions.
 
-## 7. Error Handling & Edge Cases
+## 7. Common Issues & Solutions
+
+### 7.1. Pane Position Not Saving After Drag
+
+**Issue**: Panes reopen at default position instead of where they were dragged to.
+
+**Root Cause**: The `@use-gesture/react` library sets `active: false` when `last: true` on drag end.
+
+**Solution**: The drag handler must check `if (memo && (active || last))` instead of just `if (active && memo)` to ensure the final position is saved when the drag completes.
+
+### 7.2. Duplicate Toggle Function Logic
+
+**Issue**: Each toggle function had hundreds of lines of duplicate code.
+
+**Solution**: Created `togglePaneAction` that handles:
+- Checking if pane exists
+- Closing if active
+- Bringing to front if inactive
+- Creating with stored position if doesn't exist
+- Saving/restoring positions from `closedPanePositions`
+
+## 8. Error Handling & Edge Cases
 
 -   **Persisted State Corruption:** The `merge` function in `usePaneStore`'s `persist` middleware attempts to gracefully handle malformed or empty persisted state by ensuring default essential panes are always present.
 -   **Off-Screen Panes:**

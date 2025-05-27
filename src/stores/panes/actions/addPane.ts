@@ -54,25 +54,8 @@ export function addPaneActionLogic(
     content: newPaneInput.content,
     headerMenus: newPaneInput.headerMenus || [], // Default to empty array
   };
-  
-  console.log('[addPaneActionLogic] Creating pane with position:', {
-    id: paneBeforeEnsure.id,
-    x: paneBeforeEnsure.x,
-    y: paneBeforeEnsure.y,
-    inputX: newPaneInput.x,
-    inputY: newPaneInput.y,
-    baseX: basePosition.x,
-    baseY: basePosition.y,
-  });
 
   const newPane: Pane = ensurePaneIsVisible(paneBeforeEnsure);
-  
-  if (newPane.x !== paneBeforeEnsure.x || newPane.y !== paneBeforeEnsure.y) {
-    console.log('[addPaneActionLogic] Position was adjusted by ensurePaneIsVisible:', {
-      before: { x: paneBeforeEnsure.x, y: paneBeforeEnsure.y },
-      after: { x: newPane.x, y: newPane.y }
-    });
-  }
 
   const updatedPanes = state.panes.map((p) => ({ ...p, isActive: false }));
 
@@ -86,14 +69,6 @@ export function addPaneActionLogic(
       height: newPane.height,
     },
   };
-  
-  console.log('[addPaneActionLogic] Final pane in result:', {
-    id: newPane.id,
-    x: newPane.x,
-    y: newPane.y,
-    width: newPane.width,
-    height: newPane.height,
-  });
   
   return result;
 }
