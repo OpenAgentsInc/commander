@@ -321,6 +321,7 @@ export function setupClaudeWebSocketHandler() {
                     // Send structured tool call info to UI
                     const toolCallInfo = {
                       type: 'tool_call',
+                      id: contentPart.id,
                       name: contentPart.name,
                       parameters: contentPart.input
                     };
@@ -365,10 +366,20 @@ export function setupClaudeWebSocketHandler() {
               if (userMessage.content && Array.isArray(userMessage.content)) {
                 for (const contentPart of userMessage.content) {
                   if (contentPart.type === "tool_result") {
+                    // Extract text content from tool result if it's an array
+                    let resultContent = contentPart.content;
+                    if (Array.isArray(contentPart.content)) {
+                      // Extract text from content array
+                      resultContent = contentPart.content
+                        .filter((item: any) => item.type === 'text')
+                        .map((item: any) => item.text)
+                        .join('\n');
+                    }
+                    
                     const toolResultInfo = {
                       type: 'tool_result',
                       tool_use_id: contentPart.tool_use_id,
-                      content: contentPart.content,
+                      content: resultContent,
                       is_error: contentPart.is_error
                     };
                     event.sender.send(`claude-code:chat-stream:chunk`, requestId, JSON.stringify(toolResultInfo));
@@ -403,6 +414,7 @@ export function setupClaudeWebSocketHandler() {
                     // Send structured tool call info to UI
                     const toolCallInfo = {
                       type: 'tool_call',
+                      id: contentPart.id,
                       name: contentPart.name,
                       parameters: contentPart.input
                     };

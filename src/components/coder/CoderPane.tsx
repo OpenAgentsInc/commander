@@ -11,6 +11,7 @@ import { keymap } from "prosemirror-keymap";
 import { baseKeymap } from "prosemirror-commands";
 import { ChatMessage as UIChatMessage, type Message } from '@/components/ui/chat-message';
 import { useAutoScroll } from '@/hooks/use-auto-scroll';
+import { ToolCallDisplay } from './ToolCallDisplay';
 
 
 // ProseMirror Editor component that's loaded after the dynamic import
@@ -176,10 +177,13 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
     if (!message.parts || message.parts.length === 0) return message.content;
     
     // When we have parts, only use text from the parts, not the accumulated content
-    const textParts = message.parts
+    let textParts = message.parts
       .filter(part => part.type === 'text')
       .map(part => part.text)
       .join('');
+    
+    // Remove [Result: ...] sections to avoid duplication
+    textParts = textParts.replace(/\[Result:\s*[\s\S]*?\]/g, '').trim();
     
     return textParts; // Don't fall back to message.content when we have parts
   }, [message.parts, message.content]);
@@ -204,7 +208,11 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
     // Second pass: build parts array
     message.parts.forEach(part => {
       if (part.type === 'text') {
-        parts.push({ type: 'text' as const, text: part.text });
+        // Filter out [Result: ...] sections from text parts
+        const cleanedText = part.text.replace(/\[Result:\s*[\s\S]*?\]/g, '').trim();
+        if (cleanedText) {
+          parts.push({ type: 'text' as const, text: cleanedText });
+        }
       } else if (part.type === 'tool_call') {
         // Check if we have a result for this tool call
         const hasResult = toolResults.has(part.id);
@@ -227,15 +235,90 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
     return parts.length > 0 ? parts : undefined;
   }, [message.parts]);
 
-  // Use the rich ChatMessage component for better formatting
+  // Get tool results map
+  const toolResults = React.useMemo(() => {
+    const results = new Map<string, any>();
+    if (message.parts) {
+      message.parts.forEach(part => {
+        if (part.type === 'tool_result') {
+          results.set(part.tool_use_id, part);
+        }
+      });
+    }
+    return results;
+  }, [message.parts]);
+
+  // Render custom tool displays for better UX
+  const renderParts = () => {
+    if (!message.parts || message.parts.length === 0) return null;
+    
+    return message.parts.map((part, idx) => {
+      if (part.type === 'text' && part.text) {
+        // Filter out [Result: ...] sections
+        const cleanedText = part.text.replace(/\[Result:\s*[\s\S]*?\]/g, '').trim();
+        if (!cleanedText) return null;
+        
+        return (
+          <div key={`text-${idx}`} className="prose prose-invert max-w-none">
+            <UIChatMessage
+              id={`${message.id}-text-${idx}`}
+              role={message.role === 'user' ? 'user' : 'assistant'}
+              content={cleanedText}
+              animation="none"
+              showTimeStamp={false}
+            />
+          </div>
+        );
+      } else if (part.type === 'tool_call') {
+        const hasResult = toolResults.has(part.id);
+        const result = toolResults.get(part.id);
+        
+        return (
+          <div key={`tool-${idx}`} className="space-y-1">
+            <ToolCallDisplay
+              toolName={part.name}
+              args={part.input}
+              isLoading={!hasResult}
+            />
+            {hasResult && result && (
+              <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm ml-6">
+                <div className="text-xs text-muted-foreground mb-1">Result:</div>
+                <div className="whitespace-pre-wrap text-foreground">
+                  {typeof result.content === 'string' 
+                    ? result.content 
+                    : JSON.stringify(result.content, null, 2)}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      } else if (part.type === 'tool_result') {
+        // Tool results are shown with their corresponding tool call
+        return null;
+      }
+      return null;
+    });
+  };
+
+  // Use custom rendering if we have parts, otherwise use standard UIChatMessage
+  if (message.parts && message.parts.length > 0) {
+    return (
+      <div className={`coder-chat-message ${message.role === 'user' ? 'user-message' : 'assistant-message'} space-y-2`}>
+        {renderParts()}
+        {message.isStreaming && message.role === 'assistant' && (
+          <span className="inline-block w-2 h-4 ml-1 mt-2 bg-white animate-pulse" />
+        )}
+      </div>
+    );
+  }
+
+  // Fallback to standard display for messages without parts
   return (
     <div className={`coder-chat-message ${message.role === 'user' ? 'user-message' : 'assistant-message'}`}>
       <UIChatMessage
         id={message.id}
         role={message.role === 'user' ? 'user' : 'assistant'}
-        content={messageParts && messageParts.length > 0 ? '' : textContent}  // Empty content if we have parts
-        parts={messageParts}  // Use parts instead of toolInvocations
-        createdAt={new Date(message.timestamp)}
+        content={textContent}
         animation="none"
         showTimeStamp={false}
       />
