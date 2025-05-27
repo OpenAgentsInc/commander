@@ -222,31 +222,11 @@ export function buildFullAppLayer() {
     ),
   );
 
-  // Create the provider factory layer with its dependencies
-  const providerFactoryLayer = ProviderFactoryServiceLive.pipe(
-    Layer.provide(
-      Layer.mergeAll(
-        devConfigLayer,              // For ConfigurationService
-        telemetryLayer,              // For TelemetryService
-        ollamaLayer,                 // For OllamaService
-        nostrLayer,                  // For NostrService
-        nip04Layer,                  // For NIP04Service
-        nip90Layer,                  // For NIP90Service
-        sparkLayer,                  // For SparkService
-      ),
-    ),
-  );
+  // Create the provider factory layer - now simplified since it uses Layer.succeed
+  const providerFactoryLayer = ProviderFactoryServiceLive;
 
-  // Create the chat orchestrator layer with all its dependencies
-  const chatOrchestratorLayer = ChatOrchestratorServiceLive.pipe(
-    Layer.provide(
-      Layer.mergeAll(
-        devConfigLayer,              // For ConfigurationService
-        telemetryLayer,              // For TelemetryService
-        providerFactoryLayer,        // For ProviderFactoryService
-      ),
-    ),
-  );
+  // Create the chat orchestrator layer - now simplified since it uses Layer.succeed
+  const chatOrchestratorLayer = ChatOrchestratorServiceLive;
 
   // Full application layer - compose services incrementally
   return Layer.mergeAll(

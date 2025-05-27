@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import { Effect, Stream, Cause } from "effect";
+import { Effect, Stream, Cause, Runtime } from "effect";
 import {
   type AiResponse,
   type AgentChatMessage,
@@ -404,7 +404,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}) {
         ),
       );
 
-      Effect.runFork(program);
+      Runtime.runFork(currentRuntime)(program);
     },
     [messages, initialSystemMessage, runTelemetry, selectedProviderKey, currentSessionId],
   );
