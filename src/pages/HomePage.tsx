@@ -10,6 +10,7 @@ import { usePaneStore } from "@/stores/pane";
 import { useShallow } from "zustand/react/shallow";
 import { Hotbar } from "@/components/hud/Hotbar";
 import BitcoinBalanceDisplay from "@/components/hud/BitcoinBalanceDisplay";
+import { Nip90DashboardButton } from "@/components/hud";
 import { KeyboardControls } from "@react-three/drei";
 // Create our own type that matches the one from the library
 interface KeyboardControlsState {
@@ -77,6 +78,7 @@ export default function HomePage() {
   const [isAgentChatEnabled] = useFeatureFlag(Feature.AGENT_CHAT_PANE);
   const [isPreviousChatsEnabled] = useFeatureFlag(Feature.PREVIOUS_CHATS_PANE);
   const [isHandTrackingEnabled] = useFeatureFlag(Feature.HAND_TRACKING);
+  const [isNip90DashboardEnabled] = useFeatureFlag(Feature.NIP90_DASHBOARD_PANE);
 
   // Wrap toggleHandTracking in useCallback to prevent unnecessary re-renders
   const toggleHandTracking = useCallback(() => {
@@ -340,6 +342,7 @@ export default function HomePage() {
         <SimpleGrid />
         <PaneManager />
         <BitcoinBalanceDisplay />
+        {isNip90DashboardEnabled && <Nip90DashboardButton />}
 
         <HandTracking
           showHandTracking={isHandTrackingActive}
