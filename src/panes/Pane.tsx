@@ -339,6 +339,8 @@ export const Pane: React.FC<PaneProps> = ({
 
   const bindDrag = useDrag<DragStartMemo>(
     ({ active, xy: [pointerX, pointerY], first, last, event, memo }) => {
+      console.log(`[Pane] Drag event for ${id}:`, { active, first, last, x: pointerX, y: pointerY });
+      
       // Handle the event properly, checking both existence and type
       if (
         event &&
