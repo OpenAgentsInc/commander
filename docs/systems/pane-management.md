@@ -136,7 +136,7 @@ export type PaneInput = Omit<
 // Menu item types
 export interface PaneDropdownItemAction {
   label: string;
-  action: () => void;
+  action: (event?: React.MouseEvent) => void;  // Optional event parameter for modifier key detection
   disabled?: boolean;
   icon?: React.ReactNode;
 }
@@ -277,6 +277,10 @@ The `Pane` component is the visual representation of an individual pane.
 - Menu triggers have `cursor-pointer` and hover states
 - Supports controlled open/close state for dynamic menus
 - Helper function `renderDropdownItems` recursively builds menu structure
+- **Modifier Key Support**: Menu actions receive mouse events to detect Cmd/Ctrl clicks:
+  - Normal click: Performs default action (e.g., load content in current pane)
+  - Cmd/Ctrl+click: Can perform alternate action (e.g., open in new pane)
+  - Example: CoderPane history menu opens sessions in new pane when Cmd/Ctrl is held
 
 **Internal Hook: `useResizeHandlers`**
 - Encapsulates the complex logic for all eight resize handles.
@@ -330,7 +334,14 @@ For panes that need dynamic menus (e.g., CoderPane with its history menu), PaneM
 - Using refs to pass menu configuration from content components to PaneComponent
 - Dynamic menu items that can be updated based on component state
 - Controlled open/close state for menus
+- Per-pane ref isolation to ensure menu state is independent between multiple instances
 - Example: CoderPane creates its own history menu that fetches recent chat sessions and updates when opened
+
+**Independent Pane State:**
+- Each pane instance maintains its own state, even for panes of the same type
+- CoderPane uses local React state instead of global stores to ensure multiple coder panes are independent
+- PaneManager uses per-pane refs (e.g., `coderTitleBarRefs[pane.id]`) to isolate dynamic UI elements
+- Content is passed via `pane.content` to initialize panes with specific data (e.g., `sessionId` for loading chat history)
 
 ### 3.5. Interaction Triggers (e.g., `HomePage.tsx`, `Hotbar.tsx`)
 

@@ -644,7 +644,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
   // No need for initial scroll - flex-direction: column-reverse handles it
 
   // Load messages for a session
-  const loadSessionMessages = async (sessionId: string) => {
+  const loadSessionMessages = useCallback(async (sessionId: string) => {
     try {
       const dbProgram = Effect.flatMap(DatabaseService, (db) =>
         db.getMessagesForSession(sessionId, 100) // Get up to 100 messages
@@ -692,19 +692,19 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
       console.error("Error loading session messages:", error);
       return false;
     }
-  };
+  }, [runtime, clearMessages, addMessage]);
 
   // Load initial session if provided
   useEffect(() => {
-    if (initialSessionId && !initialSessionId.startsWith('ui-coder-')) {
-      // This is an existing session ID, load its messages
+    if (initialSessionId) {
+      // Load the session's messages
       // We need to do this after a short delay to ensure the component is fully mounted
       const timer = setTimeout(() => {
         loadSessionMessages(initialSessionId);
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, []); // Only run on mount
+  }, [initialSessionId, loadSessionMessages]); // Include dependencies
 
   // State for history menu
   const [historyMenuOpen, setHistoryMenuOpen] = useState(false);
