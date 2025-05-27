@@ -10,9 +10,6 @@ import { history } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import { baseKeymap } from "prosemirror-commands";
 import { ChatMessage as UIChatMessage, type Message } from '@/components/ui/chat-message';
-import ToolCallDisplay from './ToolCallDisplay';
-import ToolResultDisplay from './ToolResultDisplay';
-import { cn } from "@/utils/tailwind";
 
 
 // ProseMirror Editor component that's loaded after the dynamic import
@@ -173,61 +170,59 @@ interface ChatMessage {
 
 // Custom styled ChatMessage component wrapper
 const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ message, index }) => {
-  const renderContentPart = (part: any, partIndex: number) => {
-    switch (part.type) {
-      case 'text':
-        return <span key={partIndex} className="whitespace-pre-wrap">{part.text}</span>;
-      case 'tool_call':
-        return (
-          <ToolCallDisplay
-            key={partIndex}
-            toolName={part.name}
-            toolCallId={part.id}
-            args={part.input}
-          />
-        );
-      case 'tool_result':
-        return (
-          <ToolResultDisplay
-            key={partIndex}
-            toolCallId={part.tool_use_id}
-            result={part.content}
-            isError={part.isError}
-          />
-        );
-      default:
-        // Fallback for unknown parts: render as stringified JSON
-        return <pre key={partIndex} className="text-xs whitespace-pre-wrap bg-gray-800 p-1 rounded">{JSON.stringify(part, null, 2)}</pre>;
-    }
-  };
+  // Convert our parts format to the format expected by UIChatMessage
+  const toolInvocations = React.useMemo(() => {
+    if (!message.parts) return undefined;
+    
+    const invocations: any[] = [];
+    message.parts.forEach((part) => {
+      if (part.type === 'tool_call') {
+        invocations.push({
+          state: 'call',
+          toolName: part.name,
+          toolCallId: part.id,
+          args: part.input
+        });
+      } else if (part.type === 'tool_result') {
+        invocations.push({
+          state: 'result',
+          toolName: 'Tool',
+          toolCallId: part.tool_use_id,
+          result: part.content
+        });
+      }
+    });
+    
+    return invocations.length > 0 ? invocations : undefined;
+  }, [message.parts]);
 
-  const containerClasses = cn(
-    "w-full flex mb-2",
-    message.role === 'user' ? 'justify-end' : 'justify-start'
-  );
+  // Extract text content for the content prop
+  const textContent = React.useMemo(() => {
+    if (!message.parts) return message.content;
+    
+    const textParts = message.parts
+      .filter(part => part.type === 'text')
+      .map(part => part.text)
+      .join('');
+    
+    return textParts || message.content;
+  }, [message.parts, message.content]);
 
-  const bubbleClasses = cn(
-    "max-w-[90%] rounded-md p-2 text-xs shadow",
-    message.role === 'user'
-      ? "bg-blue-600 text-white"
-      : "bg-gray-700 text-gray-200"
-  );
-
+  // Use the rich ChatMessage component for better formatting
   return (
-    <div className={containerClasses}>
-      <div className={bubbleClasses}>
-        <div className="font-semibold mb-1 capitalize text-xs">
-          {message.role === 'assistant' ? 'Claude Code' : message.role}
-        </div>
-        <div>
-          {message.parts && message.parts.length > 0
-            ? message.parts.map(renderContentPart)
-            : <span className="whitespace-pre-wrap">{message.content}</span>}
-          {message.isStreaming && message.role === 'assistant' && (
-            <span className="inline-block w-2 h-3 ml-1 bg-white animate-pulse" />
-          )}
-        </div>
-      </div>
+    <div className={`coder-chat-message ${message.role === 'user' ? 'user-message' : 'assistant-message'}`}>
+      <UIChatMessage
+        id={message.id}
+        role={message.role === 'user' ? 'user' : 'assistant'}
+        content={textContent}
+        toolInvocations={toolInvocations}
+        createdAt={new Date(message.timestamp)}
+        animation="none"
+        showTimeStamp={false}
+      />
+      {message.isStreaming && message.role === 'assistant' && (
+        <span className="inline-block w-2 h-4 ml-1 bg-white animate-pulse" />
+      )}
     </div>
   );
 };
