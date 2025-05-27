@@ -2,7 +2,7 @@
 
 export interface PaneDropdownItemAction {
   label: string;
-  action: () => void;
+  action: (event?: React.MouseEvent) => void;
   disabled?: boolean;
   icon?: React.ReactNode;
 }

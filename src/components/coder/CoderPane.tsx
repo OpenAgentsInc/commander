@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import { DatabaseService, DBSession } from '@/services/db';
 import { PaneDropdownItem } from '@/types/paneMenu';
+import { CODER_PANE_ID } from '@/stores/panes/constants';
 
 
 // ProseMirror Editor component that's loaded after the dynamic import
@@ -387,6 +388,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
     handleTouchStart,
   } = useAutoScroll([messages]);
 
+
   const handleExitCoderMode = React.useCallback(() => {
     // Cancel any ongoing stream
     if (streamCancelRef.current) {
@@ -650,6 +652,14 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
     }
   };
 
+  // Load initial session if provided
+  useEffect(() => {
+    if (initialSessionId && !initialSessionId.startsWith('ui-coder-')) {
+      // This is an existing session ID, load its messages
+      loadSessionMessages(initialSessionId);
+    }
+  }, []); // Only run on mount
+
   // State for history menu
   const [historyMenuOpen, setHistoryMenuOpen] = useState(false);
 
@@ -695,44 +705,75 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
     }
     return chatHistorySessions.map(session => ({
       label: formatSessionForMenu(session),
-      action: async () => {
+      action: async (event) => {
         console.log("Load chat session:", session.id);
+        
+        // Check if Cmd/Ctrl key is held
+        const isModifierHeld = event && (event.metaKey || event.ctrlKey);
 
         // Track telemetry
         Effect.runFork(
           Effect.flatMap(TelemetryService, (ts) =>
             ts.trackEvent({
               category: 'coder_mode',
-              action: 'history_menu_item_click',
+              action: isModifierHeld ? 'history_menu_item_cmd_click' : 'history_menu_item_click',
               label: session.id,
             }),
           ).pipe(Effect.provide(runtime)),
         );
 
-        // Load messages for this session
-        const success = await loadSessionMessages(session.id);
-        if (!success) {
-          // If loading failed, add error message
-          addMessage({
-            id: `error-${Date.now()}`,
-            role: 'system',
-            content: `Failed to load session ${session.id.substring(0, 8)}...`,
-            timestamp: Date.now(),
+        if (isModifierHeld) {
+          // Open in new pane
+          const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+          
+          // Create a new coder pane with the messages from the selected session
+          const openCoderPane = usePaneStore.getState().addPane;
+          const screenWidth = window.innerWidth;
+          const screenHeight = window.innerHeight;
+          
+          // Position new pane offset from current one
+          const currentPanes = usePaneStore.getState().panes;
+          const currentCoderPane = currentPanes.find(p => p.id === CODER_PANE_ID);
+          const offsetX = 50;
+          const offsetY = 50;
+          
+          openCoderPane({
+            id: `coder_pane_${Date.now()}`,
+            type: "coder",
+            title: `Coder - ${session.id.substring(0, 8)}`,
+            x: currentCoderPane ? Math.min(currentCoderPane.x + offsetX, screenWidth - 600) : Math.floor((screenWidth - 569) / 2),
+            y: currentCoderPane ? Math.min(currentCoderPane.y + offsetY, screenHeight - 400) : 30,
+            width: 569,
+            height: Math.floor(screenHeight * 0.85),
+            dismissable: true,
+            content: { sessionId: session.id }, // Pass the existing session ID
           });
-        }
+        } else {
+          // Load in current pane
+          const success = await loadSessionMessages(session.id);
+          if (!success) {
+            // If loading failed, add error message
+            addMessage({
+              id: `error-${Date.now()}`,
+              role: 'system',
+              content: `Failed to load session ${session.id.substring(0, 8)}...`,
+              timestamp: Date.now(),
+            });
+          }
 
-        // Close the history menu
-        setHistoryMenuOpen(false);
+          // Close the history menu
+          setHistoryMenuOpen(false);
 
-        // Focus on the text input after a delay to ensure menu is fully closed
-        // and the component has settled. Use multiple attempts to ensure focus sticks.
-        setTimeout(() => {
-          setFocusKey(prev => prev + 1);
-          // Second attempt after a bit more time
+          // Focus on the text input after a delay to ensure menu is fully closed
+          // and the component has settled. Use multiple attempts to ensure focus sticks.
           setTimeout(() => {
             setFocusKey(prev => prev + 1);
-          }, 200);
-        }, 400);
+            // Second attempt after a bit more time
+            setTimeout(() => {
+              setFocusKey(prev => prev + 1);
+            }, 200);
+          }, 400);
+        }
       },
     }));
   }, [chatHistorySessions, runtime, loadSessionMessages, addMessage, setFocusKey]);

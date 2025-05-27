@@ -258,7 +258,7 @@ const renderDropdownItems = (items: PaneDropdownItem[], parentId: string): React
           key={key}
           onClick={(e) => {
             e.stopPropagation();
-            actionItem.action();
+            actionItem.action(e);
           }}
           disabled={actionItem.disabled}
           onSelect={(e) => e.preventDefault()}
