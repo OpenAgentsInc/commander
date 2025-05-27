@@ -500,12 +500,6 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
         .concat(userMessage)
         .map(m => ({ role: m.role, content: m.content }));
 
-      // Add system message at the beginning
-      apiMessages.unshift({
-        role: 'system',
-        content: currentMessages.find(m => m.role === 'system')?.content || 'You are Claude Code, a helpful AI coding assistant.'
-      });
-
       // Stream response from Claude Code
       const cleanup = window.electronAPI.claudeCode?.streamChat(
         {

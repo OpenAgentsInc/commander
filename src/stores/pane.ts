@@ -154,9 +154,13 @@ export const usePaneStore = create<PaneStoreType>()(
             const screenHeight =
               typeof window !== "undefined" ? window.innerHeight : 1080;
 
-            // Calculate fullscreen-ish dimensions (leave some margin for the window chrome)
-            const width = screenWidth - (PANE_MARGIN * 2);
-            const height = screenHeight - (PANE_MARGIN * 2) - 100; // Extra space for title bar and hotbar
+            // Calculate 45% width and center it
+            const width = Math.floor(screenWidth * 0.45);
+            // Make it 85% of screen height - between 70% and almost full
+            const height = Math.floor(screenHeight * 0.85);
+            
+            // Center the pane horizontally
+            const x = Math.floor((screenWidth - width) / 2);
 
             // Generate a unique UI session ID for this coder pane instance
             const sessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
@@ -165,7 +169,7 @@ export const usePaneStore = create<PaneStoreType>()(
               id: paneId,
               type: "coder",
               title: CODER_PANE_TITLE,
-              x: PANE_MARGIN,
+              x: x,
               y: PANE_MARGIN + 10,
               width: width,
               height: height,
