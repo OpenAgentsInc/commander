@@ -7,6 +7,7 @@ import { EditorState } from "prosemirror-state";
 import { schema } from "prosemirror-schema-basic";
 import { DatabaseService } from '@/services/db';
 import type { DBMessage, DBSession } from '@/services/db';
+import { ChatMessage as UIChatMessage, type Message } from '@/components/ui/chat-message';
 
 
 // ProseMirror Editor component that's loaded after the dynamic import
@@ -109,6 +110,26 @@ interface ChatMessage {
   isStreaming?: boolean;
   id?: string; // Add ID for database tracking
 }
+
+// Custom styled ChatMessage component wrapper
+const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ message, index }) => {
+  // Use the rich ChatMessage component for better formatting
+  return (
+    <div className={`coder-chat-message ${message.role === 'user' ? 'user-message' : 'assistant-message'}`}>
+      <UIChatMessage
+        id={message.id || `msg-${index}`}
+        role={message.role === 'user' ? 'user' : 'assistant'}
+        content={message.content}
+        createdAt={new Date(message.timestamp)}
+        animation="none"
+        showTimeStamp={false}
+      />
+      {message.isStreaming && message.role === 'assistant' && (
+        <span className="inline-block w-2 h-4 ml-1 bg-white animate-pulse" />
+      )}
+    </div>
+  );
+};
 
 interface CoderPaneProps {
   sessionId?: string; // Passed from pane content
@@ -407,29 +428,127 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
 
   return (
     <div className="h-full w-full flex flex-col bg-black">
+      <style>{`
+        /* Custom styles for Coder pane messages */
+        .coder-chat-message .group\\/message {
+          background-color: transparent !important;
+          color: white !important;
+          border-radius: 0 !important;
+        }
+        
+        .coder-chat-message.user-message .group\\/message {
+          max-width: 80% !important;
+          border: 1px solid white !important;
+        }
+        
+        .coder-chat-message.assistant-message .group\\/message {
+          max-width: 100% !important;
+          border: none !important;
+        }
+        
+        /* Style the markdown content */
+        .coder-chat-message .prose {
+          color: white !important;
+          max-width: none !important;
+        }
+        
+        .coder-chat-message .prose p {
+          margin-bottom: 0.5em !important;
+          line-height: 1.5 !important;
+        }
+        
+        .coder-chat-message .prose pre {
+          background-color: rgba(255, 255, 255, 0.1) !important;
+          border: 1px solid rgba(255, 255, 255, 0.2) !important;
+          color: white !important;
+          margin: 0.5em 0 !important;
+        }
+        
+        .coder-chat-message .prose code {
+          color: white !important;
+          background-color: rgba(255, 255, 255, 0.1) !important;
+          padding: 0.125rem 0.25rem !important;
+          border-radius: 0.25rem !important;
+        }
+        
+        .coder-chat-message .prose pre code {
+          background-color: transparent !important;
+          padding: 0 !important;
+        }
+        
+        /* Headings */
+        .coder-chat-message .prose h1,
+        .coder-chat-message .prose h2,
+        .coder-chat-message .prose h3,
+        .coder-chat-message .prose h4,
+        .coder-chat-message .prose h5,
+        .coder-chat-message .prose h6 {
+          color: white !important;
+          font-weight: bold !important;
+          margin-top: 1em !important;
+          margin-bottom: 0.5em !important;
+        }
+        
+        /* Lists */
+        .coder-chat-message .prose ul,
+        .coder-chat-message .prose ol {
+          color: white !important;
+          margin: 0.5em 0 !important;
+          padding-left: 1.5em !important;
+        }
+        
+        .coder-chat-message .prose li {
+          color: white !important;
+          margin: 0.25em 0 !important;
+        }
+        
+        /* Links */
+        .coder-chat-message .prose a {
+          color: #60a5fa !important;
+          text-decoration: underline !important;
+        }
+        
+        .coder-chat-message .prose a:hover {
+          color: #93bbfc !important;
+        }
+        
+        /* Strong and emphasis */
+        .coder-chat-message .prose strong {
+          color: white !important;
+          font-weight: bold !important;
+        }
+        
+        .coder-chat-message .prose em {
+          color: white !important;
+          font-style: italic !important;
+        }
+        
+        /* Blockquotes */
+        .coder-chat-message .prose blockquote {
+          border-left: 4px solid rgba(255, 255, 255, 0.3) !important;
+          padding-left: 1em !important;
+          color: rgba(255, 255, 255, 0.8) !important;
+          margin: 0.5em 0 !important;
+        }
+        
+        /* Copy button in code blocks */
+        .coder-chat-message .copy-button {
+          background-color: rgba(255, 255, 255, 0.1) !important;
+          border: 1px solid rgba(255, 255, 255, 0.2) !important;
+          color: white !important;
+        }
+        
+        .coder-chat-message .copy-button:hover {
+          background-color: rgba(255, 255, 255, 0.2) !important;
+        }
+      `}</style>
       {/* Chat messages area */}
       <div className="flex-1 overflow-auto p-4">
         <div className="max-w-[750px] mx-auto space-y-4">
           {messages
             .filter(msg => msg.role !== 'system') // Don't show system messages
             .map((message, idx) => (
-              <div
-                key={idx}
-                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`p-3 text-sm text-white ${
-                    message.role === 'user'
-                      ? 'max-w-[80%] bg-transparent border border-white'
-                      : 'w-full bg-transparent'
-                  }`}
-                >
-                  {message.content}
-                  {message.isStreaming && (
-                    <span className="inline-block w-2 h-4 ml-1 bg-white animate-pulse" />
-                  )}
-                </div>
-              </div>
+              <CoderChatMessage key={message.id || idx} message={message} index={idx} />
             ))}
         </div>
       </div>
