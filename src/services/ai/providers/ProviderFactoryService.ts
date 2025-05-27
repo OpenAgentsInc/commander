@@ -19,13 +19,13 @@ export interface ProviderFactoryService {
   createProvider(
     providerKey: string,
     modelName?: string
-  ): Effect.Effect<AgentLanguageModel, AiProviderError | AiConfigurationError>;
+  ): Effect.Effect<AgentLanguageModel, AiProviderError | AiConfigurationError, never>;
   
   /**
    * Lists available provider keys.
    * @returns Effect that resolves to an array of provider keys
    */
-  listProviders(): Effect.Effect<string[]>;
+  listProviders(): Effect.Effect<string[], never, never>;
 }
 
 export const ProviderFactoryService = Context.GenericTag<ProviderFactoryService>("ProviderFactoryService");

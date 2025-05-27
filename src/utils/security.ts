@@ -240,7 +240,7 @@ export const SecureStorage = {
 /**
  * Log security audit events
  */
-export const auditLog = (event: SecurityAuditEvent) => 
+export const auditLog = (event: SecurityAuditEvent): Effect.Effect<void, Error, TelemetryService> => 
   Effect.gen(function* (_) {
     const telemetry = yield* _(TelemetryService);
     
@@ -249,11 +249,13 @@ export const auditLog = (event: SecurityAuditEvent) =>
       action: event.operation,
       label: event.resource,
       timestamp: event.timestamp,
-      metadata: {
+      context: {
         ...event.metadata,
         userId: event.userId
       }
-    }));
+    }).pipe(
+      Effect.mapError(() => new Error("Failed to track audit event"))
+    ));
   });
 
 /**

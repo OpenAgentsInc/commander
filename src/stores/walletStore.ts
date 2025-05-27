@@ -1,7 +1,7 @@
 // src/stores/walletStore.ts
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { Effect } from "effect";
+import { Effect, Runtime } from "effect";
 import { BIP39Service } from "@/services/bip39";
 // Import SparkService for initialization
 import { SparkService } from "@/services/spark";
@@ -86,17 +86,18 @@ export const useWalletStore = create<WalletState & WalletActions>()(
 
           // Log wallet initialization audit event
           const runtime = getMainRuntime();
-          Effect.runFork(
-            auditLog({
-              operation: isNewWallet ? "wallet_generated" : "wallet_restored",
-              resource: "wallet",
-              timestamp: Date.now(),
-              metadata: {
-                mnemonicPreview: maskSensitiveData(mnemonic, 'mnemonic')
-              }
-            }),
-            runtime
+          const auditProgram = auditLog({
+            operation: isNewWallet ? "wallet_generated" : "wallet_restored",
+            resource: "wallet",
+            timestamp: Date.now(),
+            metadata: {
+              mnemonicPreview: maskSensitiveData(mnemonic, 'mnemonic')
+            }
+          }).pipe(
+            Effect.catchAll(() => Effect.void)
           );
+          
+          Runtime.runFork(runtime)(auditProgram);
 
           set({
             seedPhrase: mnemonic, // Now store the seed

@@ -1,4 +1,4 @@
-import { Effect, Layer, Context, Exit, Console } from "effect";
+import { Effect, Layer, Context, Exit, Console, Runtime } from "effect";
 import { ProviderFactoryService } from "./ProviderFactoryService";
 import { AgentLanguageModel, makeAgentLanguageModel } from "@/services/ai/core/AgentLanguageModel";
 import { AiProviderError, AiConfigurationError } from "@/services/ai/core/AIError";
@@ -38,18 +38,32 @@ export const ProviderFactoryServiceLive = Layer.effect(
     const nip90 = yield* _(NIP90Service);
     const spark = yield* _(SparkService);
     
-    const runTelemetry = (telemetryEffect: Effect.Effect<void, Error>) => {
-      Effect.runFork(telemetryEffect.pipe(
-        Effect.catchAll((error) =>
-          Console.error(`Telemetry error in ProviderFactory: ${error.message}`)
+    // Create a context with all services
+    const serviceContext = Context.empty().pipe(
+      Context.add(ConfigurationService, config),
+      Context.add(TelemetryService, telemetry),
+      Context.add(OllamaService, ollama),
+      Context.add(NostrService, nostr),
+      Context.add(NIP04Service, nip04),
+      Context.add(NIP90Service, nip90),
+      Context.add(SparkService, spark)
+    );
+    
+    const runTelemetry = (telemetryEffect: Effect.Effect<void, Error, TelemetryService>) => {
+      Runtime.runFork(Runtime.defaultRuntime)(
+        telemetryEffect.pipe(
+          Effect.provideService(TelemetryService, telemetry),
+          Effect.catchAll((error) =>
+            Console.error(`Telemetry error in ProviderFactory: ${error.message}`)
+          )
         )
-      ));
+      );
     };
     
     const service: ProviderFactoryService = {
       _tag: "ProviderFactoryService",
       
-      createProvider: (providerKey: string, modelName?: string) =>
+      createProvider: (providerKey: string, modelName?: string): Effect.Effect<AgentLanguageModel, AiProviderError | AiConfigurationError, never> =>
         Effect.gen(function* (_) {
           runTelemetry(telemetry.trackEvent({
             category: "provider_factory",
@@ -60,7 +74,7 @@ export const ProviderFactoryServiceLive = Layer.effect(
           switch (providerKey) {
             case "ollama": {
               const isEnabled = yield* _(
-                config.get(CONFIG_KEYS.ollama.modelEnabled).pipe(
+                config.get(CONFIG_KEYS.OLLAMA_MODEL_ENABLED).pipe(
                   Effect.map(value => value === "true"),
                   Effect.catchAll(() => Effect.succeed(false))
                 )
@@ -69,15 +83,14 @@ export const ProviderFactoryServiceLive = Layer.effect(
               if (!isEnabled) {
                 return yield* _(Effect.fail(new AiConfigurationError({
                   message: "Ollama provider is disabled",
-                  provider: "ollama",
-                  isRetryable: false
+                  context: { provider: "ollama" }
                 })));
               }
               
               // Use Ollama provider
               const ollamaConfig = {
                 modelName: modelName || (yield* _(
-                  config.get(CONFIG_KEYS.ollama.modelName).pipe(
+                  config.get(CONFIG_KEYS.OLLAMA_MODEL_NAME).pipe(
                     Effect.catchAll(() => Effect.succeed("gemma3:1b"))
                   )
                 ))
@@ -86,7 +99,7 @@ export const ProviderFactoryServiceLive = Layer.effect(
               // Import Ollama provider module
               const ollamaModule = yield* _(
                 Effect.tryPromise({
-                  try: () => import("@/services/ai/providers/ollama" as any),
+                  try: () => import("./ollama/index.js"),
                   catch: (error) => new AiProviderError({
                     message: `Failed to load Ollama provider: ${error}`,
                     cause: error,
@@ -96,13 +109,13 @@ export const ProviderFactoryServiceLive = Layer.effect(
                 })
               );
               
-              const { OllamaAgentLanguageModelLive, OllamaProviderConfigTag } = ollamaModule;
+              const { OllamaAgentLanguageModelLiveLayer, OllamaAsOpenAIClientLive } = ollamaModule;
               
-              const ollamaConfigLayer = Layer.succeed(OllamaProviderConfigTag, ollamaConfig);
-              const ollamaAgentLMLayer = OllamaAgentLanguageModelLive.pipe(
-                Layer.provide(ollamaConfigLayer),
+              const ollamaAgentLMLayer = OllamaAgentLanguageModelLiveLayer.pipe(
+                Layer.provide(OllamaAsOpenAIClientLive),
                 Layer.provide(Layer.succeed(OllamaService, ollama)),
-                Layer.provide(Layer.succeed(TelemetryService, telemetry))
+                Layer.provide(Layer.succeed(TelemetryService, telemetry)),
+                Layer.provide(Layer.succeed(ConfigurationService, config))
               );
               
               const ollamaAgentLM = yield* _(
@@ -253,18 +266,20 @@ export const ProviderFactoryServiceLive = Layer.effect(
                     })
                   ),
                 
-                generateStructured: (options: GenerateStructuredOptions) =>
+                generateStructured: (options: GenerateStructuredOptions): Effect.Effect<AiResponse, AiProviderError, never> =>
                   Effect.gen(function* (_) {
                     // For now, just use generateText and try to parse
-                    const response = yield* _(this.generateText(options));
+                    const response = yield* _(claudeCodeAgentLM.generateText(options));
                     
                     try {
                       const parsed = JSON.parse(response.text);
-                      return AiResponse.fromSimple({
+                      // The structured response should include the parsed data
+                      const structuredResponse = {
                         text: response.text,
-                        data: parsed,
+                        toolCalls: undefined, // claude_code doesn't support tool calls in this implementation
                         metadata: response.metadata
-                      });
+                      };
+                      return AiResponse.fromSimple(structuredResponse);
                     } catch (error) {
                       return yield* _(Effect.fail(new AiProviderError({
                         message: `Failed to parse structured response: ${error}`,
@@ -299,15 +314,20 @@ export const ProviderFactoryServiceLive = Layer.effect(
                   const resolvedPubkey = aliasMap[pubkeyOrAlias] || pubkeyOrAlias;
                   
                   return {
+                    modelName: modelName || "default",
+                    isEnabled: true,
                     dvmPubkey: resolvedPubkey,
-                    modelName: modelName || "default"
+                    dvmRelays: ["wss://relay.damus.io", "wss://nos.lol"],
+                    requestKind: 5050,
+                    requiresEncryption: false,
+                    useEphemeralRequests: true
                   };
                 }));
                 
                 // Import NIP90 provider module
                 const nip90Module = yield* _(
                   Effect.tryPromise({
-                    try: () => import("@/services/ai/providers/nip90" as any),
+                    try: () => import("./nip90/index.js"),
                     catch: (error) => new AiProviderError({
                       message: `Failed to load NIP90 provider: ${error}`,
                       cause: error,
@@ -354,20 +374,19 @@ export const ProviderFactoryServiceLive = Layer.effect(
               // Unknown provider
               return yield* _(Effect.fail(new AiConfigurationError({
                 message: `Unknown provider: ${providerKey}`,
-                provider: providerKey,
-                isRetryable: false
+                context: { provider: providerKey }
               })));
             }
           }
-        }),
+        }).pipe(Effect.provide(serviceContext)),
       
-      listProviders: () =>
+      listProviders: (): Effect.Effect<string[], never, never> =>
         Effect.gen(function* (_) {
           const providers: string[] = ["claude_code"];
           
           // Check if Ollama is enabled
           const ollamaEnabled = yield* _(
-            config.get(CONFIG_KEYS.ollama.modelEnabled).pipe(
+            config.get(CONFIG_KEYS.OLLAMA_MODEL_ENABLED).pipe(
               Effect.map(value => value === "true"),
               Effect.catchAll(() => Effect.succeed(false))
             )
@@ -382,7 +401,7 @@ export const ProviderFactoryServiceLive = Layer.effect(
           providers.push("nip90:testing_provider");
           
           return providers;
-        })
+        }).pipe(Effect.provide(serviceContext))
     };
     
     return service;

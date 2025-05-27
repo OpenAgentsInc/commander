@@ -6,7 +6,7 @@ import * as runtime from "@/services/runtime";
 // Mock the runtime module
 vi.mock("@/services/runtime", () => ({
   getMainRuntime: vi.fn(() => ({
-    // Mock runtime implementation
+    // Mock runtime implementation - used by Runtime.runFork
   })),
   reinitializeRuntime: vi.fn(() => Promise.resolve()),
 }));
@@ -25,6 +25,10 @@ vi.mock("effect", async () => {
           value: true,
         });
       }),
+    },
+    Runtime: {
+      ...(actual.Runtime || {}),
+      runFork: vi.fn(() => vi.fn(() => ({ /* Fiber mock */ }))),
     },
   };
 });

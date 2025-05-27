@@ -8,6 +8,18 @@ vi.mock("@/services/runtime", () => ({
   reinitializeRuntime: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Mock Effect Runtime.runFork for audit logging
+vi.mock("effect", async () => {
+  const actual = await vi.importActual("effect") as any;
+  return {
+    ...actual,
+    Runtime: {
+      ...(actual.Runtime || {}),
+      runFork: vi.fn(() => vi.fn(() => ({ /* Fiber mock */ }))),
+    },
+  };
+});
+
 describe("Wallet Store Runtime Integration", () => {
   let originalConsoleLog: typeof console.log;
 

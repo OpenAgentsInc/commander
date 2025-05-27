@@ -1,4 +1,4 @@
-import { Effect, Console } from "effect";
+import { Effect, Console, Runtime } from "effect";
 import { TelemetryService } from "@/services/telemetry";
 import { toast } from "sonner";
 
@@ -114,7 +114,7 @@ export const reportError = (
     toastMessage?: string;
     logToConsole?: boolean;
   }
-) => Effect.gen(function* (_) {
+): Effect.Effect<void, Error, TelemetryService> => Effect.gen(function* (_) {
   const telemetry = yield* _(TelemetryService);
   const errorDetails = getErrorDetails(error);
   
@@ -124,11 +124,13 @@ export const reportError = (
     action: context.operation,
     label: errorDetails.type || "unknown_error",
     value: 1,
-    metadata: {
+    context: {
       ...errorDetails,
       ...context.metadata
     }
-  }));
+  }).pipe(
+    Effect.mapError(() => new Error("Failed to track error in telemetry"))
+  ));
   
   // Log to console if requested
   if (options?.logToConsole !== false) {
@@ -178,13 +180,14 @@ export const createErrorHandler = (
     return;
   }
   
-  Effect.runFork(
-    reportError(error, context, {
-      showToast: options?.showToast,
-      toastMessage: options?.customMessages?.[getErrorDetails(error).type || ""] || undefined
-    }),
-    runtime
+  const program = reportError(error, context, {
+    showToast: options?.showToast,
+    toastMessage: options?.customMessages?.[getErrorDetails(error).type || ""] || undefined
+  }).pipe(
+    Effect.catchAll(() => Effect.void)
   );
+  
+  Runtime.runFork(runtime)(program);
 };
 
 /**
