@@ -31,7 +31,7 @@ export function removePaneAction(set: any, id: string) {
         width: paneToRemove.width,
         height: paneToRemove.height,
         content: paneToRemove.content, // Save content including sessionId
-        // shouldRestore: false, // Let the action that calls removePane decide this
+        shouldRestore: false, // Mark as permanently closed when using X button
       };
     }
 

@@ -1071,7 +1071,13 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
         </div>
       </div>
       {/* ProseMirror editor at the bottom */}
-      <div className="flex items-center justify-center pb-4 px-4">
+      <div className="flex flex-col items-center justify-center pb-4 px-4">
+        {isLoading && (
+          <div className="flex items-center gap-2 mb-2 text-white/70">
+            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            <span className="text-sm">Claude Code is thinking</span>
+          </div>
+        )}
         <div className="h-[100px] w-[750px] overflow-auto rounded border border-white bg-black">
           <ProseMirrorEditor onSubmit={sendMessage} disabled={isLoading} focusKey={focusKey} />
         </div>
