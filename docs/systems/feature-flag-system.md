@@ -13,6 +13,7 @@ The Feature Flag System in Commander allows selective enabling and disabling of 
 │   FeatureFlag.ts    │  ← Feature enum definitions
 └──────────┬──────────┘
            │
+           │
 ┌──────────▼──────────┐
 │ FeatureFlagService  │  ← Service interface
 └──────────┬──────────┘
@@ -61,7 +62,7 @@ Feature flags are configured through the `FEATURE_FLAGS_ENABLED_LIST` configurat
 ```typescript
 // In ConfigurationServiceImpl.ts
 yield* _(configService.set(
-  "FEATURE_FLAGS_ENABLED_LIST", 
+  "FEATURE_FLAGS_ENABLED_LIST",
   "CLAUDE_CODE_PROVIDER,CODER_PANE,HAND_TRACKING"
 ));
 ```
@@ -80,10 +81,10 @@ import { Feature } from '@/services/featureflags/FeatureFlag';
 
 function MyComponent() {
   const [isWalletEnabled, isLoading, error] = useFeatureFlag(Feature.WALLET_PANE);
-  
+
   if (isLoading) return <LoadingSpinner />;
   if (error) return <ErrorMessage />;
-  
+
   return isWalletEnabled ? <WalletUI /> : null;
 }
 ```
@@ -96,7 +97,7 @@ Inject `FeatureFlagService` and use it directly:
 const loadProviders = Effect.gen(function* (_) {
   const featureFlagService = yield* _(FeatureFlagService);
   const isOllamaEnabled = yield* _(featureFlagService.isEnabled(Feature.OLLAMA_PROVIDER));
-  
+
   if (isOllamaEnabled) {
     // Load Ollama provider
   }
@@ -193,9 +194,9 @@ When multiple UI elements depend on the same feature:
 // Good - single feature check at parent level
 function DVMSection() {
   const [isDVMEnabled] = useFeatureFlag(Feature.DVM_PROVIDER_PANE);
-  
+
   if (!isDVMEnabled) return null;
-  
+
   return (
     <>
       <DVMProviderUI />
@@ -225,7 +226,7 @@ Use ghost/placeholder elements to maintain layout:
 function PaymentFlow() {
   const [isWalletEnabled] = useFeatureFlag(Feature.WALLET_PANE);
   const [isDVMEnabled] = useFeatureFlag(Feature.DVM_PROVIDER_PANE);
-  
+
   if (!isWalletEnabled || !isDVMEnabled) {
     return <FeatureDisabledMessage />;
   }
