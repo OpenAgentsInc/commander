@@ -40,7 +40,7 @@ export function addPaneActionLogic(
     state.lastPanePosition,
   );
 
-  const newPane: Pane = ensurePaneIsVisible({
+  const paneBeforeEnsure = {
     id: newPaneInput.id || `pane-${paneIdCounter++}`,
     type: newPaneInput.type,
     title: newPaneInput.title || `Pane ${paneIdCounter - 1}`,
@@ -53,7 +53,19 @@ export function addPaneActionLogic(
       newPaneInput.dismissable !== undefined ? newPaneInput.dismissable : true,
     content: newPaneInput.content,
     headerMenus: newPaneInput.headerMenus || [], // Default to empty array
+  };
+  
+  console.log('[addPaneActionLogic] Creating pane with position:', {
+    id: paneBeforeEnsure.id,
+    x: paneBeforeEnsure.x,
+    y: paneBeforeEnsure.y,
+    inputX: newPaneInput.x,
+    inputY: newPaneInput.y,
+    baseX: basePosition.x,
+    baseY: basePosition.y,
   });
+
+  const newPane: Pane = ensurePaneIsVisible(paneBeforeEnsure);
 
   const updatedPanes = state.panes.map((p) => ({ ...p, isActive: false }));
 

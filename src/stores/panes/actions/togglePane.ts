@@ -103,7 +103,6 @@ export function togglePaneAction(
       console.log(`[togglePane] Removing stored position for ${paneId}`);
       const { [paneId]: _, ...remainingPositions } = state.closedPanePositions;
       return {
-        ...state,
         ...newState,
         closedPanePositions: remainingPositions,
       };
