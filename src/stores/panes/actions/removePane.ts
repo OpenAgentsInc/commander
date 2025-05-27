@@ -22,7 +22,7 @@ export function removePaneAction(set: any, id: string) {
       isActive: p.id === newActivePaneId,
     }));
 
-    // Save the position of the removed pane if it exists
+    // Save the position and content of the removed pane if it exists
     const updatedClosedPanePositions = { ...state.closedPanePositions };
     if (paneToRemove) {
       updatedClosedPanePositions[id] = {
@@ -30,6 +30,8 @@ export function removePaneAction(set: any, id: string) {
         y: paneToRemove.y,
         width: paneToRemove.width,
         height: paneToRemove.height,
+        content: paneToRemove.content, // Save content including sessionId
+        shouldRestore: false, // Explicitly closed with X, don't restore on toggle
       };
     }
 

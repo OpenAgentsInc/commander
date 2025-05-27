@@ -7,6 +7,7 @@ import {
   removePaneAction,
   updatePanePositionAction,
   updatePaneSizeAction,
+  updatePaneContentAction,
   openChatPaneAction,
   bringPaneToFrontAction,
   setActivePaneAction,
@@ -29,6 +30,8 @@ import {
   openPreviousChatsPaneAction,
   // Common toggle action
   togglePaneAction,
+  // Coder pane action
+  toggleAllCoderPanesAction,
 } from "./panes/actions";
 import {
   DEFAULT_NIP28_PANE_ID,
@@ -80,6 +83,8 @@ export const usePaneStore = create<PaneStoreType>()(
         updatePanePositionAction(set, id, x, y),
       updatePaneSize: (id: string, width: number, height: number) =>
         updatePaneSizeAction(set, id, width, height),
+      updatePaneContent: (id: string, content: any) =>
+        updatePaneContentAction(set, id, content),
       openChatPane: (newPaneInput: PaneInput, isCommandKeyHeld?: boolean) =>
         openChatPaneAction(set, newPaneInput, isCommandKeyHeld),
       bringPaneToFront: (id: string) => bringPaneToFrontAction(set, id),
@@ -179,49 +184,8 @@ export const usePaneStore = create<PaneStoreType>()(
             },
           })
         ),
-      // Coder pane
-      toggleCoderPane: () =>
-        set((state) => 
-          togglePaneAction(set, state, {
-            paneId: CODER_PANE_ID,
-            createPaneInput: (screenWidth, screenHeight, storedPosition) => {
-              let x, y, width, height;
-              
-              if (storedPosition) {
-                // Use the stored position
-                ({ x, y, width, height } = storedPosition);
-                
-                // Ensure the pane is still visible on screen (in case window was resized)
-                x = Math.max(PANE_MARGIN, Math.min(x, screenWidth - 100));
-                y = Math.max(PANE_MARGIN, Math.min(y, screenHeight - 100));
-                width = Math.min(width, screenWidth - x - PANE_MARGIN);
-                height = Math.min(height, screenHeight - y - PANE_MARGIN);
-              } else {
-                // Calculate default position
-                width = Math.floor(screenWidth * 0.45);
-                height = Math.floor(screenHeight * 0.85);
-                x = Math.floor((screenWidth - width) / 2);
-                y = PANE_MARGIN + 10;
-              }
-
-              // Generate a unique UI session ID for this coder pane instance
-              const sessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-
-              const paneInput = {
-                id: CODER_PANE_ID,
-                type: "coder",
-                title: CODER_PANE_TITLE,
-                x: x,
-                y: y,
-                width: width,
-                height: height,
-                dismissable: true,
-                content: { sessionId },
-              };
-              return paneInput;
-            },
-          })
-        ),
+      // Coder pane - toggles ALL coder panes
+      toggleCoderPane: () => toggleAllCoderPanesAction(set),
       resetHUDState: () => {
         // Force recreate initial panes with current screen dimensions
         const screenWidth =
@@ -391,21 +355,30 @@ export const usePaneStore = create<PaneStoreType>()(
         ),
     }),
     {
-      name: "commander-pane-storage-v3", // v3: Reset to remove wallet setup panes
+      name: "commander-pane-storage-v5", // v5: Persist pane content including session IDs
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         panes: state.panes,
         lastPanePosition: state.lastPanePosition,
         activePaneId: state.activePaneId,
+        closedPanePositions: state.closedPanePositions,
       }),
       merge: (persistedState, currentState) => {
-        // Start with no panes open but preserve all methods
-        return {
+        // Restore persisted state while preserving all methods
+        const merged = {
           ...currentState,
-          panes: [],
-          activePaneId: null,
-          lastPanePosition: null,
+          ...persistedState,
         };
+        
+        // Ensure we have valid arrays/objects even if persisted state is corrupted
+        if (!Array.isArray(merged.panes)) {
+          merged.panes = [];
+        }
+        if (!merged.closedPanePositions || typeof merged.closedPanePositions !== 'object') {
+          merged.closedPanePositions = {};
+        }
+        
+        return merged;
       },
     },
   ),

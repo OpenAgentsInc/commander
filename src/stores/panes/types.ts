@@ -11,12 +11,14 @@ export interface PaneState {
     width: number;
     height: number;
   } | null;
-  // Store last known positions of closed panes by pane ID
+  // Store last known positions and content of closed panes by pane ID
   closedPanePositions: Record<string, {
     x: number;
     y: number;
     width: number;
     height: number;
+    content?: any; // Store pane content like sessionId
+    shouldRestore?: boolean; // Whether this pane should be restored on toggle
   }>;
 }
 
@@ -25,6 +27,7 @@ export interface PaneStoreType extends PaneState {
   removePane: (id: string) => void;
   updatePanePosition: (id: string, x: number, y: number) => void;
   updatePaneSize: (id: string, width: number, height: number) => void;
+  updatePaneContent: (id: string, content: any) => void;
   openChatPane: (newPane: PaneInput, isCommandKeyHeld?: boolean) => void; // Specific action for chat panes
   bringPaneToFront: (id: string) => void;
   setActivePane: (id: string | null) => void;

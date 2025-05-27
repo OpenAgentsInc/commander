@@ -367,22 +367,23 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
 };
 
 export interface CoderPaneProps {
+  paneId: string; // The pane's ID
   sessionId?: string; // Passed from pane content
   titleBarButtonsRef?: { current: any; set: (value: any) => void }; // Ref to set title bar buttons and menus
 }
 
-const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titleBarButtonsRef }) => {
+const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSessionId, titleBarButtonsRef }) => {
   const runtime = getMainRuntime(); // For telemetry
   const removePane = usePaneStore((state) => state.removePane);
-  const panes = usePaneStore((state) => state.panes);
   const updatePaneSize = usePaneStore((state) => state.updatePaneSize);
+  const updatePaneContent = usePaneStore((state) => state.updatePaneContent);
 
-  // Find the coder pane
-  const coderPane = panes.find(p => p.id === 'coder_pane');
+  // This component doesn't need to find itself in panes - remove this line
 
-  // Use provided session ID or generate new one with ui- prefix to avoid conflicts
+  // Track the current session ID separately from initial
   const sessionIdRef = useRef<string>(initialSessionId || `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`);
-
+  const [hasLoadedMessages, setHasLoadedMessages] = useState(false);
+  
   // Local state for messages - each pane has its own
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -643,8 +644,8 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
 
   // No need for initial scroll - flex-direction: column-reverse handles it
 
-  // Load messages for a session
-  const loadSessionMessages = useCallback(async (sessionId: string) => {
+  // Load messages for a session - don't use useCallback to avoid dependency issues
+  const loadSessionMessages = async (sessionId: string) => {
     try {
       const dbProgram = Effect.flatMap(DatabaseService, (db) =>
         db.getMessagesForSession(sessionId, 100) // Get up to 100 messages
@@ -656,6 +657,12 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
         // Clear current messages and set new session ID
         sessionIdRef.current = sessionId;
         clearMessages();
+        
+        // Update the pane's content to save the new session ID
+        updatePaneContent(paneId, { sessionId });
+        
+        // Mark that we've loaded messages for the new session
+        setHasLoadedMessages(true);
 
         // Convert DB messages to chat messages and add them
         dbMessages.forEach(dbMsg => {
@@ -692,19 +699,89 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
       console.error("Error loading session messages:", error);
       return false;
     }
-  }, [runtime, clearMessages, addMessage]);
+  };
 
   // Load initial session if provided
   useEffect(() => {
-    if (initialSessionId) {
-      // Load the session's messages
-      // We need to do this after a short delay to ensure the component is fully mounted
-      const timer = setTimeout(() => {
-        loadSessionMessages(initialSessionId);
-      }, 100);
+    console.log('Session loading effect - initialSessionId:', initialSessionId, 'hasLoaded:', hasLoadedMessages);
+    // Only load if we have a sessionId and haven't loaded messages yet
+    if (initialSessionId && !hasLoadedMessages) {
+      setHasLoadedMessages(true);
+      console.log('Loading session messages for:', initialSessionId);
+      
+      // Load the session's messages after a longer delay to ensure runtime is ready
+      const timer = setTimeout(async () => {
+        try {
+          const dbProgram = Effect.flatMap(DatabaseService, (db) =>
+            db.getMessagesForSession(initialSessionId, 100)
+          );
+          const exitResult = await Effect.runPromiseExit(Effect.provide(dbProgram, runtime));
+          if (Exit.isSuccess(exitResult)) {
+            const dbMessages = exitResult.value;
+            console.log('Loaded', dbMessages.length, 'messages from DB');
+
+            // Only proceed if we have messages or if this is a valid session
+            if (dbMessages.length > 0 || initialSessionId.startsWith('ui-coder-')) {
+              // Clear current messages and set new session ID
+              sessionIdRef.current = initialSessionId;
+              setMessages([{
+                id: 'system',
+                role: 'system',
+                content: 'You are Claude Code, a helpful AI coding assistant.',
+                timestamp: Date.now(),
+              }]);
+              
+              // Update the pane's content to save the session ID
+              updatePaneContent(paneId, { sessionId: initialSessionId });
+
+              // Convert DB messages to chat messages and add them
+              const newMessages: ChatMessage[] = [{
+                id: 'system',
+                role: 'system',
+                content: 'You are Claude Code, a helpful AI coding assistant.',
+                timestamp: Date.now(),
+              }];
+              
+              dbMessages.forEach(dbMsg => {
+              // Parse the content which might have parts
+              let parts = undefined;
+              try {
+                if (dbMsg.content) {
+                  const contentData = JSON.parse(dbMsg.content);
+                  if (contentData.parts) {
+                    parts = contentData.parts;
+                  }
+                }
+              } catch (e) {
+                // Content is plain text, not JSON
+              }
+
+              newMessages.push({
+                id: dbMsg.id,
+                role: dbMsg.role as 'user' | 'assistant' | 'system',
+                content: parts ? '' : (dbMsg.content || ''), // Use empty string if we have parts or null content
+                parts: parts,
+                timestamp: dbMsg.timestamp * 1000, // Convert from seconds to milliseconds
+              });
+            });
+            
+              // Set all messages at once
+              console.log('Setting', newMessages.length, 'messages to state');
+              setMessages(newMessages);
+            } else {
+              console.log('No messages found for session:', initialSessionId);
+            }
+          } else {
+            console.error('Failed to load messages from DB:', Exit.isFailure(exitResult) ? exitResult.cause : 'Unknown error');
+          }
+        } catch (error) {
+          console.error("Error loading initial session:", error);
+        }
+      }, 500); // Increased delay to ensure runtime is ready
+      
       return () => clearTimeout(timer);
     }
-  }, [initialSessionId, loadSessionMessages]); // Include dependencies
+  }, [initialSessionId, hasLoadedMessages, runtime]); // Depend on state and runtime
 
   // State for history menu
   const [historyMenuOpen, setHistoryMenuOpen] = useState(false);
@@ -786,7 +863,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
           openCoderPane({
             id: `coder_pane_${Date.now()}`,
             type: "coder",
-            title: `Coder - ${session.id.substring(0, 8)}`,
+            title: `Coder`,
             x: currentCoderPane ? Math.min(currentCoderPane.x + offsetX, screenWidth - 600) : Math.floor((screenWidth - 569) / 2),
             y: currentCoderPane ? Math.min(currentCoderPane.y + offsetY, screenHeight - 400) : 30,
             width: 569,
@@ -1023,4 +1100,12 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
   );
 };
 
-export default CoderPane;
+// Memoize the component to prevent unnecessary re-renders
+const MemoizedCoderPane = React.memo(CoderPane, (prevProps, nextProps) => {
+  // Only re-render if props actually changed
+  return prevProps.paneId === nextProps.paneId &&
+         prevProps.sessionId === nextProps.sessionId && 
+         prevProps.titleBarButtonsRef === nextProps.titleBarButtonsRef;
+});
+
+export default MemoizedCoderPane;

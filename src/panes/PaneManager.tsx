@@ -171,6 +171,7 @@ export const PaneManager = () => {
           {pane.type === "agent_chat" && <AgentChatPane sessionId={pane.content?.sessionId as string | undefined} sessionTitle={pane.content?.sessionTitle as string | undefined} />}
           {pane.type === "previous_chats_list" && <PreviousChatsPane />}
           {pane.type === "coder" && <CoderPane 
+            paneId={pane.id}
             sessionId={pane.content?.sessionId as string | undefined} 
             titleBarButtonsRef={{
               current: coderTitleBarRefs.current[pane.id],

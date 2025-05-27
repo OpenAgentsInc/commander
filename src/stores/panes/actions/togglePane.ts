@@ -5,7 +5,7 @@ import { PANE_MARGIN } from "../constants";
 
 interface TogglePaneConfig {
   paneId: string;
-  createPaneInput: (screenWidth: number, screenHeight: number, storedPosition?: { x: number; y: number; width: number; height: number }) => PaneInput;
+  createPaneInput: (screenWidth: number, screenHeight: number, storedPosition?: { x: number; y: number; width: number; height: number; content?: any }) => PaneInput;
 }
 
 export function togglePaneAction(
@@ -30,13 +30,15 @@ export function togglePaneAction(
         isActive: p.id === newActivePaneId,
       }));
 
-      // Save the position before closing
+      // Save the position and content before closing
       const updatedClosedPanePositions = { ...state.closedPanePositions };
       updatedClosedPanePositions[paneId] = {
         x: existingPane.x,
         y: existingPane.y,
         width: existingPane.width,
         height: existingPane.height,
+        content: existingPane.content, // Save content including sessionId
+        shouldRestore: true, // Toggled closed, should restore on next toggle
       };
 
       return {
