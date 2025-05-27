@@ -24,3 +24,5 @@ export * from "./toggleAgentChatPane";
 // Previous chats pane actions
 export * from "./openPreviousChatsPane";
 export * from "./togglePreviousChatsPane";
+// Generic toggle action
+export * from "./togglePane";

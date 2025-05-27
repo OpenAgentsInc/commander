@@ -134,3 +134,35 @@ Based on the refactor suggestions, implementing in this order:
    - Both use same centralized defaults
 
 4. Tests: All 260 tests passing
+
+### 2. Store Action Abstraction - Starting 05:12
+
+#### Current State Analysis
+- Many `toggleXYZPane` actions in usePaneStore have similar logic
+- Code duplication across toggle actions
+- Need to abstract common logic
+
+#### Goal
+- Create generic toggle/add pane functions
+- Reduce code duplication
+- Improve maintainability
+
+#### Implementation Complete ✓
+1. Created `togglePaneGeneric` function in `/src/stores/panes/actions/togglePane.ts`
+   - Handles common toggle logic (open/close/bring to front)
+   - Takes pane ID and factory function for creating new panes
+   - Added `getScreenDimensions` helper
+
+2. Refactored all duplicate toggle functions:
+   - `toggleCoderPane` - reduced from 77 lines to 16 lines
+   - `toggleSellComputePane` - reduced from 71 lines to 13 lines  
+   - `toggleWalletPane` - reduced from 66 lines to 11 lines
+   - `toggleDvmJobHistoryPane` - reduced from 66 lines to 12 lines
+
+3. Benefits:
+   - Removed ~200 lines of duplicate code
+   - Single implementation to maintain
+   - Consistent behavior across all toggle actions
+   - Easy to add new toggle actions
+
+4. Tests: All 260 tests passing

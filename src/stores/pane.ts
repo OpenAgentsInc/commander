@@ -30,6 +30,8 @@ import {
   // Previous chats pane actions
   openPreviousChatsPaneAction,
   togglePreviousChatsPaneAction,
+  togglePaneGeneric,
+  getScreenDimensions,
 } from "./panes/actions";
 import {
   DEFAULT_NIP28_PANE_ID,
@@ -103,78 +105,27 @@ export const usePaneStore = create<PaneStoreType>()(
       togglePreviousChatsPane: () => togglePreviousChatsPaneAction(set, get),
       // Coder pane
       toggleCoderPane: () =>
-        set((state) => {
-          const paneId = CODER_PANE_ID;
-          const existingPane = state.panes.find((p) => p.id === paneId);
+        togglePaneGeneric(set, get, CODER_PANE_ID, () => {
+          const { screenWidth, screenHeight } = getScreenDimensions();
+          
+          // Calculate fullscreen-ish dimensions (leave some margin for the window chrome)
+          const width = screenWidth - (PANE_MARGIN * 2);
+          const height = screenHeight - (PANE_MARGIN * 2) - 100; // Extra space for title bar and hotbar
 
-          // If the pane exists
-          if (existingPane) {
-            // If it's already the active pane, close it
-            if (state.activePaneId === paneId) {
-              const remainingPanes = state.panes.filter(
-                (pane) => pane.id !== paneId,
-              );
-              let newActivePaneId: string | null = null;
-              if (remainingPanes.length > 0) {
-                newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
-              }
-              const updatedPanes = remainingPanes.map((p) => ({
-                ...p,
-                isActive: p.id === newActivePaneId,
-              }));
+          // Generate a unique UI session ID for this coder pane instance
+          const sessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
-              return {
-                ...state,
-                panes: updatedPanes,
-                activePaneId: newActivePaneId,
-              };
-            }
-            // If it exists but isn't active, bring it to front
-            else {
-              // Move the pane to the end of the array to bring it to the front
-              const panesWithoutTarget = state.panes.filter(
-                (p) => p.id !== paneId,
-              );
-              const updatedTargetPane = { ...existingPane, isActive: true };
-              const updatedOtherPanes = panesWithoutTarget.map((p) => ({
-                ...p,
-                isActive: false,
-              }));
-
-              return {
-                ...state,
-                panes: [...updatedOtherPanes, updatedTargetPane],
-                activePaneId: paneId,
-              };
-            }
-          } else {
-            // Pane doesn't exist, create it
-            const screenWidth =
-              typeof window !== "undefined" ? window.innerWidth : 1920;
-            const screenHeight =
-              typeof window !== "undefined" ? window.innerHeight : 1080;
-
-            // Calculate fullscreen-ish dimensions (leave some margin for the window chrome)
-            const width = screenWidth - (PANE_MARGIN * 2);
-            const height = screenHeight - (PANE_MARGIN * 2) - 100; // Extra space for title bar and hotbar
-
-            // Generate a unique UI session ID for this coder pane instance
-            const sessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-
-            const newPaneInput: PaneInput = {
-              id: paneId,
-              type: "coder",
-              title: CODER_PANE_TITLE,
-              x: PANE_MARGIN,
-              y: PANE_MARGIN + 10,
-              width: width,
-              height: height,
-              dismissable: true,
-              content: { sessionId },
-            };
-
-            return addPaneActionLogic(state, newPaneInput, false);
-          }
+          return {
+            id: CODER_PANE_ID,
+            type: "coder",
+            title: CODER_PANE_TITLE,
+            x: PANE_MARGIN,
+            y: PANE_MARGIN + 10,
+            width: width,
+            height: height,
+            dismissable: true,
+            content: { sessionId },
+          };
         }),
       resetHUDState: () => {
         // Force recreate initial panes with current screen dimensions
@@ -222,213 +173,60 @@ export const usePaneStore = create<PaneStoreType>()(
 
       // Toggle actions for keyboard shortcuts
       toggleSellComputePane: () =>
-        set((state) => {
-          const paneId = SELL_COMPUTE_PANE_ID_CONST;
-          const existingPane = state.panes.find((p) => p.id === paneId);
-
-          // If the pane exists
-          if (existingPane) {
-            // If it's already the active pane, close it
-            if (state.activePaneId === paneId) {
-              const remainingPanes = state.panes.filter(
-                (pane) => pane.id !== paneId,
-              );
-              let newActivePaneId: string | null = null;
-              if (remainingPanes.length > 0) {
-                newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
-              }
-              const updatedPanes = remainingPanes.map((p) => ({
-                ...p,
-                isActive: p.id === newActivePaneId,
-              }));
-
-              return {
-                ...state,
-                panes: updatedPanes,
-                activePaneId: newActivePaneId,
-              };
-            }
-            // If it exists but isn't active, bring it to front
-            else {
-              // Move the pane to the end of the array to bring it to the front
-              const panesWithoutTarget = state.panes.filter(
-                (p) => p.id !== paneId,
-              );
-              const updatedTargetPane = { ...existingPane, isActive: true };
-              const updatedOtherPanes = panesWithoutTarget.map((p) => ({
-                ...p,
-                isActive: false,
-              }));
-
-              return {
-                ...state,
-                panes: [...updatedOtherPanes, updatedTargetPane],
-                activePaneId: paneId,
-              };
-            }
-          } else {
-            // Pane doesn't exist, create it
-            const screenWidth =
-              typeof window !== "undefined" ? window.innerWidth : 1920;
-            const screenHeight =
-              typeof window !== "undefined" ? window.innerHeight : 1080;
-
-            const newPaneInput: PaneInput = {
-              id: paneId,
-              type: "sell_compute",
-              title: "Sell Compute",
-              x: Math.max(
-                PANE_MARGIN,
-                (screenWidth - SELL_COMPUTE_INITIAL_WIDTH) / 2,
-              ),
-              y: Math.max(
-                PANE_MARGIN,
-                (screenHeight - SELL_COMPUTE_INITIAL_HEIGHT) / 3,
-              ),
-              width: SELL_COMPUTE_INITIAL_WIDTH,
-              height: SELL_COMPUTE_INITIAL_HEIGHT,
-              dismissable: true,
-              content: {},
-            };
-
-            return addPaneActionLogic(state, newPaneInput, false);
-          }
+        togglePaneGeneric(set, get, SELL_COMPUTE_PANE_ID_CONST, () => {
+          const { screenWidth, screenHeight } = getScreenDimensions();
+          
+          return {
+            id: SELL_COMPUTE_PANE_ID_CONST,
+            type: "sell_compute",
+            title: "Sell Compute",
+            x: Math.max(
+              PANE_MARGIN,
+              (screenWidth - SELL_COMPUTE_INITIAL_WIDTH) / 2,
+            ),
+            y: Math.max(
+              PANE_MARGIN,
+              (screenHeight - SELL_COMPUTE_INITIAL_HEIGHT) / 3,
+            ),
+            width: SELL_COMPUTE_INITIAL_WIDTH,
+            height: SELL_COMPUTE_INITIAL_HEIGHT,
+            dismissable: true,
+            content: {},
+          };
         }),
 
       toggleWalletPane: () =>
-        set((state) => {
-          const paneId = WALLET_PANE_ID;
-          const existingPane = state.panes.find((p) => p.id === paneId);
-
-          // If the pane exists
-          if (existingPane) {
-            // If it's already the active pane, close it
-            if (state.activePaneId === paneId) {
-              const remainingPanes = state.panes.filter(
-                (pane) => pane.id !== paneId,
-              );
-              let newActivePaneId: string | null = null;
-              if (remainingPanes.length > 0) {
-                newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
-              }
-              const updatedPanes = remainingPanes.map((p) => ({
-                ...p,
-                isActive: p.id === newActivePaneId,
-              }));
-
-              return {
-                ...state,
-                panes: updatedPanes,
-                activePaneId: newActivePaneId,
-              };
-            }
-            // If it exists but isn't active, bring it to front
-            else {
-              // Move the pane to the end of the array to bring it to the front
-              const panesWithoutTarget = state.panes.filter(
-                (p) => p.id !== paneId,
-              );
-              const updatedTargetPane = { ...existingPane, isActive: true };
-              const updatedOtherPanes = panesWithoutTarget.map((p) => ({
-                ...p,
-                isActive: false,
-              }));
-
-              return {
-                ...state,
-                panes: [...updatedOtherPanes, updatedTargetPane],
-                activePaneId: paneId,
-              };
-            }
-          } else {
-            // Pane doesn't exist, create it
-            const screenWidth =
-              typeof window !== "undefined" ? window.innerWidth : 1920;
-            const screenHeight =
-              typeof window !== "undefined" ? window.innerHeight : 1080;
-
-            const newPaneInput: PaneInput = {
-              id: paneId,
-              type: "wallet",
-              title: WALLET_PANE_TITLE,
-              x: Math.max(PANE_MARGIN, (screenWidth - 450) / 2 + 50),
-              y: Math.max(PANE_MARGIN, (screenHeight - 550) / 3 + 50),
-              width: 450,
-              height: 550,
-              dismissable: true,
-              content: {},
-            };
-
-            return addPaneActionLogic(state, newPaneInput, false);
-          }
+        togglePaneGeneric(set, get, WALLET_PANE_ID, () => {
+          const { screenWidth, screenHeight } = getScreenDimensions();
+          
+          return {
+            id: WALLET_PANE_ID,
+            type: "wallet",
+            title: WALLET_PANE_TITLE,
+            x: Math.max(PANE_MARGIN, (screenWidth - 450) / 2 + 50),
+            y: Math.max(PANE_MARGIN, (screenHeight - 550) / 3 + 50),
+            width: 450,
+            height: 550,
+            dismissable: true,
+            content: {},
+          };
         }),
 
       toggleDvmJobHistoryPane: () =>
-        set((state) => {
-          const paneId = DVM_JOB_HISTORY_PANE_ID;
-          const existingPane = state.panes.find((p) => p.id === paneId);
-
-          // If the pane exists
-          if (existingPane) {
-            // If it's already the active pane, close it
-            if (state.activePaneId === paneId) {
-              const remainingPanes = state.panes.filter(
-                (pane) => pane.id !== paneId,
-              );
-              let newActivePaneId: string | null = null;
-              if (remainingPanes.length > 0) {
-                newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
-              }
-              const updatedPanes = remainingPanes.map((p) => ({
-                ...p,
-                isActive: p.id === newActivePaneId,
-              }));
-
-              return {
-                ...state,
-                panes: updatedPanes,
-                activePaneId: newActivePaneId,
-              };
-            }
-            // If it exists but isn't active, bring it to front
-            else {
-              // Move the pane to the end of the array to bring it to the front
-              const panesWithoutTarget = state.panes.filter(
-                (p) => p.id !== paneId,
-              );
-              const updatedTargetPane = { ...existingPane, isActive: true };
-              const updatedOtherPanes = panesWithoutTarget.map((p) => ({
-                ...p,
-                isActive: false,
-              }));
-
-              return {
-                ...state,
-                panes: [...updatedOtherPanes, updatedTargetPane],
-                activePaneId: paneId,
-              };
-            }
-          } else {
-            // Pane doesn't exist, create it
-            const screenWidth =
-              typeof window !== "undefined" ? window.innerWidth : 1920;
-            const screenHeight =
-              typeof window !== "undefined" ? window.innerHeight : 1080;
-
-            const newPaneInput: PaneInput = {
-              id: paneId,
-              type: "dvm_job_history",
-              title: "DVM Job History & Stats",
-              x: Math.max(PANE_MARGIN, (screenWidth - 800) / 2 - 50),
-              y: Math.max(PANE_MARGIN, (screenHeight - 600) / 3 - 50),
-              width: 800,
-              height: 600,
-              dismissable: true,
-              content: {},
-            };
-
-            return addPaneActionLogic(state, newPaneInput, false);
-          }
+        togglePaneGeneric(set, get, DVM_JOB_HISTORY_PANE_ID, () => {
+          const { screenWidth, screenHeight } = getScreenDimensions();
+          
+          return {
+            id: DVM_JOB_HISTORY_PANE_ID,
+            type: "dvm_job_history",
+            title: "DVM Job History & Stats",
+            x: Math.max(PANE_MARGIN, (screenWidth - 800) / 2 - 50),
+            y: Math.max(PANE_MARGIN, (screenHeight - 600) / 3 - 50),
+            width: 800,
+            height: 600,
+            dismissable: true,
+            content: {},
+          };
         }),
     }),
     {
