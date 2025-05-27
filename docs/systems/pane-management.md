@@ -191,6 +191,7 @@ A centralized Zustand store manages the entire state of the pane system.
 - `panes: Pane[]`: An array of all current pane objects. The order in this array is used to determine z-index (last element is topmost).
 - `activePaneId: string | null`: The ID of the currently active/focused pane.
 - `lastPanePosition: { x, y, width, height } | null`: Stores the properties of the last interacted-with or newly created pane, used for tiling new panes.
+- `closedPanePositions: Record<string, { x, y, width, height }>`: Stores the last known positions and sizes of closed panes by their ID, allowing panes to reopen at their previous location.
 
 **Store Structure (`src/stores/pane.ts`):**
 ```typescript
@@ -205,6 +206,7 @@ const initialState: PaneState = {
   panes: getInitialPanes(),
   activePaneId: SELL_COMPUTE_PANE_ID_CONST, // Example default
   lastPanePosition: { /* ... based on initial active pane ... */ },
+  closedPanePositions: {}, // Will populate as panes are closed
 };
 
 export const usePaneStore = create<PaneStoreType>()(
@@ -389,8 +391,22 @@ Components like `HomePage.tsx` and `Hotbar.tsx` contain UI elements (buttons) th
 -   **Close**:
     1.  User clicks the 'X' button on a dismissable `PaneComponent`.
     2.  The button's `onClick` calls `usePaneStore.getState().removePane(pane.id)`.
-    3.  `removePaneAction` filters out the pane from the `panes` array and potentially activates another pane.
+    3.  `removePaneAction`:
+        - Saves the pane's current position and size to `closedPanePositions[id]`.
+        - Filters out the pane from the `panes` array.
+        - Potentially activates another pane.
     4.  `PaneManager` re-renders without the removed pane.
+
+### 4.4. Position Persistence for Toggle-able Panes
+
+When a pane is closed and later reopened (common with toggle-able panes like Coder, Wallet, etc.):
+
+1. **On Close**: `removePaneAction` saves the pane's current position/size to `closedPanePositions[paneId]`.
+2. **On Reopen**: Toggle actions (e.g., `toggleCoderPane`) check for a stored position:
+   - If found: Restore the pane at its previous location (with bounds checking) and remove the stored position.
+   - If not found: Create the pane at the default position.
+3. **One-time Use**: Stored positions are removed after being used to prevent stale data.
+4. This ensures panes remember their last position across close/open cycles while always using the most recent position.
 
 ## 5. Pane Lifecycle & Interactions
 

@@ -11,7 +11,13 @@ export interface PaneState {
     width: number;
     height: number;
   } | null;
-  // Add any other global state related to panes if needed
+  // Store last known positions of closed panes by pane ID
+  closedPanePositions: Record<string, {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }>;
 }
 
 export interface PaneStoreType extends PaneState {

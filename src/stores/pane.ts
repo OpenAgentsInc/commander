@@ -26,10 +26,8 @@ import {
   openRestoreWalletPaneAction,
   // Agent chat pane actions
   openAgentChatPaneAction,
-  toggleAgentChatPaneAction,
   // Previous chats pane actions
   openPreviousChatsPaneAction,
-  togglePreviousChatsPaneAction,
 } from "./panes/actions";
 import {
   DEFAULT_NIP28_PANE_ID,
@@ -50,6 +48,10 @@ import {
   AGENT_CHAT_PANE_DEFAULT_HEIGHT,
   CODER_PANE_ID,
   CODER_PANE_TITLE,
+  PREVIOUS_CHATS_PANE_ID,
+  PREVIOUS_CHATS_PANE_TITLE,
+  PREVIOUS_CHATS_PANE_DEFAULT_WIDTH,
+  PREVIOUS_CHATS_PANE_DEFAULT_HEIGHT,
 } from "./panes/constants";
 import { DVM_JOB_HISTORY_PANE_ID } from "./panes/actions/openDvmJobHistoryPane";
 
@@ -63,6 +65,7 @@ const initialState: PaneState = {
   panes: getInitialPanes(),
   activePaneId: null, // No active pane on startup
   lastPanePosition: null,
+  closedPanePositions: {},
 };
 
 export const usePaneStore = create<PaneStoreType>()(
@@ -97,10 +100,198 @@ export const usePaneStore = create<PaneStoreType>()(
       openRestoreWalletPane: () => openRestoreWalletPaneAction(set),
       // Agent chat pane
       openAgentChatPane: () => openAgentChatPaneAction(set),
-      toggleAgentChatPane: () => toggleAgentChatPaneAction(set, get),
+      toggleAgentChatPane: () =>
+        set((state) => {
+          const paneId = AGENT_CHAT_PANE_ID;
+          const existingPane = state.panes.find((p) => p.id === paneId);
+
+          // If the pane exists
+          if (existingPane) {
+            // If it's already the active pane, close it
+            if (state.activePaneId === paneId) {
+              const remainingPanes = state.panes.filter(
+                (pane) => pane.id !== paneId,
+              );
+              let newActivePaneId: string | null = null;
+              if (remainingPanes.length > 0) {
+                newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
+              }
+              const updatedPanes = remainingPanes.map((p) => ({
+                ...p,
+                isActive: p.id === newActivePaneId,
+              }));
+
+              return {
+                ...state,
+                panes: updatedPanes,
+                activePaneId: newActivePaneId,
+              };
+            }
+            // If it exists but isn't active, bring it to front
+            else {
+              // Move the pane to the end of the array to bring it to the front
+              const panesWithoutTarget = state.panes.filter(
+                (p) => p.id !== paneId,
+              );
+              const updatedTargetPane = { ...existingPane, isActive: true };
+              const updatedOtherPanes = panesWithoutTarget.map((p) => ({
+                ...p,
+                isActive: false,
+              }));
+
+              return {
+                ...state,
+                panes: [...updatedOtherPanes, updatedTargetPane],
+                activePaneId: paneId,
+              };
+            }
+          } else {
+            // Pane doesn't exist, create it
+            const screenWidth =
+              typeof window !== "undefined" ? window.innerWidth : 1920;
+            const screenHeight =
+              typeof window !== "undefined" ? window.innerHeight : 1080;
+
+            // Check if we have a stored position for this pane
+            const storedPosition = state.closedPanePositions[paneId];
+            
+            let x, y, width, height;
+            
+            if (storedPosition) {
+              // Use the stored position
+              ({ x, y, width, height } = storedPosition);
+              
+              // Ensure the pane is still visible on screen (in case window was resized)
+              x = Math.max(PANE_MARGIN, Math.min(x, screenWidth - 100));
+              y = Math.max(PANE_MARGIN, Math.min(y, screenHeight - 100));
+              width = Math.min(width, screenWidth - x - PANE_MARGIN);
+              height = Math.min(height, screenHeight - y - PANE_MARGIN);
+            } else {
+              // Calculate default position (centered)
+              width = AGENT_CHAT_PANE_DEFAULT_WIDTH;
+              height = AGENT_CHAT_PANE_DEFAULT_HEIGHT;
+              x = Math.floor((screenWidth - width) / 2);
+              y = Math.floor((screenHeight - height) / 2);
+            }
+
+            const newPaneInput: PaneInput = {
+              id: paneId,
+              type: "agent_chat",
+              title: AGENT_CHAT_PANE_TITLE,
+              x: x,
+              y: y,
+              width: width,
+              height: height,
+              dismissable: true,
+              content: {},
+            };
+
+            // Remove the stored position since we're using it now
+            const newState = addPaneActionLogic(state, newPaneInput, false);
+            const { [paneId]: _, ...remainingPositions } = storedPosition ? state.closedPanePositions : {};
+            return {
+              ...newState,
+              closedPanePositions: remainingPositions,
+            };
+          }
+        }),
       // Previous chats pane
       openPreviousChatsPane: () => openPreviousChatsPaneAction(set),
-      togglePreviousChatsPane: () => togglePreviousChatsPaneAction(set, get),
+      togglePreviousChatsPane: () =>
+        set((state) => {
+          const paneId = PREVIOUS_CHATS_PANE_ID;
+          const existingPane = state.panes.find((p) => p.id === paneId);
+
+          // If the pane exists
+          if (existingPane) {
+            // If it's already the active pane, close it
+            if (state.activePaneId === paneId) {
+              const remainingPanes = state.panes.filter(
+                (pane) => pane.id !== paneId,
+              );
+              let newActivePaneId: string | null = null;
+              if (remainingPanes.length > 0) {
+                newActivePaneId = remainingPanes[remainingPanes.length - 1].id;
+              }
+              const updatedPanes = remainingPanes.map((p) => ({
+                ...p,
+                isActive: p.id === newActivePaneId,
+              }));
+
+              return {
+                ...state,
+                panes: updatedPanes,
+                activePaneId: newActivePaneId,
+              };
+            }
+            // If it exists but isn't active, bring it to front
+            else {
+              // Move the pane to the end of the array to bring it to the front
+              const panesWithoutTarget = state.panes.filter(
+                (p) => p.id !== paneId,
+              );
+              const updatedTargetPane = { ...existingPane, isActive: true };
+              const updatedOtherPanes = panesWithoutTarget.map((p) => ({
+                ...p,
+                isActive: false,
+              }));
+
+              return {
+                ...state,
+                panes: [...updatedOtherPanes, updatedTargetPane],
+                activePaneId: paneId,
+              };
+            }
+          } else {
+            // Pane doesn't exist, create it
+            const screenWidth =
+              typeof window !== "undefined" ? window.innerWidth : 1920;
+            const screenHeight =
+              typeof window !== "undefined" ? window.innerHeight : 1080;
+
+            // Check if we have a stored position for this pane
+            const storedPosition = state.closedPanePositions[paneId];
+            
+            let x, y, width, height;
+            
+            if (storedPosition) {
+              // Use the stored position
+              ({ x, y, width, height } = storedPosition);
+              
+              // Ensure the pane is still visible on screen (in case window was resized)
+              x = Math.max(PANE_MARGIN, Math.min(x, screenWidth - 100));
+              y = Math.max(PANE_MARGIN, Math.min(y, screenHeight - 100));
+              width = Math.min(width, screenWidth - x - PANE_MARGIN);
+              height = Math.min(height, screenHeight - y - PANE_MARGIN);
+            } else {
+              // Calculate default position (left side with offset)
+              width = PREVIOUS_CHATS_PANE_DEFAULT_WIDTH;
+              height = PREVIOUS_CHATS_PANE_DEFAULT_HEIGHT;
+              x = PANE_MARGIN + 20;
+              y = Math.floor((screenHeight - height) / 2);
+            }
+
+            const newPaneInput: PaneInput = {
+              id: paneId,
+              type: "previous_chats_list",
+              title: PREVIOUS_CHATS_PANE_TITLE,
+              x: x,
+              y: y,
+              width: width,
+              height: height,
+              dismissable: true,
+              content: {},
+            };
+
+            // Remove the stored position since we're using it now
+            const newState = addPaneActionLogic(state, newPaneInput, false);
+            const { [paneId]: _, ...remainingPositions } = storedPosition ? state.closedPanePositions : {};
+            return {
+              ...newState,
+              closedPanePositions: remainingPositions,
+            };
+          }
+        }),
       // Coder pane
       toggleCoderPane: () =>
         set((state) => {
@@ -154,13 +345,27 @@ export const usePaneStore = create<PaneStoreType>()(
             const screenHeight =
               typeof window !== "undefined" ? window.innerHeight : 1080;
 
-            // Calculate 45% width and center it
-            const width = Math.floor(screenWidth * 0.45);
-            // Make it 85% of screen height - between 70% and almost full
-            const height = Math.floor(screenHeight * 0.85);
+            // Check if we have a stored position for this pane
+            const storedPosition = state.closedPanePositions[paneId];
             
-            // Center the pane horizontally
-            const x = Math.floor((screenWidth - width) / 2);
+            let x, y, width, height;
+            
+            if (storedPosition) {
+              // Use the stored position
+              ({ x, y, width, height } = storedPosition);
+              
+              // Ensure the pane is still visible on screen (in case window was resized)
+              x = Math.max(PANE_MARGIN, Math.min(x, screenWidth - 100));
+              y = Math.max(PANE_MARGIN, Math.min(y, screenHeight - 100));
+              width = Math.min(width, screenWidth - x - PANE_MARGIN);
+              height = Math.min(height, screenHeight - y - PANE_MARGIN);
+            } else {
+              // Calculate default position
+              width = Math.floor(screenWidth * 0.45);
+              height = Math.floor(screenHeight * 0.85);
+              x = Math.floor((screenWidth - width) / 2);
+              y = PANE_MARGIN + 10;
+            }
 
             // Generate a unique UI session ID for this coder pane instance
             const sessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
@@ -170,14 +375,20 @@ export const usePaneStore = create<PaneStoreType>()(
               type: "coder",
               title: CODER_PANE_TITLE,
               x: x,
-              y: PANE_MARGIN + 10,
+              y: y,
               width: width,
               height: height,
               dismissable: true,
               content: { sessionId },
             };
 
-            return addPaneActionLogic(state, newPaneInput, false);
+            // Remove the stored position since we're using it now
+            const newState = addPaneActionLogic(state, newPaneInput, false);
+            const { [paneId]: _, ...remainingPositions } = storedPosition ? state.closedPanePositions : {};
+            return {
+              ...newState,
+              closedPanePositions: remainingPositions,
+            };
           }
         }),
       resetHUDState: () => {
@@ -277,25 +488,53 @@ export const usePaneStore = create<PaneStoreType>()(
             const screenHeight =
               typeof window !== "undefined" ? window.innerHeight : 1080;
 
+            // Check if we have a stored position for this pane
+            const storedPosition = state.closedPanePositions[paneId];
+            
+            let x, y, width, height;
+            
+            if (storedPosition) {
+              // Use the stored position
+              ({ x, y, width, height } = storedPosition);
+              
+              // Ensure the pane is still visible on screen (in case window was resized)
+              x = Math.max(PANE_MARGIN, Math.min(x, screenWidth - 100));
+              y = Math.max(PANE_MARGIN, Math.min(y, screenHeight - 100));
+              width = Math.min(width, screenWidth - x - PANE_MARGIN);
+              height = Math.min(height, screenHeight - y - PANE_MARGIN);
+            } else {
+              // Calculate default position
+              x = Math.max(
+                PANE_MARGIN,
+                (screenWidth - SELL_COMPUTE_INITIAL_WIDTH) / 2,
+              );
+              y = Math.max(
+                PANE_MARGIN,
+                (screenHeight - SELL_COMPUTE_INITIAL_HEIGHT) / 3,
+              );
+              width = SELL_COMPUTE_INITIAL_WIDTH;
+              height = SELL_COMPUTE_INITIAL_HEIGHT;
+            }
+
             const newPaneInput: PaneInput = {
               id: paneId,
               type: "sell_compute",
               title: "Sell Compute",
-              x: Math.max(
-                PANE_MARGIN,
-                (screenWidth - SELL_COMPUTE_INITIAL_WIDTH) / 2,
-              ),
-              y: Math.max(
-                PANE_MARGIN,
-                (screenHeight - SELL_COMPUTE_INITIAL_HEIGHT) / 3,
-              ),
-              width: SELL_COMPUTE_INITIAL_WIDTH,
-              height: SELL_COMPUTE_INITIAL_HEIGHT,
+              x: x,
+              y: y,
+              width: width,
+              height: height,
               dismissable: true,
               content: {},
             };
 
-            return addPaneActionLogic(state, newPaneInput, false);
+            // Remove the stored position since we're using it now
+            const newState = addPaneActionLogic(state, newPaneInput, false);
+            const { [paneId]: _, ...remainingPositions } = storedPosition ? state.closedPanePositions : {};
+            return {
+              ...newState,
+              closedPanePositions: remainingPositions,
+            };
           }
         }),
 
@@ -351,19 +590,47 @@ export const usePaneStore = create<PaneStoreType>()(
             const screenHeight =
               typeof window !== "undefined" ? window.innerHeight : 1080;
 
+            // Check if we have a stored position for this pane
+            const storedPosition = state.closedPanePositions[paneId];
+            
+            let x, y, width, height;
+            
+            if (storedPosition) {
+              // Use the stored position
+              ({ x, y, width, height } = storedPosition);
+              
+              // Ensure the pane is still visible on screen (in case window was resized)
+              x = Math.max(PANE_MARGIN, Math.min(x, screenWidth - 100));
+              y = Math.max(PANE_MARGIN, Math.min(y, screenHeight - 100));
+              width = Math.min(width, screenWidth - x - PANE_MARGIN);
+              height = Math.min(height, screenHeight - y - PANE_MARGIN);
+            } else {
+              // Calculate default position
+              x = Math.max(PANE_MARGIN, (screenWidth - 450) / 2 + 50);
+              y = Math.max(PANE_MARGIN, (screenHeight - 550) / 3 + 50);
+              width = 450;
+              height = 550;
+            }
+
             const newPaneInput: PaneInput = {
               id: paneId,
               type: "wallet",
               title: WALLET_PANE_TITLE,
-              x: Math.max(PANE_MARGIN, (screenWidth - 450) / 2 + 50),
-              y: Math.max(PANE_MARGIN, (screenHeight - 550) / 3 + 50),
-              width: 450,
-              height: 550,
+              x: x,
+              y: y,
+              width: width,
+              height: height,
               dismissable: true,
               content: {},
             };
 
-            return addPaneActionLogic(state, newPaneInput, false);
+            // Remove the stored position since we're using it now
+            const newState = addPaneActionLogic(state, newPaneInput, false);
+            const { [paneId]: _, ...remainingPositions } = storedPosition ? state.closedPanePositions : {};
+            return {
+              ...newState,
+              closedPanePositions: remainingPositions,
+            };
           }
         }),
 
@@ -419,19 +686,47 @@ export const usePaneStore = create<PaneStoreType>()(
             const screenHeight =
               typeof window !== "undefined" ? window.innerHeight : 1080;
 
+            // Check if we have a stored position for this pane
+            const storedPosition = state.closedPanePositions[paneId];
+            
+            let x, y, width, height;
+            
+            if (storedPosition) {
+              // Use the stored position
+              ({ x, y, width, height } = storedPosition);
+              
+              // Ensure the pane is still visible on screen (in case window was resized)
+              x = Math.max(PANE_MARGIN, Math.min(x, screenWidth - 100));
+              y = Math.max(PANE_MARGIN, Math.min(y, screenHeight - 100));
+              width = Math.min(width, screenWidth - x - PANE_MARGIN);
+              height = Math.min(height, screenHeight - y - PANE_MARGIN);
+            } else {
+              // Calculate default position
+              x = Math.max(PANE_MARGIN, (screenWidth - 800) / 2 - 50);
+              y = Math.max(PANE_MARGIN, (screenHeight - 600) / 3 - 50);
+              width = 800;
+              height = 600;
+            }
+
             const newPaneInput: PaneInput = {
               id: paneId,
               type: "dvm_job_history",
               title: "DVM Job History & Stats",
-              x: Math.max(PANE_MARGIN, (screenWidth - 800) / 2 - 50),
-              y: Math.max(PANE_MARGIN, (screenHeight - 600) / 3 - 50),
-              width: 800,
-              height: 600,
+              x: x,
+              y: y,
+              width: width,
+              height: height,
               dismissable: true,
               content: {},
             };
 
-            return addPaneActionLogic(state, newPaneInput, false);
+            // Remove the stored position since we're using it now
+            const newState = addPaneActionLogic(state, newPaneInput, false);
+            const { [paneId]: _, ...remainingPositions } = storedPosition ? state.closedPanePositions : {};
+            return {
+              ...newState,
+              closedPanePositions: remainingPositions,
+            };
           }
         }),
     }),
