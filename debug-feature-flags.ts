@@ -7,6 +7,8 @@ import { TelemetryService } from "./src/services/telemetry";
 
 async function debugFeatureFlags() {
   console.log("=== Starting Feature Flag Debug ===");
+  console.log("Feature enum values:", Object.entries(Feature).map(([k, v]) => `${k}=${v}`));
+  console.log("Feature.CODER_PANE === 'CODER_PANE'?", Feature.CODER_PANE === "CODER_PANE");
   
   let configGetCalls = 0;
   
@@ -59,12 +61,18 @@ async function debugFeatureFlags() {
       
       const coderEnabled = yield* _(service.isEnabled(Feature.CODER_PANE));
       console.log("CODER_PANE enabled:", coderEnabled);
+      console.log("Feature.CODER_PANE value:", Feature.CODER_PANE);
       
       const walletEnabled = yield* _(service.isEnabled(Feature.WALLET_PANE));
       console.log("WALLET_PANE enabled:", walletEnabled);
+      console.log("Feature.WALLET_PANE value:", Feature.WALLET_PANE);
       
       const allFeatures = yield* _(service.getEnabledFeatures());
       console.log("All enabled features:", allFeatures);
+      
+      // Double check with raw values
+      const coderEnabled2 = yield* _(service.isEnabled("CODER_PANE" as Feature));
+      console.log("CODER_PANE (raw string) enabled:", coderEnabled2);
       
       return { coderEnabled, walletEnabled, allFeatures };
     })
