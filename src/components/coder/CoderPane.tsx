@@ -3,7 +3,6 @@ import { Effect, Exit, Cause } from 'effect';
 import { TelemetryService } from '@/services/telemetry';
 import { getMainRuntime } from '@/services/runtime';
 import { usePaneStore } from '@/stores/pane';
-import { useCoderChatStore } from '@/stores/coderChatStore';
 import { EditorState, Plugin } from "prosemirror-state";
 import { schema } from "prosemirror-schema-basic";
 import { history } from "prosemirror-history";
@@ -19,6 +18,19 @@ import { DatabaseService, DBSession } from '@/services/db';
 import { PaneDropdownItem } from '@/types/paneMenu';
 import { CODER_PANE_ID } from '@/stores/panes/constants';
 
+// Local message interface - each pane has its own messages
+interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  parts?: Array<
+    | { type: 'text'; text: string }
+    | { type: 'tool_call'; id: string; name: string; input: Record<string, any> }
+    | { type: 'tool_result'; tool_use_id: string; content: any; isError?: boolean; isLoading?: boolean }
+  >;
+  timestamp: number;
+  isStreaming?: boolean;
+}
 
 // ProseMirror Editor component that's loaded after the dynamic import
 const ProseMirrorEditor: React.FC<{ onSubmit: (text: string) => void, disabled?: boolean, focusKey?: number }> = ({ onSubmit, disabled, focusKey }) => {
@@ -371,8 +383,39 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
   // Use provided session ID or generate new one with ui- prefix to avoid conflicts
   const sessionIdRef = useRef<string>(initialSessionId || `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`);
 
-  // Get messages from Zustand store
-  const { messages, addMessage, updateMessage, clearMessages } = useCoderChatStore();
+  // Local state for messages - each pane has its own
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: 'system',
+      role: 'system',
+      content: 'You are Claude Code, a helpful AI coding assistant.',
+      timestamp: Date.now(),
+    }
+  ]);
+
+  // Message management functions
+  const addMessage = useCallback((message: ChatMessage) => {
+    setMessages(prev => [...prev, message]);
+  }, []);
+
+  const updateMessage = useCallback((id: string, updates: Partial<ChatMessage> | ((prevMessage: ChatMessage) => Partial<ChatMessage>)) => {
+    setMessages(prev => prev.map(msg => {
+      if (msg.id === id) {
+        const newUpdates = typeof updates === 'function' ? updates(msg) : updates;
+        return { ...msg, ...newUpdates };
+      }
+      return msg;
+    }));
+  }, []);
+
+  const clearMessages = useCallback(() => {
+    setMessages([{
+      id: 'system',
+      role: 'system',
+      content: 'You are Claude Code, a helpful AI coding assistant.',
+      timestamp: Date.now(),
+    }]);
+  }, []);
 
   // Local state for loading and focus
   const [isLoading, setIsLoading] = useState(false);
@@ -493,8 +536,8 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
     const assistantContentRef = { current: '' };
 
     try {
-      // Get current messages from the store to ensure we have the latest state
-      const currentMessages = useCoderChatStore.getState().messages;
+      // Use current messages from local state
+      const currentMessages = messages;
 
       // Prepare messages for Claude Code API - only include messages from current session
       const apiMessages = currentMessages
@@ -584,11 +627,10 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId, titl
     } catch (error) {
       console.error('Failed to send message:', error);
       // Remove the assistant placeholder message by filtering it out
-      const { messages: currentMessages, setMessages } = useCoderChatStore.getState();
-      setMessages(currentMessages.filter(m => m.id !== assistantMessageId));
+      setMessages(prev => prev.filter(m => m.id !== assistantMessageId));
       setIsLoading(false);
     }
-  }, [isLoading, addMessage, updateMessage]);
+  }, [isLoading, messages, addMessage, updateMessage, setMessages]);
 
   // Cleanup on unmount
   React.useEffect(() => {
