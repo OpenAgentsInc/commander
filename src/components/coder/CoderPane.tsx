@@ -3,6 +3,7 @@ import { Effect } from 'effect';
 import { TelemetryService } from '@/services/telemetry';
 import { getMainRuntime } from '@/services/runtime';
 import { usePaneStore } from '@/stores/pane';
+import { useCoderChatStore } from '@/stores/coderChatStore';
 import { EditorState } from "prosemirror-state";
 import { schema } from "prosemirror-schema-basic";
 import { ChatMessage as UIChatMessage, type Message } from '@/components/ui/chat-message';
@@ -102,11 +103,11 @@ const AutoFocusEditor: React.FC<{
 
 // Simple message interface for chat history
 interface ChatMessage {
+  id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
   isStreaming?: boolean;
-  id?: string; // Add ID for database tracking
 }
 
 // Custom styled ChatMessage component wrapper
@@ -115,7 +116,7 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
   return (
     <div className={`coder-chat-message ${message.role === 'user' ? 'user-message' : 'assistant-message'}`}>
       <UIChatMessage
-        id={message.id || `msg-${index}`}
+        id={message.id}
         role={message.role === 'user' ? 'user' : 'assistant'}
         content={message.content}
         createdAt={new Date(message.timestamp)}
@@ -145,16 +146,11 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
   // Use provided session ID or generate new one with ui- prefix to avoid conflicts
   const sessionIdRef = useRef<string>(initialSessionId || `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`);
 
-  // Chat state
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: 'system',
-      content: 'You are Claude Code, a helpful AI coding assistant.',
-      timestamp: Date.now(),
-    }
-  ]);
+  // Get messages from Zustand store
+  const { messages, addMessage, updateMessage } = useCoderChatStore();
+  
+  // Local state for loading
   const [isLoading, setIsLoading] = useState(false);
-  const [messagesLoaded, setMessagesLoaded] = useState(false);
   const streamCancelRef = useRef<(() => void) | null>(null);
 
   const handleExitCoderMode = React.useCallback(() => {
@@ -188,7 +184,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
     };
   }, [handleExitCoderMode]);
 
-  // Track Coder Mode open event and load messages
+  // Track Coder Mode open event
   React.useEffect(() => {
     Effect.runFork(
       Effect.flatMap(TelemetryService, (ts) =>
@@ -198,11 +194,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
         }),
       ).pipe(Effect.provide(runtime)),
     );
-
-    // For now, we don't load messages from database since the bridge service
-    // manages its own session IDs and we can't reliably match them
-    setMessagesLoaded(true);
-  }, [runtime, messagesLoaded, messages]);
+  }, [runtime]);
 
   // Send message to Claude Code
   const sendMessage = useCallback(async (content: string) => {
@@ -216,7 +208,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
       content: content.trim(),
       timestamp: Date.now(),
     };
-    setMessages(prev => [...prev, userMessage]);
+    addMessage(userMessage);
     setIsLoading(true);
 
     // Create assistant message placeholder
@@ -228,7 +220,10 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
       timestamp: Date.now(),
       isStreaming: true,
     };
-    setMessages(prev => [...prev, assistantMessage]);
+    addMessage(assistantMessage);
+    
+    // Track assistant message content in a ref for streaming updates
+    const assistantContentRef = { current: '' };
 
     try {
       // Prepare messages for Claude Code API
@@ -254,36 +249,26 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
         },
         (chunk: string) => {
           // Update assistant message with new chunk
-          setMessages(prev =>
-            prev.map((msg, idx) =>
-              idx === prev.length - 1 && msg.role === 'assistant'
-                ? { ...msg, content: msg.content + chunk }
-                : msg
-            )
-          );
+          assistantContentRef.current += chunk;
+          updateMessage(assistantMessageId, {
+            content: assistantContentRef.current
+          });
         },
         async () => {
           // Stream completed - update UI state only
-          setMessages(prev =>
-            prev.map((msg, idx) =>
-              idx === prev.length - 1 && msg.role === 'assistant'
-                ? { ...msg, isStreaming: false }
-                : msg
-            )
-          );
+          updateMessage(assistantMessageId, {
+            isStreaming: false
+          });
           setIsLoading(false);
           streamCancelRef.current = null;
         },
         (error: any) => {
           // Stream error
           console.error('Claude Code stream error:', error);
-          setMessages(prev =>
-            prev.map((msg, idx) =>
-              idx === prev.length - 1 && msg.role === 'assistant'
-                ? { ...msg, content: `Error: ${error.message || 'Stream failed'}`, isStreaming: false }
-                : msg
-            )
-          );
+          updateMessage(assistantMessageId, {
+            content: `Error: ${error.message || 'Stream failed'}`,
+            isStreaming: false
+          });
           setIsLoading(false);
           streamCancelRef.current = null;
         }
@@ -292,10 +277,12 @@ const CoderPane: React.FC<CoderPaneProps> = ({ sessionId: initialSessionId }) =>
       streamCancelRef.current = cleanup || null;
     } catch (error) {
       console.error('Failed to send message:', error);
-      setMessages(prev => prev.slice(0, -1)); // Remove assistant placeholder
+      // Remove the assistant placeholder message by filtering it out
+      const { messages: currentMessages, setMessages } = useCoderChatStore.getState();
+      setMessages(currentMessages.filter(m => m.id !== assistantMessageId));
       setIsLoading(false);
     }
-  }, [messages, isLoading]);
+  }, [messages, isLoading, addMessage, updateMessage]);
 
   // Cleanup on unmount
   React.useEffect(() => {
