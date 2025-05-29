@@ -1,406 +1,19 @@
-import React, { useState, useRef, useCallback, useEffect, lazy, Suspense, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Effect, Exit, Cause } from 'effect';
 import { TelemetryService } from '@/services/telemetry';
 import { getMainRuntime } from '@/services/runtime';
 import { usePaneStore } from '@/stores/pane';
-import { EditorState, Plugin } from "prosemirror-state";
-import { schema } from "prosemirror-schema-basic";
-import { history } from "prosemirror-history";
-import { keymap } from "prosemirror-keymap";
-import { baseKeymap } from "prosemirror-commands";
-import { ChatMessage as UIChatMessage, type Message } from '@/components/ui/chat-message';
 import { useAutoScroll } from '@/hooks/use-auto-scroll';
-import { ToolCallDisplay } from './ToolCallDisplay';
-import { ToolResultDisplay } from './ToolResultDisplay';
-import { MessageSquarePlus, Loader2 } from 'lucide-react';
+import { useCoderChat } from '@/hooks/coder/useCoderChat';
+import CoderMessageList from './CoderMessageList';
+import CoderProseMirrorInput from './CoderProseMirrorInput';
+import { MessageSquarePlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { CopyButton } from '@/components/ui/copy-button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { useQuery } from '@tanstack/react-query';
 import { DatabaseService, DBSession } from '@/services/db';
 import { PaneDropdownItem } from '@/types/paneMenu';
 import { CODER_PANE_ID } from '@/stores/panes/constants';
 
-// Local message interface - each pane has its own messages
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  parts?: Array<
-    | { type: 'text'; text: string }
-    | { type: 'tool_call'; id: string; name: string; input: Record<string, any> }
-    | { type: 'tool_result'; tool_use_id: string; content: any; isError?: boolean; isLoading?: boolean }
-  >;
-  timestamp: number;
-  isStreaming?: boolean;
-}
-
-// ProseMirror Editor component that's loaded after the dynamic import
-const ProseMirrorEditor: React.FC<{ onSubmit: (text: string) => void, disabled?: boolean, focusKey?: number }> = ({ onSubmit, disabled, focusKey }) => {
-  const [components, setComponents] = useState<any>(null);
-
-  useEffect(() => {
-    // Load ProseMirror components
-    import("@handlewithcare/react-prosemirror").then(module => {
-      setComponents({
-        ProseMirror: module.ProseMirror,
-        ProseMirrorDoc: module.ProseMirrorDoc,
-        reactKeys: module.reactKeys,
-        useEditorEffect: module.useEditorEffect,
-        useEditorEventListener: module.useEditorEventListener,
-        useEditorState: module.useEditorState,
-      });
-    });
-  }, []);
-
-  if (!components) {
-    return null;
-  }
-
-  const { ProseMirror, ProseMirrorDoc, reactKeys } = components;
-
-  // Create custom keymap for handling Enter and Shift+Enter
-  const customKeymap = keymap({
-    "Enter": (state, dispatch, view) => {
-      // Plain Enter submits
-      return false; // Let our event listener handle it
-    },
-    "Shift-Enter": (state, dispatch) => {
-      // Shift+Enter inserts a line break
-      if (dispatch) {
-        const br = schema.nodes.hard_break.create();
-        const tr = state.tr.replaceSelectionWith(br).scrollIntoView();
-        dispatch(tr);
-      }
-      return true;
-    }
-  });
-
-  return (
-    <ProseMirror
-      defaultState={EditorState.create({
-        schema,
-        plugins: [
-          history(),
-          keymap(baseKeymap),
-          customKeymap,
-          reactKeys(),
-        ],
-      })}
-    >
-      <AutoFocusEditor
-        onSubmit={onSubmit}
-        disabled={disabled}
-        components={components}
-        focusKey={focusKey}
-      />
-    </ProseMirror>
-  );
-};
-
-// Component that autofocuses the editor and fills container
-const AutoFocusEditor: React.FC<{
-  onSubmit: (text: string) => void,
-  disabled?: boolean,
-  components: any,
-  focusKey?: number
-}> = ({ onSubmit, disabled, components, focusKey }) => {
-  const { useEditorState, useEditorEffect, useEditorEventListener, ProseMirrorDoc } = components;
-  const editorState = useEditorState();
-
-  useEditorEffect((view: any) => {
-    if (view && !disabled) {
-      view.focus();
-    }
-  }, [disabled]);
-
-  // Re-focus when focusKey changes (e.g., after clicking New Chat or loading history)
-  useEditorEffect((view: any) => {
-    if (view && focusKey !== undefined && !disabled) {
-      // Use requestAnimationFrame to ensure focus happens after any pending updates
-      requestAnimationFrame(() => {
-        if (view && view.focus) {
-          view.focus();
-          // Also ensure the view is scrolled into view if needed
-          view.dom.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-      });
-    }
-  }, [focusKey, disabled]);
-
-  // Function to serialize document to text with line breaks
-  const serializeDocToText = (doc: any) => {
-    let text = "";
-    let isFirstParagraph = true;
-
-    doc.forEach((node: any, offset: number, index: number) => {
-      if (node.type.name === "paragraph") {
-        if (!isFirstParagraph) {
-          text += "\n";
-        }
-        isFirstParagraph = false;
-
-        node.forEach((child: any) => {
-          if (child.isText) {
-            text += child.text;
-          } else if (child.type.name === "hard_break") {
-            text += "\n";
-          }
-        });
-      }
-    });
-
-    return text;
-  };
-
-  // Handle Enter (submit) - Shift+Enter is handled by the keymap
-  useEditorEventListener("keydown", (view: any, event: KeyboardEvent) => {
-    if (event.key === "Enter" && !event.shiftKey && !disabled) {
-      event.preventDefault();
-
-      // Get the text content from the editor, preserving line breaks
-      const text = serializeDocToText(view.state.doc);
-
-      if (text.trim()) {
-        // Submit the message
-        onSubmit(text);
-
-        // Clear the editor
-        const tr = view.state.tr.delete(0, view.state.doc.content.size);
-        view.dispatch(tr);
-      }
-
-      return true;
-    }
-    return false;
-  });
-
-  return (
-    <ProseMirrorDoc
-      as={
-        <div
-          className="p-4 prose prose-invert h-full w-full outline-none text-white box-border"
-          spellCheck={false}
-          style={{
-            minHeight: '100%',
-            padding: '12px',
-            opacity: disabled ? 0.5 : 1,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            fontSize: '0.875rem', // 14px - equivalent to text-sm
-            lineHeight: '1.25rem' // 20px - matching text-sm line height
-          }}
-        />
-      }
-    />
-  );
-};
-
-// Simple message interface for chat history
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string; // Holds full textual content for DB
-  parts?: Array< // For UI rendering
-    | { type: 'text'; text: string }
-    | { type: 'tool_call'; id: string; name: string; input: Record<string, any> }
-    | { type: 'tool_result'; tool_use_id: string; content: any; isError?: boolean; isLoading?: boolean }
-  >;
-  timestamp: number;
-  isStreaming?: boolean;
-}
-
-// Custom styled ChatMessage component wrapper
-const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ message, index }) => {
-  // Extract text content for the content prop
-  const textContent = React.useMemo(() => {
-    if (!message.parts || message.parts.length === 0) return message.content;
-
-    // When we have parts, only use text from the parts, not the accumulated content
-    let textParts = message.parts
-      .filter(part => part.type === 'text')
-      .map(part => part.text)
-      .join('');
-
-    // Remove [Result: ...] sections to avoid duplication
-    textParts = textParts.replace(/\[Result:\s*[\s\S]*?\]/g, '').trim();
-
-    return textParts; // Don't fall back to message.content when we have parts
-  }, [message.parts, message.content]);
-
-  // Get full message content for copying
-  const fullMessageContent = React.useMemo(() => {
-    if (!message.parts || message.parts.length === 0) return message.content;
-
-    let fullContent = '';
-    message.parts.forEach(part => {
-      if (part.type === 'text') {
-        fullContent += part.text;
-      } else if (part.type === 'tool_call') {
-        fullContent += `\n\n[Tool Call: ${part.name}]\nArguments: ${JSON.stringify(part.input, null, 2)}\n`;
-      } else if (part.type === 'tool_result') {
-        fullContent += `\n[Tool Result]\n${JSON.stringify(part.content, null, 2)}\n`;
-      }
-    });
-
-    return fullContent.trim() || message.content;
-  }, [message.parts, message.content]);
-
-  // Create parts array for UIChatMessage - it expects a specific format
-  const messageParts = React.useMemo(() => {
-    if (!message.parts || message.parts.length === 0) return undefined;
-
-    const parts: any[] = [];
-    const toolCalls = new Map<string, any>();
-    const toolResults = new Map<string, any>();
-
-    // First pass: collect tool calls and results
-    message.parts.forEach(part => {
-      if (part.type === 'tool_call') {
-        toolCalls.set(part.id, part);
-      } else if (part.type === 'tool_result') {
-        toolResults.set(part.tool_use_id, part);
-      }
-    });
-
-    // Second pass: build parts array
-    message.parts.forEach(part => {
-      if (part.type === 'text') {
-        // Filter out [Result: ...] sections from text parts
-        const cleanedText = part.text.replace(/\[Result:\s*[\s\S]*?\]/g, '').trim();
-        if (cleanedText) {
-          parts.push({ type: 'text' as const, text: cleanedText });
-        }
-      } else if (part.type === 'tool_call') {
-        // Check if we have a result for this tool call
-        const hasResult = toolResults.has(part.id);
-        const result = toolResults.get(part.id);
-
-        parts.push({
-          type: 'tool-invocation' as const,
-          toolInvocation: {
-            state: hasResult ? 'result' as const : 'call' as const,
-            toolName: part.name,
-            toolCallId: part.id,
-            args: part.input,
-            result: hasResult ? result.content : undefined
-          }
-        });
-      }
-      // Skip tool_result parts as they're already handled above
-    });
-
-    return parts.length > 0 ? parts : undefined;
-  }, [message.parts]);
-
-  // Get tool results map
-  const toolResults = React.useMemo(() => {
-    const results = new Map<string, any>();
-    if (message.parts) {
-      message.parts.forEach(part => {
-        if (part.type === 'tool_result') {
-          results.set(part.tool_use_id, part);
-        }
-      });
-    }
-    return results;
-  }, [message.parts]);
-
-  // Render custom tool displays for better UX
-  const renderParts = () => {
-    if (!message.parts || message.parts.length === 0) return null;
-
-    return message.parts.map((part, idx) => {
-      if (part.type === 'text' && part.text) {
-        // Filter out [Result: ...] sections
-        const cleanedText = part.text.replace(/\[Result:\s*[\s\S]*?\]/g, '').trim();
-        if (!cleanedText) return null;
-
-        return (
-          <div key={`text-${idx}`} className="prose prose-invert max-w-none">
-            <UIChatMessage
-              id={`${message.id}-text-${idx}`}
-              role={message.role === 'user' ? 'user' : 'assistant'}
-              content={cleanedText}
-              animation="none"
-              showTimeStamp={false}
-            />
-          </div>
-        );
-      } else if (part.type === 'tool_call') {
-        const hasResult = toolResults.has(part.id);
-        const result = toolResults.get(part.id);
-
-        return (
-          <div key={`tool-${idx}`} className="space-y-1">
-            <ToolCallDisplay
-              toolName={part.name}
-              args={part.input}
-              isLoading={!hasResult}
-            />
-            {hasResult && result && (
-              <ToolResultDisplay
-                toolName={part.name}
-                result={result.content}
-                isError={result.isError}
-              />
-            )}
-          </div>
-        );
-      } else if (part.type === 'tool_result') {
-        // Tool results are shown with their corresponding tool call
-        return null;
-      }
-      return null;
-    });
-  };
-
-  // Use custom rendering if we have parts, otherwise use standard UIChatMessage
-  if (message.parts && message.parts.length > 0) {
-    return (
-      <div className={`coder-chat-message ${message.role === 'user' ? 'user-message' : 'assistant-message'} relative group space-y-2`}>
-        {renderParts()}
-        {message.isStreaming && message.role === 'assistant' && (
-          <div className="flex items-center gap-2 mt-2">
-            <span className="text-xs text-muted-foreground italic opacity-60">Claude Code is working</span>
-            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-          </div>
-        )}
-        {/* Copy button in hover row beneath message */}
-        {!message.isStreaming && (
-          <div className={`flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 ${message.role === 'user' ? 'mt-2 justify-end' : 'mt-0.5 justify-start'}`}>
-            <CopyButton content={fullMessageContent} copyMessage="Copied message to clipboard" />
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // Fallback to standard display for messages without parts
-  return (
-    <div className={`coder-chat-message ${message.role === 'user' ? 'user-message' : 'assistant-message'} relative group`}>
-      <UIChatMessage
-        id={message.id}
-        role={message.role === 'user' ? 'user' : 'assistant'}
-        content={textContent}
-        animation="none"
-        showTimeStamp={false}
-      />
-      {message.isStreaming && message.role === 'assistant' && (
-        <div className="flex items-center gap-2 mt-2">
-          <span className="text-xs text-muted-foreground italic opacity-60">Claude Code is working</span>
-          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-        </div>
-      )}
-      {/* Copy button in hover row beneath message */}
-      {!message.isStreaming && (
-        <div className={`flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 ${message.role === 'user' ? 'mt-2 justify-end' : 'mt-0.5 justify-start'}`}>
-          <CopyButton content={fullMessageContent} copyMessage="Copied message to clipboard" />
-        </div>
-      )}
-    </div>
-  );
-};
 
 export interface CoderPaneProps {
   paneId: string; // The pane's ID
@@ -414,51 +27,15 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
   const updatePaneSize = usePaneStore((state) => state.updatePaneSize);
   const updatePaneContent = usePaneStore((state) => state.updatePaneContent);
 
-  // This component doesn't need to find itself in panes - remove this line
-
-  // Track the current session ID separately from initial
-  const sessionIdRef = useRef<string>(initialSessionId || `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`);
-  const lastLoadedSessionIdRef = useRef<string | null>(null);
-
-  // Local state for messages - each pane has its own
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'system',
-      role: 'system',
-      content: 'You are Claude Code, a helpful AI coding assistant.',
-      timestamp: Date.now(),
-    }
-  ]);
-
-  // Message management functions
-  const addMessage = useCallback((message: ChatMessage) => {
-    setMessages(prev => [...prev, message]);
-  }, []);
-
-  const updateMessage = useCallback((id: string, updates: Partial<ChatMessage> | ((prevMessage: ChatMessage) => Partial<ChatMessage>)) => {
-    setMessages(prev => prev.map(msg => {
-      if (msg.id === id) {
-        const newUpdates = typeof updates === 'function' ? updates(msg) : updates;
-        return { ...msg, ...newUpdates };
-      }
-      return msg;
-    }));
-  }, []);
-
-  const clearMessages = useCallback(() => {
-    setMessages([{
-      id: 'system',
-      role: 'system',
-      content: 'You are Claude Code, a helpful AI coding assistant.',
-      timestamp: Date.now(),
-    }]);
-  }, []);
-
-  // Local state for loading and focus
-  const [isLoading, setIsLoading] = useState(false);
-  const [focusKey, setFocusKey] = useState(0);
-  const streamCancelRef = useRef<(() => void) | null>(null);
-  const isLoadingRef = useRef(false); // Track loading state across renders
+  // Use the custom hook for chat logic
+  const {
+    messages,
+    isLoading,
+    focusKey,
+    sendMessage,
+    loadMessagesForSession,
+    clearMessagesAndSession
+  } = useCoderChat({ paneId, initialSessionId });
 
   // Auto-scroll hook - trigger on messages change
   const {
@@ -478,14 +55,15 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
     return () => clearTimeout(timer);
   }, []); // Only on mount
 
+  // Check if last message is streaming
+  const isStreamingLastMessage = useMemo(() => {
+    if (messages.length === 0) return false;
+    const lastMessage = messages[messages.length - 1];
+    return lastMessage.isStreaming || false;
+  }, [messages]);
+
 
   const handleExitCoderMode = React.useCallback(() => {
-    // Cancel any ongoing stream
-    if (streamCancelRef.current) {
-      streamCancelRef.current();
-      streamCancelRef.current = null;
-    }
-
     Effect.runFork(
       Effect.flatMap(TelemetryService, (ts) =>
         ts.trackEvent({
@@ -528,21 +106,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
       });
     } else {
       // Original behavior - new chat in current pane
-      // Cancel any ongoing stream
-      if (streamCancelRef.current) {
-        streamCancelRef.current();
-        streamCancelRef.current = null;
-      }
-
-      // Generate new session ID
-      const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-      sessionIdRef.current = newSessionId;
-      lastLoadedSessionIdRef.current = newSessionId; // Mark as loaded to prevent reload
-
-      // Clear all messages from the store
-      clearMessages();
-
-      // Update pane content with new session ID
+      const newSessionId = clearMessagesAndSession();
       updatePaneContent(paneId, { sessionId: newSessionId });
     }
 
@@ -555,13 +119,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
         }),
       ).pipe(Effect.provide(runtime)),
     );
-
-    // Set loading state to false
-    setIsLoading(false);
-
-    // Trigger focus on the editor by updating focusKey
-    setFocusKey(prev => prev + 1);
-  }, [clearMessages, runtime, updatePaneContent, paneId]);
+  }, [clearMessagesAndSession, runtime, updatePaneContent, paneId]);
 
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -591,417 +149,6 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
     );
   }, [runtime]);
 
-  // Send message to Claude Code
-  const sendMessage = useCallback(async (content: string) => {
-    if (!content.trim() || isLoading) return;
-
-    // Add user message to UI state only
-    const userMessageId = `ui-msg-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-    const userMessage: ChatMessage = {
-      id: userMessageId,
-      role: 'user',
-      content: content.trim(),
-      timestamp: Date.now(),
-    };
-    addMessage(userMessage);
-    setIsLoading(true);
-
-    // Create assistant message placeholder
-    const assistantMessageId = `ui-msg-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-    const assistantMessage: ChatMessage = {
-      id: assistantMessageId,
-      role: 'assistant',
-      content: '',
-      timestamp: Date.now(),
-      isStreaming: true,
-    };
-    addMessage(assistantMessage);
-
-    // Track assistant message content in a ref for streaming updates
-    const assistantContentRef = { current: '' };
-
-    try {
-      // Use current messages from local state
-      const currentMessages = messages;
-
-      // Prepare messages for Claude Code API - only include messages from current session
-      const apiMessages = currentMessages
-        .filter(m => m.role !== 'system')
-        .concat(userMessage)
-        .map(m => ({ role: m.role, content: m.content }));
-
-      // Stream response from Claude Code
-      const cleanup = window.electronAPI.claudeCode?.streamChat(
-        {
-          messages: apiMessages,
-          model: 'claude-3-sonnet-20240229',
-          max_tokens: 4096,
-          temperature: 0.7,
-          sessionId: sessionIdRef.current,
-        },
-        (chunk: string) => { // chunk is a string, potentially JSON from main process
-          let parsedData;
-          let isStructured = false;
-
-          try {
-            parsedData = JSON.parse(chunk);
-            if (parsedData && (parsedData.type === 'tool_call' || parsedData.type === 'tool_result')) {
-              isStructured = true;
-            }
-          } catch (e) {
-            // Not JSON, assume it's a plain text chunk
-            parsedData = { type: 'text', text: chunk };
-          }
-
-          updateMessage(assistantMessageId, (prevMessage) => {
-            const newParts = prevMessage.parts ? [...prevMessage.parts] : [];
-            let newContentForDb = prevMessage.content || ""; // For DB, accumulate textual representation
-
-            if (isStructured) {
-              if (parsedData.type === 'tool_call') {
-                newParts.push({
-                  type: 'tool_call',
-                  id: parsedData.id || `tool_call_${Date.now()}`,
-                  name: parsedData.name,
-                  input: parsedData.parameters // Ensure 'parameters' matches what main sends
-                });
-                newContentForDb += `\n[Tool Call: ${parsedData.name} Args: ${JSON.stringify(parsedData.parameters)}]\n`;
-              } else if (parsedData.type === 'tool_result') {
-                // This typically comes from a User message, but handling if Assistant streams it
-                newParts.push({
-                  type: 'tool_result',
-                  tool_use_id: parsedData.tool_use_id,
-                  content: parsedData.content,
-                  isError: parsedData.is_error,
-                });
-                newContentForDb += `\n[Tool Result for ${parsedData.tool_use_id}: ${JSON.stringify(parsedData.content)}]\n`;
-              }
-            } else { // Text chunk
-              newContentForDb += parsedData.text;
-              const lastPart = newParts.length > 0 ? newParts[newParts.length - 1] : null;
-              if (lastPart && lastPart.type === 'text') {
-                lastPart.text += parsedData.text;
-              } else {
-                newParts.push({ type: 'text', text: parsedData.text });
-              }
-            }
-            return { ...prevMessage, content: newContentForDb, parts: newParts, isStreaming: true };
-          });
-        },
-        async () => {
-          // Stream completed - update UI state only
-          updateMessage(assistantMessageId, {
-            isStreaming: false
-          });
-          setIsLoading(false);
-          streamCancelRef.current = null;
-        },
-        (error: any) => {
-          // Stream error
-          console.error('Claude Code stream error:', error);
-          updateMessage(assistantMessageId, {
-            content: `Error: ${error.message || 'Stream failed'}`,
-            isStreaming: false
-          });
-          setIsLoading(false);
-          streamCancelRef.current = null;
-        }
-      );
-
-      streamCancelRef.current = cleanup || null;
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      // Remove the assistant placeholder message by filtering it out
-      setMessages(prev => prev.filter(m => m.id !== assistantMessageId));
-      setIsLoading(false);
-    }
-  }, [isLoading, messages, addMessage, updateMessage, setMessages]);
-
-  // Cleanup on unmount
-  React.useEffect(() => {
-    return () => {
-      if (streamCancelRef.current) {
-        streamCancelRef.current();
-      }
-    };
-  }, []);
-
-  // No need for initial scroll - flex-direction: column-reverse handles it
-
-  // Extracted message loading logic as a callable function
-  const loadMessagesForSessionInternal = useCallback(async (sessionIdToLoad: string) => {
-    const componentName = `[CoderPane ${paneId?.substring(0, 8) || 'NEW'}]`;
-    console.log(`${componentName} Attempting to load messages for session: ${sessionIdToLoad}`);
-
-    // Prevent loading if already loading
-    if (isLoadingRef.current) {
-      console.log(`${componentName} Already loading, skipping duplicate load for ${sessionIdToLoad}`);
-      return;
-    }
-
-    isLoadingRef.current = true;
-    setIsLoading(true);
-    clearMessages();
-
-    try {
-      const dbProgram = Effect.gen(function* (_) {
-        const db = yield* _(DatabaseService);
-        const messages = yield* _(db.getMessagesForSession(sessionIdToLoad, 500));
-
-        // Fetch tool executions for all messages in parallel
-        const messageToolExecutions = yield* _(
-          Effect.all(
-            messages.map(msg =>
-              Effect.map(
-                db.getToolCallsForMessage(msg.id),
-                tools => ({ messageId: msg.id, tools })
-              )
-            ),
-            { concurrency: "unbounded" }
-          )
-        );
-
-        // Create a map of message ID to tool executions
-        const toolExecutionsByMessage = new Map(
-          messageToolExecutions.map(({ messageId, tools }) => [messageId, tools])
-        );
-
-        return { messages, toolExecutionsByMessage };
-      });
-
-      const exitResult = await Effect.runPromiseExit(Effect.provide(dbProgram, runtime));
-
-      if (Exit.isSuccess(exitResult)) {
-        const { messages: dbMessages, toolExecutionsByMessage } = exitResult.value;
-        console.log(`${componentName} Loaded ${dbMessages.length} messages from DB for session ${sessionIdToLoad}`);
-
-        const newMessagesState: ChatMessage[] = [{
-          id: 'system',
-          role: 'system',
-          content: 'You are Claude Code, a helpful AI coding assistant.',
-          timestamp: Date.now(),
-        }];
-
-        dbMessages.forEach(dbMsg => {
-          let parts;
-          try {
-            // Check if message has stored parts (from user messages with tool results)
-            if (dbMsg.content && dbMsg.content.startsWith('{"parts":')) {
-              const contentData = JSON.parse(dbMsg.content);
-              if (contentData.parts) {
-                parts = contentData.parts;
-              }
-            }
-            // Handle assistant messages
-            else if (dbMsg.role === 'assistant') {
-              parts = [];
-
-              // Check if content is structured JSON array (new format)
-              let successfullyParsedStructuredContent = false;
-              if (dbMsg.content) {
-                try {
-                  const structuredContent = JSON.parse(dbMsg.content);
-                  if (Array.isArray(structuredContent)) {
-                    // New format: content is an array of parts
-                    console.log(`[CoderPane] Rehydrating assistant message ${dbMsg.id} with structured content`);
-                    const toolExecutionMap = new Map(
-                      (toolExecutionsByMessage.get(dbMsg.id) || []).map(exec => [exec.id, exec])
-                    );
-
-                    for (const rawPart of structuredContent) {
-                      if (rawPart.type === 'text' && rawPart.text) {
-                        parts.push({ type: 'text', text: rawPart.text });
-                      } else if (rawPart.type === 'tool_use' && rawPart.id && rawPart.name) {
-                        parts.push({
-                          type: 'tool_call',
-                          id: rawPart.id,
-                          name: rawPart.name,
-                          input: rawPart.input || {},
-                        });
-
-                        // Immediately add its result if available
-                        const execution = toolExecutionMap.get(rawPart.id);
-                        if (execution) {
-                          if (execution.result_json) {
-                            let parsedResultJson;
-                            try {
-                              parsedResultJson = JSON.parse(execution.result_json);
-                            } catch (e) {
-                              console.warn(`[CoderPane] Failed to parse result_json for tool ${rawPart.id}:`, execution.result_json, e);
-                              parsedResultJson = { content: `[Error parsing result: ${execution.result_json}]`, isError: true };
-                            }
-                            parts.push({
-                              type: 'tool_result',
-                              tool_use_id: execution.id,
-                              content: parsedResultJson,
-                              isError: execution.status === 'executed_error' || parsedResultJson.isError,
-                              isLoading: false,
-                            });
-                          } else { // Result not yet available or failed before result
-                            parts.push({
-                              type: 'tool_result',
-                              tool_use_id: execution.id,
-                              content: execution.status === 'pending' ? "Tool execution is pending..."
-                                : execution.status === 'executed_error' ? "[Error result not available]"
-                                  : "[Result not available yet]",
-                              isLoading: execution.status === 'pending',
-                              isError: execution.status === 'executed_error',
-                            });
-                          }
-                        } else {
-                          // Tool call was in content, but no execution record
-                          parts.push({
-                            type: 'tool_result',
-                            tool_use_id: rawPart.id,
-                            content: "[Tool execution record missing]",
-                            isLoading: true,
-                            isError: false
-                          });
-                        }
-                      }
-                    }
-                    successfullyParsedStructuredContent = true;
-                  }
-                } catch (e) {
-                  // content was not valid JSON or not an array, fallback to old logic
-                  console.log(`[CoderPane] Content not structured array for ${dbMsg.id}, trying fallback`);
-                }
-              }
-
-              if (!successfullyParsedStructuredContent) {
-                // Fallback for old data or if content isn't structured JSON
-                console.log(`[CoderPane] Using fallback logic for assistant message ${dbMsg.id}`);
-
-                // Add text content first if present
-                if (dbMsg.content) {
-                  parts.push({ type: 'text', text: dbMsg.content });
-                }
-
-                // Handle tool calls if present
-                if (dbMsg.tool_calls_json) {
-                  // Parse tool calls and get tool executions
-                  const toolCalls = JSON.parse(dbMsg.tool_calls_json);
-                  const toolExecutions = toolExecutionsByMessage.get(dbMsg.id) || [];
-
-                  // Create a map of tool executions by ID for quick lookup
-                  const toolExecutionMap = new Map(
-                    toolExecutions.map(exec => [exec.id, exec])
-                  );
-
-                  // Add tool calls and their results in the correct order
-                  toolCalls.forEach((tc: any) => {
-                    // Add the tool call
-                    parts.push({
-                      type: 'tool_call',
-                      id: tc.id,
-                      name: tc.function.name,
-                      input: JSON.parse(tc.function.arguments)
-                    });
-
-                    // Immediately add the result if available
-                    const execution = toolExecutionMap.get(tc.id);
-                    if (execution && execution.result_json) {
-                      let parsedResultJson;
-                      try {
-                        parsedResultJson = JSON.parse(execution.result_json);
-                      } catch (e) {
-                        console.warn(`[CoderPane] Failed to parse result_json for tool ${tc.id}:`, execution.result_json, e);
-                        parsedResultJson = { content: `[Error parsing result: ${execution.result_json}]`, isError: true };
-                      }
-                      parts.push({
-                        type: 'tool_result',
-                        tool_use_id: execution.id,
-                        content: parsedResultJson, // This might be { content: "..." } or the error object
-                        isError: execution.status === 'executed_error' || parsedResultJson.isError,
-                        isLoading: false, // If result_json exists, it's not loading
-                      });
-                    } else if (execution) {
-                      // Tool call exists but no result_json
-                      parts.push({
-                        type: 'tool_result',
-                        tool_use_id: execution.id,
-                        // Provide more informative content based on status
-                        content: execution.status === 'pending'
-                          ? "Tool execution is pending..."
-                          : execution.status === 'executed_error'
-                            ? "[Error result not available]"
-                            : "[Result not available yet]",
-                        isLoading: execution.status === 'pending',
-                        isError: execution.status === 'executed_error'
-                      });
-                    }
-                    // If no execution found at all, the tool_call part remains, and no tool_result part is added for it.
-                  });
-                }
-              }
-            }
-          } catch (e) {
-            console.warn(`${componentName} Error parsing message parts:`, e);
-            /* content is plain text or not parsable as parts */
-          }
-
-          newMessagesState.push({
-            id: dbMsg.id,
-            role: dbMsg.role as ChatMessage['role'],
-            content: parts ? '' : (dbMsg.content || ''), // UI content is from parts if they exist
-            parts: parts,
-            timestamp: dbMsg.timestamp * 1000,
-          });
-        });
-
-        setMessages(newMessagesState);
-        lastLoadedSessionIdRef.current = sessionIdToLoad;
-        sessionIdRef.current = sessionIdToLoad; // Ensure current session ID is also set
-        updatePaneContent(paneId, { sessionId: sessionIdToLoad });
-        console.log(`${componentName} Session ${sessionIdToLoad} loaded and pane content updated.`);
-
-        // Scroll to bottom after loading messages
-        setTimeout(() => {
-          scrollToBottom();
-        }, 100);
-      } else {
-        console.error(`${componentName} Failed to load messages for ${sessionIdToLoad}:`, Cause.pretty(exitResult.cause));
-        addMessage({ id: `error-load-${Date.now()}`, role: 'system', content: `Error loading session ${sessionIdToLoad.substring(0, 8)}...`, timestamp: Date.now() });
-      }
-    } catch (error) {
-      console.error(`${componentName} Exception loading session ${sessionIdToLoad}:`, error);
-      addMessage({ id: `error-load-exc-${Date.now()}`, role: 'system', content: `Critical error loading session.`, timestamp: Date.now() });
-    } finally {
-      isLoadingRef.current = false;
-      setIsLoading(false);
-      setFocusKey(prev => prev + 1);
-    }
-  }, [paneId, runtime]); // Minimize dependencies to prevent recreating the function
-
-  // Legacy function for backward compatibility
-  const loadSessionMessages = async (sessionId: string): Promise<boolean> => {
-    await loadMessagesForSessionInternal(sessionId);
-    return true; // The new function handles errors internally
-  };
-
-  // Load initial session if provided
-  useEffect(() => {
-    const componentName = `[CoderPane ${paneId?.substring(0, 8) || 'NEW'}]`;
-    console.log(`${componentName} Effect for session loading. initialSessionId: ${initialSessionId}, current sessionIdRef: ${sessionIdRef.current}, lastLoaded: ${lastLoadedSessionIdRef.current}`);
-
-    if (initialSessionId && initialSessionId !== lastLoadedSessionIdRef.current) {
-      loadMessagesForSessionInternal(initialSessionId);
-    } else if (!initialSessionId && !sessionIdRef.current) {
-      const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-      console.log(`${componentName} No initial session, generated new: ${newSessionId}`);
-      sessionIdRef.current = newSessionId;
-      lastLoadedSessionIdRef.current = newSessionId;
-      clearMessages();
-      updatePaneContent(paneId, { sessionId: newSessionId });
-      setIsLoading(false);
-    } else if (initialSessionId && initialSessionId === lastLoadedSessionIdRef.current && messages.filter(m => m.role !== 'system').length === 0) {
-      console.log(`${componentName} initialSessionId matches lastLoaded, but UI messages are empty. Forcing reload for ${initialSessionId}.`);
-      loadMessagesForSessionInternal(initialSessionId);
-    } else {
-      console.log(`${componentName} No session load required by this effect run.`);
-      setIsLoading(false); // Ensure loading is false if no load occurs
-    }
-  }, [initialSessionId, paneId]); // Only re-run when these critical props change
 
   // State for history menu
   const [historyMenuOpen, setHistoryMenuOpen] = useState(false);
@@ -1096,17 +243,14 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
           const componentName = `[CoderPane ${paneId?.substring(0, 8) || 'HIST'}]`;
           console.log(`${componentName} History item clicked, preparing to load session: ${newSessionId}`);
 
-          sessionIdRef.current = newSessionId; // Update current session ID
-          lastLoadedSessionIdRef.current = null; // Reset last loaded to force reload by useEffect OR call directly
-
-          // Call the extracted loading function
-          await loadMessagesForSessionInternal(newSessionId);
+          // Call the loading function from the hook
+          await loadMessagesForSession(newSessionId);
 
           setHistoryMenuOpen(false);
         }
       },
     }));
-  }, [chatHistorySessions, runtime, paneId, loadMessagesForSessionInternal]);
+  }, [chatHistorySessions, runtime, paneId, loadMessagesForSession]);
 
   // Create title bar buttons with history menu
   const titleBarButtons = useMemo(() => (
@@ -1281,28 +425,17 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
         }
       `}</style>
       {/* Chat messages area */}
-      <ScrollArea className="flex-1 min-h-0">
-        <div
-          ref={containerRef}
-          className="p-4"
-          onScroll={handleScroll}
-          onTouchStart={handleTouchStart}
-        >
-          <div className="max-w-[750px] mx-auto w-full">
-            <div className="flex flex-col gap-4">
-              {messages
-                .filter(msg => msg.role !== 'system') // Don't show system messages
-                .map((message, idx) => (
-                  <CoderChatMessage key={message.id || idx} message={message} index={idx} />
-                ))}
-            </div>
-          </div>
-        </div>
-      </ScrollArea>
+      <CoderMessageList
+        messages={messages}
+        containerRef={containerRef}
+        handleScroll={handleScroll}
+        handleTouchStart={handleTouchStart}
+        isStreamingLastMessage={isStreamingLastMessage}
+      />
       {/* ProseMirror editor at the bottom */}
       <div className="flex items-center justify-center pb-4 px-4">
-        <div className="h-[100px] w-[750px] overflow-auto rounded border border-white bg-black">
-          <ProseMirrorEditor onSubmit={sendMessage} disabled={isLoading} focusKey={focusKey} />
+        <div className="h-[50px] w-[750px] overflow-auto rounded border border-white bg-black">
+          <CoderProseMirrorInput onSubmit={sendMessage} disabled={isLoading} focusKey={focusKey} />
         </div>
       </div>
     </div>
