@@ -383,7 +383,7 @@ export function setupClaudeWebSocketHandler() {
                   id: assistantMessageId,
                   session_id: sessionId,
                   role: "assistant",
-                  content: "", // Start with empty content, will update later
+                  content: "[]", // Start with empty array, will update later
                   tool_calls_json: undefined,
                   timestamp: Math.floor(Date.now() / 1000),
                 })
@@ -621,14 +621,14 @@ export function setupClaudeWebSocketHandler() {
             activeConnections.delete(requestId);
             
             // Save assistant message to database on successful completion
-            if (message.exitCode === 0 && fullAssistantContent) {
+            if (message.exitCode === 0 && accumulatedContent.length > 0) {
               (async () => {
                 try {
                   const assistantDbMessage = {
                     id: assistantMessageId,
                     session_id: sessionId,
                     role: "assistant",
-                    content: fullAssistantContent,
+                    content: JSON.stringify(accumulatedContent), // Store structured content
                     tool_calls_json: toolCalls.length > 0 ? JSON.stringify(toolCalls) : undefined,
                     timestamp: Math.floor(Date.now() / 1000),
                   };
@@ -686,14 +686,14 @@ export function setupClaudeWebSocketHandler() {
             activeConnections.delete(requestId);
             
             // Save assistant message to database on successful completion
-            if (message.exitCode === 0 && fullAssistantContent) {
+            if (message.exitCode === 0 && accumulatedContent.length > 0) {
               (async () => {
                 try {
                   const assistantDbMessage = {
                     id: assistantMessageId,
                     session_id: sessionId,
                     role: "assistant",
-                    content: fullAssistantContent,
+                    content: JSON.stringify(accumulatedContent), // Store structured content
                     tool_calls_json: toolCalls.length > 0 ? JSON.stringify(toolCalls) : undefined,
                     timestamp: Math.floor(Date.now() / 1000),
                   };

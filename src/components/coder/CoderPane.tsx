@@ -730,26 +730,104 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
                 parts = contentData.parts;
               }
             } 
-            // Handle assistant messages with tool calls
-            else if (dbMsg.role === 'assistant' && dbMsg.tool_calls_json) {
+            // Handle assistant messages
+            else if (dbMsg.role === 'assistant') {
               parts = [];
               
-              // Add text content first if present
+              // Check if content is structured JSON array (new format)
+              let successfullyParsedStructuredContent = false;
               if (dbMsg.content) {
-                parts.push({ type: 'text', text: dbMsg.content });
+                try {
+                  const structuredContent = JSON.parse(dbMsg.content);
+                  if (Array.isArray(structuredContent)) {
+                    // New format: content is an array of parts
+                    console.log(`[CoderPane] Rehydrating assistant message ${dbMsg.id} with structured content`);
+                    const toolExecutionMap = new Map(
+                      (toolExecutionsByMessage.get(dbMsg.id) || []).map(exec => [exec.id, exec])
+                    );
+                    
+                    for (const rawPart of structuredContent) {
+                      if (rawPart.type === 'text' && rawPart.text) {
+                        parts.push({ type: 'text', text: rawPart.text });
+                      } else if (rawPart.type === 'tool_use' && rawPart.id && rawPart.name) {
+                        parts.push({
+                          type: 'tool_call',
+                          id: rawPart.id,
+                          name: rawPart.name,
+                          input: rawPart.input || {},
+                        });
+                        
+                        // Immediately add its result if available
+                        const execution = toolExecutionMap.get(rawPart.id);
+                        if (execution) {
+                          if (execution.result_json) {
+                            let parsedResultJson;
+                            try {
+                              parsedResultJson = JSON.parse(execution.result_json);
+                            } catch (e) {
+                              console.warn(`[CoderPane] Failed to parse result_json for tool ${rawPart.id}:`, execution.result_json, e);
+                              parsedResultJson = { content: `[Error parsing result: ${execution.result_json}]`, isError: true };
+                            }
+                            parts.push({
+                              type: 'tool_result',
+                              tool_use_id: execution.id,
+                              content: parsedResultJson,
+                              isError: execution.status === 'executed_error' || parsedResultJson.isError,
+                              isLoading: false,
+                            });
+                          } else { // Result not yet available or failed before result
+                            parts.push({
+                              type: 'tool_result',
+                              tool_use_id: execution.id,
+                              content: execution.status === 'pending' ? "Tool execution is pending..."
+                                      : execution.status === 'executed_error' ? "[Error result not available]"
+                                      : "[Result not available yet]",
+                              isLoading: execution.status === 'pending',
+                              isError: execution.status === 'executed_error',
+                            });
+                          }
+                        } else {
+                          // Tool call was in content, but no execution record
+                          parts.push({ 
+                            type: 'tool_result', 
+                            tool_use_id: rawPart.id, 
+                            content: "[Tool execution record missing]", 
+                            isLoading: true, 
+                            isError: false 
+                          });
+                        }
+                      }
+                    }
+                    successfullyParsedStructuredContent = true;
+                  }
+                } catch (e) {
+                  // content was not valid JSON or not an array, fallback to old logic
+                  console.log(`[CoderPane] Content not structured array for ${dbMsg.id}, trying fallback`);
+                }
               }
               
-              // Parse tool calls and get tool executions
-              const toolCalls = JSON.parse(dbMsg.tool_calls_json);
-              const toolExecutions = toolExecutionsByMessage.get(dbMsg.id) || [];
-              
-              // Create a map of tool executions by ID for quick lookup
-              const toolExecutionMap = new Map(
-                toolExecutions.map(exec => [exec.id, exec])
-              );
-              
-              // Add tool calls and their results in the correct order
-              toolCalls.forEach((tc: any) => {
+              if (!successfullyParsedStructuredContent) {
+                // Fallback for old data or if content isn't structured JSON
+                console.log(`[CoderPane] Using fallback logic for assistant message ${dbMsg.id}`);
+                
+                // Add text content first if present
+                if (dbMsg.content) {
+                  parts.push({ type: 'text', text: dbMsg.content });
+                }
+                
+                // Handle tool calls if present
+                if (dbMsg.tool_calls_json) {
+                  // Parse tool calls and get tool executions
+                  const toolCalls = JSON.parse(dbMsg.tool_calls_json);
+                  const toolExecutions = toolExecutionsByMessage.get(dbMsg.id) || [];
+                  
+                  // Create a map of tool executions by ID for quick lookup
+                  const toolExecutionMap = new Map(
+                    toolExecutions.map(exec => [exec.id, exec])
+                  );
+                  
+                  // Add tool calls and their results in the correct order
+                  toolCalls.forEach((tc: any) => {
                 // Add the tool call
                 parts.push({ 
                   type: 'tool_call', 
@@ -792,6 +870,8 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
                 }
                 // If no execution found at all, the tool_call part remains, and no tool_result part is added for it.
               });
+                }
+              }
             }
           } catch (e) { 
             console.warn(`${componentName} Error parsing message parts:`, e);
