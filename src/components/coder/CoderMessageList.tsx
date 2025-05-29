@@ -1,6 +1,5 @@
 import React from 'react';
 import { ChatMessage } from '@/hooks/coder/useCoderChat';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import CoderMessage from './CoderMessage';
 
 interface CoderMessageListProps {
@@ -19,7 +18,7 @@ const CoderMessageList: React.FC<CoderMessageListProps> = ({
   isStreamingLastMessage
 }) => {
   return (
-    <ScrollArea className="flex-1 min-h-0">
+    <div className="flex-1 min-h-0 overflow-auto">
       <div
         ref={containerRef}
         className="p-4"
@@ -36,8 +35,8 @@ const CoderMessageList: React.FC<CoderMessageListProps> = ({
           </div>
         </div>
       </div>
-    </ScrollArea>
+    </div>
   );
 };
 
-export default CoderMessageList;
+export default React.memo(CoderMessageList);
