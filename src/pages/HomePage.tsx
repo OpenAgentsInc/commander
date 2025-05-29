@@ -54,6 +54,7 @@ export default function HomePage() {
     toggleAgentChatPane,
     togglePreviousChatsPane,
     toggleCoderPane,
+    toggleDocsBrowserPane,
   } = usePaneStore(
     useShallow((state) => ({
       panes: state.panes,
@@ -66,6 +67,7 @@ export default function HomePage() {
       toggleAgentChatPane: state.toggleAgentChatPane,
       togglePreviousChatsPane: state.togglePreviousChatsPane,
       toggleCoderPane: state.toggleCoderPane,
+      toggleDocsBrowserPane: state.toggleDocsBrowserPane,
     })),
   );
 
@@ -77,6 +79,7 @@ export default function HomePage() {
   const [isAgentChatEnabled] = useFeatureFlag(Feature.AGENT_CHAT_PANE);
   const [isPreviousChatsEnabled] = useFeatureFlag(Feature.PREVIOUS_CHATS_PANE);
   const [isHandTrackingEnabled] = useFeatureFlag(Feature.HAND_TRACKING);
+  const [isDocsBrowserEnabled] = useFeatureFlag(Feature.DOCS_BROWSER_PANE);
 
   // Wrap toggleHandTracking in useCallback to prevent unnecessary re-renders
   const toggleHandTracking = useCallback(() => {
@@ -356,6 +359,7 @@ export default function HomePage() {
           onToggleAgentChatPane={toggleAgentChatPane}
           onTogglePreviousChatsPane={togglePreviousChatsPane}
           onToggleCoderPane={toggleCoderPane}
+          onToggleDocsBrowserPane={isDocsBrowserEnabled ? toggleDocsBrowserPane : undefined}
         />
       </div>
     </KeyboardControls>

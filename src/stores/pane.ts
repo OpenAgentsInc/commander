@@ -183,6 +183,45 @@ export const usePaneStore = create<PaneStoreType>()(
           }),
       // Coder pane - toggles all coder panes (hide/show)
       toggleCoderPane: () => toggleAllCoderPanesAction(set, get),
+      
+      // Documentation Browser pane
+      toggleDocsBrowserPane: () =>
+        togglePaneAction(set, get, {
+          paneId: DOCS_BROWSER_PANE_ID,
+          createPaneInput: (screenWidth, screenHeight, storedPosition) => {
+            let x, y, width, height;
+            
+            if (storedPosition) {
+              // Use the stored position
+              ({ x, y, width, height } = storedPosition);
+              
+              // Ensure the pane is still visible on screen (in case window was resized)
+              x = Math.max(PANE_MARGIN, Math.min(x, screenWidth - 100));
+              y = Math.max(PANE_MARGIN, Math.min(y, screenHeight - 100));
+              width = Math.min(width, screenWidth - x - PANE_MARGIN);
+              height = Math.min(height, screenHeight - y - PANE_MARGIN);
+            } else {
+              // Calculate default position (centered)
+              width = 800;
+              height = 600;
+              x = Math.floor((screenWidth - width) / 2);
+              y = Math.floor((screenHeight - height) / 2);
+            }
+
+            return {
+              id: DOCS_BROWSER_PANE_ID,
+              type: "docs-browser",
+              title: DOCS_BROWSER_PANE_TITLE,
+              x: x,
+              y: y,
+              width: width,
+              height: height,
+              dismissable: true,
+              content: {},
+            };
+          },
+        }),
+      
       resetHUDState: () => {
         // Force recreate initial panes with current screen dimensions
         const screenWidth =
