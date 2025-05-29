@@ -16,7 +16,7 @@ export const openNewCoderPaneAction = (set: SetPaneStore, get: GetPaneStore) => 
   const offset = existingCoderPanes.length * 30;
   
   const width = Math.floor(screenWidth * 0.45);
-  const height = Math.floor(screenHeight * 0.85);
+  const height = Math.floor(screenHeight * 0.70);
   const x = Math.floor((screenWidth - width) / 2) + offset;
   const y = PANE_MARGIN + 10 + offset;
   
