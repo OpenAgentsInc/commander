@@ -74,9 +74,9 @@ export const ToolResultDisplay: React.FC<ToolResultDisplayProps> = ({
           {getSummary()}{' '}
           <button 
             onClick={() => setIsExpanded(true)}
-            className="text-blue-500 hover:text-blue-400 hover:underline"
+            className="text-foreground hover:text-foreground/80 hover:underline"
           >
-            (ctrl+r to expand)
+            (expand)
           </button>
         </span>
       </div>
@@ -91,7 +91,7 @@ export const ToolResultDisplay: React.FC<ToolResultDisplayProps> = ({
           {getSummary()}{' '}
           <button 
             onClick={() => setIsExpanded(false)}
-            className="text-blue-500 hover:text-blue-400 hover:underline"
+            className="text-foreground hover:text-foreground/80 hover:underline"
           >
             (collapse)
           </button>
