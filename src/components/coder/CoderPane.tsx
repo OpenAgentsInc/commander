@@ -11,7 +11,8 @@ import { baseKeymap } from "prosemirror-commands";
 import { ChatMessage as UIChatMessage, type Message } from '@/components/ui/chat-message';
 import { useAutoScroll } from '@/hooks/use-auto-scroll';
 import { ToolCallDisplay } from './ToolCallDisplay';
-import { MessageSquarePlus } from 'lucide-react';
+import { ToolResultDisplay } from './ToolResultDisplay';
+import { MessageSquarePlus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import { DatabaseService, DBSession } from '@/services/db';
@@ -318,14 +319,11 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
               isLoading={!hasResult}
             />
             {hasResult && result && (
-              <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm ml-6">
-                <div className="text-xs text-muted-foreground mb-1">Result:</div>
-                <div className="whitespace-pre-wrap text-foreground">
-                  {typeof result.content === 'string'
-                    ? result.content
-                    : JSON.stringify(result.content, null, 2)}
-                </div>
-              </div>
+              <ToolResultDisplay
+                toolName={part.name}
+                result={result.content}
+                isError={result.isError}
+              />
             )}
           </div>
         );
@@ -343,7 +341,10 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
       <div className={`coder-chat-message ${message.role === 'user' ? 'user-message' : 'assistant-message'} space-y-2`}>
         {renderParts()}
         {message.isStreaming && message.role === 'assistant' && (
-          <span className="inline-block w-2 h-4 ml-1 mt-2 bg-white animate-pulse" />
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-xs text-muted-foreground italic">Claude Code is working</span>
+            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+          </div>
         )}
       </div>
     );
@@ -360,7 +361,10 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
         showTimeStamp={false}
       />
       {message.isStreaming && message.role === 'assistant' && (
-        <span className="inline-block w-2 h-4 ml-1 mt-2 bg-white animate-pulse" />
+        <div className="flex items-center gap-2 mt-2">
+          <span className="text-xs text-muted-foreground italic">Claude Code is working</span>
+          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+        </div>
       )}
     </div>
   );
@@ -678,13 +682,35 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
     clearMessages();
 
     try {
-      const dbProgram = Effect.flatMap(DatabaseService, (db) =>
-        db.getMessagesForSession(sessionIdToLoad, 500)
-      );
+      const dbProgram = Effect.gen(function* (_) {
+        const db = yield* _(DatabaseService);
+        const messages = yield* _(db.getMessagesForSession(sessionIdToLoad, 500));
+        
+        // Fetch tool executions for all messages in parallel
+        const messageToolExecutions = yield* _(
+          Effect.all(
+            messages.map(msg => 
+              Effect.map(
+                db.getToolCallsForMessage(msg.id),
+                tools => ({ messageId: msg.id, tools })
+              )
+            ),
+            { concurrency: "unbounded" }
+          )
+        );
+        
+        // Create a map of message ID to tool executions
+        const toolExecutionsByMessage = new Map(
+          messageToolExecutions.map(({ messageId, tools }) => [messageId, tools])
+        );
+        
+        return { messages, toolExecutionsByMessage };
+      });
+      
       const exitResult = await Effect.runPromiseExit(Effect.provide(dbProgram, runtime));
 
       if (Exit.isSuccess(exitResult)) {
-        const dbMessages = exitResult.value;
+        const { messages: dbMessages, toolExecutionsByMessage } = exitResult.value;
         console.log(`${componentName} Loaded ${dbMessages.length} messages from DB for session ${sessionIdToLoad}`);
 
         const newMessagesState: ChatMessage[] = [{
@@ -697,21 +723,160 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
         dbMessages.forEach(dbMsg => {
           let parts;
           try {
-            if (dbMsg.content && (dbMsg.content.startsWith('{"parts":') || (dbMsg.tool_calls_json && dbMsg.role === 'assistant'))) {
-              // If content contains parts, or if it's an assistant message with tool_calls_json, parse parts.
-              // Assistant messages from Claude Bridge store main text in content, and tool calls in tool_calls_json.
-              // We need to reconstruct parts array for UI.
-              if (dbMsg.role === 'assistant' && dbMsg.tool_calls_json) {
-                parts = [];
-                if (dbMsg.content) parts.push({type: 'text', text: dbMsg.content});
-                const toolCalls = JSON.parse(dbMsg.tool_calls_json);
-                toolCalls.forEach((tc: any) => parts.push({ type: 'tool_call', id: tc.id, name: tc.function.name, input: JSON.parse(tc.function.arguments)}));
-              } else if (dbMsg.content) {
-                const contentData = JSON.parse(dbMsg.content);
-                if (contentData.parts) parts = contentData.parts;
+            // Check if message has stored parts (from user messages with tool results)
+            if (dbMsg.content && dbMsg.content.startsWith('{"parts":')) {
+              const contentData = JSON.parse(dbMsg.content);
+              if (contentData.parts) {
+                parts = contentData.parts;
+              }
+            } 
+            // Handle assistant messages
+            else if (dbMsg.role === 'assistant') {
+              parts = [];
+              
+              // Check if content is structured JSON array (new format)
+              let successfullyParsedStructuredContent = false;
+              if (dbMsg.content) {
+                try {
+                  const structuredContent = JSON.parse(dbMsg.content);
+                  if (Array.isArray(structuredContent)) {
+                    // New format: content is an array of parts
+                    console.log(`[CoderPane] Rehydrating assistant message ${dbMsg.id} with structured content`);
+                    const toolExecutionMap = new Map(
+                      (toolExecutionsByMessage.get(dbMsg.id) || []).map(exec => [exec.id, exec])
+                    );
+                    
+                    for (const rawPart of structuredContent) {
+                      if (rawPart.type === 'text' && rawPart.text) {
+                        parts.push({ type: 'text', text: rawPart.text });
+                      } else if (rawPart.type === 'tool_use' && rawPart.id && rawPart.name) {
+                        parts.push({
+                          type: 'tool_call',
+                          id: rawPart.id,
+                          name: rawPart.name,
+                          input: rawPart.input || {},
+                        });
+                        
+                        // Immediately add its result if available
+                        const execution = toolExecutionMap.get(rawPart.id);
+                        if (execution) {
+                          if (execution.result_json) {
+                            let parsedResultJson;
+                            try {
+                              parsedResultJson = JSON.parse(execution.result_json);
+                            } catch (e) {
+                              console.warn(`[CoderPane] Failed to parse result_json for tool ${rawPart.id}:`, execution.result_json, e);
+                              parsedResultJson = { content: `[Error parsing result: ${execution.result_json}]`, isError: true };
+                            }
+                            parts.push({
+                              type: 'tool_result',
+                              tool_use_id: execution.id,
+                              content: parsedResultJson,
+                              isError: execution.status === 'executed_error' || parsedResultJson.isError,
+                              isLoading: false,
+                            });
+                          } else { // Result not yet available or failed before result
+                            parts.push({
+                              type: 'tool_result',
+                              tool_use_id: execution.id,
+                              content: execution.status === 'pending' ? "Tool execution is pending..."
+                                      : execution.status === 'executed_error' ? "[Error result not available]"
+                                      : "[Result not available yet]",
+                              isLoading: execution.status === 'pending',
+                              isError: execution.status === 'executed_error',
+                            });
+                          }
+                        } else {
+                          // Tool call was in content, but no execution record
+                          parts.push({ 
+                            type: 'tool_result', 
+                            tool_use_id: rawPart.id, 
+                            content: "[Tool execution record missing]", 
+                            isLoading: true, 
+                            isError: false 
+                          });
+                        }
+                      }
+                    }
+                    successfullyParsedStructuredContent = true;
+                  }
+                } catch (e) {
+                  // content was not valid JSON or not an array, fallback to old logic
+                  console.log(`[CoderPane] Content not structured array for ${dbMsg.id}, trying fallback`);
+                }
+              }
+              
+              if (!successfullyParsedStructuredContent) {
+                // Fallback for old data or if content isn't structured JSON
+                console.log(`[CoderPane] Using fallback logic for assistant message ${dbMsg.id}`);
+                
+                // Add text content first if present
+                if (dbMsg.content) {
+                  parts.push({ type: 'text', text: dbMsg.content });
+                }
+                
+                // Handle tool calls if present
+                if (dbMsg.tool_calls_json) {
+                  // Parse tool calls and get tool executions
+                  const toolCalls = JSON.parse(dbMsg.tool_calls_json);
+                  const toolExecutions = toolExecutionsByMessage.get(dbMsg.id) || [];
+                  
+                  // Create a map of tool executions by ID for quick lookup
+                  const toolExecutionMap = new Map(
+                    toolExecutions.map(exec => [exec.id, exec])
+                  );
+                  
+                  // Add tool calls and their results in the correct order
+                  toolCalls.forEach((tc: any) => {
+                // Add the tool call
+                parts.push({ 
+                  type: 'tool_call', 
+                  id: tc.id, 
+                  name: tc.function.name, 
+                  input: JSON.parse(tc.function.arguments)
+                });
+                
+                // Immediately add the result if available
+                const execution = toolExecutionMap.get(tc.id);
+                if (execution && execution.result_json) {
+                  let parsedResultJson;
+                  try {
+                    parsedResultJson = JSON.parse(execution.result_json);
+                  } catch (e) {
+                    console.warn(`[CoderPane] Failed to parse result_json for tool ${tc.id}:`, execution.result_json, e);
+                    parsedResultJson = { content: `[Error parsing result: ${execution.result_json}]`, isError: true };
+                  }
+                  parts.push({
+                    type: 'tool_result',
+                    tool_use_id: execution.id,
+                    content: parsedResultJson, // This might be { content: "..." } or the error object
+                    isError: execution.status === 'executed_error' || parsedResultJson.isError,
+                    isLoading: false, // If result_json exists, it's not loading
+                  });
+                } else if (execution) {
+                  // Tool call exists but no result_json
+                  parts.push({
+                    type: 'tool_result',
+                    tool_use_id: execution.id,
+                    // Provide more informative content based on status
+                    content: execution.status === 'pending'
+                      ? "Tool execution is pending..."
+                      : execution.status === 'executed_error'
+                        ? "[Error result not available]"
+                        : "[Result not available yet]",
+                    isLoading: execution.status === 'pending',
+                    isError: execution.status === 'executed_error'
+                  });
+                }
+                // If no execution found at all, the tool_call part remains, and no tool_result part is added for it.
+              });
+                }
               }
             }
-          } catch (e) { /* content is plain text or not parsable as parts */ }
+          } catch (e) { 
+            console.warn(`${componentName} Error parsing message parts:`, e);
+            /* content is plain text or not parsable as parts */ 
+          }
 
           newMessagesState.push({
             id: dbMsg.id,

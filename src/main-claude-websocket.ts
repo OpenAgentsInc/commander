@@ -65,10 +65,12 @@ async function saveMessageToDatabase(message: any): Promise<void> {
 async function saveToolCallToDatabase(toolCall: any): Promise<void> {
   const ws = new WebSocket(BRIDGE_SERVICE_URL);
   return new Promise((resolve, reject) => {
+    const requestId = `db-save-toolcall-${Date.now()}-${Math.random().toString(36).substring(2,9)}`;
+    
     ws.on('open', () => {
       ws.send(JSON.stringify({
         type: 'db',
-        id: `db-save-toolcall-${Date.now()}`,
+        id: requestId,
         operation: 'saveToolCall',
         params: toolCall
       }));
@@ -76,15 +78,34 @@ async function saveToolCallToDatabase(toolCall: any): Promise<void> {
     
     ws.on('message', (data: string) => {
       const response = JSON.parse(data);
-      ws.close();
-      if (response.type === 'db_result') {
-        resolve();
-      } else if (response.type === 'db_error') {
-        reject(new Error(response.error));
+      if (response.id === requestId) {
+        clearTimeout(timeoutId); // Clear timeout on response
+        ws.close();
+        if (response.type === 'db_result' && response.result && response.result.success) {
+          console.log(`[Main Process] Tool call ${toolCall.id} reported as saved by bridge. Rows affected: ${response.result.rowsAffected || 'N/A'}`);
+          resolve();
+        } else {
+          const errorMessage = response.error || (response.result && response.result.error) || 'Unknown error from bridge during saveToolCall';
+          console.error(`[Main Process] Bridge service FAILED to save tool call ${toolCall.id}: ${errorMessage}`);
+          console.error(`[Main Process] Bridge saveToolCall response details: ${JSON.stringify(response.result)}`);
+          reject(new Error(`Bridge failed to save tool call ${toolCall.id}: ${errorMessage}. Details: ${JSON.stringify(response.result)}`));
+        }
       }
     });
     
-    ws.on('error', reject);
+    const timeoutId = setTimeout(() => {
+      ws.close();
+      const errorMsg = `Timeout waiting for bridge response for saveToolCall ${toolCall.id}`;
+      console.error(`[Main Process] ${errorMsg}`);
+      reject(new Error(errorMsg));
+    }, 5000); // 5 second timeout for DB operations
+    
+    ws.on('error', (err) => {
+      clearTimeout(timeoutId);
+      const errorMsg = `WebSocket error for saveToolCall ${toolCall.id}: ${err.message || 'Unknown WebSocket error'}`;
+      console.error(`[Main Process] ${errorMsg}`);
+      reject(new Error(errorMsg));
+    });
   });
 }
 
@@ -111,6 +132,53 @@ async function updateSessionInDatabase(sessionId: string, updates: any): Promise
     });
     
     ws.on('error', reject);
+  });
+}
+
+async function updateToolCallResultInDatabase(toolCallId: string, resultJson: string, status: "executed_success" | "executed_error"): Promise<void> {
+  const ws = new WebSocket(BRIDGE_SERVICE_URL);
+  return new Promise((resolve, reject) => {
+    const requestId = `db-update-toolcall-${Date.now()}-${Math.random().toString(36).substring(2,9)}`;
+    
+    ws.on('open', () => {
+      ws.send(JSON.stringify({
+        type: 'db',
+        id: requestId,
+        operation: 'updateToolCallResult',
+        params: { toolCallId, resultJson, status }
+      }));
+    });
+    
+    ws.on('message', (data: string) => {
+      const response = JSON.parse(data);
+      if (response.id === requestId) {
+        clearTimeout(timeoutId);
+        ws.close();
+        if (response.type === 'db_result' && response.result && response.result.success) {
+          console.log(`[Main Process] Tool call ${toolCallId} result reported as updated by bridge. Rows affected: ${response.result.rowsAffected || 'N/A'}`);
+          resolve();
+        } else {
+          const errorMessage = response.error || (response.result && response.result.error) || 'Unknown error from bridge during updateToolCallResult';
+          console.error(`[Main Process] Bridge service FAILED to update tool call result ${toolCallId}: ${errorMessage}`);
+          console.error(`[Main Process] Bridge updateToolCallResult response details: ${JSON.stringify(response.result)}`);
+          reject(new Error(`Bridge failed to update tool call ${toolCallId}: ${errorMessage}. Details: ${JSON.stringify(response.result)}`));
+        }
+      }
+    });
+    
+    const timeoutId = setTimeout(() => {
+      ws.close();
+      const errorMsg = `Timeout waiting for bridge response for updateToolCallResult ${toolCallId}`;
+      console.error(`[Main Process] ${errorMsg}`);
+      reject(new Error(errorMsg));
+    }, 5000); // 5 second timeout
+    
+    ws.on('error', (err) => {
+      clearTimeout(timeoutId);
+      const errorMsg = `WebSocket error for updateToolCallResult ${toolCallId}: ${err.message || 'Unknown WebSocket error'}`;
+      console.error(`[Main Process] ${errorMsg}`);
+      reject(new Error(errorMsg));
+    });
   });
 }
 
@@ -279,6 +347,7 @@ export function setupClaudeWebSocketHandler() {
     let fullAssistantContent = "";
     let toolCalls: any[] = [];
     let messageAlreadySaved = false;
+    let messageSavePromise: Promise<void> | null = null;
     let accumulatedContent: any[] = [];
     
     ws.on('open', () => {
@@ -305,6 +374,27 @@ export function setupClaudeWebSocketHandler() {
               // Use the Claude message ID if we haven't set one yet
               if (!assistantMessageId && claudeMessage.id) {
                 assistantMessageId = claudeMessage.id;
+              }
+              
+              // Save assistant message to database immediately on first chunk
+              if (!messageAlreadySaved && !messageSavePromise && assistantMessageId) {
+                // Save synchronously to ensure it's done before tool calls
+                messageSavePromise = saveMessageToDatabase({
+                  id: assistantMessageId,
+                  session_id: sessionId,
+                  role: "assistant",
+                  content: "[]", // Start with empty array, will update later
+                  tool_calls_json: undefined,
+                  timestamp: Math.floor(Date.now() / 1000),
+                })
+                .then(() => {
+                  messageAlreadySaved = true;
+                  console.log("[Main Process] Assistant message placeholder saved to database early");
+                })
+                .catch((error) => {
+                  console.error("[Main Process] Failed to save assistant message placeholder:", error);
+                  messageAlreadySaved = true; // Prevent retrying
+                });
               }
               
               // Accumulate all content parts
@@ -335,6 +425,38 @@ export function setupClaudeWebSocketHandler() {
                         arguments: JSON.stringify(contentPart.input || {})
                       }
                     });
+                    
+                    // *** NEW: Immediately save the tool call to the database ***
+                    const toolExecutionData = {
+                      id: contentPart.id,                      // Tool call ID from Claude
+                      message_id: assistantMessageId,          // ID of the parent assistant message
+                      tool_name: contentPart.name,
+                      arguments_json: JSON.stringify(contentPart.input || {}),
+                      status: "pending",                       // Initial status
+                      created_at: Math.floor(Date.now() / 1000),
+                      updated_at: Math.floor(Date.now() / 1000),
+                      result_json: null                       // No result yet
+                    };
+                    
+                    console.log(`[Main Process] Immediately saving tool call: ${toolExecutionData.id} for message ${assistantMessageId}`);
+                    
+                    // Wait for message to be saved first if needed
+                    const saveToolCall = async () => {
+                      if (messageSavePromise) {
+                        await messageSavePromise;
+                      }
+                      return saveToolCallToDatabase(toolExecutionData);
+                    };
+                    
+                    saveToolCall()
+                      .then(() => {
+                        console.log(`[Main Process] Successfully saved pending tool call ${toolExecutionData.id} to DB.`);
+                      })
+                      .catch(error => {
+                        console.error(`[Main Process] Failed to immediately save tool call ${toolExecutionData.id} to DB:`, error);
+                        // Optionally, send an error notification to the renderer or log to telemetry
+                      });
+                    // *** END OF NEW LOGIC ***
                   }
                 }
               }
@@ -363,8 +485,10 @@ export function setupClaudeWebSocketHandler() {
               console.log("[Main Process] User message (tool result):", claudeMessage);
               // Handle tool results that come as user messages (from Task tool subtools)
               const userMessage = claudeMessage.message;
+              console.log("[Main Process] Processing user message content:", JSON.stringify(userMessage.content));
               if (userMessage.content && Array.isArray(userMessage.content)) {
                 for (const contentPart of userMessage.content) {
+                  console.log("[Main Process] Content part type:", contentPart.type);
                   if (contentPart.type === "tool_result") {
                     // Extract text content from tool result if it's an array
                     let resultContent = contentPart.content;
@@ -383,6 +507,21 @@ export function setupClaudeWebSocketHandler() {
                       is_error: contentPart.is_error
                     };
                     event.sender.send(`claude-code:chat-stream:chunk`, requestId, JSON.stringify(toolResultInfo));
+                    
+                    // Update tool execution in database
+                    console.log(`[Main Process] Attempting to save tool result for ${contentPart.tool_use_id}`);
+                    (async () => {
+                      try {
+                        await updateToolCallResultInDatabase(
+                          contentPart.tool_use_id,
+                          JSON.stringify({ content: resultContent }),
+                          contentPart.is_error ? 'executed_error' : 'executed_success'
+                        );
+                        console.log(`[Main Process] Tool result saved for ${contentPart.tool_use_id}`);
+                      } catch (error) {
+                        console.error(`[Main Process] Failed to save tool result for ${contentPart.tool_use_id}:`, error);
+                      }
+                    })();
                   }
                 }
               }
@@ -428,6 +567,38 @@ export function setupClaudeWebSocketHandler() {
                         arguments: JSON.stringify(contentPart.input || {})
                       }
                     });
+                    
+                    // *** NEW: Immediately save the tool call to the database ***
+                    const toolExecutionData2 = {
+                      id: contentPart.id,                      // Tool call ID from Claude
+                      message_id: assistantMessageId,          // ID of the parent assistant message
+                      tool_name: contentPart.name,
+                      arguments_json: JSON.stringify(contentPart.input || {}),
+                      status: "pending",                       // Initial status
+                      created_at: Math.floor(Date.now() / 1000),
+                      updated_at: Math.floor(Date.now() / 1000),
+                      result_json: null                       // No result yet
+                    };
+                    
+                    console.log(`[Main Process] Immediately saving tool call: ${toolExecutionData2.id} for message ${assistantMessageId}`);
+                    
+                    // Wait for message to be saved first if needed
+                    const saveToolCall2 = async () => {
+                      if (messageSavePromise) {
+                        await messageSavePromise;
+                      }
+                      return saveToolCallToDatabase(toolExecutionData2);
+                    };
+                    
+                    saveToolCall2()
+                      .then(() => {
+                        console.log(`[Main Process] Successfully saved pending tool call ${toolExecutionData2.id} to DB.`);
+                      })
+                      .catch(error => {
+                        console.error(`[Main Process] Failed to immediately save tool call ${toolExecutionData2.id} to DB:`, error);
+                        // Optionally, send an error notification to the renderer or log to telemetry
+                      });
+                    // *** END OF NEW LOGIC ***
                   }
                 }
               }
@@ -450,14 +621,14 @@ export function setupClaudeWebSocketHandler() {
             activeConnections.delete(requestId);
             
             // Save assistant message to database on successful completion
-            if (message.exitCode === 0 && fullAssistantContent) {
+            if (message.exitCode === 0 && accumulatedContent.length > 0) {
               (async () => {
                 try {
                   const assistantDbMessage = {
                     id: assistantMessageId,
                     session_id: sessionId,
                     role: "assistant",
-                    content: fullAssistantContent,
+                    content: JSON.stringify(accumulatedContent), // Store structured content
                     tool_calls_json: toolCalls.length > 0 ? JSON.stringify(toolCalls) : undefined,
                     timestamp: Math.floor(Date.now() / 1000),
                   };
@@ -515,14 +686,14 @@ export function setupClaudeWebSocketHandler() {
             activeConnections.delete(requestId);
             
             // Save assistant message to database on successful completion
-            if (message.exitCode === 0 && fullAssistantContent) {
+            if (message.exitCode === 0 && accumulatedContent.length > 0) {
               (async () => {
                 try {
                   const assistantDbMessage = {
                     id: assistantMessageId,
                     session_id: sessionId,
                     role: "assistant",
-                    content: fullAssistantContent,
+                    content: JSON.stringify(accumulatedContent), // Store structured content
                     tool_calls_json: toolCalls.length > 0 ? JSON.stringify(toolCalls) : undefined,
                     timestamp: Math.floor(Date.now() / 1000),
                   };
