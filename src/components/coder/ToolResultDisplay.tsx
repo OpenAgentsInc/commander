@@ -69,8 +69,8 @@ export const ToolResultDisplay: React.FC<ToolResultDisplayProps> = ({
   if (!isExpanded) {
     return (
       <div className="ml-5 flex items-center gap-2 text-xs text-muted-foreground">
-        <span className="text-base">⎿</span>
-        <span>
+        <span className="text-xs">⎿</span>
+        <span className="mt-1">
           {getSummary()}{' '}
           <button 
             onClick={() => setIsExpanded(true)}
@@ -86,8 +86,8 @@ export const ToolResultDisplay: React.FC<ToolResultDisplayProps> = ({
   return (
     <div className="ml-5">
       <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-        <span className="text-base">⎿</span>
-        <span>
+        <span className="text-xs">⎿</span>
+        <span className="mt-1">
           {getSummary()}{' '}
           <button 
             onClick={() => setIsExpanded(false)}
