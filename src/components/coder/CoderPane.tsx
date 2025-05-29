@@ -331,9 +331,22 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
           border-radius: 0 !important;
         }
 
+        /* User message styling */
         .coder-chat-message.user-message .group\\/message {
-          max-width: 80% !important;
+          max-width: none !important;
+          width: fit-content !important;
           border: 1px solid white !important;
+          word-break: normal !important;
+        }
+        
+        /* Container should limit max width */
+        .coder-chat-message.user-message .relative.group {
+          max-width: 80% !important;
+        }
+        
+        /* Remove the Tailwind max-width class effect */
+        .coder-chat-message.user-message .group\\/message[class*="sm:max-w-"] {
+          max-width: none !important;
         }
 
         .coder-chat-message.assistant-message .group\\/message {

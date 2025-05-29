@@ -118,7 +118,7 @@ const CoderMessage: React.FC<CoderMessageProps> = ({ message, index }) => {
         if (!cleanedText) return null;
 
         return (
-          <div key={`text-${idx}`} className="prose prose-invert max-w-none">
+          <div key={`text-${idx}`} className={`prose prose-invert max-w-none ${message.role === 'user' ? 'flex justify-end' : ''}`}>
             <UIChatMessage
               id={`${message.id}-text-${idx}`}
               role={message.role === 'user' ? 'user' : 'assistant'}
@@ -135,7 +135,7 @@ const CoderMessage: React.FC<CoderMessageProps> = ({ message, index }) => {
         const isDone = hasResult && !result?.isLoading; // Tool call is "done" if it has a result and isn't loading
 
         return (
-          <Collapsible key={`tool-${idx}`} defaultOpen={!isDone} className="space-y-1 border border-muted/50 rounded-lg p-1 my-1">
+          <Collapsible key={`tool-${idx}`} defaultOpen={false} className="space-y-1 border border-muted/50 rounded-lg p-1 my-1">
             <CollapsibleTrigger asChild>
               <div className="cursor-pointer">
                 <ToolCallDisplay
