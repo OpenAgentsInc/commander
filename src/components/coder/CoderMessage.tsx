@@ -107,6 +107,51 @@ const CoderMessage: React.FC<CoderMessageProps> = ({ message, index }) => {
     return results;
   }, [message.parts]);
 
+  // Function to extract a short status from tool result
+  const getResultStatus = (result: any): string => {
+    if (!result || !result.content) return '';
+    
+    let content = result.content;
+    if (typeof content === 'object' && content !== null && 'content' in content) {
+      content = content.content;
+    }
+    
+    const str = String(content);
+    
+    // Look for common status patterns
+    const patterns = [
+      /Found (\d+) (?:files?|matches?|results?)/i,
+      /No files? found/i,
+      /No matches? found/i,
+      /Created (\d+) files?/i,
+      /Updated (\d+) files?/i,
+      /Deleted (\d+) files?/i,
+      /(\d+) files? (?:total|matched)/i,
+      /Successfully .+/i,
+      /Failed to .+/i,
+      /Error: .+/i
+    ];
+    
+    for (const pattern of patterns) {
+      const match = str.match(pattern);
+      if (match) {
+        return match[0].substring(0, 30);
+      }
+    }
+    
+    // If no pattern matched, try to extract a short summary
+    const lines = str.split('\n').filter(line => line.trim());
+    if (lines.length > 0) {
+      const firstLine = lines[0].trim();
+      if (firstLine.length <= 30) {
+        return firstLine;
+      }
+      return firstLine.substring(0, 27) + '...';
+    }
+    
+    return '';
+  };
+
   // Render custom tool displays for better UX
   const renderParts = () => {
     if (!message.parts || message.parts.length === 0) return null;
@@ -142,6 +187,7 @@ const CoderMessage: React.FC<CoderMessageProps> = ({ message, index }) => {
                   toolName={part.name}
                   args={part.input}
                   isLoading={!hasResult && !result} // Only loading if no result at all
+                  resultStatus={hasResult && result ? getResultStatus(result) : undefined}
                 />
               </div>
             </CollapsibleTrigger>

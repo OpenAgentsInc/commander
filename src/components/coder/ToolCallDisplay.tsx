@@ -5,12 +5,14 @@ interface ToolCallDisplayProps {
   toolName: string;
   args?: any;
   isLoading?: boolean;
+  resultStatus?: string;
 }
 
 export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({ 
   toolName, 
   args,
-  isLoading = true 
+  isLoading = true,
+  resultStatus
 }) => {
   // Function to get the most relevant parameter to display
   const getRelevantParam = () => {
@@ -62,11 +64,16 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
     return (
       <div className="flex flex-col gap-1 rounded-lg border bg-muted/50 px-2 py-1 text-sm">
         <div className="flex items-center gap-2 text-muted-foreground">
-          <Terminal className="h-3 w-3" />
-          <span className="text-xs">
+          <Terminal className="h-3 w-3 flex-shrink-0" />
+          <span className="text-xs truncate flex-1 min-w-0">
             Task: <span className="font-semibold">{args.description || 'Task'}</span>
           </span>
-          {isLoading && <Loader2 className="h-3 w-3 animate-spin ml-auto" />}
+          {resultStatus && !isLoading && (
+            <span className="text-xs text-muted-foreground/80 flex-shrink-0 ml-auto">
+              {resultStatus}
+            </span>
+          )}
+          {isLoading && <Loader2 className="h-3 w-3 animate-spin ml-auto flex-shrink-0" />}
         </div>
         {args.prompt && (
           <div className="text-xs text-muted-foreground/80 pl-5 whitespace-pre-wrap">
@@ -82,14 +89,19 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
   // Default display for other tools
   return (
     <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-2 py-1 text-xs text-muted-foreground">
-      <Terminal className="h-3 w-3" />
-      <span className="font-mono">
+      <Terminal className="h-3 w-3 flex-shrink-0" />
+      <span className="font-mono truncate flex-1 min-w-0">
         {toolName}
         {relevantParam && (
           <span className="text-foreground/80">({relevantParam})</span>
         )}
       </span>
-      {isLoading && <Loader2 className="h-3 w-3 animate-spin ml-auto" />}
+      {resultStatus && !isLoading && (
+        <span className="text-muted-foreground/80 flex-shrink-0 ml-auto">
+          {resultStatus}
+        </span>
+      )}
+      {isLoading && <Loader2 className="h-3 w-3 animate-spin ml-auto flex-shrink-0" />}
     </div>
   );
 };
