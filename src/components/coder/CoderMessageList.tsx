@@ -5,7 +5,7 @@ import CoderMessage from './CoderMessage';
 
 interface CoderMessageListProps {
   messages: ChatMessage[];
-  containerRef: React.RefObject<HTMLDivElement>;
+  containerRef: React.RefObject<HTMLDivElement | null>;
   handleScroll: () => void;
   handleTouchStart: () => void;
   isStreamingLastMessage: boolean; // To potentially show a global streaming indicator at the bottom
