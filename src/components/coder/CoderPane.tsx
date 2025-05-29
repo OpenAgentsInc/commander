@@ -22,6 +22,11 @@ export interface CoderPaneProps {
 }
 
 const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSessionId, titleBarButtonsRef }) => {
+  // Only log on mount, not every render
+  useEffect(() => {
+    console.log(`[coder_pa CoderPane] Mounted with paneId: ${paneId}, initialSessionId:`, initialSessionId);
+  }, []); // Empty deps = only on mount
+  
   const runtime = getMainRuntime(); // For telemetry
   const removePane = usePaneStore((state) => state.removePane);
   const updatePaneSize = usePaneStore((state) => state.updatePaneSize);

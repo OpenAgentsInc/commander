@@ -3,6 +3,7 @@ import { Effect, Exit, Cause } from 'effect';
 import { DatabaseService } from '@/services/db';
 import { getMainRuntime } from '@/services/runtime';
 import { usePaneStore } from '@/stores/pane';
+import { CODER_PANE_TITLE } from '@/stores/panes/constants';
 
 // Local message interface - each pane has its own messages
 export interface ChatMessage {
@@ -296,7 +297,8 @@ export function useCoderChat(props: UseCoderChatProps) {
         setMessages(newMessagesState);
         lastLoadedSessionIdRef.current = sessionIdToLoad;
         sessionIdRef.current = sessionIdToLoad; // Ensure current session ID is also set
-        updatePaneContent(paneId, { sessionId: sessionIdToLoad });
+        const newTitle = `${CODER_PANE_TITLE} (${sessionIdToLoad.substring(0,6)}...)`;
+        updatePaneContent(paneId, { sessionId: sessionIdToLoad, title: newTitle });
         console.log(`${componentName} Session ${sessionIdToLoad} loaded and pane content updated.`);
 
         // Scroll to bottom after loading messages
@@ -452,31 +454,56 @@ export function useCoderChat(props: UseCoderChatProps) {
   // Load initial session if provided
   useEffect(() => {
     const componentName = `[CoderPane ${paneId?.substring(0, 8) || 'NEW'}]`;
-    console.log(`${componentName} Effect for session loading. initialSessionId: ${initialSessionId}, current sessionIdRef: ${sessionIdRef.current}, lastLoaded: ${lastLoadedSessionIdRef.current}`);
+    console.log(`${componentName} Effect for session loading/init. initialSessionId: ${initialSessionId}, current sessionIdRef: ${sessionIdRef.current}, lastLoaded: ${lastLoadedSessionIdRef.current}`);
 
-    if (initialSessionId && initialSessionId !== lastLoadedSessionIdRef.current) {
-      console.log(`${componentName} initialSessionId (${initialSessionId}) differs from lastLoaded (${lastLoadedSessionIdRef.current}). Loading.`);
-      loadMessagesForSessionInternal(initialSessionId);
-    } else if (!initialSessionId && sessionIdRef.current && !lastLoadedSessionIdRef.current) {
-      // This handles the case where the hook initializes without an initialSessionId,
-      // generates one, and needs to mark it as "loaded" (empty).
-      console.log(`${componentName} New pane, initialSessionId is null, sessionIdRef.current is ${sessionIdRef.current}. Setting lastLoaded to match.`);
-      lastLoadedSessionIdRef.current = sessionIdRef.current;
-      updatePaneContent(paneId, { sessionId: sessionIdRef.current });
-      setIsLoading(false);
-    } else if (!initialSessionId && !sessionIdRef.current) {
-      const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-      console.log(`${componentName} No initial session, generated new: ${newSessionId}`);
-      sessionIdRef.current = newSessionId;
-      lastLoadedSessionIdRef.current = newSessionId;
-      clearMessages();
-      updatePaneContent(paneId, { sessionId: newSessionId });
-      setIsLoading(false);
-    } else {
-      console.log(`${componentName} No session load required by this effect run. Active session: ${sessionIdRef.current}`);
-      setIsLoading(false);
+    let determinedSessionId = sessionIdRef.current;
+
+    if (initialSessionId) {
+      if (initialSessionId !== lastLoadedSessionIdRef.current) {
+        console.log(`${componentName} Using initialSessionId (${initialSessionId}) for loading.`);
+        determinedSessionId = initialSessionId;
+        sessionIdRef.current = initialSessionId; // Sync ref with prop
+        loadMessagesForSessionInternal(initialSessionId); // This also sets lastLoadedSessionIdRef.current
+      } else {
+        console.log(`${componentName} initialSessionId (${initialSessionId}) matches lastLoaded. No load needed.`);
+        setIsLoading(false);
+      }
+    } else { // No initialSessionId provided
+      // If sessionIdRef.current is also uninitialized (or a temporary placeholder), generate a new one.
+      if (!sessionIdRef.current || sessionIdRef.current.startsWith('ui-coder-temp-')) { // Check for uninitialized or temp ID
+        const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+        console.log(`${componentName} New pane, no initialSessionId. Generated new: ${newSessionId}`);
+        determinedSessionId = newSessionId;
+        sessionIdRef.current = newSessionId;
+        lastLoadedSessionIdRef.current = newSessionId; // Mark as "loaded" (it's empty)
+        clearMessages(); // Ensure messages are clear for a truly new session
+        setIsLoading(false);
+      } else {
+        // Retain existing sessionIdRef.current if it's valid (e.g., pane was re-rendered without initialSessionId prop changing)
+        determinedSessionId = sessionIdRef.current;
+        console.log(`${componentName} No initialSessionId, retaining existing ref: ${determinedSessionId}`);
+        if (determinedSessionId !== lastLoadedSessionIdRef.current) {
+          loadMessagesForSessionInternal(determinedSessionId);
+        } else {
+           setIsLoading(false);
+        }
+      }
     }
-  }, [initialSessionId, paneId, clearMessages, updatePaneContent, loadMessagesForSessionInternal]); // Critically, remove 'messages' from dependencies
+
+    // CRITICAL: Ensure the determined session ID and title are updated in the pane store.
+    // Only update if the sessionId has actually changed to avoid infinite loops
+    if (determinedSessionId && determinedSessionId !== initialSessionId) {
+      const newTitle = `${CODER_PANE_TITLE} (${determinedSessionId.substring(0,6)}...)`;
+      console.log(`${componentName} Updating pane store content for paneId ${paneId} with sessionId: ${determinedSessionId} and title: ${newTitle}`);
+      // This call ensures the sessionId is saved in the global state and thus persisted.
+      updatePaneContent(paneId, {
+        sessionId: determinedSessionId,
+        title: newTitle // Update title in pane store as well
+      });
+    }
+
+    // Removed 'messages' from dependency array to prevent loops, ensure other dependencies are correct.
+  }, [initialSessionId, paneId, updatePaneContent, loadMessagesForSessionInternal, clearMessages]);
 
   // Cleanup on unmount
   useEffect(() => {
