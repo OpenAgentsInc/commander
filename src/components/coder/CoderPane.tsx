@@ -55,14 +55,19 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
     }
   }, [activePaneId, paneId]);
 
-  // Auto-scroll hook - trigger on messages change
+  // Get the last message content for dependency tracking
+  const lastMessageContent = messages.length > 0 
+    ? messages[messages.length - 1].content 
+    : '';
+  
+  // Auto-scroll hook - trigger on messages change or last message content update
   const {
     containerRef,
     scrollToBottom,
     handleScroll,
     shouldAutoScroll,
     handleTouchStart,
-  } = useAutoScroll([messages]);
+  } = useAutoScroll([messages.length, lastMessageContent]);
 
   // Scroll to bottom on initial load
   useEffect(() => {
@@ -79,6 +84,13 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
     const lastMessage = messages[messages.length - 1];
     return lastMessage.isStreaming || false;
   }, [messages]);
+  
+  // Additional effect to handle streaming updates
+  useEffect(() => {
+    if (isStreamingLastMessage && shouldAutoScroll) {
+      scrollToBottom();
+    }
+  }, [isStreamingLastMessage, messages, shouldAutoScroll, scrollToBottom]);
 
 
   const handleExitCoderMode = React.useCallback(() => {

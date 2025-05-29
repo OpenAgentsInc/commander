@@ -18,12 +18,14 @@ const CoderMessageList: React.FC<CoderMessageListProps> = ({
   isStreamingLastMessage
 }) => {
   return (
-    <div className="flex-1 min-h-0 overflow-auto">
+    <div 
+      ref={containerRef}
+      className="flex-1 min-h-0 overflow-auto"
+      onScroll={handleScroll}
+      onTouchStart={handleTouchStart}
+    >
       <div
-        ref={containerRef}
         className="p-4"
-        onScroll={handleScroll}
-        onTouchStart={handleTouchStart}
       >
         <div className="max-w-[750px] mx-auto w-full">
           <div className="flex flex-col gap-4">
