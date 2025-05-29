@@ -455,7 +455,15 @@ export function useCoderChat(props: UseCoderChatProps) {
     console.log(`${componentName} Effect for session loading. initialSessionId: ${initialSessionId}, current sessionIdRef: ${sessionIdRef.current}, lastLoaded: ${lastLoadedSessionIdRef.current}`);
 
     if (initialSessionId && initialSessionId !== lastLoadedSessionIdRef.current) {
+      console.log(`${componentName} initialSessionId (${initialSessionId}) differs from lastLoaded (${lastLoadedSessionIdRef.current}). Loading.`);
       loadMessagesForSessionInternal(initialSessionId);
+    } else if (!initialSessionId && sessionIdRef.current && !lastLoadedSessionIdRef.current) {
+      // This handles the case where the hook initializes without an initialSessionId,
+      // generates one, and needs to mark it as "loaded" (empty).
+      console.log(`${componentName} New pane, initialSessionId is null, sessionIdRef.current is ${sessionIdRef.current}. Setting lastLoaded to match.`);
+      lastLoadedSessionIdRef.current = sessionIdRef.current;
+      updatePaneContent(paneId, { sessionId: sessionIdRef.current });
+      setIsLoading(false);
     } else if (!initialSessionId && !sessionIdRef.current) {
       const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
       console.log(`${componentName} No initial session, generated new: ${newSessionId}`);
@@ -464,14 +472,11 @@ export function useCoderChat(props: UseCoderChatProps) {
       clearMessages();
       updatePaneContent(paneId, { sessionId: newSessionId });
       setIsLoading(false);
-    } else if (initialSessionId && initialSessionId === lastLoadedSessionIdRef.current && messages.filter(m => m.role !== 'system').length === 0) {
-      console.log(`${componentName} initialSessionId matches lastLoaded, but UI messages are empty. Forcing reload for ${initialSessionId}.`);
-      loadMessagesForSessionInternal(initialSessionId);
     } else {
-      console.log(`${componentName} No session load required by this effect run.`);
-      setIsLoading(false); // Ensure loading is false if no load occurs
+      console.log(`${componentName} No session load required by this effect run. Active session: ${sessionIdRef.current}`);
+      setIsLoading(false);
     }
-  }, [initialSessionId, paneId, messages, clearMessages, updatePaneContent, loadMessagesForSessionInternal]); // Only re-run when these critical props change
+  }, [initialSessionId, paneId, clearMessages, updatePaneContent, loadMessagesForSessionInternal]); // Critically, remove 'messages' from dependencies
 
   // Cleanup on unmount
   useEffect(() => {

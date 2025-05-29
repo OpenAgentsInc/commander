@@ -5,6 +5,7 @@ import { ToolCallDisplay } from './ToolCallDisplay';
 import { ToolResultDisplay } from './ToolResultDisplay';
 import { Loader2 } from 'lucide-react';
 import { CopyButton } from '@/components/ui/copy-button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface CoderMessageProps {
   message: ChatMessage;
@@ -124,28 +125,45 @@ const CoderMessage: React.FC<CoderMessageProps> = ({ message, index }) => {
               content={cleanedText}
               animation="none"
               showTimeStamp={false}
+              showCopyButton={message.role === 'user'}
             />
           </div>
         );
       } else if (part.type === 'tool_call') {
         const hasResult = toolResults.has(part.id);
         const result = toolResults.get(part.id);
+        const isDone = hasResult && !result?.isLoading; // Tool call is "done" if it has a result and isn't loading
 
         return (
-          <div key={`tool-${idx}`} className="space-y-1">
-            <ToolCallDisplay
-              toolName={part.name}
-              args={part.input}
-              isLoading={!hasResult}
-            />
-            {hasResult && result && (
+          <Collapsible key={`tool-${idx}`} defaultOpen={!isDone} className="space-y-1 border border-muted/50 rounded-lg p-1 my-1">
+            <CollapsibleTrigger asChild>
+              <div className="cursor-pointer">
+                <ToolCallDisplay
+                  toolName={part.name}
+                  args={part.input}
+                  isLoading={!hasResult && !result} // Only loading if no result at all
+                />
+              </div>
+            </CollapsibleTrigger>
+            {isDone && ( /* Only render CollapsibleContent if the tool call is done */
+              <CollapsibleContent>
+                {hasResult && result && (
+                  <ToolResultDisplay
+                    toolName={part.name}
+                    result={result.content}
+                    isError={result.isError}
+                  />
+                )}
+              </CollapsibleContent>
+            )}
+            {!isDone && hasResult && result && ( /* If not done but has a result (e.g. result is loading), show it non-collapsible for now */
               <ToolResultDisplay
                 toolName={part.name}
                 result={result.content}
                 isError={result.isError}
               />
             )}
-          </div>
+          </Collapsible>
         );
       } else if (part.type === 'tool_result') {
         // Tool results are shown with their corresponding tool call
@@ -185,6 +203,7 @@ const CoderMessage: React.FC<CoderMessageProps> = ({ message, index }) => {
         content={textContent}
         animation="none"
         showTimeStamp={false}
+        showCopyButton={message.role === 'user'}
       />
       {message.isStreaming && message.role === 'assistant' && (
         <div className="flex items-center gap-2 mt-2">

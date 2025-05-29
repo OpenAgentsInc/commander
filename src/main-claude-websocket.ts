@@ -299,7 +299,7 @@ export function setupClaudeWebSocketHandler() {
     const conversationContext = formatMessagesForClaudeCli_main(chatMessagesForPrompt);
 
     // Build Claude CLI args
-    const args = [];
+    const args: string[] = [];
     if (conversationContext) { // Only add -p if there's actual conversation context
          args.push("-p", conversationContext);
     }

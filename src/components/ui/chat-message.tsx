@@ -118,6 +118,7 @@ export interface ChatMessageProps extends Message {
   showTimeStamp?: boolean
   animation?: Animation
   actions?: React.ReactNode
+  showCopyButton?: boolean
 }
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({
@@ -130,6 +131,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   experimental_attachments,
   toolInvocations,
   parts,
+  showCopyButton = true,
 }) => {
   const files = useMemo(() => {
     return experimental_attachments?.map((attachment) => {
@@ -163,7 +165,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           <div className={cn(chatBubbleVariants({ isUser, animation }))}>
             <MarkdownRenderer>{content}</MarkdownRenderer>
           </div>
-          {content && (
+          {showCopyButton && content && (
             <div
               className={cn(
                 "absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity",
@@ -210,7 +212,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                   </div>
                 ) : null}
               </div>
-              {part.text && (
+              {showCopyButton && part.text && (
                 <div
                   className={cn(
                     "absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity",
@@ -264,7 +266,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             </div>
           ) : null}
         </div>
-        {content && (
+        {showCopyButton && content && (
           <div
             className={cn(
               "absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity",
