@@ -241,7 +241,7 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
         fullContent += `\n[Tool Result]\n${JSON.stringify(part.content, null, 2)}\n`;
       }
     });
-    
+
     return fullContent.trim() || message.content;
   }, [message.parts, message.content]);
 
@@ -361,7 +361,7 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
         {renderParts()}
         {message.isStreaming && message.role === 'assistant' && (
           <div className="flex items-center gap-2 mt-2">
-            <span className="text-xs text-muted-foreground italic">Claude Code is working</span>
+            <span className="text-xs text-muted-foreground italic opacity-60">Claude Code is working</span>
             <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
           </div>
         )}
@@ -387,7 +387,7 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
       />
       {message.isStreaming && message.role === 'assistant' && (
         <div className="flex items-center gap-2 mt-2">
-          <span className="text-xs text-muted-foreground italic">Claude Code is working</span>
+          <span className="text-xs text-muted-foreground italic opacity-60">Claude Code is working</span>
           <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
         </div>
       )}
@@ -418,7 +418,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
   // Track the current session ID separately from initial
   const sessionIdRef = useRef<string>(initialSessionId || `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`);
   const lastLoadedSessionIdRef = useRef<string | null>(null);
-  
+
   // Local state for messages - each pane has its own
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -467,7 +467,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
     shouldAutoScroll,
     handleTouchStart,
   } = useAutoScroll([messages]);
-  
+
   // Scroll to bottom on initial load
   useEffect(() => {
     // Small delay to ensure DOM is ready
@@ -511,7 +511,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
 
     // Clear all messages from the store
     clearMessages();
-    
+
     // Update pane content with new session ID
     updatePaneContent(paneId, { sessionId: newSessionId });
 
@@ -701,13 +701,13 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
   const loadMessagesForSessionInternal = useCallback(async (sessionIdToLoad: string) => {
     const componentName = `[CoderPane ${paneId?.substring(0, 8) || 'NEW'}]`;
     console.log(`${componentName} Attempting to load messages for session: ${sessionIdToLoad}`);
-    
+
     // Prevent loading if already loading
     if (isLoadingRef.current) {
       console.log(`${componentName} Already loading, skipping duplicate load for ${sessionIdToLoad}`);
       return;
     }
-    
+
     isLoadingRef.current = true;
     setIsLoading(true);
     clearMessages();
@@ -716,11 +716,11 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
       const dbProgram = Effect.gen(function* (_) {
         const db = yield* _(DatabaseService);
         const messages = yield* _(db.getMessagesForSession(sessionIdToLoad, 500));
-        
+
         // Fetch tool executions for all messages in parallel
         const messageToolExecutions = yield* _(
           Effect.all(
-            messages.map(msg => 
+            messages.map(msg =>
               Effect.map(
                 db.getToolCallsForMessage(msg.id),
                 tools => ({ messageId: msg.id, tools })
@@ -729,15 +729,15 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
             { concurrency: "unbounded" }
           )
         );
-        
+
         // Create a map of message ID to tool executions
         const toolExecutionsByMessage = new Map(
           messageToolExecutions.map(({ messageId, tools }) => [messageId, tools])
         );
-        
+
         return { messages, toolExecutionsByMessage };
       });
-      
+
       const exitResult = await Effect.runPromiseExit(Effect.provide(dbProgram, runtime));
 
       if (Exit.isSuccess(exitResult)) {
@@ -760,11 +760,11 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
               if (contentData.parts) {
                 parts = contentData.parts;
               }
-            } 
+            }
             // Handle assistant messages
             else if (dbMsg.role === 'assistant') {
               parts = [];
-              
+
               // Check if content is structured JSON array (new format)
               let successfullyParsedStructuredContent = false;
               if (dbMsg.content) {
@@ -776,7 +776,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
                     const toolExecutionMap = new Map(
                       (toolExecutionsByMessage.get(dbMsg.id) || []).map(exec => [exec.id, exec])
                     );
-                    
+
                     for (const rawPart of structuredContent) {
                       if (rawPart.type === 'text' && rawPart.text) {
                         parts.push({ type: 'text', text: rawPart.text });
@@ -787,7 +787,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
                           name: rawPart.name,
                           input: rawPart.input || {},
                         });
-                        
+
                         // Immediately add its result if available
                         const execution = toolExecutionMap.get(rawPart.id);
                         if (execution) {
@@ -811,20 +811,20 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
                               type: 'tool_result',
                               tool_use_id: execution.id,
                               content: execution.status === 'pending' ? "Tool execution is pending..."
-                                      : execution.status === 'executed_error' ? "[Error result not available]"
-                                      : "[Result not available yet]",
+                                : execution.status === 'executed_error' ? "[Error result not available]"
+                                  : "[Result not available yet]",
                               isLoading: execution.status === 'pending',
                               isError: execution.status === 'executed_error',
                             });
                           }
                         } else {
                           // Tool call was in content, but no execution record
-                          parts.push({ 
-                            type: 'tool_result', 
-                            tool_use_id: rawPart.id, 
-                            content: "[Tool execution record missing]", 
-                            isLoading: true, 
-                            isError: false 
+                          parts.push({
+                            type: 'tool_result',
+                            tool_use_id: rawPart.id,
+                            content: "[Tool execution record missing]",
+                            isLoading: true,
+                            isError: false
                           });
                         }
                       }
@@ -836,77 +836,77 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
                   console.log(`[CoderPane] Content not structured array for ${dbMsg.id}, trying fallback`);
                 }
               }
-              
+
               if (!successfullyParsedStructuredContent) {
                 // Fallback for old data or if content isn't structured JSON
                 console.log(`[CoderPane] Using fallback logic for assistant message ${dbMsg.id}`);
-                
+
                 // Add text content first if present
                 if (dbMsg.content) {
                   parts.push({ type: 'text', text: dbMsg.content });
                 }
-                
+
                 // Handle tool calls if present
                 if (dbMsg.tool_calls_json) {
                   // Parse tool calls and get tool executions
                   const toolCalls = JSON.parse(dbMsg.tool_calls_json);
                   const toolExecutions = toolExecutionsByMessage.get(dbMsg.id) || [];
-                  
+
                   // Create a map of tool executions by ID for quick lookup
                   const toolExecutionMap = new Map(
                     toolExecutions.map(exec => [exec.id, exec])
                   );
-                  
+
                   // Add tool calls and their results in the correct order
                   toolCalls.forEach((tc: any) => {
-                // Add the tool call
-                parts.push({ 
-                  type: 'tool_call', 
-                  id: tc.id, 
-                  name: tc.function.name, 
-                  input: JSON.parse(tc.function.arguments)
-                });
-                
-                // Immediately add the result if available
-                const execution = toolExecutionMap.get(tc.id);
-                if (execution && execution.result_json) {
-                  let parsedResultJson;
-                  try {
-                    parsedResultJson = JSON.parse(execution.result_json);
-                  } catch (e) {
-                    console.warn(`[CoderPane] Failed to parse result_json for tool ${tc.id}:`, execution.result_json, e);
-                    parsedResultJson = { content: `[Error parsing result: ${execution.result_json}]`, isError: true };
-                  }
-                  parts.push({
-                    type: 'tool_result',
-                    tool_use_id: execution.id,
-                    content: parsedResultJson, // This might be { content: "..." } or the error object
-                    isError: execution.status === 'executed_error' || parsedResultJson.isError,
-                    isLoading: false, // If result_json exists, it's not loading
+                    // Add the tool call
+                    parts.push({
+                      type: 'tool_call',
+                      id: tc.id,
+                      name: tc.function.name,
+                      input: JSON.parse(tc.function.arguments)
+                    });
+
+                    // Immediately add the result if available
+                    const execution = toolExecutionMap.get(tc.id);
+                    if (execution && execution.result_json) {
+                      let parsedResultJson;
+                      try {
+                        parsedResultJson = JSON.parse(execution.result_json);
+                      } catch (e) {
+                        console.warn(`[CoderPane] Failed to parse result_json for tool ${tc.id}:`, execution.result_json, e);
+                        parsedResultJson = { content: `[Error parsing result: ${execution.result_json}]`, isError: true };
+                      }
+                      parts.push({
+                        type: 'tool_result',
+                        tool_use_id: execution.id,
+                        content: parsedResultJson, // This might be { content: "..." } or the error object
+                        isError: execution.status === 'executed_error' || parsedResultJson.isError,
+                        isLoading: false, // If result_json exists, it's not loading
+                      });
+                    } else if (execution) {
+                      // Tool call exists but no result_json
+                      parts.push({
+                        type: 'tool_result',
+                        tool_use_id: execution.id,
+                        // Provide more informative content based on status
+                        content: execution.status === 'pending'
+                          ? "Tool execution is pending..."
+                          : execution.status === 'executed_error'
+                            ? "[Error result not available]"
+                            : "[Result not available yet]",
+                        isLoading: execution.status === 'pending',
+                        isError: execution.status === 'executed_error'
+                      });
+                    }
+                    // If no execution found at all, the tool_call part remains, and no tool_result part is added for it.
                   });
-                } else if (execution) {
-                  // Tool call exists but no result_json
-                  parts.push({
-                    type: 'tool_result',
-                    tool_use_id: execution.id,
-                    // Provide more informative content based on status
-                    content: execution.status === 'pending'
-                      ? "Tool execution is pending..."
-                      : execution.status === 'executed_error'
-                        ? "[Error result not available]"
-                        : "[Result not available yet]",
-                    isLoading: execution.status === 'pending',
-                    isError: execution.status === 'executed_error'
-                  });
-                }
-                // If no execution found at all, the tool_call part remains, and no tool_result part is added for it.
-              });
                 }
               }
             }
-          } catch (e) { 
+          } catch (e) {
             console.warn(`${componentName} Error parsing message parts:`, e);
-            /* content is plain text or not parsable as parts */ 
+            /* content is plain text or not parsable as parts */
           }
 
           newMessagesState.push({
@@ -923,14 +923,14 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
         sessionIdRef.current = sessionIdToLoad; // Ensure current session ID is also set
         updatePaneContent(paneId, { sessionId: sessionIdToLoad });
         console.log(`${componentName} Session ${sessionIdToLoad} loaded and pane content updated.`);
-        
+
         // Scroll to bottom after loading messages
         setTimeout(() => {
           scrollToBottom();
         }, 100);
       } else {
         console.error(`${componentName} Failed to load messages for ${sessionIdToLoad}:`, Cause.pretty(exitResult.cause));
-        addMessage({ id: `error-load-${Date.now()}`, role: 'system', content: `Error loading session ${sessionIdToLoad.substring(0,8)}...`, timestamp: Date.now() });
+        addMessage({ id: `error-load-${Date.now()}`, role: 'system', content: `Error loading session ${sessionIdToLoad.substring(0, 8)}...`, timestamp: Date.now() });
       }
     } catch (error) {
       console.error(`${componentName} Exception loading session ${sessionIdToLoad}:`, error);
@@ -1019,7 +1019,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
       label: formatSessionForMenu(session),
       action: async (event) => {
         console.log("Load chat session:", session.id);
-        
+
         // Check if Cmd/Ctrl key is held
         const isModifierHeld = event && (event.metaKey || event.ctrlKey);
 
@@ -1037,18 +1037,18 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
         if (isModifierHeld) {
           // Open in new pane
           const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-          
+
           // Create a new coder pane with the messages from the selected session
           const openCoderPane = usePaneStore.getState().addPane;
           const screenWidth = window.innerWidth;
           const screenHeight = window.innerHeight;
-          
+
           // Position new pane offset from current one
           const currentPanes = usePaneStore.getState().panes;
           const currentCoderPane = currentPanes.find(p => p.id === CODER_PANE_ID);
           const offsetX = 50;
           const offsetY = 50;
-          
+
           openCoderPane({
             id: `coder_pane_${Date.now()}`,
             type: "coder",
@@ -1280,8 +1280,8 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
 const MemoizedCoderPane = React.memo(CoderPane, (prevProps, nextProps) => {
   // Only re-render if props actually changed
   return prevProps.paneId === nextProps.paneId &&
-         prevProps.sessionId === nextProps.sessionId && 
-         prevProps.titleBarButtonsRef === nextProps.titleBarButtonsRef;
+    prevProps.sessionId === nextProps.sessionId &&
+    prevProps.titleBarButtonsRef === nextProps.titleBarButtonsRef;
 });
 
 export default MemoizedCoderPane;
