@@ -185,6 +185,11 @@ try {
         args.push("--system-prompt", systemMessage);
       }
       
+      // Disable specific tools by default
+      const disabledTools = ["Task", "TodoRead", "TodoWrite", "NotebookRead", "NotebookEdit"];
+      args.push("--disallowedTools", disabledTools.join(","));
+      console.log(`[Main Process] Disabling tools: ${disabledTools.join(", ")}`);
+      
       console.log(`[Main Process] Using utilityProcess with args:`, args);
       
       // Path to our wrapper script

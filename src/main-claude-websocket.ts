@@ -304,17 +304,21 @@ export function setupClaudeWebSocketHandler() {
          args.push("-p", conversationContext);
     }
     args.push("--output-format", "stream-json");
+    
+    // Claude CLI requires --verbose when using --output-format stream-json with -p
+    args.push("--verbose");
 
-    // Add other CLI parameters from params if they are supported and should be passed
-    if (params.model) {
-        args.push("--model", params.model);
-    }
-    if (params.temperature !== undefined) {
-        args.push("--temperature", String(params.temperature));
-    }
-    if (params.max_tokens) {
-        args.push("--max-tokens-to-sample", String(params.max_tokens));
-    }
+    // Remove all unsupported CLI parameters
+    // Claude CLI doesn't support these flags in the current version
+    // if (params.model) {
+    //     args.push("--model", params.model);
+    // }
+    // if (params.temperature !== undefined) {
+    //     args.push("--temperature", String(params.temperature));
+    // }
+    // if (params.max_tokens) {
+    //     args.push("--max-tokens-to-sample", String(params.max_tokens));
+    // }
 
     if (systemPromptContent) {
       args.push("--system-prompt", systemPromptContent);
@@ -333,20 +337,37 @@ export function setupClaudeWebSocketHandler() {
         disallowedToolsArray = [...params.disallowedTools];
       }
 
-      // Ensure "Task" is in the disallowed list.
-      // Note: Claude CLI tool names are case-sensitive. "Task" is the default name.
-      if (!disallowedToolsArray.includes("Task")) {
-        disallowedToolsArray.push("Task");
+      // Ensure specific tools are in the disallowed list.
+      // Note: Claude CLI tool names are case-sensitive.
+      const toolsToDisable = ["Task", "TodoWrite", "TodoRead", "NotebookRead", "NotebookEdit"];
+      for (const tool of toolsToDisable) {
+        if (!disallowedToolsArray.includes(tool)) {
+          disallowedToolsArray.push(tool);
+        }
       }
 
       // If there are any tools to disallow, add the flag.
       if (disallowedToolsArray.length > 0) {
         args.push("--disallowedTools", disallowedToolsArray.join(','));
-        console.log(`[Main Process] Disallowing tools for Claude Code: ${disallowedToolsArray.join(',')}`);
+        console.log(`[Main Process] Disallowing tools for Claude Code: ${disallowedToolsArray.join(', ')}`);
+        console.log(`[Main Process] Total ${disallowedToolsArray.length} tools disabled`);
+        
+        // Log to telemetry if available
+        try {
+          const telemetryLog = {
+            event: 'claude_code_tools_disabled',
+            tools: disallowedToolsArray,
+            sessionId: sessionId,
+            timestamp: Date.now()
+          };
+          console.log('[Main Process] Tool restriction telemetry:', JSON.stringify(telemetryLog));
+        } catch (e) {
+          // Telemetry logging failed, continue
+        }
       } else {
-        // If no allowedTools and no disallowedTools (even after adding "Task", which shouldn't happen if Task is always disallowed),
+        // If no allowedTools and no disallowedTools (even after adding tools, which shouldn't happen),
         // this means no tool-related flags are added.
-        console.log(`[Main Process] No specific tool restrictions applied for Claude Code (Task should be implicitly disallowed if not in an allowed list).`);
+        console.log(`[Main Process] No specific tool restrictions applied for Claude Code.`);
       }
     }
     
