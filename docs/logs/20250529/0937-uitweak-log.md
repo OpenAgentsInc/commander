@@ -1,7 +1,7 @@
 # UI Tweaks Implementation Log
 
 ## Summary
-Implemented all 5 requested UI tweaks for the coder pane and chat components.
+Implemented all 5 requested UI tweaks for the coder pane and chat components, plus additional fixes.
 
 ## Changes Made
 
@@ -35,6 +35,11 @@ Implemented all 5 requested UI tweaks for the coder pane and chat components.
 ## Files Modified
 - `/src/components/coder/ToolCallDisplay.tsx` - Tool call display format
 - `/src/components/coder/ToolResultDisplay.tsx` - Code block overflow and label fixes
-- `/src/components/coder/CoderPane.tsx` - New chat button behavior and copy button positioning
+- `/src/components/coder/CoderPane.tsx` - New chat button behavior, copy button positioning, and ScrollArea implementation
+
+## Additional Fixes
+- Reduced padding between assistant messages and copy buttons (using `mt-0.5` for assistant vs `mt-2` for user)
+- Fixed CoderPane chat area to use ScrollArea component instead of native scrollbar
+- Added ScrollArea import to CoderPane
 
 All changes have been tested to ensure they work as specified in the requirements.

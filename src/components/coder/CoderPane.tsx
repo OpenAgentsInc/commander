@@ -15,6 +15,7 @@ import { ToolResultDisplay } from './ToolResultDisplay';
 import { MessageSquarePlus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CopyButton } from '@/components/ui/copy-button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useQuery } from '@tanstack/react-query';
 import { DatabaseService, DBSession } from '@/services/db';
 import { PaneDropdownItem } from '@/types/paneMenu';
@@ -367,7 +368,7 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
         )}
         {/* Copy button in hover row beneath message */}
         {!message.isStreaming && (
-          <div className={`flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 mt-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+          <div className={`flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 ${message.role === 'user' ? 'mt-2 justify-end' : 'mt-0.5 justify-start'}`}>
             <CopyButton content={fullMessageContent} copyMessage="Copied message to clipboard" />
           </div>
         )}
@@ -393,7 +394,7 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
       )}
       {/* Copy button in hover row beneath message */}
       {!message.isStreaming && (
-        <div className={`flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 mt-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+        <div className={`flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 ${message.role === 'user' ? 'mt-2 justify-end' : 'mt-0.5 justify-start'}`}>
           <CopyButton content={fullMessageContent} copyMessage="Copied message to clipboard" />
         </div>
       )}
@@ -1280,22 +1281,24 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
         }
       `}</style>
       {/* Chat messages area */}
-      <div
-        ref={containerRef}
-        className="flex-1 overflow-auto p-4"
-        onScroll={handleScroll}
-        onTouchStart={handleTouchStart}
-      >
-        <div className="max-w-[750px] mx-auto w-full">
-          <div className="flex flex-col gap-4">
-            {messages
-              .filter(msg => msg.role !== 'system') // Don't show system messages
-              .map((message, idx) => (
-                <CoderChatMessage key={message.id || idx} message={message} index={idx} />
-              ))}
+      <ScrollArea className="flex-1 min-h-0">
+        <div
+          ref={containerRef}
+          className="p-4"
+          onScroll={handleScroll}
+          onTouchStart={handleTouchStart}
+        >
+          <div className="max-w-[750px] mx-auto w-full">
+            <div className="flex flex-col gap-4">
+              {messages
+                .filter(msg => msg.role !== 'system') // Don't show system messages
+                .map((message, idx) => (
+                  <CoderChatMessage key={message.id || idx} message={message} index={idx} />
+                ))}
+            </div>
           </div>
         </div>
-      </div>
+      </ScrollArea>
       {/* ProseMirror editor at the bottom */}
       <div className="flex items-center justify-center pb-4 px-4">
         <div className="h-[100px] w-[750px] overflow-auto rounded border border-white bg-black">
