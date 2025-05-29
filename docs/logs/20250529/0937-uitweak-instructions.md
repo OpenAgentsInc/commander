@@ -2,6 +2,8 @@ Make the following UI tweaks:
 
 - Tool calls are showing like Read "/Users/christopherdavid/code/commander/docs/claude-code/memory.md" -- but I want it shown as relative filepath with parens / no space like this Read(docs/claude-code/memory.md)
 - The chat pane currently has a default scrollbar and I want instead to put the chat messages inside a src/components/ui/scroll-area.tsx
+- The 'New chat' button should open new chat in a new pane when command-clicked (or control-clicked on windows), same behavior as when a chat blurb in the history dropdown is clicked - it opens a new pane for that chat. New chat button should do the same.
+- Right now tool call is on one line with a border, and on the next line is the collapsible result. If the result is a code block, it overflows massively without pushing the rest of the content down, so a lot of its overflowing content overlaps everything else. Need the height of the code block to fit the size of the content, or something like that. Also I don't want to repeat the name of the tool there. For example the Read tool says Read in the tool call, so I don't want the result saying "Read output", it's duplicative.
 - The copy button (note log in docs/logs/20250529/0923-copybutton-log.md) currently hovers inside the top right of each chat message (in the chat pane - ignore other message stuff for now like nip28 channels etc). Instead I want it to be in a disappearing row underneath each message, showing only when user hovers over it. If user message, all icons must be flush against the right side of the screen. If assistant, left. Just copy icon for now. Tailwind classes like this - and use this same SVG (but our colors):
 
 ```
