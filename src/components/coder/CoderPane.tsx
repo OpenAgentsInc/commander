@@ -32,6 +32,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
   const removePane = usePaneStore((state) => state.removePane);
   const updatePaneSize = usePaneStore((state) => state.updatePaneSize);
   const updatePaneContent = usePaneStore((state) => state.updatePaneContent);
+  const activePaneId = usePaneStore((state) => state.activePaneId);
 
   // Use the custom hook for chat logic
   const {
@@ -42,6 +43,17 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
     loadMessagesForSession,
     clearMessagesAndSession
   } = useCoderChat({ paneId, initialSessionId, initialMessages });
+  
+  // Local state for additional focus control
+  const [localFocusKey, setLocalFocusKey] = useState(0);
+  
+  // Focus input when this pane becomes active
+  useEffect(() => {
+    if (activePaneId === paneId) {
+      // Increment localFocusKey to trigger focus
+      setLocalFocusKey(prev => prev + 1);
+    }
+  }, [activePaneId, paneId]);
 
   // Auto-scroll hook - trigger on messages change
   const {
@@ -253,6 +265,12 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
           await loadMessagesForSession(newSessionId);
 
           setHistoryMenuOpen(false);
+          
+          // Force focus back to input after menu closes
+          // Use a small delay to ensure dropdown has fully closed
+          setTimeout(() => {
+            setLocalFocusKey(prev => prev + 1);
+          }, 100);
         }
       },
     }));
@@ -441,7 +459,12 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
       {/* ProseMirror editor at the bottom */}
       <div className="flex items-center justify-center pb-4 px-4">
         <div className="w-[750px] rounded border border-white bg-black">
-          <CoderProseMirrorInput onSubmit={sendMessage} disabled={isLoading} focusKey={focusKey} />
+          <CoderProseMirrorInput 
+            onSubmit={sendMessage} 
+            disabled={isLoading} 
+            focusKey={focusKey + localFocusKey}
+            paneId={paneId}
+          />
         </div>
       </div>
     </div>
