@@ -114,6 +114,32 @@ async function updateSessionInDatabase(sessionId: string, updates: any): Promise
   });
 }
 
+async function updateToolCallResultInDatabase(toolCallId: string, resultJson: string, status: "executed_success" | "executed_error"): Promise<void> {
+  const ws = new WebSocket(BRIDGE_SERVICE_URL);
+  return new Promise((resolve, reject) => {
+    ws.on('open', () => {
+      ws.send(JSON.stringify({
+        type: 'db',
+        id: `db-update-toolcall-${Date.now()}`,
+        operation: 'updateToolCallResult',
+        params: { toolCallId, resultJson, status }
+      }));
+    });
+    
+    ws.on('message', (data: string) => {
+      const response = JSON.parse(data);
+      ws.close();
+      if (response.type === 'db_result') {
+        resolve();
+      } else if (response.type === 'db_error') {
+        reject(new Error(response.error));
+      }
+    });
+    
+    ws.on('error', reject);
+  });
+}
+
 // Check if bridge service is running
 async function checkBridgeService(): Promise<boolean> {
   return new Promise((resolve) => {
@@ -363,8 +389,10 @@ export function setupClaudeWebSocketHandler() {
               console.log("[Main Process] User message (tool result):", claudeMessage);
               // Handle tool results that come as user messages (from Task tool subtools)
               const userMessage = claudeMessage.message;
+              console.log("[Main Process] Processing user message content:", JSON.stringify(userMessage.content));
               if (userMessage.content && Array.isArray(userMessage.content)) {
                 for (const contentPart of userMessage.content) {
+                  console.log("[Main Process] Content part type:", contentPart.type);
                   if (contentPart.type === "tool_result") {
                     // Extract text content from tool result if it's an array
                     let resultContent = contentPart.content;
@@ -383,6 +411,21 @@ export function setupClaudeWebSocketHandler() {
                       is_error: contentPart.is_error
                     };
                     event.sender.send(`claude-code:chat-stream:chunk`, requestId, JSON.stringify(toolResultInfo));
+                    
+                    // Update tool execution in database
+                    console.log(`[Main Process] Attempting to save tool result for ${contentPart.tool_use_id}`);
+                    (async () => {
+                      try {
+                        await updateToolCallResultInDatabase(
+                          contentPart.tool_use_id,
+                          JSON.stringify({ content: resultContent }),
+                          contentPart.is_error ? 'executed_error' : 'executed_success'
+                        );
+                        console.log(`[Main Process] Tool result saved for ${contentPart.tool_use_id}`);
+                      } catch (error) {
+                        console.error(`[Main Process] Failed to save tool result for ${contentPart.tool_use_id}:`, error);
+                      }
+                    })();
                   }
                 }
               }

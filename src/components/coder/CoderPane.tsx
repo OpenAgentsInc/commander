@@ -726,7 +726,9 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
             // Check if message has stored parts (from user messages with tool results)
             if (dbMsg.content && dbMsg.content.startsWith('{"parts":')) {
               const contentData = JSON.parse(dbMsg.content);
-              if (contentData.parts) parts = contentData.parts;
+              if (contentData.parts) {
+                parts = contentData.parts;
+              }
             } 
             // Handle assistant messages with tool calls
             else if (dbMsg.role === 'assistant' && dbMsg.tool_calls_json) {
