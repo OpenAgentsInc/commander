@@ -11,6 +11,7 @@ import { baseKeymap } from "prosemirror-commands";
 import { ChatMessage as UIChatMessage, type Message } from '@/components/ui/chat-message';
 import { useAutoScroll } from '@/hooks/use-auto-scroll';
 import { ToolCallDisplay } from './ToolCallDisplay';
+import { ToolResultDisplay } from './ToolResultDisplay';
 import { MessageSquarePlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
@@ -318,14 +319,11 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
               isLoading={!hasResult}
             />
             {hasResult && result && (
-              <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm ml-6">
-                <div className="text-xs text-muted-foreground mb-1">Result:</div>
-                <div className="whitespace-pre-wrap text-foreground">
-                  {typeof result.content === 'string'
-                    ? result.content
-                    : JSON.stringify(result.content, null, 2)}
-                </div>
-              </div>
+              <ToolResultDisplay
+                toolName={part.name}
+                result={result.content}
+                isError={result.isError}
+              />
             )}
           </div>
         );
@@ -343,7 +341,10 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
       <div className={`coder-chat-message ${message.role === 'user' ? 'user-message' : 'assistant-message'} space-y-2`}>
         {renderParts()}
         {message.isStreaming && message.role === 'assistant' && (
-          <span className="inline-block w-2 h-4 ml-1 mt-2 bg-white animate-pulse" />
+          <div className="flex items-center gap-2 mt-2">
+            <span className="inline-block w-2 h-4 bg-white animate-pulse" />
+            <span className="text-xs text-muted-foreground">Claude Code is working</span>
+          </div>
         )}
       </div>
     );
@@ -360,7 +361,10 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
         showTimeStamp={false}
       />
       {message.isStreaming && message.role === 'assistant' && (
-        <span className="inline-block w-2 h-4 ml-1 mt-2 bg-white animate-pulse" />
+        <div className="flex items-center gap-2 mt-2">
+          <span className="inline-block w-2 h-4 bg-white animate-pulse" />
+          <span className="text-xs text-muted-foreground">Claude Code is working</span>
+        </div>
       )}
     </div>
   );
