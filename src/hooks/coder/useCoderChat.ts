@@ -318,11 +318,9 @@ export function useCoderChat(props: UseCoderChatProps) {
         setMessages(newMessagesState);
         lastLoadedSessionIdRef.current = sessionIdToLoad;
         sessionIdRef.current = sessionIdToLoad; // Ensure current session ID is also set
-        const newTitle = `${CODER_PANE_TITLE} (${sessionIdToLoad.substring(0,6)}...)`;
         // Save messages to pane content for persistence
         updatePaneContent(paneId, { 
           sessionId: sessionIdToLoad, 
-          title: newTitle,
           messages: newMessagesState // Save the full message state
         });
         console.log(`${componentName} Session ${sessionIdToLoad} loaded and pane content updated with ${newMessagesState.length} messages`);
