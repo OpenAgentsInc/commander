@@ -11,8 +11,15 @@ export const ToolResultDisplay: React.FC<ToolResultDisplayProps> = ({
   result,
   isError = false
 }) => {
-  // Convert result to string for display
-  const resultString = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+  // Check if result is an object with just a "content" property
+  let displayContent: string;
+  if (typeof result === 'object' && result !== null && 'content' in result && Object.keys(result).length === 1) {
+    // Extract and display just the content value
+    displayContent = String(result.content);
+  } else {
+    // Convert result to string for display
+    displayContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+  }
   
   // Determine text color based on error state
   const contentTextColor = isError ? 'text-red-400' : 'text-foreground';
@@ -21,8 +28,8 @@ export const ToolResultDisplay: React.FC<ToolResultDisplayProps> = ({
     <div className="ml-4 rounded-lg border bg-muted/30 border-muted">
       <div className="p-1">
         <div className="max-h-60 overflow-y-auto overflow-x-auto">
-          <pre className={`text-xs ${contentTextColor} whitespace-pre-wrap bg-transparent border border-white/10 p-2 break-all`}>
-            {resultString}
+          <pre className={`text-xs ${contentTextColor} whitespace-pre-wrap bg-transparent border border-white/15 p-2 break-all`}>
+            {displayContent}
           </pre>
         </div>
       </div>
