@@ -3,6 +3,7 @@ import { Effect, Exit, Cause } from 'effect';
 import { DatabaseService } from '@/services/db';
 import { getMainRuntime } from '@/services/runtime';
 import { usePaneStore } from '@/stores/pane';
+import { CODER_PANE_TITLE } from '@/stores/panes/constants';
 
 // Local message interface - each pane has its own messages
 export interface ChatMessage {
@@ -21,10 +22,11 @@ export interface ChatMessage {
 interface UseCoderChatProps {
   paneId: string;
   initialSessionId?: string;
+  initialMessages?: ChatMessage[]; // Add initial messages from pane content
 }
 
 export function useCoderChat(props: UseCoderChatProps) {
-  const { paneId, initialSessionId } = props;
+  const { paneId, initialSessionId, initialMessages } = props;
   const runtime = getMainRuntime();
   const updatePaneContent = usePaneStore((state) => state.updatePaneContent);
 
@@ -32,15 +34,19 @@ export function useCoderChat(props: UseCoderChatProps) {
   const sessionIdRef = useRef<string>(initialSessionId || `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`);
   const lastLoadedSessionIdRef = useRef<string | null>(null);
 
-  // Local state for messages - each pane has its own
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
+  // Local state for messages - initialize with persisted messages if available
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    if (initialMessages && initialMessages.length > 0) {
+      console.log(`[CoderPane coder_pa] Restoring ${initialMessages.length} persisted messages for pane ${paneId}`);
+      return initialMessages;
+    }
+    return [{
       id: 'system',
       role: 'system',
       content: 'You are Claude Code, a helpful AI coding assistant.',
       timestamp: Date.now(),
-    }
-  ]);
+    }];
+  });
 
   // Local state for loading and focus
   const [isLoading, setIsLoading] = useState(false);
@@ -50,30 +56,43 @@ export function useCoderChat(props: UseCoderChatProps) {
 
   // Message management functions
   const addMessage = useCallback((message: ChatMessage) => {
-    setMessages(prev => [...prev, message]);
-  }, []);
+    setMessages(prev => {
+      const newMessages = [...prev, message];
+      // Update pane content with new messages
+      updatePaneContent(paneId, { messages: newMessages });
+      return newMessages;
+    });
+  }, [paneId, updatePaneContent]);
 
   const updateMessage = useCallback((id: string, updates: Partial<ChatMessage> | ((prevMessage: ChatMessage) => Partial<ChatMessage>)) => {
-    setMessages(prev => prev.map(msg => {
-      if (msg.id === id) {
-        const newUpdates = typeof updates === 'function' ? updates(msg) : updates;
-        return { ...msg, ...newUpdates };
-      }
-      return msg;
-    }));
-  }, []);
+    setMessages(prev => {
+      const newMessages = prev.map(msg => {
+        if (msg.id === id) {
+          const newUpdates = typeof updates === 'function' ? updates(msg) : updates;
+          return { ...msg, ...newUpdates };
+        }
+        return msg;
+      });
+      // Update pane content with updated messages
+      updatePaneContent(paneId, { messages: newMessages });
+      return newMessages;
+    });
+  }, [paneId, updatePaneContent]);
 
   const clearMessages = useCallback(() => {
-    setMessages([{
+    const newMessages: ChatMessage[] = [{
       id: 'system',
-      role: 'system',
+      role: 'system' as const,
       content: 'You are Claude Code, a helpful AI coding assistant.',
       timestamp: Date.now(),
-    }]);
-  }, []);
+    }];
+    setMessages(newMessages);
+    // Update pane content with cleared messages
+    updatePaneContent(paneId, { messages: newMessages });
+  }, [paneId, updatePaneContent]);
 
   // Extracted message loading logic as a callable function
-  const loadMessagesForSessionInternal = useCallback(async (sessionIdToLoad: string) => {
+  const loadMessagesForSessionInternal = useCallback(async (sessionIdToLoad: string, skipClear: boolean = false) => {
     const componentName = `[CoderPane ${paneId?.substring(0, 8) || 'NEW'}]`;
     console.log(`${componentName} Attempting to load messages for session: ${sessionIdToLoad}`);
 
@@ -85,7 +104,10 @@ export function useCoderChat(props: UseCoderChatProps) {
 
     isLoadingRef.current = true;
     setIsLoading(true);
-    clearMessages();
+    // Only clear messages if we don't have initial messages already restored
+    if (!skipClear) {
+      clearMessages();
+    }
 
     try {
       const dbProgram = Effect.gen(function* (_) {
@@ -296,8 +318,14 @@ export function useCoderChat(props: UseCoderChatProps) {
         setMessages(newMessagesState);
         lastLoadedSessionIdRef.current = sessionIdToLoad;
         sessionIdRef.current = sessionIdToLoad; // Ensure current session ID is also set
-        updatePaneContent(paneId, { sessionId: sessionIdToLoad });
-        console.log(`${componentName} Session ${sessionIdToLoad} loaded and pane content updated.`);
+        const newTitle = `${CODER_PANE_TITLE} (${sessionIdToLoad.substring(0,6)}...)`;
+        // Save messages to pane content for persistence
+        updatePaneContent(paneId, { 
+          sessionId: sessionIdToLoad, 
+          title: newTitle,
+          messages: newMessagesState // Save the full message state
+        });
+        console.log(`${componentName} Session ${sessionIdToLoad} loaded and pane content updated with ${newMessagesState.length} messages`);
 
         // Scroll to bottom after loading messages
         setTimeout(() => {
@@ -350,6 +378,11 @@ export function useCoderChat(props: UseCoderChatProps) {
       // Use current messages from local state
       const currentMessages = messages;
 
+      // Extract system message content. Use the one from messages state if available,
+      // otherwise fallback to a default.
+      const systemMessageContent = currentMessages.find(m => m.role === 'system')?.content ||
+                                   'You are Claude Code, a helpful AI coding assistant.';
+
       // Prepare messages for Claude Code API - only include messages from current session
       const apiMessages = currentMessages
         .filter(m => m.role !== 'system')
@@ -360,6 +393,7 @@ export function useCoderChat(props: UseCoderChatProps) {
       const cleanup = window.electronAPI.claudeCode?.streamChat(
         {
           messages: apiMessages,
+          systemPrompt: systemMessageContent, // <-- ADD THIS LINE
           model: 'claude-3-sonnet-20240229',
           max_tokens: 4096,
           temperature: 0.7,
@@ -446,26 +480,68 @@ export function useCoderChat(props: UseCoderChatProps) {
   // Load initial session if provided
   useEffect(() => {
     const componentName = `[CoderPane ${paneId?.substring(0, 8) || 'NEW'}]`;
-    console.log(`${componentName} Effect for session loading. initialSessionId: ${initialSessionId}, current sessionIdRef: ${sessionIdRef.current}, lastLoaded: ${lastLoadedSessionIdRef.current}`);
+    console.log(`${componentName} Effect for session loading/init. initialSessionId: ${initialSessionId}, current sessionIdRef: ${sessionIdRef.current}, lastLoaded: ${lastLoadedSessionIdRef.current}`);
 
-    if (initialSessionId && initialSessionId !== lastLoadedSessionIdRef.current) {
-      loadMessagesForSessionInternal(initialSessionId);
-    } else if (!initialSessionId && !sessionIdRef.current) {
-      const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-      console.log(`${componentName} No initial session, generated new: ${newSessionId}`);
-      sessionIdRef.current = newSessionId;
-      lastLoadedSessionIdRef.current = newSessionId;
-      clearMessages();
-      updatePaneContent(paneId, { sessionId: newSessionId });
-      setIsLoading(false);
-    } else if (initialSessionId && initialSessionId === lastLoadedSessionIdRef.current && messages.filter(m => m.role !== 'system').length === 0) {
-      console.log(`${componentName} initialSessionId matches lastLoaded, but UI messages are empty. Forcing reload for ${initialSessionId}.`);
-      loadMessagesForSessionInternal(initialSessionId);
-    } else {
-      console.log(`${componentName} No session load required by this effect run.`);
-      setIsLoading(false); // Ensure loading is false if no load occurs
+    let determinedSessionId = sessionIdRef.current;
+
+    if (initialSessionId) {
+      if (initialSessionId !== lastLoadedSessionIdRef.current) {
+        console.log(`${componentName} Using initialSessionId (${initialSessionId}) for loading.`);
+        determinedSessionId = initialSessionId;
+        sessionIdRef.current = initialSessionId; // Sync ref with prop
+        
+        // If we have initial messages, mark as loaded but still fetch in background for updates
+        if (initialMessages && initialMessages.length > 0) {
+          console.log(`${componentName} Have ${initialMessages.length} initial messages, marking as loaded and fetching updates in background`);
+          lastLoadedSessionIdRef.current = initialSessionId;
+          setIsLoading(false);
+          // Still load from DB in case there are newer messages, but skip clearing existing messages
+          loadMessagesForSessionInternal(initialSessionId, true);
+        } else {
+          loadMessagesForSessionInternal(initialSessionId, false); // This also sets lastLoadedSessionIdRef.current
+        }
+      } else {
+        console.log(`${componentName} initialSessionId (${initialSessionId}) matches lastLoaded. No load needed.`);
+        setIsLoading(false);
+      }
+    } else { // No initialSessionId provided
+      // If sessionIdRef.current is also uninitialized (or a temporary placeholder), generate a new one.
+      if (!sessionIdRef.current || sessionIdRef.current.startsWith('ui-coder-temp-')) { // Check for uninitialized or temp ID
+        const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+        console.log(`${componentName} New pane, no initialSessionId. Generated new: ${newSessionId}`);
+        determinedSessionId = newSessionId;
+        sessionIdRef.current = newSessionId;
+        lastLoadedSessionIdRef.current = newSessionId; // Mark as "loaded" (it's empty)
+        clearMessages(); // Ensure messages are clear for a truly new session
+        setIsLoading(false);
+      } else {
+        // Retain existing sessionIdRef.current if it's valid (e.g., pane was re-rendered without initialSessionId prop changing)
+        determinedSessionId = sessionIdRef.current;
+        console.log(`${componentName} No initialSessionId, retaining existing ref: ${determinedSessionId}`);
+        if (determinedSessionId !== lastLoadedSessionIdRef.current) {
+          // Check if we have initial messages to preserve
+          const hasInitialMessages = initialMessages && initialMessages.length > 0;
+          loadMessagesForSessionInternal(determinedSessionId, hasInitialMessages);
+        } else {
+           setIsLoading(false);
+        }
+      }
     }
-  }, [initialSessionId, paneId, messages, clearMessages, updatePaneContent, loadMessagesForSessionInternal]); // Only re-run when these critical props change
+
+    // CRITICAL: Ensure the determined session ID and title are updated in the pane store.
+    // Only update if the sessionId has actually changed to avoid infinite loops
+    if (determinedSessionId && determinedSessionId !== initialSessionId) {
+      const newTitle = `${CODER_PANE_TITLE} (${determinedSessionId.substring(0,6)}...)`;
+      console.log(`${componentName} Updating pane store content for paneId ${paneId} with sessionId: ${determinedSessionId} and title: ${newTitle}`);
+      // This call ensures the sessionId is saved in the global state and thus persisted.
+      updatePaneContent(paneId, {
+        sessionId: determinedSessionId,
+        title: newTitle // Update title in pane store as well
+      });
+    }
+
+    // Removed 'messages' from dependency array to prevent loops, ensure other dependencies are correct.
+  }, [initialSessionId, paneId, updatePaneContent, loadMessagesForSessionInternal, clearMessages, initialMessages]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -481,13 +557,13 @@ export function useCoderChat(props: UseCoderChatProps) {
     isLoading,
     focusKey,
     sendMessage,
-    loadMessagesForSession: loadMessagesForSessionInternal, // Expose for direct loading
+    loadMessagesForSession: (sessionId: string, skipClear: boolean = false) => loadMessagesForSessionInternal(sessionId, skipClear), // Expose for direct loading
     clearMessagesAndSession: () => { // For the "New Chat" button
       if (streamCancelRef.current) streamCancelRef.current();
       const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
       sessionIdRef.current = newSessionId;
       lastLoadedSessionIdRef.current = newSessionId;
-      clearMessages();
+      clearMessages(); // This now also updates pane content
       setIsLoading(false);
       setFocusKey(prev => prev + 1);
       return newSessionId; // Return new session ID for pane content update

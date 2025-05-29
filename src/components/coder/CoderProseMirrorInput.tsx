@@ -4,15 +4,17 @@ import { schema } from "prosemirror-schema-basic";
 import { history } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import { baseKeymap } from "prosemirror-commands";
+import { usePaneStore } from '@/stores/pane';
 
 interface CoderProseMirrorInputProps {
   onSubmit: (text: string) => void;
   disabled?: boolean;
   focusKey?: number; // To trigger re-focus
+  paneId?: string; // The pane's ID to check if it's active
 }
 
 // ProseMirror Editor component that's loaded after the dynamic import
-const ProseMirrorEditor: React.FC<{ onSubmit: (text: string) => void, disabled?: boolean, focusKey?: number }> = ({ onSubmit, disabled, focusKey }) => {
+const ProseMirrorEditor: React.FC<{ onSubmit: (text: string) => void, disabled?: boolean, focusKey?: number, paneId?: string }> = ({ onSubmit, disabled, focusKey, paneId }) => {
   const [components, setComponents] = useState<any>(null);
 
   useEffect(() => {
@@ -69,6 +71,7 @@ const ProseMirrorEditor: React.FC<{ onSubmit: (text: string) => void, disabled?:
         disabled={disabled}
         components={components}
         focusKey={focusKey}
+        paneId={paneId}
       />
     </ProseMirror>
   );
@@ -79,20 +82,23 @@ const AutoFocusEditor: React.FC<{
   onSubmit: (text: string) => void,
   disabled?: boolean,
   components: any,
-  focusKey?: number
-}> = ({ onSubmit, disabled, components, focusKey }) => {
+  focusKey?: number,
+  paneId?: string
+}> = ({ onSubmit, disabled, components, focusKey, paneId }) => {
   const { useEditorState, useEditorEffect, useEditorEventListener, ProseMirrorDoc } = components;
   const editorState = useEditorState();
+  const activePaneId = usePaneStore((state) => state.activePaneId);
+  const isThisPaneActive = paneId ? paneId === activePaneId : true; // Default to true if no paneId
 
   useEditorEffect((view: any) => {
-    if (view && !disabled) {
+    if (view && !disabled && isThisPaneActive) {
       view.focus();
     }
-  }, [disabled]);
+  }, [disabled, isThisPaneActive]);
 
   // Re-focus when focusKey changes (e.g., after clicking New Chat or loading history)
   useEditorEffect((view: any) => {
-    if (view && focusKey !== undefined && !disabled) {
+    if (view && focusKey !== undefined && !disabled && isThisPaneActive) {
       // Use requestAnimationFrame to ensure focus happens after any pending updates
       requestAnimationFrame(() => {
         if (view && view.focus) {
@@ -102,7 +108,7 @@ const AutoFocusEditor: React.FC<{
         }
       });
     }
-  }, [focusKey, disabled]);
+  }, [focusKey, disabled, isThisPaneActive]);
 
   // Function to serialize document to text with line breaks
   const serializeDocToText = (doc: any) => {
@@ -155,10 +161,12 @@ const AutoFocusEditor: React.FC<{
     <ProseMirrorDoc
       as={
         <div
-          className="p-4 prose prose-invert h-full w-full outline-none text-white box-border"
+          className="p-4 prose prose-invert w-full outline-none text-white box-border"
           spellCheck={false}
           style={{
-            minHeight: '100%',
+            minHeight: '44px', // 1 line (20px) + padding (12px * 2 = 24px)
+            maxHeight: '124px', // 5 lines (100px) + padding (24px)
+            overflowY: 'auto', // For scrolling when content exceeds maxHeight
             padding: '12px',
             opacity: disabled ? 0.5 : 1,
             whiteSpace: 'pre-wrap',
@@ -172,8 +180,8 @@ const AutoFocusEditor: React.FC<{
   );
 };
 
-const CoderProseMirrorInput: React.FC<CoderProseMirrorInputProps> = ({ onSubmit, disabled, focusKey }) => {
-  return <ProseMirrorEditor onSubmit={onSubmit} disabled={disabled} focusKey={focusKey} />;
+const CoderProseMirrorInput: React.FC<CoderProseMirrorInputProps> = ({ onSubmit, disabled, focusKey, paneId }) => {
+  return <ProseMirrorEditor onSubmit={onSubmit} disabled={disabled} focusKey={focusKey} paneId={paneId} />;
 };
 
 export default CoderProseMirrorInput;

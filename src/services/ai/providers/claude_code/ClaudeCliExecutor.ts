@@ -31,8 +31,9 @@ export class ClaudeCliExecutor {
     }
 
     if (params.systemPrompt) {
-      args.push('--system-prompt');
-      args.push(params.systemPrompt);
+      console.log('noooo skipping systempromtp')
+      // args.push('--system-prompt');
+      // args.push(params.systemPrompt);
     }
 
     if (params.continue) {
@@ -94,8 +95,8 @@ export class ClaudeCliExecutor {
     // Add any additional parameters provided
     for (const [key, value] of Object.entries(params)) {
       if (
-        !['prompt', 'outputFormat', 'systemPrompt', 'continue', 'resume', 'allowedTools', 
-          'disallowedTools', 'mcpConfig', 'maxTurns', 'max_tokens', 'temperature', 'top_p', 'stop', 'model'].includes(key) && 
+        !['prompt', 'outputFormat', 'systemPrompt', 'continue', 'resume', 'allowedTools',
+          'disallowedTools', 'mcpConfig', 'maxTurns', 'max_tokens', 'temperature', 'top_p', 'stop', 'model'].includes(key) &&
         value !== undefined
       ) {
         // Convert camelCase to kebab-case for CLI flags
@@ -116,52 +117,52 @@ export class ClaudeCliExecutor {
     const timeoutMs = timeout || this.defaultTimeout;
 
     return new Promise<string>((resolve, reject) => {
-      const childProcess = spawn(this.cliPath, args, { 
+      const childProcess = spawn(this.cliPath, args, {
         env: this.env,
       });
-      
+
       let stdout = '';
       let stderr = '';
-      
+
       // Set timeout
       const timeoutId = setTimeout(() => {
         childProcess.kill();
         const error = new Error(`Claude CLI execution timed out after ${timeoutMs}ms`);
         reject(error);
       }, timeoutMs);
-      
+
       childProcess.stdout.on('data', (data: Buffer) => {
         stdout += String(data);
       });
-      
+
       childProcess.stderr.on('data', (data: Buffer) => {
         stderr += String(data);
       });
-      
+
       childProcess.on('error', (error: Error) => {
         clearTimeout(timeoutId);
-        
+
         const enhancedError = new Error(
           `Claude CLI execution failed: ${error.message}${stderr ? `\nStderr: ${stderr}` : ''}`
         );
-        
+
         reject(enhancedError);
       });
-      
+
       childProcess.on('close', (code: number) => {
         clearTimeout(timeoutId);
-        
+
         if (code !== 0) {
           const enhancedError = new Error(
             `Claude CLI process exited with code ${code}${stderr ? `\nStderr: ${stderr}` : ''}`
           );
-          
+
           reject(enhancedError);
         } else {
           if (stderr) {
             console.error('Claude CLI stderr:', stderr);
           }
-          
+
           resolve(stdout);
         }
       });
@@ -174,16 +175,16 @@ export class ClaudeCliExecutor {
   public executeStream(params: ClaudeExecParams): Readable {
     // Ensure we use stream-json format for streaming
     const streamParams = { ...params, outputFormat: 'stream-json' as const };
-    
+
     // Build the arguments array
     const args = this.buildArgs(streamParams);
 
     // Create a child process for streaming
     const childProcess = spawn(this.cliPath, args, { env: this.env });
-    
+
     // Create a readable stream to return to the caller
     const outputStream = new Readable({
-      read() {} // Implementation required but not used
+      read() { } // Implementation required but not used
     });
 
     // Handle data events

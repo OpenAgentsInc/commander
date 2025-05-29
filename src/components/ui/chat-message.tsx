@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/collapsible"
 import { FilePreview } from "@/components/ui/file-preview"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
+import { CopyButton } from "@/components/ui/copy-button"
 
 const chatBubbleVariants = cva(
   "group/message relative break-words rounded-lg p-3 text-sm sm:max-w-[70%]",
@@ -117,6 +118,7 @@ export interface ChatMessageProps extends Message {
   showTimeStamp?: boolean
   animation?: Animation
   actions?: React.ReactNode
+  showCopyButton?: boolean
 }
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({
@@ -129,6 +131,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   experimental_attachments,
   toolInvocations,
   parts,
+  showCopyButton = true,
 }) => {
   const files = useMemo(() => {
     return experimental_attachments?.map((attachment) => {
@@ -158,8 +161,20 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           </div>
         ) : null}
 
-        <div className={cn(chatBubbleVariants({ isUser, animation }))}>
-          <MarkdownRenderer>{content}</MarkdownRenderer>
+        <div className="relative group">
+          <div className={cn(chatBubbleVariants({ isUser, animation }))}>
+            <MarkdownRenderer>{content}</MarkdownRenderer>
+          </div>
+          {showCopyButton && content && (
+            <div
+              className={cn(
+                "absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity",
+                isUser ? "left-full ml-1" : "right-full mr-1"
+              )}
+            >
+              <CopyButton content={content} copyMessage="Copied message to clipboard" />
+            </div>
+          )}
         </div>
 
         {showTimeStamp && createdAt ? (
@@ -188,13 +203,25 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             )}
             key={`text-${index}`}
           >
-            <div className={cn(chatBubbleVariants({ isUser, animation }))}>
-              <MarkdownRenderer>{part.text}</MarkdownRenderer>
-              {actions ? (
-                <div className="absolute -bottom-4 right-2 flex space-x-1 rounded-lg border bg-background p-1 text-foreground opacity-0 transition-opacity group-hover/message:opacity-100">
-                  {actions}
+            <div className="relative group">
+              <div className={cn(chatBubbleVariants({ isUser, animation }))}>
+                <MarkdownRenderer>{part.text}</MarkdownRenderer>
+                {actions ? (
+                  <div className="absolute -bottom-4 right-2 flex space-x-1 rounded-lg border bg-background p-1 text-foreground opacity-0 transition-opacity group-hover/message:opacity-100">
+                    {actions}
+                  </div>
+                ) : null}
+              </div>
+              {showCopyButton && part.text && (
+                <div
+                  className={cn(
+                    "absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity",
+                    isUser ? "left-full ml-1" : "right-full mr-1"
+                  )}
+                >
+                  <CopyButton content={part.text} copyMessage="Copied message to clipboard" />
                 </div>
-              ) : null}
+              )}
             </div>
 
             {showTimeStamp && createdAt ? (
@@ -230,13 +257,25 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
   return (
     <div className={cn("flex flex-col", isUser ? "items-end" : "items-start")}>
-      <div className={cn(chatBubbleVariants({ isUser, animation }))}>
-        <MarkdownRenderer>{content}</MarkdownRenderer>
-        {actions ? (
-          <div className="absolute -bottom-4 right-2 flex space-x-1 rounded-lg border bg-background p-1 text-foreground opacity-0 transition-opacity group-hover/message:opacity-100">
-            {actions}
+      <div className="relative group">
+        <div className={cn(chatBubbleVariants({ isUser, animation }))}>
+          <MarkdownRenderer>{content}</MarkdownRenderer>
+          {actions ? (
+            <div className="absolute -bottom-4 right-2 flex space-x-1 rounded-lg border bg-background p-1 text-foreground opacity-0 transition-opacity group-hover/message:opacity-100">
+              {actions}
+            </div>
+          ) : null}
+        </div>
+        {showCopyButton && content && (
+          <div
+            className={cn(
+              "absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity",
+              isUser ? "left-full ml-1" : "right-full mr-1"
+            )}
+          >
+            <CopyButton content={content} copyMessage="Copied message to clipboard" />
           </div>
-        ) : null}
+        )}
       </div>
 
       {showTimeStamp && createdAt ? (

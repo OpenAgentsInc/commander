@@ -172,7 +172,8 @@ export const PaneManager = () => {
           {pane.type === "previous_chats_list" && <PreviousChatsPane />}
           {pane.type === "coder" && <CoderPane 
             paneId={pane.id}
-            sessionId={pane.content?.sessionId as string | undefined} 
+            sessionId={pane.content?.sessionId as string | undefined}
+            initialMessages={pane.content?.messages as any[] | undefined}
             titleBarButtonsRef={{
               current: coderTitleBarRefs.current[pane.id],
               set: (value: any) => { coderTitleBarRefs.current[pane.id] = value; }

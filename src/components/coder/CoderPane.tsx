@@ -18,14 +18,21 @@ import { CODER_PANE_ID } from '@/stores/panes/constants';
 export interface CoderPaneProps {
   paneId: string; // The pane's ID
   sessionId?: string; // Passed from pane content
+  initialMessages?: any[]; // Passed from pane content
   titleBarButtonsRef?: { current: any; set: (value: any) => void }; // Ref to set title bar buttons and menus
 }
 
-const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSessionId, titleBarButtonsRef }) => {
+const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSessionId, initialMessages, titleBarButtonsRef }) => {
+  // Only log on mount, not every render
+  useEffect(() => {
+    console.log(`[coder_pa CoderPane] Mounted with paneId: ${paneId}, initialSessionId:`, initialSessionId, 'initialMessages:', initialMessages?.length || 0);
+  }, []); // Empty deps = only on mount
+  
   const runtime = getMainRuntime(); // For telemetry
   const removePane = usePaneStore((state) => state.removePane);
   const updatePaneSize = usePaneStore((state) => state.updatePaneSize);
   const updatePaneContent = usePaneStore((state) => state.updatePaneContent);
+  const activePaneId = usePaneStore((state) => state.activePaneId);
 
   // Use the custom hook for chat logic
   const {
@@ -35,16 +42,32 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
     sendMessage,
     loadMessagesForSession,
     clearMessagesAndSession
-  } = useCoderChat({ paneId, initialSessionId });
+  } = useCoderChat({ paneId, initialSessionId, initialMessages });
+  
+  // Local state for additional focus control
+  const [localFocusKey, setLocalFocusKey] = useState(0);
+  
+  // Focus input when this pane becomes active
+  useEffect(() => {
+    if (activePaneId === paneId) {
+      // Increment localFocusKey to trigger focus
+      setLocalFocusKey(prev => prev + 1);
+    }
+  }, [activePaneId, paneId]);
 
-  // Auto-scroll hook - trigger on messages change
+  // Get the last message content for dependency tracking
+  const lastMessageContent = messages.length > 0 
+    ? messages[messages.length - 1].content 
+    : '';
+  
+  // Auto-scroll hook - trigger on messages change or last message content update
   const {
     containerRef,
     scrollToBottom,
     handleScroll,
     shouldAutoScroll,
     handleTouchStart,
-  } = useAutoScroll([messages]);
+  } = useAutoScroll([messages.length, lastMessageContent]);
 
   // Scroll to bottom on initial load
   useEffect(() => {
@@ -61,6 +84,13 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
     const lastMessage = messages[messages.length - 1];
     return lastMessage.isStreaming || false;
   }, [messages]);
+  
+  // Additional effect to handle streaming updates
+  useEffect(() => {
+    if (isStreamingLastMessage && shouldAutoScroll) {
+      scrollToBottom();
+    }
+  }, [isStreamingLastMessage, messages, shouldAutoScroll, scrollToBottom]);
 
 
   const handleExitCoderMode = React.useCallback(() => {
@@ -247,6 +277,12 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
           await loadMessagesForSession(newSessionId);
 
           setHistoryMenuOpen(false);
+          
+          // Force focus back to input after menu closes
+          // Use a small delay to ensure dropdown has fully closed
+          setTimeout(() => {
+            setLocalFocusKey(prev => prev + 1);
+          }, 100);
         }
       },
     }));
@@ -260,7 +296,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
         onClick={handleNewChat}
         variant="outline"
         size="sm"
-        className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors h-6 px-2 text-xs"
+        className="border-zinc-600 text-zinc-300 hover:bg-zinc-800 hover:text-white hover:border-zinc-500 transition-colors h-6 px-2 text-xs bg-transparent"
         title="Start new chat session (Cmd/Ctrl+Click to open in new pane)"
       >
         <MessageSquarePlus className="h-3 w-3 mr-1" />
@@ -307,9 +343,22 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
           border-radius: 0 !important;
         }
 
+        /* User message styling */
         .coder-chat-message.user-message .group\\/message {
-          max-width: 80% !important;
+          max-width: none !important;
+          width: fit-content !important;
           border: 1px solid white !important;
+          word-break: normal !important;
+        }
+        
+        /* Container should limit max width */
+        .coder-chat-message.user-message .relative.group {
+          max-width: 80% !important;
+        }
+        
+        /* Remove the Tailwind max-width class effect */
+        .coder-chat-message.user-message .group\\/message[class*="sm:max-w-"] {
+          max-width: none !important;
         }
 
         .coder-chat-message.assistant-message .group\\/message {
@@ -434,8 +483,13 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
       />
       {/* ProseMirror editor at the bottom */}
       <div className="flex items-center justify-center pb-4 px-4">
-        <div className="h-[50px] w-[750px] overflow-auto rounded border border-white bg-black">
-          <CoderProseMirrorInput onSubmit={sendMessage} disabled={isLoading} focusKey={focusKey} />
+        <div className="w-[750px] rounded border border-white bg-black">
+          <CoderProseMirrorInput 
+            onSubmit={sendMessage} 
+            disabled={isLoading} 
+            focusKey={focusKey + localFocusKey}
+            paneId={paneId}
+          />
         </div>
       </div>
     </div>
@@ -447,6 +501,7 @@ const MemoizedCoderPane = React.memo(CoderPane, (prevProps, nextProps) => {
   // Only re-render if props actually changed
   return prevProps.paneId === nextProps.paneId &&
     prevProps.sessionId === nextProps.sessionId &&
+    prevProps.initialMessages === nextProps.initialMessages &&
     prevProps.titleBarButtonsRef === nextProps.titleBarButtonsRef;
 });
 
