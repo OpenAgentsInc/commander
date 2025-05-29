@@ -13,26 +13,16 @@ export const toggleAllCoderPanesAction = (set: SetPaneStore, get: GetPaneStore) 
     closedPanePositions: Object.keys(state.closedPanePositions)
   });
   
-  // Find all coder panes
-  const coderPanes = state.panes.filter(p => p.type === "coder");
+  // Find all visible coder panes
+  const visibleCoderPanes = state.panes.filter(p => p.type === "coder");
   
-  console.log('[coder_pa toggleAllCoderPanes] Found coder panes:', coderPanes.length, coderPanes.map(p => p.id));
+  console.log('[coder_pa toggleAllCoderPanes] Found visible coder panes:', visibleCoderPanes.length, visibleCoderPanes.map(p => p.id));
   
-  if (coderPanes.length === 0) {
-    // No coder panes exist, create a new one
-    console.log('[coder_pa toggleAllCoderPanes] No coder panes found, creating new one');
-    openNewCoderPaneAction(set, get);
-    return;
-  }
-  
-  // Check if any coder pane is currently active/visible
-  const hasActiveCoderPane = coderPanes.some(p => p.id === state.activePaneId);
-  
-  console.log('[coder_pa toggleAllCoderPanes] Has active coder pane:', hasActiveCoderPane);
-  
-  if (hasActiveCoderPane) {
-    // Hide all coder panes
-    const coderPaneIds = new Set(coderPanes.map(p => p.id));
+  if (visibleCoderPanes.length > 0) {
+    // We have visible coder panes - hide them all
+    console.log('[coder_pa toggleAllCoderPanes] Hiding all coder panes');
+    
+    const coderPaneIds = new Set(visibleCoderPanes.map(p => p.id));
     const remainingPanes = state.panes.filter(p => !coderPaneIds.has(p.id));
     
     // Find new active pane (last non-coder pane)
@@ -43,7 +33,7 @@ export const toggleAllCoderPanesAction = (set: SetPaneStore, get: GetPaneStore) 
     
     // Save positions of all coder panes before removing them
     const updatedClosedPanePositions = { ...state.closedPanePositions };
-    coderPanes.forEach(pane => {
+    visibleCoderPanes.forEach(pane => {
       console.log(`[coder_pa toggleAllCoderPanes] Saving pane ${pane.id} to closedPanePositions with content:`, pane.content);
       updatedClosedPanePositions[pane.id] = {
         x: pane.x,
@@ -67,15 +57,22 @@ export const toggleAllCoderPanesAction = (set: SetPaneStore, get: GetPaneStore) 
       closedPanePositions: updatedClosedPanePositions,
     });
   } else {
-    // Show all previously hidden coder panes
-    console.log('[coder_pa toggleAllCoderPanes] Attempting to restore coder panes from closedPanePositions');
+    // No visible coder panes - check if we have any saved in closedPanePositions
+    console.log('[coder_pa toggleAllCoderPanes] No visible coder panes, checking closedPanePositions');
+    console.log('[coder_pa toggleAllCoderPanes] Current closedPanePositions keys:', Object.keys(state.closedPanePositions));
+    
+    // Also log the first few entries to see what's actually stored
+    const entries = Object.entries(state.closedPanePositions).slice(0, 5);
+    entries.forEach(([id, data]) => {
+      console.log(`[coder_pa toggleAllCoderPanes] Sample entry - id: ${id}, shouldRestore: ${data.shouldRestore}, has content: ${!!data.content}`);
+    });
+    
     const restoredPanes: Pane[] = [];
     
     for (const [paneId, storedData] of Object.entries(state.closedPanePositions)) {
-      console.log(`[coder_pa toggleAllCoderPanes] Checking ${paneId}, starts with coder_pane_: ${paneId.startsWith('coder_pane_')}, shouldRestore: ${storedData.shouldRestore}`);
       // Check if this is a coder pane by ID pattern
       if (paneId.startsWith('coder_pane_') && storedData.shouldRestore) {
-        console.log(`[coder_pa toggleAllCoderPanes] Restoring pane ${paneId} with content:`, storedData.content);
+        console.log(`[coder_pa toggleAllCoderPanes] Found restorable coder pane ${paneId} with content:`, storedData.content);
         restoredPanes.push({
           id: paneId,
           type: "coder",
