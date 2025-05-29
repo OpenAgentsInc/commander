@@ -14,6 +14,7 @@ import { ToolCallDisplay } from './ToolCallDisplay';
 import { ToolResultDisplay } from './ToolResultDisplay';
 import { MessageSquarePlus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { CopyButton } from '@/components/ui/copy-button';
 import { useQuery } from '@tanstack/react-query';
 import { DatabaseService, DBSession } from '@/services/db';
 import { PaneDropdownItem } from '@/types/paneMenu';
@@ -226,6 +227,24 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
     return textParts; // Don't fall back to message.content when we have parts
   }, [message.parts, message.content]);
 
+  // Get full message content for copying
+  const fullMessageContent = React.useMemo(() => {
+    if (!message.parts || message.parts.length === 0) return message.content;
+
+    let fullContent = '';
+    message.parts.forEach(part => {
+      if (part.type === 'text') {
+        fullContent += part.text;
+      } else if (part.type === 'tool_call') {
+        fullContent += `\n\n[Tool Call: ${part.name}]\nArguments: ${JSON.stringify(part.input, null, 2)}\n`;
+      } else if (part.type === 'tool_result') {
+        fullContent += `\n[Tool Result]\n${JSON.stringify(part.content, null, 2)}\n`;
+      }
+    });
+    
+    return fullContent.trim() || message.content;
+  }, [message.parts, message.content]);
+
   // Create parts array for UIChatMessage - it expects a specific format
   const messageParts = React.useMemo(() => {
     if (!message.parts || message.parts.length === 0) return undefined;
@@ -338,12 +357,18 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
   // Use custom rendering if we have parts, otherwise use standard UIChatMessage
   if (message.parts && message.parts.length > 0) {
     return (
-      <div className={`coder-chat-message ${message.role === 'user' ? 'user-message' : 'assistant-message'} space-y-2`}>
+      <div className={`coder-chat-message ${message.role === 'user' ? 'user-message' : 'assistant-message'} relative group space-y-2`}>
         {renderParts()}
         {message.isStreaming && message.role === 'assistant' && (
           <div className="flex items-center gap-2 mt-2">
             <span className="text-xs text-muted-foreground italic">Claude Code is working</span>
             <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+          </div>
+        )}
+        {/* Copy button for the entire message */}
+        {!message.isStreaming && (
+          <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            <CopyButton content={fullMessageContent} copyMessage="Copied message to clipboard" />
           </div>
         )}
       </div>
@@ -352,7 +377,7 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
 
   // Fallback to standard display for messages without parts
   return (
-    <div className={`coder-chat-message ${message.role === 'user' ? 'user-message' : 'assistant-message'}`}>
+    <div className={`coder-chat-message ${message.role === 'user' ? 'user-message' : 'assistant-message'} relative group`}>
       <UIChatMessage
         id={message.id}
         role={message.role === 'user' ? 'user' : 'assistant'}
@@ -364,6 +389,12 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
         <div className="flex items-center gap-2 mt-2">
           <span className="text-xs text-muted-foreground italic">Claude Code is working</span>
           <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+        </div>
+      )}
+      {/* Copy button for the entire message */}
+      {!message.isStreaming && (
+        <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          <CopyButton content={fullMessageContent} copyMessage="Copied message to clipboard" />
         </div>
       )}
     </div>
