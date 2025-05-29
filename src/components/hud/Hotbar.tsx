@@ -38,9 +38,10 @@ export const Hotbar: React.FC<HotbarProps> = ({
   onTogglePreviousChatsPane,
   onToggleCoderPane,
 }) => {
-  const { activePaneId } = usePaneStore(
+  const { activePaneId, panes } = usePaneStore(
     useShallow((state) => ({
       activePaneId: state.activePaneId,
+      panes: state.panes,
     })),
   );
 
@@ -52,6 +53,10 @@ export const Hotbar: React.FC<HotbarProps> = ({
   const [isAgentChatEnabled] = useFeatureFlag(Feature.AGENT_CHAT_PANE);
   const [isPreviousChatsEnabled] = useFeatureFlag(Feature.PREVIOUS_CHATS_PANE);
   const [isHandTrackingEnabled] = useFeatureFlag(Feature.HAND_TRACKING);
+
+  // Check if the active pane is a coder pane (matches coder_pane* pattern)
+  const isCoderPaneActive = activePaneId?.startsWith('coder_pane') || 
+    panes.find(p => p.id === activePaneId)?.type === 'coder';
 
   return (
     <div
@@ -66,7 +71,7 @@ export const Hotbar: React.FC<HotbarProps> = ({
           slotNumber={1}
           onClick={onToggleCoderPane}
           title="Coder Mode"
-          isActive={activePaneId === CODER_PANE_ID}
+          isActive={isCoderPaneActive}
         >
           <CodeXml className="text-muted-foreground h-5 w-5" />
         </HotbarItem>

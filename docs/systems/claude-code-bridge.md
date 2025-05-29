@@ -21,8 +21,13 @@
 8.  [Security Considerations](#8-security-considerations)
 9.  [Database Integration Details](#9-database-integration-details)
 10. [Testing Strategies](#10-testing-strategies)
-11. [Troubleshooting & Known Issues](#11-troubleshooting--known-issues)
-12. [Future Considerations](#12-future-considerations)
+11. [Resilient Session Management (NEW)](#11-resilient-session-management-new)
+    11.1. [Overview](#111-overview)
+    11.2. [Key Features](#112-key-features)
+    11.3. [Implementation Details](#113-implementation-details)
+    11.4. [Development Mode Enhancements](#114-development-mode-enhancements)
+12. [Troubleshooting & Known Issues](#12-troubleshooting--known-issues)
+13. [Future Considerations](#13-future-considerations)
 
 ## 1. Overview
 
@@ -306,18 +311,66 @@ The architecture prioritizes offloading the direct management of the Claude CLI 
     -   Test full chat flow, including streaming and persistence, by selecting "Claude Code (CLI)" provider in `AgentChatPane`.
     -   Requires a valid `ANTHROPIC_API_KEY` and installed `@anthropic-ai/claude-code` CLI in the test environment.
 
-## 11. Troubleshooting & Known Issues
+## 11. Resilient Session Management (NEW)
+
+### 11.1. Overview
+As of the latest implementation, the Claude Bridge Service now supports **resilient session management** that allows Claude CLI processes to survive Electron application restarts. This addresses the issue of long-running Claude Code tasks being interrupted by Vite rebuilds or manual Electron restarts during development.
+
+### 11.2. Key Features
+-   **PTY Process Persistence:** PTY processes spawned for Claude CLI are no longer automatically terminated when the WebSocket connection from Electron closes.
+-   **Session Tracking:** Active sessions are tracked using the `sessionId` passed from the renderer through IPC.
+-   **Output Buffering:** When Electron is disconnected, CLI output is buffered in memory for later delivery.
+-   **Automatic Reconnection:** When Electron reconnects with the same `sessionId`, it automatically receives any buffered output and continues streaming new output.
+-   **Explicit Cancellation:** PTY processes are only terminated upon explicit cancel requests or natural completion.
+
+### 11.3. Implementation Details
+
+#### Session State Management
+```javascript
+// Bridge service maintains two key data structures:
+const activeClaudeSessions = new Map(); 
+// Map<sessionId, { pty, requestId, bufferedOutput, claudeSessionId }>
+
+const activeConnections = new Map(); 
+// Map<requestId, ws>
+```
+
+#### Enhanced Message Protocol
+The WebSocket protocol between Electron main and bridge service now includes:
+-   **Session ID in requests:** `{ id: requestId, args: [...], sessionId: "..." }`
+-   **Cancel messages:** `{ type: 'cancel', requestId: "..." }`
+-   **Session query:** `{ type: 'query_active_sessions', sessionIds: [...] }`
+-   **Health check includes session count:** `{ type: 'health', ..., activeSessions: N }`
+
+#### Reconnection Flow
+1. Electron main process sends request with `sessionId`
+2. Bridge checks if session exists and has active PTY
+3. If yes: Updates requestId mapping, sends buffered output, resumes streaming
+4. If no: Spawns new PTY process and creates session entry
+
+### 11.4. Development Mode Enhancements
+To prevent Vite from interrupting Claude Code sessions during development:
+-   **Vite configs modified:** All three Vite configs (main, preload, renderer) now set `watch: null` in development mode
+-   **Manual restart required:** Developers must manually restart the dev server to see code changes
+-   **Trade-off:** Stability over convenience during Claude Code usage
+
+## 12. Troubleshooting & Known Issues
 -   **CLI Not Found:** The bridge service includes fallback paths but relies on user installation. Error messages guide the user.
 -   **Authentication Errors:** If `claude auth` hasn't been run or API key is invalid, CLI will fail. Errors are propagated.
 -   **Bridge Service Not Running:** Electron main process checks for bridge availability and reports error if not found. `pnpm bridge` and `pnpm bridge:stop` scripts manage the bridge service.
 -   **Database Path Mismatches:** Previously an issue, resolved by synchronized path calculation.
 -   **Timeout Issues:** Addressed by setting a timeout in `main-claude-websocket.ts` for the utility process, and the bridge service itself could implement timeouts for PTY interactions.
+-   **Session Buffer Overflow:** Currently no limit on buffered output size. In production, consider implementing a circular buffer or size limit.
+-   **Orphaned Sessions:** Sessions are kept indefinitely. Consider implementing TTL or cleanup mechanism for old sessions.
 
-## 12. Future Considerations
+## 13. Future Considerations
 -   **SDK Usage in Bridge:** Evaluate replacing direct `node-pty` interaction in the bridge with Jason Kneen's Claude Code SDK for better abstraction and type safety, if performance allows.
 -   **Dynamic Port for Bridge:** Allow configuration of the WebSocket port for the bridge service.
--   **Health Check Endpoint:** The bridge service has a basic `health` check; this could be expanded.
+-   **Health Check Endpoint:** The bridge service has a basic `health` check; this could be expanded to include session details.
 -   **More Robust Error Codes:** Standardize error codes exchanged between Electron and the bridge.
 -   **Alternative to External Bridge:** Re-evaluate `UtilityProcess` from Electron if its network/subprocess capabilities improve sufficiently for direct CLI management from the main process.
+-   **Claude CLI Resume Feature:** The infrastructure is ready to support `claude --resume <session-id>` when the CLI provides session IDs in its output.
+-   **Session Persistence:** Save session state to disk to survive bridge service restarts.
+-   **Resource Management:** Implement limits on concurrent sessions, buffer sizes, and session lifetimes.
 
 This system, while complex due to the multi-process architecture, provides a robust and isolated way to integrate the powerful Claude Code CLI into OpenAgents Commander, treating it as just another AI provider within the application's flexible AI backend.

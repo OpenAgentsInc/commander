@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import { DatabaseService, DBSession } from '@/services/db';
 import { PaneDropdownItem } from '@/types/paneMenu';
 import { CODER_PANE_ID } from '@/stores/panes/constants';
+import { isMacOs } from '@/utils/os';
 
 
 export interface CoderPaneProps {
@@ -25,7 +26,7 @@ export interface CoderPaneProps {
 const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSessionId, initialMessages, titleBarButtonsRef }) => {
   // Only log on mount, not every render
   useEffect(() => {
-    console.log(`[coder_pa CoderPane] Mounted with paneId: ${paneId}, initialSessionId:`, initialSessionId, 'initialMessages:', initialMessages?.length || 0);
+    // CoderPane mounted
   }, []); // Empty deps = only on mount
   
   const runtime = getMainRuntime(); // For telemetry
@@ -107,38 +108,9 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
   }, [removePane, paneId, runtime]);
 
   const handleNewChat = React.useCallback((event?: React.MouseEvent) => {
-    // Check if command (Mac) or control (Windows/Linux) key is pressed
-    const isCommandOrControl = event && (event.metaKey || event.ctrlKey);
-    
-    if (isCommandOrControl) {
-      // Open new chat in a new pane
-      const addPane = usePaneStore.getState().addPane;
-      const screenWidth = window.innerWidth;
-      const screenHeight = window.innerHeight;
-      
-      // Position new pane offset from current one
-      const currentPanes = usePaneStore.getState().panes;
-      const currentCoderPane = currentPanes.find(p => p.id === paneId);
-      const offsetX = 50;
-      const offsetY = 50;
-      
-      const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-      
-      addPane({
-        id: `coder_pane_${Date.now()}`,
-        type: "coder",
-        title: `Coder`,
-        x: currentCoderPane ? Math.min(currentCoderPane.x + offsetX, screenWidth - 600) : Math.floor((screenWidth - 569) / 2),
-        y: currentCoderPane ? Math.min(currentCoderPane.y + offsetY, screenHeight - 400) : 30,
-        width: 569,
-        height: Math.floor(screenHeight * 0.85),
-        content: { sessionId: newSessionId }
-      });
-    } else {
-      // Original behavior - new chat in current pane
-      const newSessionId = clearMessagesAndSession();
-      updatePaneContent(paneId, { sessionId: newSessionId });
-    }
+    // Always open new chat in a new pane
+    const { openNewCoderPane } = usePaneStore.getState();
+    openNewCoderPane();
 
     // Track the new chat action
     Effect.runFork(
@@ -149,23 +121,27 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
         }),
       ).pipe(Effect.provide(runtime)),
     );
-  }, [clearMessagesAndSession, runtime, updatePaneContent, paneId]);
+  }, [runtime]);
 
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Only handle keyboard shortcuts if this pane is active
+      const currentState = usePaneStore.getState();
+      if (currentState.activePaneId !== paneId) return;
+
       if (event.key === 'Escape') {
-        // Only handle escape if this pane is active
-        const currentState = usePaneStore.getState();
-        if (currentState.activePaneId === paneId) {
-          handleExitCoderMode();
-        }
+        handleExitCoderMode();
+      } else if (event.key === 'n' && (event.metaKey || event.ctrlKey)) {
+        // Cmd/Ctrl+N for new chat
+        event.preventDefault();
+        handleNewChat();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [handleExitCoderMode, paneId]);
+  }, [handleExitCoderMode, handleNewChat, paneId]);
 
   // Track Coder Mode open event
   React.useEffect(() => {
@@ -226,7 +202,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
     return chatHistorySessions.map(session => ({
       label: formatSessionForMenu(session),
       action: async (event) => {
-        console.log("Load chat session:", session.id);
+        // Load chat session
 
         // Check if Cmd/Ctrl key is held
         const isModifierHeld = event && (event.metaKey || event.ctrlKey);
@@ -270,8 +246,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
           });
         } else {
           const newSessionId = session.id;
-          const componentName = `[CoderPane ${paneId?.substring(0, 8) || 'HIST'}]`;
-          console.log(`${componentName} History item clicked, preparing to load session: ${newSessionId}`);
+          // History item clicked, loading session
 
           // Call the loading function from the hook
           await loadMessagesForSession(newSessionId);
@@ -297,7 +272,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
         variant="outline"
         size="sm"
         className="border-zinc-600 text-zinc-300 hover:bg-zinc-800 hover:text-white hover:border-zinc-500 transition-colors h-6 px-2 text-xs bg-transparent"
-        title="Start new chat session (Cmd/Ctrl+Click to open in new pane)"
+        title={`Start new chat session (${isMacOs() ? '⌘N' : 'Ctrl+N'}) • ${isMacOs() ? 'Cmd' : 'Ctrl'}+Click to open in new pane`}
       >
         <MessageSquarePlus className="h-3 w-3 mr-1" />
         New Chat

@@ -183,6 +183,7 @@ export const usePaneStore = create<PaneStoreType>()(
           }),
       // Coder pane - toggles all coder panes (hide/show)
       toggleCoderPane: () => toggleAllCoderPanesAction(set, get),
+      openNewCoderPane: () => openNewCoderPaneAction(set, get),
       
       resetHUDState: () => {
         // Force recreate initial panes with current screen dimensions

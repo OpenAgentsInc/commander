@@ -5,6 +5,8 @@ import { getMainRuntime } from '@/services/runtime';
 import { usePaneStore } from '@/stores/pane';
 import { CODER_PANE_TITLE } from '@/stores/panes/constants';
 
+const componentName = 'useCoderChat';
+
 // Local message interface - each pane has its own messages
 export interface ChatMessage {
   id: string;
@@ -37,15 +39,10 @@ export function useCoderChat(props: UseCoderChatProps) {
   // Local state for messages - initialize with persisted messages if available
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     if (initialMessages && initialMessages.length > 0) {
-      console.log(`[CoderPane coder_pa] Restoring ${initialMessages.length} persisted messages for pane ${paneId}`);
+      // Silently restore persisted messages
       return initialMessages;
     }
-    return [{
-      id: 'system',
-      role: 'system',
-      content: 'You are Claude Code, a helpful AI coding assistant.',
-      timestamp: Date.now(),
-    }];
+    return [];
   });
 
   // Local state for loading and focus
@@ -80,12 +77,7 @@ export function useCoderChat(props: UseCoderChatProps) {
   }, [paneId, updatePaneContent]);
 
   const clearMessages = useCallback(() => {
-    const newMessages: ChatMessage[] = [{
-      id: 'system',
-      role: 'system' as const,
-      content: 'You are Claude Code, a helpful AI coding assistant.',
-      timestamp: Date.now(),
-    }];
+    const newMessages: ChatMessage[] = [];
     setMessages(newMessages);
     // Update pane content with cleared messages
     updatePaneContent(paneId, { messages: newMessages });
@@ -93,12 +85,11 @@ export function useCoderChat(props: UseCoderChatProps) {
 
   // Extracted message loading logic as a callable function
   const loadMessagesForSessionInternal = useCallback(async (sessionIdToLoad: string, skipClear: boolean = false) => {
-    const componentName = `[CoderPane ${paneId?.substring(0, 8) || 'NEW'}]`;
-    console.log(`${componentName} Attempting to load messages for session: ${sessionIdToLoad}`);
+    // Loading messages for session
 
     // Prevent loading if already loading
     if (isLoadingRef.current) {
-      console.log(`${componentName} Already loading, skipping duplicate load for ${sessionIdToLoad}`);
+      // Already loading, skip duplicate
       return;
     }
 
@@ -139,14 +130,9 @@ export function useCoderChat(props: UseCoderChatProps) {
 
       if (Exit.isSuccess(exitResult)) {
         const { messages: dbMessages, toolExecutionsByMessage } = exitResult.value;
-        console.log(`${componentName} Loaded ${dbMessages.length} messages from DB for session ${sessionIdToLoad}`);
+        // Loaded messages from DB
 
-        const newMessagesState: ChatMessage[] = [{
-          id: 'system',
-          role: 'system',
-          content: 'You are Claude Code, a helpful AI coding assistant.',
-          timestamp: Date.now(),
-        }];
+        const newMessagesState: ChatMessage[] = [];
 
         dbMessages.forEach(dbMsg => {
           let parts;
@@ -169,7 +155,7 @@ export function useCoderChat(props: UseCoderChatProps) {
                   const structuredContent = JSON.parse(dbMsg.content);
                   if (Array.isArray(structuredContent)) {
                     // New format: content is an array of parts
-                    console.log(`[CoderPane] Rehydrating assistant message ${dbMsg.id} with structured content`);
+                    // Rehydrating assistant message with structured content
                     const toolExecutionMap = new Map(
                       (toolExecutionsByMessage.get(dbMsg.id) || []).map(exec => [exec.id, exec])
                     );
@@ -230,13 +216,13 @@ export function useCoderChat(props: UseCoderChatProps) {
                   }
                 } catch (e) {
                   // content was not valid JSON or not an array, fallback to old logic
-                  console.log(`[CoderPane] Content not structured array for ${dbMsg.id}, trying fallback`);
+                  // Content not structured, trying fallback
                 }
               }
 
               if (!successfullyParsedStructuredContent) {
                 // Fallback for old data or if content isn't structured JSON
-                console.log(`[CoderPane] Using fallback logic for assistant message ${dbMsg.id}`);
+                // Using fallback logic for assistant message
 
                 // Add text content first if present
                 if (dbMsg.content) {
@@ -318,14 +304,12 @@ export function useCoderChat(props: UseCoderChatProps) {
         setMessages(newMessagesState);
         lastLoadedSessionIdRef.current = sessionIdToLoad;
         sessionIdRef.current = sessionIdToLoad; // Ensure current session ID is also set
-        const newTitle = `${CODER_PANE_TITLE} (${sessionIdToLoad.substring(0,6)}...)`;
         // Save messages to pane content for persistence
         updatePaneContent(paneId, { 
           sessionId: sessionIdToLoad, 
-          title: newTitle,
           messages: newMessagesState // Save the full message state
         });
-        console.log(`${componentName} Session ${sessionIdToLoad} loaded and pane content updated with ${newMessagesState.length} messages`);
+        // Session loaded and pane content updated
 
         // Scroll to bottom after loading messages
         setTimeout(() => {
@@ -378,22 +362,29 @@ export function useCoderChat(props: UseCoderChatProps) {
       // Use current messages from local state
       const currentMessages = messages;
 
-      // Extract system message content. Use the one from messages state if available,
-      // otherwise fallback to a default.
-      const systemMessageContent = currentMessages.find(m => m.role === 'system')?.content ||
-                                   'You are Claude Code, a helpful AI coding assistant.';
+      // Extract system message content if explicitly set (not the default)
+      const systemMessage = currentMessages.find(m => m.role === 'system');
+      const systemPromptContent = systemMessage && 
+                                  systemMessage.content !== 'You are Claude Code, a helpful AI coding assistant.' 
+                                  ? systemMessage.content 
+                                  : undefined;
 
       // Prepare messages for Claude Code API - only include messages from current session
+      // Include parts array to preserve tool call/result structure
       const apiMessages = currentMessages
         .filter(m => m.role !== 'system')
         .concat(userMessage)
-        .map(m => ({ role: m.role, content: m.content }));
+        .map(m => ({ 
+          role: m.role, 
+          content: m.content,
+          ...(m.parts && { parts: m.parts }) // Include parts if they exist
+        }));
 
       // Stream response from Claude Code
       const cleanup = window.electronAPI.claudeCode?.streamChat(
         {
           messages: apiMessages,
-          systemPrompt: systemMessageContent, // <-- ADD THIS LINE
+          ...(systemPromptContent && { systemPrompt: systemPromptContent }), // Only include if not default
           model: 'claude-3-sonnet-20240229',
           max_tokens: 4096,
           temperature: 0.7,
@@ -479,20 +470,19 @@ export function useCoderChat(props: UseCoderChatProps) {
 
   // Load initial session if provided
   useEffect(() => {
-    const componentName = `[CoderPane ${paneId?.substring(0, 8) || 'NEW'}]`;
-    console.log(`${componentName} Effect for session loading/init. initialSessionId: ${initialSessionId}, current sessionIdRef: ${sessionIdRef.current}, lastLoaded: ${lastLoadedSessionIdRef.current}`);
+    // Session loading/init effect
 
     let determinedSessionId = sessionIdRef.current;
 
     if (initialSessionId) {
       if (initialSessionId !== lastLoadedSessionIdRef.current) {
-        console.log(`${componentName} Using initialSessionId (${initialSessionId}) for loading.`);
+        // Using initialSessionId for loading
         determinedSessionId = initialSessionId;
         sessionIdRef.current = initialSessionId; // Sync ref with prop
         
         // If we have initial messages, mark as loaded but still fetch in background for updates
         if (initialMessages && initialMessages.length > 0) {
-          console.log(`${componentName} Have ${initialMessages.length} initial messages, marking as loaded and fetching updates in background`);
+          // Have initial messages, marking as loaded
           lastLoadedSessionIdRef.current = initialSessionId;
           setIsLoading(false);
           // Still load from DB in case there are newer messages, but skip clearing existing messages
@@ -501,14 +491,14 @@ export function useCoderChat(props: UseCoderChatProps) {
           loadMessagesForSessionInternal(initialSessionId, false); // This also sets lastLoadedSessionIdRef.current
         }
       } else {
-        console.log(`${componentName} initialSessionId (${initialSessionId}) matches lastLoaded. No load needed.`);
+        // Session already loaded, no action needed
         setIsLoading(false);
       }
     } else { // No initialSessionId provided
       // If sessionIdRef.current is also uninitialized (or a temporary placeholder), generate a new one.
       if (!sessionIdRef.current || sessionIdRef.current.startsWith('ui-coder-temp-')) { // Check for uninitialized or temp ID
         const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-        console.log(`${componentName} New pane, no initialSessionId. Generated new: ${newSessionId}`);
+        // New pane created
         determinedSessionId = newSessionId;
         sessionIdRef.current = newSessionId;
         lastLoadedSessionIdRef.current = newSessionId; // Mark as "loaded" (it's empty)
@@ -517,7 +507,7 @@ export function useCoderChat(props: UseCoderChatProps) {
       } else {
         // Retain existing sessionIdRef.current if it's valid (e.g., pane was re-rendered without initialSessionId prop changing)
         determinedSessionId = sessionIdRef.current;
-        console.log(`${componentName} No initialSessionId, retaining existing ref: ${determinedSessionId}`);
+        // Retaining existing session
         if (determinedSessionId !== lastLoadedSessionIdRef.current) {
           // Check if we have initial messages to preserve
           const hasInitialMessages = initialMessages && initialMessages.length > 0;
@@ -532,7 +522,7 @@ export function useCoderChat(props: UseCoderChatProps) {
     // Only update if the sessionId has actually changed to avoid infinite loops
     if (determinedSessionId && determinedSessionId !== initialSessionId) {
       const newTitle = `${CODER_PANE_TITLE} (${determinedSessionId.substring(0,6)}...)`;
-      console.log(`${componentName} Updating pane store content for paneId ${paneId} with sessionId: ${determinedSessionId} and title: ${newTitle}`);
+      // Updating pane store content
       // This call ensures the sessionId is saved in the global state and thus persisted.
       updatePaneContent(paneId, {
         sessionId: determinedSessionId,

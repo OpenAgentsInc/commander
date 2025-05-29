@@ -108,7 +108,8 @@ export const TelemetryServiceLive = Layer.effect(
             if (!isTestEnv && config.logToConsole) {
               try {
                 // TELEMETRY_IGNORE_THIS_CONSOLE_CALL (This is the service's own logging mechanism)
-                console.log("[Telemetry]", eventWithTimestamp);
+                // Disabled verbose telemetry logging
+                // console.log("[Telemetry]", eventWithTimestamp);
               } catch (consoleError) {
                 // Silently handle console.log errors - this can happen in certain environments
                 // where console is limited or in certain test scenarios

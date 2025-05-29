@@ -25,9 +25,9 @@ const CoderMessageList: React.FC<CoderMessageListProps> = ({
       onTouchStart={handleTouchStart}
     >
       <div
-        className="p-4"
+        className="p-4 min-h-full flex flex-col"
       >
-        <div className="max-w-[750px] mx-auto w-full">
+        <div className="max-w-[750px] mx-auto w-full flex-1 flex flex-col justify-end">
           <div className="flex flex-col gap-4">
             {messages
               .filter(msg => msg.role !== 'system') // Don't show system messages
