@@ -350,6 +350,11 @@ export function useCoderChat(props: UseCoderChatProps) {
       // Use current messages from local state
       const currentMessages = messages;
 
+      // Extract system message content. Use the one from messages state if available,
+      // otherwise fallback to a default.
+      const systemMessageContent = currentMessages.find(m => m.role === 'system')?.content ||
+                                   'You are Claude Code, a helpful AI coding assistant.';
+
       // Prepare messages for Claude Code API - only include messages from current session
       const apiMessages = currentMessages
         .filter(m => m.role !== 'system')
@@ -360,6 +365,7 @@ export function useCoderChat(props: UseCoderChatProps) {
       const cleanup = window.electronAPI.claudeCode?.streamChat(
         {
           messages: apiMessages,
+          systemPrompt: systemMessageContent, // <-- ADD THIS LINE
           model: 'claude-3-sonnet-20240229',
           max_tokens: 4096,
           temperature: 0.7,

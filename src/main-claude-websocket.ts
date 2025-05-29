@@ -250,7 +250,7 @@ export function setupClaudeWebSocketHandler() {
         last_updated_at: now,
         provider_key: "claude_code",
         model_name: params.model || "claude-3-opus-20240229",
-        system_prompt: params.messages?.find((m: any) => m.role === "system")?.content || "",
+        system_prompt: params.systemPrompt || "",
         metadata_json: JSON.stringify({}),
         title: "Claude Code Chat"
       };
@@ -262,58 +262,70 @@ export function setupClaudeWebSocketHandler() {
       // Continue even if database fails
     }
     
-    // Build conversation context
-    const messages = params.messages || [];
-    let conversationContext = "";
-    
-    // Find system message if any
-    const systemMessage = messages.find((m: any) => m.role === "system")?.content;
-    
-    // Build conversation history
-    const conversationMessages = messages.filter((m: any) => m.role !== "system");
-    
-    if (conversationMessages.length === 0) {
-      console.error("[Main Process] No messages to send");
+    // Get messages and system prompt from params
+    const chatMessagesForPrompt = params.messages || []; // These are already user/assistant turns from useCoderChat
+    const systemPromptContent = params.systemPrompt;    // This is now explicitly passed
+
+    if (chatMessagesForPrompt.length === 0 && !systemPromptContent) {
+      console.log("[Main Process] No messages or system prompt to send to Claude CLI");
       event.sender.send(`claude-code:chat-stream:error`, requestId, {
         __error: true,
-        message: "No messages provided"
+        message: "No messages or system prompt provided"
       });
       return;
     }
-    
-    // For multi-turn conversations, format as a proper conversation
-    if (conversationMessages.length > 1) {
-      // Build conversation with clear role markers
-      const formattedMessages = conversationMessages.map((msg: any, index: number) => {
-        const role = msg.role === 'user' ? 'Human' : 'Assistant';
-        return `${role}: ${msg.content}`;
-      });
-      
-      // Join with double newlines for clarity
-      conversationContext = formattedMessages.join('\n\n');
-      
-      // If the last message is from the user, add a prompt for Claude
-      const lastMessage = conversationMessages[conversationMessages.length - 1];
-      if (lastMessage.role === 'user') {
-        conversationContext += '\n\nAssistant:';
+
+    // Helper function to format messages (inline version)
+    function formatMessagesForClaudeCli_main(messages: any[]) {
+      const relevantMessages = messages.filter(
+        (msg) => msg.role === "user" || msg.role === "assistant",
+      );
+      if (relevantMessages.length === 0) return "";
+      let prompt = relevantMessages
+        .map((message) => {
+          const role = message.role === "user" ? "Human" : "Assistant";
+          const content = message.content || "";
+          return `${role}: ${content}`;
+        })
+        .join("\n\n");
+      const lastMessage = relevantMessages[relevantMessages.length - 1];
+      if (lastMessage.role === "user") {
+        prompt += "\n\nAssistant:";
       }
-    } else {
-      // Single message - just send the content
-      conversationContext = conversationMessages[0].content;
+      return prompt;
     }
-    
+
+    // Use the formatter
+    const conversationContext = formatMessagesForClaudeCli_main(chatMessagesForPrompt);
+
     // Build Claude CLI args
-    const args = ["-p", conversationContext, "--output-format", "stream-json", "--verbose"];
-    if (systemMessage) {
-      args.push("--system-prompt", systemMessage);
+    const args = [];
+    if (conversationContext) { // Only add -p if there's actual conversation context
+         args.push("-p", conversationContext);
+    }
+    args.push("--output-format", "stream-json");
+
+    // Add other CLI parameters from params if they are supported and should be passed
+    if (params.model) {
+        args.push("--model", params.model);
+    }
+    if (params.temperature !== undefined) {
+        args.push("--temperature", String(params.temperature));
+    }
+    if (params.max_tokens) {
+        args.push("--max-tokens-to-sample", String(params.max_tokens));
+    }
+
+    if (systemPromptContent) {
+      args.push("--system-prompt", systemPromptContent);
     }
     
     console.log("[Main Process] Conversation context being sent:", conversationContext);
     console.log("[Main Process] Connecting to bridge service with args:", args);
     
     // Save user message to database
-    if (conversationMessages.length > 0) {
-      const lastUserMessage = conversationMessages.find((m: any, i: number, arr: any[]) => 
+    if (chatMessagesForPrompt.length > 0) {
+      const lastUserMessage = chatMessagesForPrompt.find((m: any, i: number, arr: any[]) => 
         m.role === 'user' && i === arr.findLastIndex((msg: any) => msg.role === 'user')
       );
       
