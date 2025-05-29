@@ -418,8 +418,8 @@ export function setupClaudeWebSocketHandler() {
 
     ws.on('open', () => {
       console.log("[Main Process] Connected to bridge service");
-      // Send the command
-      ws.send(JSON.stringify({ id: requestId, args }));
+      // Send the command with sessionId
+      ws.send(JSON.stringify({ id: requestId, args, sessionId }));
     });
 
     ws.on('message', (data: string) => {
@@ -864,8 +864,15 @@ export function setupClaudeWebSocketHandler() {
   ipcMain.on("claude-code:chat-stream:cancel", (event, requestId: string) => {
     console.log("[Main Process] Cancel request for:", requestId);
     const ws = activeConnections.get(requestId);
-    if (ws) {
-      ws.close();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      // Send cancel request to bridge
+      ws.send(JSON.stringify({ type: 'cancel', requestId }));
+      // Give bridge time to handle cancellation before closing
+      setTimeout(() => {
+        ws.close();
+        activeConnections.delete(requestId);
+      }, 100);
+    } else {
       activeConnections.delete(requestId);
     }
   });

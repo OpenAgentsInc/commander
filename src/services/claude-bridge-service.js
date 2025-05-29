@@ -438,6 +438,184 @@ async function handleDatabaseOperation(ws, request) {
   }
 }
 
+// Track active Claude sessions
+const activeClaudeSessions = new Map(); // Map<sessionId, { pty, requestId, bufferedOutput, claudeSessionId }>
+const activeConnections = new Map(); // Map<requestId, ws>
+
+// Helper function to attach PTY handlers
+function attachPtyHandlers(ptyProcess, requestId, sessionId, ws) {
+  let outputBuffer = '';
+  let errorBuffer = '';
+  let hasReceivedData = false;
+  
+  const session = sessionId ? activeClaudeSessions.get(sessionId) : null;
+  
+  ptyProcess.onData((data) => {
+    if (!hasReceivedData) {
+      hasReceivedData = true;
+      log('First data received from Claude CLI');
+    }
+    
+    outputBuffer += data;
+    
+    // Also capture any error-like output
+    if (data.includes('error') || data.includes('Error') || data.includes('failed')) {
+      errorBuffer += data;
+    }
+    
+    // Parse JSON lines for streaming
+    let newlineIndex;
+    while ((newlineIndex = outputBuffer.indexOf('\n')) >= 0) {
+      const jsonLine = outputBuffer.substring(0, newlineIndex).trim();
+      outputBuffer = outputBuffer.substring(newlineIndex + 1);
+      
+      if (jsonLine) {
+        // Remove all ANSI escape sequences including cursor controls
+        const cleaned = jsonLine.replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '').replace(/\x1b\[?[0-9;]*[hl]/g, '');
+        
+        if (cleaned && cleaned.startsWith('{')) {
+          try {
+            const claudeMessage = JSON.parse(cleaned);
+            log(`Parsed Claude Message: type=${claudeMessage.type}`);
+            
+            // Try to extract Claude session ID if available
+            if (session && !session.claudeSessionId && claudeMessage.session_id) {
+              session.claudeSessionId = claudeMessage.session_id;
+              log(`Captured Claude session ID: ${session.claudeSessionId}`);
+            }
+            
+            const streamMsg = JSON.stringify({
+              id: requestId,
+              type: 'claude_stream_chunk',
+              payload: claudeMessage
+            });
+            
+            // Send to current connection if available
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(streamMsg);
+            } else if (session) {
+              // Buffer the output if connection is not available
+              session.bufferedOutput.push(streamMsg);
+              log(`Buffered message for session ${sessionId}, buffer size: ${session.bufferedOutput.length}`);
+            }
+          } catch (e) {
+            log(`JSON Parse Error in bridge service: ${e.message} for line: <<<${cleaned}>>>`);
+            // Continue processing other lines
+          }
+        } else if (cleaned) {
+          // Non-JSON output, send as raw
+          const rawMsg = JSON.stringify({
+            id: requestId,
+            type: 'raw',
+            data: cleaned
+          });
+          
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(rawMsg);
+          } else if (session) {
+            session.bufferedOutput.push(rawMsg);
+          }
+        }
+      }
+    }
+  });
+  
+  ptyProcess.onExit(({ exitCode, signal }) => {
+    log(`PTY process exited with code: ${exitCode}, signal: ${signal}`);
+    
+    // Process any remaining data in buffer
+    if (outputBuffer.trim()) {
+      const cleaned = outputBuffer.trim().replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '').replace(/\x1b\[?[0-9;]*[hl]/g, '');
+      if (cleaned && cleaned.startsWith('{')) {
+        try {
+          const claudeMessage = JSON.parse(cleaned);
+          log(`Final Claude Message: type=${claudeMessage.type}`);
+          const finalMsg = JSON.stringify({
+            id: requestId,
+            type: 'claude_stream_chunk',
+            payload: claudeMessage
+          });
+          
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(finalMsg);
+          } else if (session) {
+            session.bufferedOutput.push(finalMsg);
+          }
+        } catch (e) {
+          log(`Final JSON Parse Error: ${e.message}`);
+          if (cleaned) {
+            const rawMsg = JSON.stringify({
+              id: requestId,
+              type: 'raw',
+              data: cleaned
+            });
+            
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(rawMsg);
+            } else if (session) {
+              session.bufferedOutput.push(rawMsg);
+            }
+          }
+        }
+      } else if (cleaned) {
+        const rawMsg = JSON.stringify({
+          id: requestId,
+          type: 'raw',
+          data: cleaned
+        });
+        
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(rawMsg);
+        } else if (session) {
+          session.bufferedOutput.push(rawMsg);
+        }
+      }
+    }
+    
+    // If exit code is non-zero, send error info
+    if (exitCode !== 0) {
+      const errorMessage = errorBuffer || outputBuffer || 'Unknown error';
+      log(`Process failed with error: ${errorMessage}`);
+      const errorMsg = JSON.stringify({
+        id: requestId,
+        type: 'claude_stream_error',
+        error: `Claude CLI exited with code ${exitCode}: ${errorMessage.trim()}`
+      });
+      
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(errorMsg);
+      } else if (session) {
+        session.bufferedOutput.push(errorMsg);
+      }
+    }
+    
+    // Send stream done message
+    const doneMsg = JSON.stringify({
+      id: requestId,
+      type: 'claude_stream_done',
+      exitCode
+    });
+    
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(doneMsg);
+    } else if (session) {
+      session.bufferedOutput.push(doneMsg);
+    }
+    
+    // Clean up session if PTY exited normally (not cancelled)
+    if (sessionId && exitCode === 0) {
+      // Keep the session info but mark PTY as null
+      if (session) {
+        session.pty = null;
+        log(`PTY exited normally for session ${sessionId}, keeping session info for potential resume`);
+      }
+    }
+    
+    // Clean up connection
+    activeConnections.delete(requestId);
+  });
+}
+
 // WebSocket server for streaming and health checks
 const wss = new WebSocket.Server({ port: WS_PORT });
 log(`WebSocket server started on port ${WS_PORT}`);
@@ -467,7 +645,8 @@ wss.on('connection', (ws) => {
         claudePath,
         dbStatus: db ? 'ready' : 'not initialized',
         uptime: process.uptime(),
-        pid: process.pid
+        pid: process.pid,
+        activeSessions: activeClaudeSessions.size
       }));
       return;
     }
@@ -478,7 +657,49 @@ wss.on('connection', (ws) => {
       return;
     }
     
-    const { id, args } = request;
+    // Handle cancel request
+    if (request.type === 'cancel') {
+      const { requestId } = request;
+      log(`Received cancel request for: ${requestId}`);
+      
+      // Find the session associated with this requestId
+      for (const [sessionId, session] of activeClaudeSessions.entries()) {
+        if (session.requestId === requestId) {
+          log(`Cancelling PTY process for session: ${sessionId}`);
+          if (session.pty) {
+            session.pty.kill();
+          }
+          activeClaudeSessions.delete(sessionId);
+          break;
+        }
+      }
+      return;
+    }
+    
+    // Handle session query
+    if (request.type === 'query_active_sessions') {
+      const { sessionIds } = request;
+      const activeSessions = {};
+      
+      for (const sessionId of sessionIds || []) {
+        if (activeClaudeSessions.has(sessionId)) {
+          const session = activeClaudeSessions.get(sessionId);
+          activeSessions[sessionId] = {
+            active: true,
+            hasBufferedOutput: session.bufferedOutput.length > 0,
+            claudeSessionId: session.claudeSessionId
+          };
+        }
+      }
+      
+      ws.send(JSON.stringify({
+        type: 'active_sessions_response',
+        activeSessions
+      }));
+      return;
+    }
+    
+    const { id, args, sessionId } = request;
     
     if (!args || !Array.isArray(args)) {
       ws.send(JSON.stringify({
@@ -487,6 +708,36 @@ wss.on('connection', (ws) => {
         error: 'Missing or invalid args array'
       }));
       return;
+    }
+    
+    // Store connection for this request
+    activeConnections.set(id, ws);
+    
+    // Check if we have an existing session
+    if (sessionId && activeClaudeSessions.has(sessionId)) {
+      const existingSession = activeClaudeSessions.get(sessionId);
+      log(`Found existing session ${sessionId} with PTY alive: ${!!existingSession.pty}`);
+      
+      // Update the requestId for this session
+      existingSession.requestId = id;
+      
+      // Send any buffered output
+      if (existingSession.bufferedOutput.length > 0) {
+        log(`Sending ${existingSession.bufferedOutput.length} buffered messages for session ${sessionId}`);
+        for (const bufferedMsg of existingSession.bufferedOutput) {
+          ws.send(bufferedMsg);
+        }
+        existingSession.bufferedOutput = [];
+      }
+      
+      // If PTY is still alive, re-attach the data handler
+      if (existingSession.pty) {
+        attachPtyHandlers(existingSession.pty, id, sessionId, ws);
+        return;
+      } else {
+        log(`PTY for session ${sessionId} is dead, will spawn new one`);
+        // TODO: In future, could use --resume with existingSession.claudeSessionId if available
+      }
     }
     
     // Ensure streaming format is enabled
@@ -516,112 +767,17 @@ wss.on('connection', (ws) => {
       
       log(`PTY process spawned with PID: ${ptyProcess.pid}`);
       
-      let outputBuffer = '';
-      let errorBuffer = '';
-      let hasReceivedData = false;
+      // Store session information
+      if (sessionId) {
+        activeClaudeSessions.set(sessionId, {
+          pty: ptyProcess,
+          requestId: id,
+          bufferedOutput: [],
+          claudeSessionId: null // Will be extracted from Claude output if available
+        });
+      }
       
-      ptyProcess.onData((data) => {
-        if (!hasReceivedData) {
-          hasReceivedData = true;
-          log('First data received from Claude CLI');
-        }
-        
-        outputBuffer += data;
-        
-        // Also capture any error-like output
-        if (data.includes('error') || data.includes('Error') || data.includes('failed')) {
-          errorBuffer += data;
-        }
-        
-        // Parse JSON lines for streaming
-        let newlineIndex;
-        while ((newlineIndex = outputBuffer.indexOf('\n')) >= 0) {
-          const jsonLine = outputBuffer.substring(0, newlineIndex).trim();
-          outputBuffer = outputBuffer.substring(newlineIndex + 1);
-          
-          if (jsonLine) {
-            // Remove all ANSI escape sequences including cursor controls
-            const cleaned = jsonLine.replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '').replace(/\x1b\[?[0-9;]*[hl]/g, '');
-            
-            if (cleaned && cleaned.startsWith('{')) {
-              try {
-                const claudeMessage = JSON.parse(cleaned);
-                log(`Parsed Claude Message: type=${claudeMessage.type}`);
-                
-                // Send as streaming chunk
-                ws.send(JSON.stringify({
-                  id,
-                  type: 'claude_stream_chunk',
-                  payload: claudeMessage
-                }));
-              } catch (e) {
-                log(`JSON Parse Error in bridge service: ${e.message} for line: <<<${cleaned}>>>`);
-                // Continue processing other lines
-              }
-            } else if (cleaned) {
-              // Non-JSON output, send as raw
-              ws.send(JSON.stringify({
-                id,
-                type: 'raw',
-                data: cleaned
-              }));
-            }
-          }
-        }
-      });
-      
-      ptyProcess.onExit(({ exitCode, signal }) => {
-        log(`PTY process exited with code: ${exitCode}, signal: ${signal}`);
-        
-        // Process any remaining data in buffer
-        if (outputBuffer.trim()) {
-          const cleaned = outputBuffer.trim().replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '').replace(/\x1b\[?[0-9;]*[hl]/g, '');
-          if (cleaned && cleaned.startsWith('{')) {
-            try {
-              const claudeMessage = JSON.parse(cleaned);
-              log(`Final Claude Message: type=${claudeMessage.type}`);
-              ws.send(JSON.stringify({
-                id,
-                type: 'claude_stream_chunk',
-                payload: claudeMessage
-              }));
-            } catch (e) {
-              log(`Final JSON Parse Error: ${e.message}`);
-              if (cleaned) {
-                ws.send(JSON.stringify({
-                  id,
-                  type: 'raw',
-                  data: cleaned
-                }));
-              }
-            }
-          } else if (cleaned) {
-            ws.send(JSON.stringify({
-              id,
-              type: 'raw',
-              data: cleaned
-            }));
-          }
-        }
-        
-        // If exit code is non-zero, send error info
-        if (exitCode !== 0) {
-          const errorMessage = errorBuffer || outputBuffer || 'Unknown error';
-          log(`Process failed with error: ${errorMessage}`);
-          ws.send(JSON.stringify({
-            id,
-            type: 'claude_stream_error',
-            error: `Claude CLI exited with code ${exitCode}: ${errorMessage.trim()}`
-          }));
-        }
-        
-        // Send stream done message
-        ws.send(JSON.stringify({
-          id,
-          type: 'claude_stream_done',
-          exitCode
-        }));
-      });
+      attachPtyHandlers(ptyProcess, id, sessionId, ws);
       
     } catch (error) {
       log(`ERROR spawning Claude: ${error.message}`);
@@ -635,6 +791,15 @@ wss.on('connection', (ws) => {
   
   ws.on('close', () => {
     log('WebSocket connection closed');
+    // Remove this connection from activeConnections
+    for (const [requestId, conn] of activeConnections.entries()) {
+      if (conn === ws) {
+        activeConnections.delete(requestId);
+        log(`Removed connection for request ${requestId}`);
+        // Note: We do NOT kill the PTY process here - it should continue running
+        break;
+      }
+    }
   });
   
   ws.on('error', (error) => {
