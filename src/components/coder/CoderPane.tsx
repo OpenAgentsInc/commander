@@ -12,7 +12,7 @@ import { ChatMessage as UIChatMessage, type Message } from '@/components/ui/chat
 import { useAutoScroll } from '@/hooks/use-auto-scroll';
 import { ToolCallDisplay } from './ToolCallDisplay';
 import { ToolResultDisplay } from './ToolResultDisplay';
-import { MessageSquarePlus } from 'lucide-react';
+import { MessageSquarePlus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import { DatabaseService, DBSession } from '@/services/db';
@@ -342,8 +342,8 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
         {renderParts()}
         {message.isStreaming && message.role === 'assistant' && (
           <div className="flex items-center gap-2 mt-2">
-            <span className="inline-block w-2 h-4 bg-white animate-pulse" />
-            <span className="text-xs text-muted-foreground">Claude Code is working</span>
+            <span className="text-xs text-muted-foreground italic">Claude Code is working</span>
+            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
           </div>
         )}
       </div>
@@ -362,8 +362,8 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
       />
       {message.isStreaming && message.role === 'assistant' && (
         <div className="flex items-center gap-2 mt-2">
-          <span className="inline-block w-2 h-4 bg-white animate-pulse" />
-          <span className="text-xs text-muted-foreground">Claude Code is working</span>
+          <span className="text-xs text-muted-foreground italic">Claude Code is working</span>
+          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
         </div>
       )}
     </div>
@@ -682,13 +682,35 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
     clearMessages();
 
     try {
-      const dbProgram = Effect.flatMap(DatabaseService, (db) =>
-        db.getMessagesForSession(sessionIdToLoad, 500)
-      );
+      const dbProgram = Effect.gen(function* (_) {
+        const db = yield* _(DatabaseService);
+        const messages = yield* _(db.getMessagesForSession(sessionIdToLoad, 500));
+        
+        // Fetch tool executions for all messages in parallel
+        const messageToolExecutions = yield* _(
+          Effect.all(
+            messages.map(msg => 
+              Effect.map(
+                db.getToolCallsForMessage(msg.id),
+                tools => ({ messageId: msg.id, tools })
+              )
+            ),
+            { concurrency: "unbounded" }
+          )
+        );
+        
+        // Create a map of message ID to tool executions
+        const toolExecutionsByMessage = new Map(
+          messageToolExecutions.map(({ messageId, tools }) => [messageId, tools])
+        );
+        
+        return { messages, toolExecutionsByMessage };
+      });
+      
       const exitResult = await Effect.runPromiseExit(Effect.provide(dbProgram, runtime));
 
       if (Exit.isSuccess(exitResult)) {
-        const dbMessages = exitResult.value;
+        const { messages: dbMessages, toolExecutionsByMessage } = exitResult.value;
         console.log(`${componentName} Loaded ${dbMessages.length} messages from DB for session ${sessionIdToLoad}`);
 
         const newMessagesState: ChatMessage[] = [{
@@ -701,21 +723,55 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
         dbMessages.forEach(dbMsg => {
           let parts;
           try {
-            if (dbMsg.content && (dbMsg.content.startsWith('{"parts":') || (dbMsg.tool_calls_json && dbMsg.role === 'assistant'))) {
-              // If content contains parts, or if it's an assistant message with tool_calls_json, parse parts.
-              // Assistant messages from Claude Bridge store main text in content, and tool calls in tool_calls_json.
-              // We need to reconstruct parts array for UI.
-              if (dbMsg.role === 'assistant' && dbMsg.tool_calls_json) {
-                parts = [];
-                if (dbMsg.content) parts.push({type: 'text', text: dbMsg.content});
-                const toolCalls = JSON.parse(dbMsg.tool_calls_json);
-                toolCalls.forEach((tc: any) => parts.push({ type: 'tool_call', id: tc.id, name: tc.function.name, input: JSON.parse(tc.function.arguments)}));
-              } else if (dbMsg.content) {
-                const contentData = JSON.parse(dbMsg.content);
-                if (contentData.parts) parts = contentData.parts;
+            // Check if message has stored parts (from user messages with tool results)
+            if (dbMsg.content && dbMsg.content.startsWith('{"parts":')) {
+              const contentData = JSON.parse(dbMsg.content);
+              if (contentData.parts) parts = contentData.parts;
+            } 
+            // Handle assistant messages with tool calls
+            else if (dbMsg.role === 'assistant' && dbMsg.tool_calls_json) {
+              parts = [];
+              
+              // Add text content first if present
+              if (dbMsg.content) {
+                parts.push({ type: 'text', text: dbMsg.content });
               }
+              
+              // Parse tool calls and get tool executions
+              const toolCalls = JSON.parse(dbMsg.tool_calls_json);
+              const toolExecutions = toolExecutionsByMessage.get(dbMsg.id) || [];
+              
+              // Create a map of tool executions by ID for quick lookup
+              const toolExecutionMap = new Map(
+                toolExecutions.map(exec => [exec.id, exec])
+              );
+              
+              // Add tool calls and their results in the correct order
+              toolCalls.forEach((tc: any) => {
+                // Add the tool call
+                parts.push({ 
+                  type: 'tool_call', 
+                  id: tc.id, 
+                  name: tc.function.name, 
+                  input: JSON.parse(tc.function.arguments)
+                });
+                
+                // Immediately add the result if available
+                const execution = toolExecutionMap.get(tc.id);
+                if (execution && execution.result_json) {
+                  parts.push({
+                    type: 'tool_result',
+                    tool_use_id: execution.id,
+                    content: JSON.parse(execution.result_json),
+                    isError: execution.status === 'executed_error'
+                  });
+                }
+              });
             }
-          } catch (e) { /* content is plain text or not parsable as parts */ }
+          } catch (e) { 
+            console.warn(`${componentName} Error parsing message parts:`, e);
+            /* content is plain text or not parsable as parts */ 
+          }
 
           newMessagesState.push({
             id: dbMsg.id,
