@@ -80,9 +80,9 @@ export function useCoderChat(props: UseCoderChatProps) {
   }, [paneId, updatePaneContent]);
 
   const clearMessages = useCallback(() => {
-    const newMessages = [{
+    const newMessages: ChatMessage[] = [{
       id: 'system',
-      role: 'system',
+      role: 'system' as const,
       content: 'You are Claude Code, a helpful AI coding assistant.',
       timestamp: Date.now(),
     }];
