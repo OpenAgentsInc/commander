@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import { DatabaseService, DBSession } from '@/services/db';
 import { PaneDropdownItem } from '@/types/paneMenu';
 import { CODER_PANE_ID } from '@/stores/panes/constants';
+import { isMacOs } from '@/utils/os';
 
 
 export interface CoderPaneProps {
@@ -153,19 +154,23 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
 
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Only handle keyboard shortcuts if this pane is active
+      const currentState = usePaneStore.getState();
+      if (currentState.activePaneId !== paneId) return;
+
       if (event.key === 'Escape') {
-        // Only handle escape if this pane is active
-        const currentState = usePaneStore.getState();
-        if (currentState.activePaneId === paneId) {
-          handleExitCoderMode();
-        }
+        handleExitCoderMode();
+      } else if (event.key === 'n' && (event.metaKey || event.ctrlKey)) {
+        // Cmd/Ctrl+N for new chat
+        event.preventDefault();
+        handleNewChat();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [handleExitCoderMode, paneId]);
+  }, [handleExitCoderMode, handleNewChat, paneId]);
 
   // Track Coder Mode open event
   React.useEffect(() => {
@@ -296,7 +301,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
         variant="outline"
         size="sm"
         className="border-zinc-600 text-zinc-300 hover:bg-zinc-800 hover:text-white hover:border-zinc-500 transition-colors h-6 px-2 text-xs bg-transparent"
-        title="Start new chat session (Cmd/Ctrl+Click to open in new pane)"
+        title={`Start new chat session (${isMacOs() ? '⌘N' : 'Ctrl+N'}) • ${isMacOs() ? 'Cmd' : 'Ctrl'}+Click to open in new pane`}
       >
         <MessageSquarePlus className="h-3 w-3 mr-1" />
         New Chat

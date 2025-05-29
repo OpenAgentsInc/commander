@@ -85,7 +85,7 @@ export function openChatPaneAction(
         y: (typeof window !== "undefined" ? window.innerHeight : 1080) * 0.05,
         width: DEFAULT_PANE_WIDTH * 1.5,
         height:
-          (typeof window !== "undefined" ? window.innerHeight : 1080) * 0.8,
+          (typeof window !== "undefined" ? window.innerHeight : 1080) * 0.6,
       };
     } else if (chatPanes.length === 1 && !isCommandKeyHeld) {
       const existing = chatPanes[0];
