@@ -365,9 +365,9 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
             <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
           </div>
         )}
-        {/* Copy button for the entire message */}
+        {/* Copy button in hover row beneath message */}
         {!message.isStreaming && (
-          <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className={`flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 mt-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <CopyButton content={fullMessageContent} copyMessage="Copied message to clipboard" />
           </div>
         )}
@@ -391,9 +391,9 @@ const CoderChatMessage: React.FC<{ message: ChatMessage; index: number }> = ({ m
           <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
         </div>
       )}
-      {/* Copy button for the entire message */}
+      {/* Copy button in hover row beneath message */}
       {!message.isStreaming && (
-        <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className={`flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 mt-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
           <CopyButton content={fullMessageContent} copyMessage="Copied message to clipboard" />
         </div>
       )}
@@ -497,23 +497,53 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
     removePane(paneId);
   }, [removePane, paneId, runtime]);
 
-  const handleNewChat = React.useCallback(() => {
-    // Cancel any ongoing stream
-    if (streamCancelRef.current) {
-      streamCancelRef.current();
-      streamCancelRef.current = null;
+  const handleNewChat = React.useCallback((event?: React.MouseEvent) => {
+    // Check if command (Mac) or control (Windows/Linux) key is pressed
+    const isCommandOrControl = event && (event.metaKey || event.ctrlKey);
+    
+    if (isCommandOrControl) {
+      // Open new chat in a new pane
+      const addPane = usePaneStore.getState().addPane;
+      const screenWidth = window.innerWidth;
+      const screenHeight = window.innerHeight;
+      
+      // Position new pane offset from current one
+      const currentPanes = usePaneStore.getState().panes;
+      const currentCoderPane = currentPanes.find(p => p.id === paneId);
+      const offsetX = 50;
+      const offsetY = 50;
+      
+      const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+      
+      addPane({
+        id: `coder_pane_${Date.now()}`,
+        type: "coder",
+        title: `Coder`,
+        x: currentCoderPane ? Math.min(currentCoderPane.x + offsetX, screenWidth - 600) : Math.floor((screenWidth - 569) / 2),
+        y: currentCoderPane ? Math.min(currentCoderPane.y + offsetY, screenHeight - 400) : 30,
+        width: 569,
+        height: Math.floor(screenHeight * 0.85),
+        content: { sessionId: newSessionId }
+      });
+    } else {
+      // Original behavior - new chat in current pane
+      // Cancel any ongoing stream
+      if (streamCancelRef.current) {
+        streamCancelRef.current();
+        streamCancelRef.current = null;
+      }
+
+      // Generate new session ID
+      const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+      sessionIdRef.current = newSessionId;
+      lastLoadedSessionIdRef.current = newSessionId; // Mark as loaded to prevent reload
+
+      // Clear all messages from the store
+      clearMessages();
+
+      // Update pane content with new session ID
+      updatePaneContent(paneId, { sessionId: newSessionId });
     }
-
-    // Generate new session ID
-    const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-    sessionIdRef.current = newSessionId;
-    lastLoadedSessionIdRef.current = newSessionId; // Mark as loaded to prevent reload
-
-    // Clear all messages from the store
-    clearMessages();
-
-    // Update pane content with new session ID
-    updatePaneContent(paneId, { sessionId: newSessionId });
 
     // Track the new chat action
     Effect.runFork(
@@ -1086,7 +1116,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
         variant="outline"
         size="sm"
         className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors h-6 px-2 text-xs"
-        title="Start new chat session"
+        title="Start new chat session (Cmd/Ctrl+Click to open in new pane)"
       >
         <MessageSquarePlus className="h-3 w-3 mr-1" />
         New Chat
