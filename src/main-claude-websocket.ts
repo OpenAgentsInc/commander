@@ -21,7 +21,7 @@ async function saveSessionToDatabase(session: any): Promise<void> {
         params: session
       }));
     });
-    
+
     ws.on('message', (data: string) => {
       const response = JSON.parse(data);
       ws.close();
@@ -31,7 +31,7 @@ async function saveSessionToDatabase(session: any): Promise<void> {
         reject(new Error(response.error));
       }
     });
-    
+
     ws.on('error', reject);
   });
 }
@@ -47,7 +47,7 @@ async function saveMessageToDatabase(message: any): Promise<void> {
         params: message
       }));
     });
-    
+
     ws.on('message', (data: string) => {
       const response = JSON.parse(data);
       ws.close();
@@ -57,7 +57,7 @@ async function saveMessageToDatabase(message: any): Promise<void> {
         reject(new Error(response.error));
       }
     });
-    
+
     ws.on('error', reject);
   });
 }
@@ -65,8 +65,8 @@ async function saveMessageToDatabase(message: any): Promise<void> {
 async function saveToolCallToDatabase(toolCall: any): Promise<void> {
   const ws = new WebSocket(BRIDGE_SERVICE_URL);
   return new Promise((resolve, reject) => {
-    const requestId = `db-save-toolcall-${Date.now()}-${Math.random().toString(36).substring(2,9)}`;
-    
+    const requestId = `db-save-toolcall-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
     ws.on('open', () => {
       ws.send(JSON.stringify({
         type: 'db',
@@ -75,7 +75,7 @@ async function saveToolCallToDatabase(toolCall: any): Promise<void> {
         params: toolCall
       }));
     });
-    
+
     ws.on('message', (data: string) => {
       const response = JSON.parse(data);
       if (response.id === requestId) {
@@ -92,14 +92,14 @@ async function saveToolCallToDatabase(toolCall: any): Promise<void> {
         }
       }
     });
-    
+
     const timeoutId = setTimeout(() => {
       ws.close();
       const errorMsg = `Timeout waiting for bridge response for saveToolCall ${toolCall.id}`;
       console.error(`[Main Process] ${errorMsg}`);
       reject(new Error(errorMsg));
     }, 5000); // 5 second timeout for DB operations
-    
+
     ws.on('error', (err) => {
       clearTimeout(timeoutId);
       const errorMsg = `WebSocket error for saveToolCall ${toolCall.id}: ${err.message || 'Unknown WebSocket error'}`;
@@ -120,7 +120,7 @@ async function updateSessionInDatabase(sessionId: string, updates: any): Promise
         params: { sessionId, updates }
       }));
     });
-    
+
     ws.on('message', (data: string) => {
       const response = JSON.parse(data);
       ws.close();
@@ -130,7 +130,7 @@ async function updateSessionInDatabase(sessionId: string, updates: any): Promise
         reject(new Error(response.error));
       }
     });
-    
+
     ws.on('error', reject);
   });
 }
@@ -138,8 +138,8 @@ async function updateSessionInDatabase(sessionId: string, updates: any): Promise
 async function updateToolCallResultInDatabase(toolCallId: string, resultJson: string, status: "executed_success" | "executed_error"): Promise<void> {
   const ws = new WebSocket(BRIDGE_SERVICE_URL);
   return new Promise((resolve, reject) => {
-    const requestId = `db-update-toolcall-${Date.now()}-${Math.random().toString(36).substring(2,9)}`;
-    
+    const requestId = `db-update-toolcall-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
     ws.on('open', () => {
       ws.send(JSON.stringify({
         type: 'db',
@@ -148,7 +148,7 @@ async function updateToolCallResultInDatabase(toolCallId: string, resultJson: st
         params: { toolCallId, resultJson, status }
       }));
     });
-    
+
     ws.on('message', (data: string) => {
       const response = JSON.parse(data);
       if (response.id === requestId) {
@@ -165,14 +165,14 @@ async function updateToolCallResultInDatabase(toolCallId: string, resultJson: st
         }
       }
     });
-    
+
     const timeoutId = setTimeout(() => {
       ws.close();
       const errorMsg = `Timeout waiting for bridge response for updateToolCallResult ${toolCallId}`;
       console.error(`[Main Process] ${errorMsg}`);
       reject(new Error(errorMsg));
     }, 5000); // 5 second timeout
-    
+
     ws.on('error', (err) => {
       clearTimeout(timeoutId);
       const errorMsg = `WebSocket error for updateToolCallResult ${toolCallId}: ${err.message || 'Unknown WebSocket error'}`;
@@ -186,11 +186,11 @@ async function updateToolCallResultInDatabase(toolCallId: string, resultJson: st
 async function checkBridgeService(): Promise<boolean> {
   return new Promise((resolve) => {
     const ws = new WebSocket(BRIDGE_SERVICE_URL);
-    
+
     ws.on('open', () => {
       ws.send(JSON.stringify({ type: 'health' }));
     });
-    
+
     ws.on('message', (data: string) => {
       try {
         const msg = JSON.parse(data);
@@ -202,11 +202,11 @@ async function checkBridgeService(): Promise<boolean> {
         resolve(false);
       }
     });
-    
+
     ws.on('error', () => {
       resolve(false);
     });
-    
+
     // Timeout after 2 seconds
     setTimeout(() => {
       ws.close();
@@ -223,7 +223,7 @@ export function setupClaudeWebSocketHandler() {
   ipcMain.on("claude-code:chat-stream", async (event, requestId: string, params: any) => {
     console.log("[Main Process] Claude WebSocket stream request:", requestId);
     console.log("[Main Process] Received params:", JSON.stringify(params, null, 2));
-    
+
     // Check if bridge service is available
     const bridgeAvailable = await checkBridgeService();
     if (!bridgeAvailable) {
@@ -234,13 +234,13 @@ export function setupClaudeWebSocketHandler() {
       });
       return;
     }
-    
+
     // Database persistence setup
     console.log("[Main Process] Received params.sessionId:", params.sessionId);
     const sessionId = params.sessionId || generateId();
     console.log("[Main Process] Using sessionId:", sessionId);
     const now = Math.floor(Date.now() / 1000);
-    
+
     // Initialize database session
     try {
       // Ensure session exists
@@ -254,14 +254,14 @@ export function setupClaudeWebSocketHandler() {
         metadata_json: JSON.stringify({}),
         title: "Claude Code Chat"
       };
-      
+
       await saveSessionToDatabase(session);
       console.log("[Main Process] Session saved to database:", sessionId);
     } catch (error) {
       console.error("[Main Process] Failed to save session:", error);
       // Continue even if database fails
     }
-    
+
     // Get messages and system prompt from params
     const chatMessagesForPrompt = params.messages || []; // These are already user/assistant turns from useCoderChat
     const systemPromptContent = params.systemPrompt;    // This is now explicitly passed
@@ -301,10 +301,10 @@ export function setupClaudeWebSocketHandler() {
     // Build Claude CLI args
     const args: string[] = [];
     if (conversationContext) { // Only add -p if there's actual conversation context
-         args.push("-p", conversationContext);
+      args.push("-p", conversationContext);
     }
     args.push("--output-format", "stream-json");
-    
+
     // Claude CLI requires --verbose when using --output-format stream-json with -p
     args.push("--verbose");
 
@@ -321,7 +321,8 @@ export function setupClaudeWebSocketHandler() {
     // }
 
     if (systemPromptContent) {
-      args.push("--system-prompt", systemPromptContent);
+      console.log('skipping system pormpt ez')
+      // args.push("--system-prompt", systemPromptContent);
     }
 
     // Tool management for Claude Code CLI
@@ -351,7 +352,7 @@ export function setupClaudeWebSocketHandler() {
         args.push("--disallowedTools", disallowedToolsArray.join(','));
         console.log(`[Main Process] Disallowing tools for Claude Code: ${disallowedToolsArray.join(', ')}`);
         console.log(`[Main Process] Total ${disallowedToolsArray.length} tools disabled`);
-        
+
         // Log to telemetry if available
         try {
           const telemetryLog = {
@@ -370,16 +371,16 @@ export function setupClaudeWebSocketHandler() {
         console.log(`[Main Process] No specific tool restrictions applied for Claude Code.`);
       }
     }
-    
+
     console.log("[Main Process] Conversation context being sent:", conversationContext);
     console.log("[Main Process] Final Claude CLI args to be sent to bridge:", args);
-    
+
     // Save user message to database
     if (chatMessagesForPrompt.length > 0) {
-      const lastUserMessage = chatMessagesForPrompt.find((m: any, i: number, arr: any[]) => 
+      const lastUserMessage = chatMessagesForPrompt.find((m: any, i: number, arr: any[]) =>
         m.role === 'user' && i === arr.findLastIndex((msg: any) => msg.role === 'user')
       );
-      
+
       if (lastUserMessage) {
         try {
           const userDbMessage = {
@@ -392,7 +393,7 @@ export function setupClaudeWebSocketHandler() {
             tool_calls_json: null,
             metadata_json: null
           };
-          
+
           await saveMessageToDatabase(userDbMessage);
           console.log("[Main Process] User message saved to database");
         } catch (error) {
@@ -400,11 +401,11 @@ export function setupClaudeWebSocketHandler() {
         }
       }
     }
-    
+
     // Connect to bridge service
     const ws = new WebSocket(BRIDGE_SERVICE_URL);
     activeConnections.set(requestId, ws);
-    
+
     let hasReceivedData = false;
     let assistantMessageId = generateId();
     let fullAssistantContent = "";
@@ -412,33 +413,33 @@ export function setupClaudeWebSocketHandler() {
     let messageAlreadySaved = false;
     let messageSavePromise: Promise<void> | null = null;
     let accumulatedContent: any[] = [];
-    
+
     ws.on('open', () => {
       console.log("[Main Process] Connected to bridge service");
       // Send the command
       ws.send(JSON.stringify({ id: requestId, args }));
     });
-    
+
     ws.on('message', (data: string) => {
       try {
         const message = JSON.parse(data);
-        
+
         switch (message.type) {
           case 'claude_stream_chunk':
             hasReceivedData = true;
             const claudeMessage = message.payload;
             console.log("[Main Process] Received stream chunk:", claudeMessage.type);
             console.log("[Main Process] Full Claude message:", JSON.stringify(claudeMessage, null, 2));
-            
+
             if (claudeMessage.type === "assistant" && claudeMessage.message) {
               // Extract text content from assistant message
               const assistantMessage = claudeMessage.message;
-              
+
               // Use the Claude message ID if we haven't set one yet
               if (!assistantMessageId && claudeMessage.id) {
                 assistantMessageId = claudeMessage.id;
               }
-              
+
               // Save assistant message to database immediately on first chunk
               if (!messageAlreadySaved && !messageSavePromise && assistantMessageId) {
                 // Save synchronously to ensure it's done before tool calls
@@ -450,20 +451,20 @@ export function setupClaudeWebSocketHandler() {
                   tool_calls_json: undefined,
                   timestamp: Math.floor(Date.now() / 1000),
                 })
-                .then(() => {
-                  messageAlreadySaved = true;
-                  console.log("[Main Process] Assistant message placeholder saved to database early");
-                })
-                .catch((error) => {
-                  console.error("[Main Process] Failed to save assistant message placeholder:", error);
-                  messageAlreadySaved = true; // Prevent retrying
-                });
+                  .then(() => {
+                    messageAlreadySaved = true;
+                    console.log("[Main Process] Assistant message placeholder saved to database early");
+                  })
+                  .catch((error) => {
+                    console.error("[Main Process] Failed to save assistant message placeholder:", error);
+                    messageAlreadySaved = true; // Prevent retrying
+                  });
               }
-              
+
               // Accumulate all content parts
               if (assistantMessage.content && Array.isArray(assistantMessage.content)) {
                 accumulatedContent = accumulatedContent.concat(assistantMessage.content);
-                
+
                 for (const contentPart of assistantMessage.content) {
                   if (contentPart.type === "text" && contentPart.text) {
                     // Send plain text chunks directly
@@ -488,7 +489,7 @@ export function setupClaudeWebSocketHandler() {
                         arguments: JSON.stringify(contentPart.input || {})
                       }
                     });
-                    
+
                     // *** NEW: Immediately save the tool call to the database ***
                     const toolExecutionData = {
                       id: contentPart.id,                      // Tool call ID from Claude
@@ -500,9 +501,9 @@ export function setupClaudeWebSocketHandler() {
                       updated_at: Math.floor(Date.now() / 1000),
                       result_json: null                       // No result yet
                     };
-                    
+
                     console.log(`[Main Process] Immediately saving tool call: ${toolExecutionData.id} for message ${assistantMessageId}`);
-                    
+
                     // Wait for message to be saved first if needed
                     const saveToolCall = async () => {
                       if (messageSavePromise) {
@@ -510,7 +511,7 @@ export function setupClaudeWebSocketHandler() {
                       }
                       return saveToolCallToDatabase(toolExecutionData);
                     };
-                    
+
                     saveToolCall()
                       .then(() => {
                         console.log(`[Main Process] Successfully saved pending tool call ${toolExecutionData.id} to DB.`);
@@ -523,7 +524,7 @@ export function setupClaudeWebSocketHandler() {
                   }
                 }
               }
-              
+
               // Removed save logic from here - it now happens only in the 'exit' or 'claude_stream_done' handler
             } else if (claudeMessage.type === "init") {
               console.log("[Main Process] Stream initialized:", claudeMessage);
@@ -562,7 +563,7 @@ export function setupClaudeWebSocketHandler() {
                         .map((item: any) => item.text)
                         .join('\n');
                     }
-                    
+
                     const toolResultInfo = {
                       type: 'tool_result',
                       tool_use_id: contentPart.tool_use_id,
@@ -570,7 +571,7 @@ export function setupClaudeWebSocketHandler() {
                       is_error: contentPart.is_error
                     };
                     event.sender.send(`claude-code:chat-stream:chunk`, requestId, JSON.stringify(toolResultInfo));
-                    
+
                     // Update tool execution in database
                     console.log(`[Main Process] Attempting to save tool result for ${contentPart.tool_use_id}`);
                     (async () => {
@@ -594,12 +595,12 @@ export function setupClaudeWebSocketHandler() {
               console.log("[Main Process] Message content:", JSON.stringify(claudeMessage, null, 2));
             }
             break;
-            
+
           case 'data':
             // Legacy non-streaming format support
             hasReceivedData = true;
             console.log("[Main Process] Received data from bridge:", message.data);
-            
+
             // Parse Claude's streaming JSON format
             const claudeData = message.data;
             if (claudeData.type === "assistant" && claudeData.message) {
@@ -630,7 +631,7 @@ export function setupClaudeWebSocketHandler() {
                         arguments: JSON.stringify(contentPart.input || {})
                       }
                     });
-                    
+
                     // *** NEW: Immediately save the tool call to the database ***
                     const toolExecutionData2 = {
                       id: contentPart.id,                      // Tool call ID from Claude
@@ -642,9 +643,9 @@ export function setupClaudeWebSocketHandler() {
                       updated_at: Math.floor(Date.now() / 1000),
                       result_json: null                       // No result yet
                     };
-                    
+
                     console.log(`[Main Process] Immediately saving tool call: ${toolExecutionData2.id} for message ${assistantMessageId}`);
-                    
+
                     // Wait for message to be saved first if needed
                     const saveToolCall2 = async () => {
                       if (messageSavePromise) {
@@ -652,7 +653,7 @@ export function setupClaudeWebSocketHandler() {
                       }
                       return saveToolCallToDatabase(toolExecutionData2);
                     };
-                    
+
                     saveToolCall2()
                       .then(() => {
                         console.log(`[Main Process] Successfully saved pending tool call ${toolExecutionData2.id} to DB.`);
@@ -670,19 +671,19 @@ export function setupClaudeWebSocketHandler() {
               console.log("[Main Process] Non-assistant data:", claudeData);
             }
             break;
-            
+
           case 'raw':
             hasReceivedData = true;
             console.log("[Main Process] Received raw data from bridge:", message.data);
             // For raw data (like tool output), send directly
             event.sender.send(`claude-code:chat-stream:chunk`, requestId, message.data);
             break;
-            
+
           case 'claude_stream_done':
             console.log("[Main Process] Claude stream completed with code:", message.exitCode);
             ws.close();
             activeConnections.delete(requestId);
-            
+
             // Save assistant message to database on successful completion
             if (message.exitCode === 0 && accumulatedContent.length > 0) {
               (async () => {
@@ -695,10 +696,10 @@ export function setupClaudeWebSocketHandler() {
                     tool_calls_json: toolCalls.length > 0 ? JSON.stringify(toolCalls) : undefined,
                     timestamp: Math.floor(Date.now() / 1000),
                   };
-                  
+
                   await saveMessageToDatabase(assistantDbMessage);
                   console.log("[Main Process] Assistant message saved to database");
-                  
+
                   // Save tool executions if any
                   if (toolCalls.length > 0) {
                     for (const tc of toolCalls) {
@@ -711,12 +712,12 @@ export function setupClaudeWebSocketHandler() {
                         created_at: Math.floor(Date.now() / 1000),
                         updated_at: Math.floor(Date.now() / 1000),
                       };
-                      
+
                       await saveToolCallToDatabase(toolExecution);
                     }
                     console.log(`[Main Process] ${toolCalls.length} tool calls saved to database`);
                   }
-                  
+
                   // Update session last_updated_at
                   await updateSessionInDatabase(sessionId, { last_updated_at: Math.floor(Date.now() / 1000) });
                 } catch (error) {
@@ -724,7 +725,7 @@ export function setupClaudeWebSocketHandler() {
                 }
               })();
             }
-            
+
             if (message.exitCode === 0) {
               event.sender.send(`claude-code:chat-stream:done`, requestId);
             } else {
@@ -734,7 +735,7 @@ export function setupClaudeWebSocketHandler() {
               });
             }
             break;
-            
+
           case 'claude_stream_error':
             console.error("[Main Process] Claude stream error:", message.error);
             event.sender.send(`claude-code:chat-stream:error`, requestId, {
@@ -742,12 +743,12 @@ export function setupClaudeWebSocketHandler() {
               message: message.error
             });
             break;
-            
+
           case 'exit':
             console.log("[Main Process] Claude CLI exited with code:", message.exitCode);
             ws.close();
             activeConnections.delete(requestId);
-            
+
             // Save assistant message to database on successful completion
             if (message.exitCode === 0 && accumulatedContent.length > 0) {
               (async () => {
@@ -760,10 +761,10 @@ export function setupClaudeWebSocketHandler() {
                     tool_calls_json: toolCalls.length > 0 ? JSON.stringify(toolCalls) : undefined,
                     timestamp: Math.floor(Date.now() / 1000),
                   };
-                  
+
                   await saveMessageToDatabase(assistantDbMessage);
                   console.log("[Main Process] Assistant message saved to database");
-                  
+
                   // Save tool executions if any
                   if (toolCalls.length > 0) {
                     for (const tc of toolCalls) {
@@ -776,12 +777,12 @@ export function setupClaudeWebSocketHandler() {
                         created_at: Math.floor(Date.now() / 1000),
                         updated_at: Math.floor(Date.now() / 1000),
                       };
-                      
+
                       await saveToolCallToDatabase(toolExecution);
                     }
                     console.log(`[Main Process] ${toolCalls.length} tool calls saved to database`);
                   }
-                  
+
                   // Update session last_updated_at
                   await updateSessionInDatabase(sessionId, { last_updated_at: Math.floor(Date.now() / 1000) });
                 } catch (error) {
@@ -789,7 +790,7 @@ export function setupClaudeWebSocketHandler() {
                 }
               })();
             }
-            
+
             if (message.exitCode === 0) {
               event.sender.send(`claude-code:chat-stream:done`, requestId);
             } else {
@@ -799,7 +800,7 @@ export function setupClaudeWebSocketHandler() {
               });
             }
             break;
-            
+
           case 'error':
             console.error("[Main Process] Bridge error:", message.error);
             event.sender.send(`claude-code:chat-stream:error`, requestId, {
@@ -812,7 +813,7 @@ export function setupClaudeWebSocketHandler() {
         console.error("[Main Process] Failed to parse bridge message:", e);
       }
     });
-    
+
     ws.on('error', (error: Error) => {
       console.error("[Main Process] WebSocket error:", error);
       event.sender.send(`claude-code:chat-stream:error`, requestId, {
@@ -821,11 +822,11 @@ export function setupClaudeWebSocketHandler() {
       });
       activeConnections.delete(requestId);
     });
-    
+
     ws.on('close', () => {
       console.log("[Main Process] WebSocket closed");
       activeConnections.delete(requestId);
-      
+
       if (!hasReceivedData) {
         event.sender.send(`claude-code:chat-stream:error`, requestId, {
           __error: true,
@@ -833,7 +834,7 @@ export function setupClaudeWebSocketHandler() {
         });
       }
     });
-    
+
     // Timeout handler
     setTimeout(() => {
       if (activeConnections.has(requestId) && !hasReceivedData) {
@@ -847,7 +848,7 @@ export function setupClaudeWebSocketHandler() {
       }
     }, 30000);
   });
-  
+
   // Handle cancel requests
   ipcMain.on("claude-code:chat-stream:cancel", (event, requestId: string) => {
     console.log("[Main Process] Cancel request for:", requestId);

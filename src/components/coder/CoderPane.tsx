@@ -296,7 +296,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
         onClick={handleNewChat}
         variant="outline"
         size="sm"
-        className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors h-6 px-2 text-xs"
+        className="border-zinc-600 text-zinc-300 hover:bg-zinc-800 hover:text-white hover:border-zinc-500 transition-colors h-6 px-2 text-xs bg-transparent"
         title="Start new chat session (Cmd/Ctrl+Click to open in new pane)"
       >
         <MessageSquarePlus className="h-3 w-3 mr-1" />
