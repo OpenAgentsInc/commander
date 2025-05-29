@@ -15,12 +15,12 @@ export default defineConfig((configEnv) => {
       },
     },
     build: {
-      // Disable the watcher in development mode to prevent rebuilds
-      watch: isDevelopment ? null : undefined,
+      // Completely disable file watching in development mode
+      watch: isDevelopment ? false : undefined,
     },
     // As a safety net, if Vite's dev server were used for main (less common):
     server: isDevelopment ? {
-      watch: null, // Disables watcher for Vite's dev server
+      watch: false, // Completely disable file watching
     } : undefined,
   };
 });

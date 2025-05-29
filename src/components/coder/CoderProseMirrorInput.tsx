@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { EditorState } from "prosemirror-state";
+import React, { useState, useEffect, useMemo } from 'react';
+import { EditorState, Transaction, Plugin } from "prosemirror-state";
 import { schema } from "prosemirror-schema-basic";
 import { history } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
@@ -13,175 +13,177 @@ interface CoderProseMirrorInputProps {
   paneId?: string; // The pane's ID to check if it's active
 }
 
-// ProseMirror Editor component that's loaded after the dynamic import
-const ProseMirrorEditor: React.FC<{ onSubmit: (text: string) => void, disabled?: boolean, focusKey?: number, paneId?: string }> = ({ onSubmit, disabled, focusKey, paneId }) => {
+// Create custom keymap plugin - stable reference
+const createCustomKeymapPlugin = () => keymap({
+  "Enter": () => {
+    // This keymap handler will be overridden by the useEditorEventListener
+    // if that listener returns true. For submission, the event listener is preferred.
+    return false;
+  },
+  "Shift-Enter": (state, dispatch) => {
+    if (dispatch) {
+      const br = schema.nodes.hard_break.create();
+      const tr = state.tr.replaceSelectionWith(br).scrollIntoView();
+      dispatch(tr);
+    }
+    return true;
+  }
+});
+
+
+const CoderProseMirrorInput: React.FC<CoderProseMirrorInputProps> = ({ onSubmit, disabled, focusKey, paneId }) => {
   const [components, setComponents] = useState<any>(null);
+  const [editorState, setEditorState] = useState<EditorState | null>(null);
+
+  // Memoize customKeymapPlugin to ensure stable reference for useEffect
+  const customKeymapPlugin = useMemo(() => createCustomKeymapPlugin(), []);
 
   useEffect(() => {
-    // Load ProseMirror components
     import("@handlewithcare/react-prosemirror").then(module => {
       setComponents({
         ProseMirror: module.ProseMirror,
         ProseMirrorDoc: module.ProseMirrorDoc,
-        reactKeys: module.reactKeys,
         useEditorEffect: module.useEditorEffect,
         useEditorEventListener: module.useEditorEventListener,
-        useEditorState: module.useEditorState,
+        // useEditorState is used by InnerEditorLogic, not directly here for state management
       });
-    });
-  }, []);
 
-  if (!components) {
-    return null;
+      const plugins: Plugin<any>[] = [
+        history(),
+        keymap(baseKeymap),
+        customKeymapPlugin,
+        module.reactKeys() as unknown as Plugin<any>,
+      ];
+      const initialState = EditorState.create({
+        schema, // Ensure schema is imported
+        plugins,
+      });
+      setEditorState(initialState);
+    });
+  }, [customKeymapPlugin]); // customKeymapPlugin is stable
+
+  if (!components || !editorState) {
+    return <div className="p-4" style={{ minHeight: '44px' }}>Loading editor...</div>;
   }
 
-  const { ProseMirror, ProseMirrorDoc, reactKeys } = components;
+  const { ProseMirror } = components;
 
-  // Create custom keymap for handling Enter and Shift+Enter
-  const customKeymap = keymap({
-    "Enter": (state, dispatch, view) => {
-      // Plain Enter submits
-      return false; // Let our event listener handle it
-    },
-    "Shift-Enter": (state, dispatch) => {
-      // Shift+Enter inserts a line break
-      if (dispatch) {
-        const br = schema.nodes.hard_break.create();
-        const tr = state.tr.replaceSelectionWith(br).scrollIntoView();
-        dispatch(tr);
-      }
-      return true;
-    }
-  });
+  const dispatchTransaction = (transaction: Transaction) => {
+    // It's important to apply the transaction to the *current* state.
+    // Using the functional update form of setState ensures this.
+    setEditorState((prevState) => {
+      if (!prevState) return null; // Should not happen if editorState is initialized
+      return prevState.apply(transaction);
+    });
+  };
 
   return (
     <ProseMirror
-      defaultState={EditorState.create({
-        schema,
-        plugins: [
-          history(),
-          keymap(baseKeymap),
-          customKeymap,
-          reactKeys(),
-        ],
-      })}
+      state={editorState} // Controlled mode
+      dispatchTransaction={dispatchTransaction} // Provide dispatcher
     >
-      <AutoFocusEditor
+      <InnerEditorLogic
         onSubmit={onSubmit}
         disabled={disabled}
-        components={components}
+        components={components} // Pass dynamically loaded components
         focusKey={focusKey}
         paneId={paneId}
+        // editorState is now managed by ProseMirror's context, consumed by InnerEditorLogic's hooks
       />
     </ProseMirror>
   );
 };
 
-// Component that autofocuses the editor and fills container
-const AutoFocusEditor: React.FC<{
-  onSubmit: (text: string) => void,
-  disabled?: boolean,
-  components: any,
-  focusKey?: number,
-  paneId?: string
+// Rename AutoFocusEditor to InnerEditorLogic for clarity and define it
+const InnerEditorLogic: React.FC<{
+  onSubmit: (text: string) => void;
+  disabled?: boolean;
+  components: any; // Type for dynamically imported components
+  focusKey?: number;
+  paneId?: string;
 }> = ({ onSubmit, disabled, components, focusKey, paneId }) => {
-  const { useEditorState, useEditorEffect, useEditorEventListener, ProseMirrorDoc } = components;
-  const editorState = useEditorState();
+  const { useEditorEffect, useEditorEventListener, ProseMirrorDoc } = components;
   const activePaneId = usePaneStore((state) => state.activePaneId);
-  const isThisPaneActive = paneId ? paneId === activePaneId : true; // Default to true if no paneId
+  const isThisPaneActive = paneId ? paneId === activePaneId : true;
 
-  useEditorEffect((view: any) => {
+  // useEditorState hook from @handlewithcare/react-prosemirror will provide the correct state
+  // const currentEditorState = useEditorState(); // Optional, if direct state access is needed.
+
+  useEditorEffect((view: import("prosemirror-view").EditorView | null) => {
     if (view && !disabled && isThisPaneActive) {
       view.focus();
     }
-  }, [disabled, isThisPaneActive]);
+  }, [disabled, isThisPaneActive, components]);
 
-  // Re-focus when focusKey changes (e.g., after clicking New Chat or loading history)
-  useEditorEffect((view: any) => {
+  useEditorEffect((view: import("prosemirror-view").EditorView | null) => {
     if (view && focusKey !== undefined && !disabled && isThisPaneActive) {
-      // Use requestAnimationFrame to ensure focus happens after any pending updates
       requestAnimationFrame(() => {
         if (view && view.focus) {
           view.focus();
-          // Also ensure the view is scrolled into view if needed
           view.dom.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
       });
     }
-  }, [focusKey, disabled, isThisPaneActive]);
+  }, [focusKey, disabled, isThisPaneActive, components]);
 
-  // Function to serialize document to text with line breaks
-  const serializeDocToText = (doc: any) => {
+  const serializeDocToText = (doc: import("prosemirror-model").Node) => {
     let text = "";
     let isFirstParagraph = true;
-
-    doc.forEach((node: any, offset: number, index: number) => {
+    doc.forEach((node) => {
       if (node.type.name === "paragraph") {
         if (!isFirstParagraph) {
           text += "\n";
         }
         isFirstParagraph = false;
-
-        node.forEach((child: any) => {
+        node.forEach((child) => {
           if (child.isText) {
             text += child.text;
           } else if (child.type.name === "hard_break") {
             text += "\n";
           }
         });
+      } else if (node.type.name === "text" && node.text) { // Handle cases where doc might be just text
+        text += node.text;
       }
     });
-
     return text;
   };
 
-  // Handle Enter (submit) - Shift+Enter is handled by the keymap
-  useEditorEventListener("keydown", (view: any, event: KeyboardEvent) => {
+  useEditorEventListener("keydown", (view: import("prosemirror-view").EditorView, event: KeyboardEvent) => {
     if (event.key === "Enter" && !event.shiftKey && !disabled) {
       event.preventDefault();
-
-      // Get the text content from the editor, preserving line breaks
       const text = serializeDocToText(view.state.doc);
-
       if (text.trim()) {
-        // Submit the message
         onSubmit(text);
-
-        // Clear the editor
         const tr = view.state.tr.delete(0, view.state.doc.content.size);
         view.dispatch(tr);
       }
-
-      return true;
+      return true; // Event handled
     }
-    return false;
-  });
+    return false; // Event not handled
+  }, components); // Pass components if hooks depend on it
 
   return (
     <ProseMirrorDoc
-      as={
+      as={ // The 'as' prop allows specifying the root element type
         <div
-          className="p-4 prose prose-invert w-full outline-none text-white box-border"
+          className="p-4 prose prose-invert w-full outline-none text-white box-border" // Keep existing styling
           spellCheck={false}
           style={{
-            minHeight: '44px', // 1 line (20px) + padding (12px * 2 = 24px)
-            maxHeight: '124px', // 5 lines (100px) + padding (24px)
-            overflowY: 'auto', // For scrolling when content exceeds maxHeight
-            padding: '12px',
+            minHeight: '44px',
+            maxHeight: '124px',
+            overflowY: 'auto',
+            padding: '12px', // Ensure consistent padding
             opacity: disabled ? 0.5 : 1,
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
-            fontSize: '0.875rem', // 14px - equivalent to text-sm
-            lineHeight: '1.25rem' // 20px - matching text-sm line height
+            fontSize: '0.875rem',
+            lineHeight: '1.25rem'
           }}
         />
       }
     />
   );
-};
-
-const CoderProseMirrorInput: React.FC<CoderProseMirrorInputProps> = ({ onSubmit, disabled, focusKey, paneId }) => {
-  return <ProseMirrorEditor onSubmit={onSubmit} disabled={disabled} focusKey={focusKey} paneId={paneId} />;
 };
 
 export default CoderProseMirrorInput;

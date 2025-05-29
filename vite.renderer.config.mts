@@ -8,8 +8,8 @@ export default defineConfig((configEnv) => {
   return {
     server: {
       hmr: false, // Hardcoded disable of hot reload
-      // Disable file watching completely in development
-      watch: isDevelopment ? null : {
+      // Completely disable file watching in development - no reloads at all
+      watch: isDevelopment ? false : {
         // Keep the ignore patterns for production/other modes
         ignored: [
           '**/*.md',         // Ignores all .md files in the project

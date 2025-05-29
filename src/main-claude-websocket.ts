@@ -411,7 +411,7 @@ export function setupClaudeWebSocketHandler() {
     let hasReceivedData = false;
     let assistantMessageId = generateId();
     let fullAssistantContent = "";
-    let toolCalls: any[] = [];
+    const toolCalls: any[] = [];
     let messageAlreadySaved = false;
     let messageSavePromise: Promise<void> | null = null;
     let accumulatedContent: any[] = [];
