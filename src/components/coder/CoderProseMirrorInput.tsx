@@ -155,10 +155,12 @@ const AutoFocusEditor: React.FC<{
     <ProseMirrorDoc
       as={
         <div
-          className="p-4 prose prose-invert h-full w-full outline-none text-white box-border"
+          className="p-4 prose prose-invert w-full outline-none text-white box-border"
           spellCheck={false}
           style={{
-            minHeight: '100%',
+            minHeight: '44px', // 1 line (20px) + padding (12px * 2 = 24px)
+            maxHeight: '124px', // 5 lines (100px) + padding (24px)
+            overflowY: 'auto', // For scrolling when content exceeds maxHeight
             padding: '12px',
             opacity: disabled ? 0.5 : 1,
             whiteSpace: 'pre-wrap',

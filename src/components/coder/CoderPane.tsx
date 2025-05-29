@@ -434,7 +434,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
       />
       {/* ProseMirror editor at the bottom */}
       <div className="flex items-center justify-center pb-4 px-4">
-        <div className="h-[50px] w-[750px] overflow-auto rounded border border-white bg-black">
+        <div className="w-[750px] rounded border border-white bg-black">
           <CoderProseMirrorInput onSubmit={sendMessage} disabled={isLoading} focusKey={focusKey} />
         </div>
       </div>
