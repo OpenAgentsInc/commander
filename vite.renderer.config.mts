@@ -4,6 +4,9 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 
 export default defineConfig({
+  server: {
+    hmr: false, // Hardcoded disable of hot reload
+  },
   plugins: [
     tailwindcss(),
     react({

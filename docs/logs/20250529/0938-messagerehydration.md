@@ -1,0 +1,1 @@
+When loading a chat pane's history, the message history seems to not be properly sent to Claude Code because it starts trying to solve the original issue like it's responding only to the first message.

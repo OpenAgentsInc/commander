@@ -55,6 +55,7 @@ const dirsToExclude = [
   "docs/logs/20250525",
   "docs/logs/20250526",
   "docs/logs/20250527",
+  "docs/logs/20250529/ignore",
   // "docs",
   // "src/services/",
   // "src/tests/",

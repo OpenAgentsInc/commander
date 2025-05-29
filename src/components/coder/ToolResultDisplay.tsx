@@ -29,13 +29,8 @@ export const ToolResultDisplay: React.FC<ToolResultDisplayProps> = ({
   // Content should be collapsible if it's long AND not an error
   const useCollapsible = !isError && isContentLong;
   
-  // Determine trigger label
-  let triggerLabel = `${numLines} lines`;
-  if (toolName === 'Read' && typeof result === 'string') {
-    triggerLabel = `File content (${numLines} lines)`;
-  } else if (toolName) {
-    triggerLabel = `${toolName} output (${numLines} lines)`;
-  }
+  // Determine trigger label - just show line count, no tool name
+  const triggerLabel = `${numLines} lines`;
   
   // Determine text color based on error state
   const contentTextColor = isError ? 'text-red-400' : 'text-foreground';
@@ -52,8 +47,8 @@ export const ToolResultDisplay: React.FC<ToolResultDisplayProps> = ({
               </Button>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <ScrollArea className="max-h-60 mt-1">
-                <pre className={`text-xs ${contentTextColor} whitespace-pre-wrap bg-gray-900/50 p-2 rounded`}>
+              <ScrollArea className="max-h-60 mt-1 overflow-hidden">
+                <pre className={`text-xs ${contentTextColor} whitespace-pre-wrap bg-gray-900/50 p-2 rounded break-all`}>
                   {resultString}
                 </pre>
               </ScrollArea>
@@ -61,8 +56,8 @@ export const ToolResultDisplay: React.FC<ToolResultDisplayProps> = ({
           </Collapsible>
         ) : (
           // Direct rendering for non-collapsible or error content
-          <ScrollArea className="max-h-60">
-            <pre className={`text-xs ${contentTextColor} whitespace-pre-wrap bg-gray-900/50 p-2 rounded`}>
+          <ScrollArea className="max-h-60 overflow-hidden">
+            <pre className={`text-xs ${contentTextColor} whitespace-pre-wrap bg-gray-900/50 p-2 rounded break-all`}>
               {resultString}
             </pre>
           </ScrollArea>

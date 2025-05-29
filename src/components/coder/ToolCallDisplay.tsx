@@ -16,33 +16,43 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
   const getRelevantParam = () => {
     if (!args) return null;
     
+    // Helper to convert absolute path to relative
+    const toRelativePath = (path: string) => {
+      if (!path) return path;
+      const cwd = '/Users/christopherdavid/code/commander/';
+      if (path.startsWith(cwd)) {
+        return path.slice(cwd.length);
+      }
+      return path;
+    };
+    
     switch (toolName) {
       case 'Read':
-        return args.file_path ? `"${args.file_path}"` : null;
+        return args.file_path ? toRelativePath(args.file_path) : null;
       case 'Write':
-        return args.file_path ? `"${args.file_path}"` : null;
+        return args.file_path ? toRelativePath(args.file_path) : null;
       case 'Edit':
       case 'MultiEdit':
-        return args.file_path ? `"${args.file_path}"` : null;
+        return args.file_path ? toRelativePath(args.file_path) : null;
       case 'Glob':
-        return args.pattern ? `"${args.pattern}"` : null;
+        return args.pattern ? args.pattern : null;
       case 'Grep':
-        return args.pattern ? `"${args.pattern}"` : null;
+        return args.pattern ? args.pattern : null;
       case 'LS':
-        return args.path ? `"${args.path}"` : null;
+        return args.path ? toRelativePath(args.path) : null;
       case 'Bash':
-        return args.command ? `"${args.command.substring(0, 50)}${args.command.length > 50 ? '...' : ''}"` : null;
+        return args.command ? `${args.command.substring(0, 50)}${args.command.length > 50 ? '...' : ''}` : null;
       case 'WebFetch':
-        return args.url ? `"${args.url}"` : null;
+        return args.url ? args.url : null;
       case 'WebSearch':
-        return args.query ? `"${args.query}"` : null;
+        return args.query ? args.query : null;
       case 'Task':
-        return args.description ? `"${args.description}"` : null;
+        return args.description ? args.description : null;
       default:
         // For other tools, try common parameter names
-        if (args.name) return `"${args.name}"`;
-        if (args.path) return `"${args.path}"`;
-        if (args.query) return `"${args.query}"`;
+        if (args.name) return args.name;
+        if (args.path) return toRelativePath(args.path);
+        if (args.query) return args.query;
         return null;
     }
   };
@@ -73,10 +83,10 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
   return (
     <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-2 py-1 text-xs text-muted-foreground">
       <Terminal className="h-3 w-3" />
-      <span>
-        <span className="font-mono">{toolName}</span>
+      <span className="font-mono">
+        {toolName}
         {relevantParam && (
-          <span className="text-foreground/80"> {relevantParam}</span>
+          <span className="text-foreground/80">({relevantParam})</span>
         )}
       </span>
       {isLoading && <Loader2 className="h-3 w-3 animate-spin ml-auto" />}

@@ -221,7 +221,7 @@ const useResizeHandlers = (
 const renderDropdownItems = (items: PaneDropdownItem[], parentId: string): React.ReactNode => {
   return items.map((item, index) => {
     const key = `${parentId}-item-${index}`;
-    
+
     if ('type' in item) {
       switch (item.type) {
         case 'separator':
@@ -443,7 +443,7 @@ export const Pane: React.FC<PaneProps> = ({
           <span className="text-xs truncate font-bold">{title}</span>
           {/* Render Dropdown Menus */}
           {headerMenus && headerMenus.map(menu => (
-            <DropdownMenu 
+            <DropdownMenu
               key={menu.id}
               open={(menu as any).open}
               onOpenChange={(menu as any).onOpenChange}

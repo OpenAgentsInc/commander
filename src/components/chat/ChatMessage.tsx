@@ -1,6 +1,7 @@
 import React from "react";
 import { cn } from "@/utils/tailwind";
 import { Loader2 } from "lucide-react";
+import { CopyButton } from "@/components/ui/copy-button";
 
 export type MessageRole = "user" | "assistant" | "system";
 
@@ -27,7 +28,7 @@ export function ChatMessage({
   return (
     <div
       className={cn(
-        "flex",
+        "flex group relative",
         role === "user"
           ? "justify-end"
           : role === "system"
@@ -69,6 +70,17 @@ export function ChatMessage({
           )}
         </div>
       </div>
+      {/* Copy button */}
+      {!isStreaming && content && role !== "system" && (
+        <div
+          className={cn(
+            "absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity",
+            role === "user" ? "left-full ml-1" : "right-full mr-1"
+          )}
+        >
+          <CopyButton content={content} copyMessage="Copied message to clipboard" />
+        </div>
+      )}
     </div>
   );
 }
