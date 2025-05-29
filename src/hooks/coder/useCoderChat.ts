@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Effect, Exit, Cause } from 'effect';
-import { TelemetryService } from '@/services/telemetry';
 import { DatabaseService } from '@/services/db';
 import { getMainRuntime } from '@/services/runtime';
 import { usePaneStore } from '@/stores/pane';
