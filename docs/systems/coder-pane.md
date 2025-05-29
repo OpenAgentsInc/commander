@@ -33,7 +33,7 @@ The Coder Pane is a specialized chat interface within OpenAgents Commander that 
 - **Tool Use Display:** Visual representation of Claude's tool calls (file operations, searches, etc.)
 - **Session Persistence:** All conversations are saved to a local database and can be reloaded
 - **Multi-Instance Support:** Multiple coder panes can run independently with different sessions
-- **ProseMirror Editor:** Rich text input with multi-line support (Shift+Enter for new lines)
+- **ProseMirror Editor:** Rich text input with multi-line support (Shift+Enter for new lines) and dynamic height resizing
 - **History Management:** Dropdown menu showing recent chat sessions with quick-load functionality
 - **Streaming Responses:** Real-time display of Claude's responses as they're generated
 - **Keyboard Navigation:** Escape to close, Cmd/Ctrl+Click for opening in new panes
@@ -164,6 +164,7 @@ interface CoderProseMirrorInputProps {
 
 - **ProseMirror Integration:** Lazy-loaded for performance
 - **Multi-line Support:** Enter submits, Shift+Enter adds line break
+- **Dynamic Height:** Starts at 1 line (44px), expands up to 5 lines (124px), then scrolls
 - **Auto-focus:** Maintains focus after operations like new chat or history load
 - **Text Serialization:** Preserves line breaks and formatting when extracting text
 - **Visual Feedback:** Opacity changes when disabled during streaming
@@ -174,6 +175,8 @@ interface CoderProseMirrorInputProps {
 - Custom keymap for Enter/Shift+Enter handling
 - Document serialization preserves paragraph structure and hard breaks
 - RequestAnimationFrame used for reliable focus management
+- Dynamic sizing: `minHeight: 44px`, `maxHeight: 124px`, `overflowY: auto`
+- Height calculations based on line height (20px) + padding (24px total)
 
 ### 3.4. Message Display Components
 
@@ -374,7 +377,8 @@ The Coder Pane has distinct visual styling:
 - Syntax highlighting for code/JSON
 
 **Editor:**
-- 50px fixed height
+- Dynamic height: starts at 44px (1 line), expands up to 124px (5 lines)
+- Internal scrolling when content exceeds 5 lines
 - White border
 - 750px max width (matching message area)
 - Opacity feedback when disabled
