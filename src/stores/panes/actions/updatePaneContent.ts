@@ -1,10 +1,7 @@
 import { SetPaneStore } from "../types";
 
 export function updatePaneContentAction(set: SetPaneStore, id: string, content: any) {
-  // Only log for coder panes to reduce noise
-  if (id.startsWith('coder_pane_')) {
-    console.log(`[coder_pa updatePaneContent] Updating pane ${id} with content:`, content);
-  }
+  // Silently update pane content
   set((state) => {
     const updatedPanes = state.panes.map((pane) => {
       if (pane.id === id) {

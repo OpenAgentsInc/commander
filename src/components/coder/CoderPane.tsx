@@ -25,7 +25,7 @@ export interface CoderPaneProps {
 const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSessionId, initialMessages, titleBarButtonsRef }) => {
   // Only log on mount, not every render
   useEffect(() => {
-    console.log(`[coder_pa CoderPane] Mounted with paneId: ${paneId}, initialSessionId:`, initialSessionId, 'initialMessages:', initialMessages?.length || 0);
+    // CoderPane mounted
   }, []); // Empty deps = only on mount
   
   const runtime = getMainRuntime(); // For telemetry
@@ -226,7 +226,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
     return chatHistorySessions.map(session => ({
       label: formatSessionForMenu(session),
       action: async (event) => {
-        console.log("Load chat session:", session.id);
+        // Load chat session
 
         // Check if Cmd/Ctrl key is held
         const isModifierHeld = event && (event.metaKey || event.ctrlKey);
@@ -270,8 +270,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
           });
         } else {
           const newSessionId = session.id;
-          const componentName = `[CoderPane ${paneId?.substring(0, 8) || 'HIST'}]`;
-          console.log(`${componentName} History item clicked, preparing to load session: ${newSessionId}`);
+          // History item clicked, loading session
 
           // Call the loading function from the hook
           await loadMessagesForSession(newSessionId);

@@ -34,12 +34,17 @@ const createCustomKeymapPlugin = () => keymap({
 const CoderProseMirrorInput: React.FC<CoderProseMirrorInputProps> = ({ onSubmit, disabled, focusKey, paneId }) => {
   const [components, setComponents] = useState<any>(null);
   const [editorState, setEditorState] = useState<EditorState | null>(null);
+  const [editorKey, setEditorKey] = useState(0);
 
   // Memoize customKeymapPlugin to ensure stable reference for useEffect
   const customKeymapPlugin = useMemo(() => createCustomKeymapPlugin(), []);
 
   useEffect(() => {
+    let mounted = true;
+    
     import("@handlewithcare/react-prosemirror").then(module => {
+      if (!mounted) return;
+      
       setComponents({
         ProseMirror: module.ProseMirror,
         ProseMirrorDoc: module.ProseMirrorDoc,
@@ -60,6 +65,12 @@ const CoderProseMirrorInput: React.FC<CoderProseMirrorInputProps> = ({ onSubmit,
       });
       setEditorState(initialState);
     });
+    
+    return () => {
+      mounted = false;
+      // Force a new key when unmounting to ensure clean recreation
+      setEditorKey(prev => prev + 1);
+    };
   }, [customKeymapPlugin]); // customKeymapPlugin is stable
 
   if (!components || !editorState) {
@@ -78,19 +89,22 @@ const CoderProseMirrorInput: React.FC<CoderProseMirrorInputProps> = ({ onSubmit,
   };
 
   return (
-    <ProseMirror
-      state={editorState} // Controlled mode
-      dispatchTransaction={dispatchTransaction} // Provide dispatcher
-    >
-      <InnerEditorLogic
-        onSubmit={onSubmit}
-        disabled={disabled}
-        components={components} // Pass dynamically loaded components
-        focusKey={focusKey}
-        paneId={paneId}
-        // editorState is now managed by ProseMirror's context, consumed by InnerEditorLogic's hooks
-      />
-    </ProseMirror>
+    <div style={{ position: 'relative', width: '100%' }}>
+      <ProseMirror
+        key={`${paneId}-${editorKey}`} // Unique key per pane to force clean recreation
+        state={editorState} // Controlled mode
+        dispatchTransaction={dispatchTransaction} // Provide dispatcher
+      >
+        <InnerEditorLogic
+          onSubmit={onSubmit}
+          disabled={disabled}
+          components={components} // Pass dynamically loaded components
+          focusKey={focusKey}
+          paneId={paneId}
+          // editorState is now managed by ProseMirror's context, consumed by InnerEditorLogic's hooks
+        />
+      </ProseMirror>
+    </div>
   );
 };
 
@@ -111,16 +125,29 @@ const InnerEditorLogic: React.FC<{
 
   useEditorEffect((view: import("prosemirror-view").EditorView | null) => {
     if (view && !disabled && isThisPaneActive) {
-      view.focus();
+      // Use setTimeout to ensure DOM is ready
+      setTimeout(() => {
+        if (view && view.dom && view.dom.parentNode) {
+          try {
+            view.focus();
+          } catch (e) {
+            console.warn('Focus failed:', e);
+          }
+        }
+      }, 0);
     }
   }, [disabled, isThisPaneActive, components]);
 
   useEditorEffect((view: import("prosemirror-view").EditorView | null) => {
     if (view && focusKey !== undefined && !disabled && isThisPaneActive) {
       requestAnimationFrame(() => {
-        if (view && view.focus) {
-          view.focus();
-          view.dom.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        if (view && view.dom && view.dom.parentNode) {
+          try {
+            view.focus();
+            view.dom.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          } catch (e) {
+            console.warn('Focus/scroll failed:', e);
+          }
         }
       });
     }

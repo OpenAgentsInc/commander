@@ -603,6 +603,11 @@ export function setupClaudeWebSocketHandler() {
                 console.log("  - type:", claudeMessage.type);
                 console.log("  - message:", JSON.stringify(claudeMessage.message, null, 2));
                 console.log("  - timestamp:", new Date().toISOString());
+                console.log("  - Full raw Claude message structure:", claudeMessage);
+                console.log("  - Message keys:", Object.keys(claudeMessage || {}));
+                if (claudeMessage.message) {
+                  console.log("  - Message content keys:", Object.keys(claudeMessage.message || {}));
+                }
               }
             }
             break;

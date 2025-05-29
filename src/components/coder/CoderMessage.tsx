@@ -240,7 +240,7 @@ const CoderMessage: React.FC<CoderMessageProps> = ({ message, index }) => {
       <div className={`coder-chat-message ${message.role === 'user' ? 'user-message' : 'assistant-message'} relative group space-y-2`}>
         {renderParts()}
         {message.isStreaming && message.role === 'assistant' && (
-          <div className="flex items-center justify-center gap-2 mt-2">
+          <div className="flex items-center justify-center gap-2 mt-2 w-full">
             <span className="text-xs text-muted-foreground italic opacity-60">Claude Code is working</span>
             <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
           </div>
@@ -267,7 +267,7 @@ const CoderMessage: React.FC<CoderMessageProps> = ({ message, index }) => {
         showCopyButton={false}
       />
       {message.isStreaming && message.role === 'assistant' && (
-        <div className="flex items-center justify-center gap-2 mt-2">
+        <div className="flex items-center justify-center gap-2 mt-2 w-full">
           <span className="text-xs text-muted-foreground italic opacity-60">Claude Code is working</span>
           <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
         </div>
