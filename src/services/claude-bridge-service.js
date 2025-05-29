@@ -299,45 +299,62 @@ async function handleDatabaseOperation(ws, request) {
         }
 
         const updateTimestamp = Math.floor(Date.now() / 1000);
-        const sql = `UPDATE tool_executions
-                     SET result_json = $1,
-                         status = $2,
-                         updated_at = $3
-                     WHERE id = $4`;
-        const queryParams = [
-          params.resultJson,
-          params.status,
-          updateTimestamp,
-          params.toolCallId
-        ];
-
-        log(`[DB Bridge] Executing SQL: ${sql} with params: [${params.resultJson.substring(0,50)}..., ${params.status}, ${updateTimestamp}, ${params.toolCallId}]`);
+        log(`[DB Bridge] Executing UPDATE for toolCallId: ${params.toolCallId}, status: ${params.status}, timestamp: ${updateTimestamp}`);
+        log(`[DB Bridge] Result JSON preview: ${params.resultJson.substring(0,100)}...`);
 
         try {
-          const statement = await db.prepare(sql);
-          const dbResult = await statement.run(...queryParams);
-          await statement.finalize();
+          // Use db.query which is the correct method for PGLite
+          const updateResult = await db.query(
+            `UPDATE tool_executions 
+             SET result_json = $1, 
+                 status = $2, 
+                 updated_at = $3
+             WHERE id = $4`,
+            [
+              params.resultJson,
+              params.status,
+              updateTimestamp,
+              params.toolCallId
+            ]
+          );
 
-          log(`[DB Bridge] SQL exec result for toolCallId ${params.toolCallId}: changes = ${dbResult.changes}, lastID = ${dbResult.lastID}`);
+          // Check if any rows were affected
+          // PGLite returns { rows: [], fields: [], affectedRows: number }
+          const rowsAffected = updateResult.affectedRows || 0;
+          
+          log(`[DB Bridge] UPDATE completed for toolCallId ${params.toolCallId}: affectedRows = ${rowsAffected}`);
 
-          if (dbResult.changes > 0) {
-            result = { success: true, toolCallId: params.toolCallId, status: params.status, changes: dbResult.changes };
-            log(`[DB Bridge] Tool call ${params.toolCallId} updated successfully. Rows affected: ${dbResult.changes}`);
+          if (rowsAffected > 0) {
+            result = { success: true, toolCallId: params.toolCallId, status: params.status, rowsAffected };
+            log(`[DB Bridge] SUCCESS: Tool call ${params.toolCallId} updated successfully. Rows affected: ${rowsAffected}`);
+            
+            // Verify the update by querying the record
+            const verifyResult = await db.query(
+              `SELECT id, status, result_json IS NOT NULL as has_result FROM tool_executions WHERE id = $1`,
+              [params.toolCallId]
+            );
+            if (verifyResult.rows && verifyResult.rows.length > 0) {
+              log(`[DB Bridge] VERIFY: Tool ${params.toolCallId} - status: ${verifyResult.rows[0].status}, has_result: ${verifyResult.rows[0].has_result}`);
+            }
           } else {
-            result = { success: false, toolCallId: params.toolCallId, status: params.status, changes: 0, error: "No rows updated. ToolCallId might not exist or data unchanged." };
-            log(`[DB Bridge] WARNING: No rows updated for toolCallId ${params.toolCallId}. Status: ${params.status}. Ensure the toolCallId exists and was previously saved.`);
+            result = { success: false, toolCallId: params.toolCallId, status: params.status, rowsAffected: 0, error: "No rows updated. ToolCallId might not exist." };
+            log(`[DB Bridge] WARNING: No rows updated for toolCallId ${params.toolCallId}. Checking if record exists...`);
+            
+            // Check if the tool execution exists
+            const checkResult = await db.query(
+              `SELECT id, status, message_id FROM tool_executions WHERE id = $1`,
+              [params.toolCallId]
+            );
+            if (checkResult.rows && checkResult.rows.length > 0) {
+              log(`[DB Bridge] Record EXISTS with status: ${checkResult.rows[0].status}, message_id: ${checkResult.rows[0].message_id}`);
+            } else {
+              log(`[DB Bridge] ERROR: No tool_execution record found with id: ${params.toolCallId}`);
+            }
           }
         } catch (dbError) {
           log(`[DB Bridge] ERROR updating tool_executions for toolCallId ${params.toolCallId}: ${dbError.message}`);
-          log(`[DB Bridge] Error details: ${JSON.stringify(dbError)}`);
-          result = { success: false, toolCallId: params.toolCallId, error: dbError.message, changes: 0 };
-          // Ensure the error is propagated back to the client if the operation fails critically
-          ws.send(JSON.stringify({
-            id,
-            type: 'db_error',
-            error: `Failed to update tool call ${params.toolCallId}: ${dbError.message}`
-          }));
-          return; // Exit early on DB error
+          log(`[DB Bridge] Stack trace: ${dbError.stack}`);
+          result = { success: false, toolCallId: params.toolCallId, error: dbError.message };
         }
         break;
         
