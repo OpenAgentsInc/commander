@@ -67,7 +67,12 @@ export const ClaudeCodeAgentLanguageModelLive = Effect.gen(function* (_) {
       streamText: (options: StreamTextOptions) => {
         const modelToUse = options.model || defaultModelName;
         const parsedMessages: AgentChatMessage[] = JSON.parse(options.prompt).messages;
-        const cliPrompt = formatMessagesForClaudeCli(parsedMessages);
+        
+        // Extract system message if present
+        const systemMessage = parsedMessages.find(m => m.role === "system");
+        const conversationMessages = parsedMessages.filter(m => m.role !== "system");
+        
+        const cliPrompt = formatMessagesForClaudeCli(conversationMessages);
 
         const cliParams: ClaudeExecParams = {
           prompt: cliPrompt,
@@ -76,6 +81,7 @@ export const ClaudeCodeAgentLanguageModelLive = Effect.gen(function* (_) {
           temperature: options.temperature,
           max_tokens: options.maxTokens,
           sessionId: (options as any).sessionId, // Pass sessionId if available
+          ...(systemMessage && systemMessage.content && { systemPrompt: systemMessage.content }), // Add systemPrompt if exists
         };
         
         console.log("[ClaudeCodeProvider] Sending params with sessionId:", cliParams.sessionId);

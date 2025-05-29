@@ -281,17 +281,59 @@ export function setupClaudeWebSocketHandler() {
         (msg) => msg.role === "user" || msg.role === "assistant",
       );
       if (relevantMessages.length === 0) return "";
-      let prompt = relevantMessages
-        .map((message) => {
-          const role = message.role === "user" ? "Human" : "Assistant";
-          const content = message.content || "";
-          return `${role}: ${content}`;
-        })
-        .join("\n\n");
+      
+      let promptParts: string[] = [];
+      
+      for (const message of relevantMessages) {
+        const rolePrefix = message.role === "user" ? "Human: " : "Assistant: ";
+        let turnContent = "";
+        
+        // Handle messages with parts array (from UI)
+        if (message.parts && message.parts.length > 0) {
+          const contentParts: string[] = [];
+          
+          for (const part of message.parts) {
+            if (part.type === 'text') {
+              contentParts.push(part.text);
+            } else if (part.type === 'tool_call') {
+              // Format tool calls as JSON objects that Claude CLI expects
+              const toolUseBlock = {
+                type: 'tool_use',
+                id: part.id,
+                name: part.name,
+                input: part.input
+              };
+              contentParts.push(JSON.stringify(toolUseBlock));
+            } else if (part.type === 'tool_result') {
+              // Format tool results as JSON objects
+              const toolResultBlock = {
+                type: 'tool_result',
+                tool_use_id: part.tool_use_id,
+                content: typeof part.content === 'string' ? part.content : JSON.stringify(part.content),
+                is_error: part.isError === true
+              };
+              contentParts.push(JSON.stringify(toolResultBlock));
+            }
+          }
+          
+          turnContent = contentParts.join('\n');
+        } else if (message.content) {
+          // Fallback to simple content
+          turnContent = message.content;
+        }
+        
+        if (turnContent || message.role === "assistant") {
+          promptParts.push(`${rolePrefix}${turnContent}`);
+        }
+      }
+      
+      let prompt = promptParts.join("\n\n");
+      
       const lastMessage = relevantMessages[relevantMessages.length - 1];
-      if (lastMessage.role === "user") {
+      if (lastMessage?.role === "user") {
         prompt += "\n\nAssistant:";
       }
+      
       return prompt;
     }
 

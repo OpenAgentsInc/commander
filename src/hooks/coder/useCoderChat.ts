@@ -368,10 +368,15 @@ export function useCoderChat(props: UseCoderChatProps) {
                                   : undefined;
 
       // Prepare messages for Claude Code API - only include messages from current session
+      // Include parts array to preserve tool call/result structure
       const apiMessages = currentMessages
         .filter(m => m.role !== 'system')
         .concat(userMessage)
-        .map(m => ({ role: m.role, content: m.content }));
+        .map(m => ({ 
+          role: m.role, 
+          content: m.content,
+          ...(m.parts && { parts: m.parts }) // Include parts if they exist
+        }));
 
       // Stream response from Claude Code
       const cleanup = window.electronAPI.claudeCode?.streamChat(
