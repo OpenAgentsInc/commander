@@ -54,6 +54,7 @@ export default function HomePage() {
     toggleAgentChatPane,
     togglePreviousChatsPane,
     toggleCoderPane,
+    openNewCoderPane,
   } = usePaneStore(
     useShallow((state) => ({
       panes: state.panes,
@@ -66,6 +67,7 @@ export default function HomePage() {
       toggleAgentChatPane: state.toggleAgentChatPane,
       togglePreviousChatsPane: state.togglePreviousChatsPane,
       toggleCoderPane: state.toggleCoderPane,
+      openNewCoderPane: state.openNewCoderPane,
     })),
   );
 
@@ -237,8 +239,18 @@ export default function HomePage() {
         return; // Explicitly return after handling Escape for panes
       }
 
-      // Only handle modifier + digit combinations
+      // Handle Command/Control + N for new coder chat
       const modifier = isMacOs() ? event.metaKey : event.ctrlKey;
+      if (modifier && event.key === 'n') {
+        event.preventDefault();
+        if (isCoderPaneEnabled) {
+          console.log("Keyboard: New Coder Chat");
+          openNewCoderPane();
+        }
+        return;
+      }
+
+      // Only handle modifier + digit combinations
       if (!modifier) return;
 
       const digit = parseInt(event.key);
@@ -321,6 +333,7 @@ export default function HomePage() {
     toggleDvmJobHistoryPane,
     toggleAgentChatPane,
     togglePreviousChatsPane,
+    openNewCoderPane,
   ]);
 
   // Handler for keyboard shortcuts (kept as a backup, but we'll primarily use the global handler)

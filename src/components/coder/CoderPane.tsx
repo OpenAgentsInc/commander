@@ -108,38 +108,9 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
   }, [removePane, paneId, runtime]);
 
   const handleNewChat = React.useCallback((event?: React.MouseEvent) => {
-    // Check if command (Mac) or control (Windows/Linux) key is pressed
-    const isCommandOrControl = event && (event.metaKey || event.ctrlKey);
-    
-    if (isCommandOrControl) {
-      // Open new chat in a new pane
-      const addPane = usePaneStore.getState().addPane;
-      const screenWidth = window.innerWidth;
-      const screenHeight = window.innerHeight;
-      
-      // Position new pane offset from current one
-      const currentPanes = usePaneStore.getState().panes;
-      const currentCoderPane = currentPanes.find(p => p.id === paneId);
-      const offsetX = 50;
-      const offsetY = 50;
-      
-      const newSessionId = `ui-coder-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-      
-      addPane({
-        id: `coder_pane_${Date.now()}`,
-        type: "coder",
-        title: `Coder`,
-        x: currentCoderPane ? Math.min(currentCoderPane.x + offsetX, screenWidth - 600) : Math.floor((screenWidth - 569) / 2),
-        y: currentCoderPane ? Math.min(currentCoderPane.y + offsetY, screenHeight - 400) : 30,
-        width: 569,
-        height: Math.floor(screenHeight * 0.85),
-        content: { sessionId: newSessionId }
-      });
-    } else {
-      // Original behavior - new chat in current pane
-      const newSessionId = clearMessagesAndSession();
-      updatePaneContent(paneId, { sessionId: newSessionId });
-    }
+    // Always open new chat in a new pane
+    const { openNewCoderPane } = usePaneStore.getState();
+    openNewCoderPane();
 
     // Track the new chat action
     Effect.runFork(
@@ -150,7 +121,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
         }),
       ).pipe(Effect.provide(runtime)),
     );
-  }, [clearMessagesAndSession, runtime, updatePaneContent, paneId]);
+  }, [runtime]);
 
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
