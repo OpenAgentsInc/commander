@@ -150,12 +150,19 @@ async function handleDatabaseOperation(ws, request) {
   const { id, operation, params } = request;
   
   if (!db) {
+    const errorMsg = '[DB Bridge] Database not initialized';
+    log(`ERROR: ${errorMsg} for operation: ${operation}`);
     ws.send(JSON.stringify({
       id,
       type: 'db_error',
-      error: 'Database not initialized'
+      error: errorMsg
     }));
     return;
+  }
+  
+  log(`[DB Bridge] Handling DB operation: ${operation} with ID: ${id}`);
+  if (params) {
+    log(`[DB Bridge] Params for ${operation}: ${JSON.stringify(params, null, 2)}`);
   }
   
   try {
@@ -284,19 +291,54 @@ async function handleDatabaseOperation(ws, request) {
         break;
         
       case 'updateToolCallResult':
-        await db.query(
-          `UPDATE tool_executions 
-           SET result_json = $1, 
-               status = $2, updated_at = $3
-           WHERE id = $4`,
-          [
-            params.resultJson,
-            params.status,
-            Math.floor(Date.now() / 1000),
-            params.toolCallId
-          ]
-        );
-        result = { success: true };
+        log(`[DB Bridge] Processing 'updateToolCallResult' for toolCallId: ${params.toolCallId}`);
+        if (!params.toolCallId || typeof params.resultJson !== 'string' || !params.status) {
+          log(`[DB Bridge] ERROR: Invalid parameters for updateToolCallResult: ${JSON.stringify(params)}`);
+          result = { success: false, error: "Invalid parameters for updateToolCallResult" };
+          break;
+        }
+
+        const updateTimestamp = Math.floor(Date.now() / 1000);
+        const sql = `UPDATE tool_executions
+                     SET result_json = $1,
+                         status = $2,
+                         updated_at = $3
+                     WHERE id = $4`;
+        const queryParams = [
+          params.resultJson,
+          params.status,
+          updateTimestamp,
+          params.toolCallId
+        ];
+
+        log(`[DB Bridge] Executing SQL: ${sql} with params: [${params.resultJson.substring(0,50)}..., ${params.status}, ${updateTimestamp}, ${params.toolCallId}]`);
+
+        try {
+          const statement = await db.prepare(sql);
+          const dbResult = await statement.run(...queryParams);
+          await statement.finalize();
+
+          log(`[DB Bridge] SQL exec result for toolCallId ${params.toolCallId}: changes = ${dbResult.changes}, lastID = ${dbResult.lastID}`);
+
+          if (dbResult.changes > 0) {
+            result = { success: true, toolCallId: params.toolCallId, status: params.status, changes: dbResult.changes };
+            log(`[DB Bridge] Tool call ${params.toolCallId} updated successfully. Rows affected: ${dbResult.changes}`);
+          } else {
+            result = { success: false, toolCallId: params.toolCallId, status: params.status, changes: 0, error: "No rows updated. ToolCallId might not exist or data unchanged." };
+            log(`[DB Bridge] WARNING: No rows updated for toolCallId ${params.toolCallId}. Status: ${params.status}. Ensure the toolCallId exists and was previously saved.`);
+          }
+        } catch (dbError) {
+          log(`[DB Bridge] ERROR updating tool_executions for toolCallId ${params.toolCallId}: ${dbError.message}`);
+          log(`[DB Bridge] Error details: ${JSON.stringify(dbError)}`);
+          result = { success: false, toolCallId: params.toolCallId, error: dbError.message, changes: 0 };
+          // Ensure the error is propagated back to the client if the operation fails critically
+          ws.send(JSON.stringify({
+            id,
+            type: 'db_error',
+            error: `Failed to update tool call ${params.toolCallId}: ${dbError.message}`
+          }));
+          return; // Exit early on DB error
+        }
         break;
         
       case 'getToolCallsForMessage':

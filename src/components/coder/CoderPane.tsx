@@ -761,13 +761,36 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
                 // Immediately add the result if available
                 const execution = toolExecutionMap.get(tc.id);
                 if (execution && execution.result_json) {
+                  let parsedResultJson;
+                  try {
+                    parsedResultJson = JSON.parse(execution.result_json);
+                  } catch (e) {
+                    console.warn(`[CoderPane] Failed to parse result_json for tool ${tc.id}:`, execution.result_json, e);
+                    parsedResultJson = { content: `[Error parsing result: ${execution.result_json}]`, isError: true };
+                  }
                   parts.push({
                     type: 'tool_result',
                     tool_use_id: execution.id,
-                    content: JSON.parse(execution.result_json),
+                    content: parsedResultJson, // This might be { content: "..." } or the error object
+                    isError: execution.status === 'executed_error' || parsedResultJson.isError,
+                    isLoading: false, // If result_json exists, it's not loading
+                  });
+                } else if (execution) {
+                  // Tool call exists but no result_json
+                  parts.push({
+                    type: 'tool_result',
+                    tool_use_id: execution.id,
+                    // Provide more informative content based on status
+                    content: execution.status === 'pending'
+                      ? "Tool execution is pending..."
+                      : execution.status === 'executed_error'
+                        ? "[Error result not available]"
+                        : "[Result not available yet]",
+                    isLoading: execution.status === 'pending',
                     isError: execution.status === 'executed_error'
                   });
                 }
+                // If no execution found at all, the tool_call part remains, and no tool_result part is added for it.
               });
             }
           } catch (e) { 
