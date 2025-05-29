@@ -205,7 +205,11 @@ async function handleDatabaseOperation(ws, request) {
       case 'saveMessage':
         await db.query(
           `INSERT INTO messages (id, session_id, role, content, name, tool_call_id, tool_calls_json, timestamp, provider_message_id, metadata_json)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           ON CONFLICT (id) DO UPDATE SET
+             content = EXCLUDED.content,
+             tool_calls_json = EXCLUDED.tool_calls_json,
+             metadata_json = EXCLUDED.metadata_json`,
           [
             params.id,
             params.session_id,
@@ -233,21 +237,55 @@ async function handleDatabaseOperation(ws, request) {
         break;
         
       case 'saveToolCall':
-        await db.query(
-          `INSERT INTO tool_executions (id, message_id, tool_name, arguments_json, result_json, status, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [
-            params.id,
-            params.message_id,
-            params.tool_name,
-            params.arguments_json,
-            params.result_json || null,
-            params.status,
-            params.created_at,
-            params.updated_at
-          ]
-        );
-        result = { success: true };
+        log(`[DB Bridge] Processing 'saveToolCall' for tool ID: ${params.id}, message ID: ${params.message_id}`);
+        if (!params.id || !params.message_id || !params.tool_name || typeof params.arguments_json !== 'string' || !params.status || typeof params.created_at !== 'number' || typeof params.updated_at !== 'number') {
+          log(`[DB Bridge] ERROR: Invalid parameters for saveToolCall: ${JSON.stringify(params)}`);
+          result = { success: false, error: "Invalid parameters for saveToolCall", toolCallId: params.id };
+          break;
+        }
+
+        const insertSql = `INSERT INTO tool_executions (id, message_id, tool_name, arguments_json, result_json, status, created_at, updated_at)
+                           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                           ON CONFLICT(id) DO NOTHING`;
+        const insertParams = [
+          params.id,
+          params.message_id,
+          params.tool_name,
+          params.arguments_json,
+          params.result_json || null,
+          params.status,
+          params.created_at,
+          params.updated_at
+        ];
+
+        log(`[DB Bridge] Executing INSERT for toolCallId ${params.id}: SQL: ${insertSql}`);
+        log(`[DB Bridge] Params: ${JSON.stringify(insertParams)}`);
+
+        try {
+          const insertResult = await db.query(insertSql, insertParams);
+          log(`[DB Bridge] INSERT attempt for toolCallId ${params.id} completed. Result: ${JSON.stringify(insertResult)}`);
+
+          // Verification SELECT query
+          const verifyInsert = await db.query(`SELECT id FROM tool_executions WHERE id = $1`, [params.id]);
+          if (verifyInsert.rows && verifyInsert.rows.length > 0) {
+            result = { success: true, toolCallId: params.id, rowsAffected: 1 };
+            log(`[DB Bridge] SUCCESS (Verified): Tool call ${params.id} saved. Found in DB.`);
+          } else {
+            log(`[DB Bridge] ERROR: Tool call ${params.id} NOT found in DB after INSERT attempt. Checking parent message...`);
+            const msgCheck = await db.query(`SELECT id FROM messages WHERE id = $1`, [params.message_id]);
+            if (msgCheck.rows && msgCheck.rows.length > 0) {
+              log(`[DB Bridge] Parent message ${params.message_id} exists. Insert for tool ${params.id} might have failed for other reasons.`);
+              result = { success: false, toolCallId: params.id, error: "Insert verification failed, parent message exists." };
+            } else {
+              log(`[DB Bridge] CRITICAL ERROR: Parent message ${params.message_id} for toolCallId ${params.id} does NOT exist. FK constraint likely failed.`);
+              result = { success: false, toolCallId: params.id, error: "Insert failed, parent message_id not found (FK constraint failure)." };
+            }
+          }
+        } catch (dbError) {
+          log(`[DB Bridge] ERROR inserting tool_execution for toolCallId ${params.id}: ${dbError.message}`);
+          log(`[DB Bridge] Stack trace: ${dbError.stack}`);
+          result = { success: false, toolCallId: params.id, error: dbError.message };
+        }
         break;
         
       case 'updateSession':
@@ -294,61 +332,60 @@ async function handleDatabaseOperation(ws, request) {
         log(`[DB Bridge] Processing 'updateToolCallResult' for toolCallId: ${params.toolCallId}`);
         if (!params.toolCallId || typeof params.resultJson !== 'string' || !params.status) {
           log(`[DB Bridge] ERROR: Invalid parameters for updateToolCallResult: ${JSON.stringify(params)}`);
-          result = { success: false, error: "Invalid parameters for updateToolCallResult" };
+          result = { success: false, error: "Invalid parameters for updateToolCallResult", toolCallId: params.toolCallId };
           break;
         }
 
         const updateTimestamp = Math.floor(Date.now() / 1000);
+        const updateSql = `UPDATE tool_executions
+                           SET result_json = $1,
+                               status = $2,
+                               updated_at = $3
+                           WHERE id = $4`;
+        const updateQueryParams = [
+          params.resultJson,
+          params.status,
+          updateTimestamp,
+          params.toolCallId
+        ];
+
         log(`[DB Bridge] Executing UPDATE for toolCallId: ${params.toolCallId}, status: ${params.status}, timestamp: ${updateTimestamp}`);
-        log(`[DB Bridge] Result JSON preview: ${params.resultJson.substring(0,100)}...`);
+        log(`[DB Bridge] Result JSON preview (first 100 chars): ${params.resultJson.substring(0,100)}...`);
 
         try {
-          // Use db.query which is the correct method for PGLite
-          const updateResult = await db.query(
-            `UPDATE tool_executions 
-             SET result_json = $1, 
-                 status = $2, 
-                 updated_at = $3
-             WHERE id = $4`,
-            [
-              params.resultJson,
-              params.status,
-              updateTimestamp,
-              params.toolCallId
-            ]
-          );
-
-          // Check if any rows were affected
-          // PGLite returns { rows: [], fields: [], affectedRows: number }
-          const rowsAffected = updateResult.affectedRows || 0;
+          const updateOpResult = await db.query(updateSql, updateQueryParams);
+          // Log the full result to understand PGLite's response structure
+          log(`[DB Bridge] UPDATE completed for toolCallId ${params.toolCallId}. Full result: ${JSON.stringify(updateOpResult)}`);
           
-          log(`[DB Bridge] UPDATE completed for toolCallId ${params.toolCallId}: affectedRows = ${rowsAffected}`);
+          // PGLite might return affectedRows, changes, or rowCount - check all
+          const rowsAffectedUpdate = updateOpResult.affectedRows || updateOpResult.changes || updateOpResult.rowCount || 0;
+          log(`[DB Bridge] Rows affected: ${rowsAffectedUpdate}`);
 
-          if (rowsAffected > 0) {
-            result = { success: true, toolCallId: params.toolCallId, status: params.status, rowsAffected };
-            log(`[DB Bridge] SUCCESS: Tool call ${params.toolCallId} updated successfully. Rows affected: ${rowsAffected}`);
-            
-            // Verify the update by querying the record
-            const verifyResult = await db.query(
+          if (rowsAffectedUpdate > 0) {
+            result = { success: true, toolCallId: params.toolCallId, status: params.status, rowsAffected: rowsAffectedUpdate };
+            log(`[DB Bridge] SUCCESS: Tool call ${params.toolCallId} updated. Rows affected: ${rowsAffectedUpdate}`);
+
+            const verifyUpdate = await db.query(
               `SELECT id, status, result_json IS NOT NULL as has_result FROM tool_executions WHERE id = $1`,
               [params.toolCallId]
             );
-            if (verifyResult.rows && verifyResult.rows.length > 0) {
-              log(`[DB Bridge] VERIFY: Tool ${params.toolCallId} - status: ${verifyResult.rows[0].status}, has_result: ${verifyResult.rows[0].has_result}`);
+            if (verifyUpdate.rows && verifyUpdate.rows.length > 0) {
+              log(`[DB Bridge] VERIFY UPDATE: Tool ${params.toolCallId} - status: ${verifyUpdate.rows[0].status}, has_result: ${verifyUpdate.rows[0].has_result}`);
+            } else {
+               log(`[DB Bridge] VERIFY UPDATE WARNING: Tool ${params.toolCallId} NOT found after update reported ${rowsAffectedUpdate} affected rows. This should not happen.`);
+               result = { ...result, success: false, error: "Verification SELECT failed after update." };
             }
           } else {
             result = { success: false, toolCallId: params.toolCallId, status: params.status, rowsAffected: 0, error: "No rows updated. ToolCallId might not exist." };
             log(`[DB Bridge] WARNING: No rows updated for toolCallId ${params.toolCallId}. Checking if record exists...`);
-            
-            // Check if the tool execution exists
             const checkResult = await db.query(
-              `SELECT id, status, message_id FROM tool_executions WHERE id = $1`,
+              `SELECT id, status FROM tool_executions WHERE id = $1`,
               [params.toolCallId]
             );
             if (checkResult.rows && checkResult.rows.length > 0) {
-              log(`[DB Bridge] Record EXISTS with status: ${checkResult.rows[0].status}, message_id: ${checkResult.rows[0].message_id}`);
+              log(`[DB Bridge] Record EXISTS with status: ${checkResult.rows[0].status}. Update target ${params.status} may have been redundant or other issue.`);
             } else {
-              log(`[DB Bridge] ERROR: No tool_execution record found with id: ${params.toolCallId}`);
+              log(`[DB Bridge] ERROR: No tool_execution record found with id: ${params.toolCallId} to update.`);
             }
           }
         } catch (dbError) {
