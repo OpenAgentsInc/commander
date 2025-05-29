@@ -476,6 +476,7 @@ const MemoizedCoderPane = React.memo(CoderPane, (prevProps, nextProps) => {
   // Only re-render if props actually changed
   return prevProps.paneId === nextProps.paneId &&
     prevProps.sessionId === nextProps.sessionId &&
+    prevProps.initialMessages === nextProps.initialMessages &&
     prevProps.titleBarButtonsRef === nextProps.titleBarButtonsRef;
 });
 
