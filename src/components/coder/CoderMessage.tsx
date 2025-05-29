@@ -13,8 +13,19 @@ interface CoderMessageProps {
 }
 
 const CoderMessage: React.FC<CoderMessageProps> = ({ message, index }) => {
+  // Check for specific "no content" assistant message and replace with "Completed."
+  const isNoContentMessage = message.role === 'assistant' &&
+    message.parts &&
+    message.parts.length === 1 &&
+    message.parts[0].type === 'text' &&
+    message.parts[0].text === '(no content)';
+
   // Extract text content for the content prop
   const textContent = React.useMemo(() => {
+    // If this is a "no content" message, display "Completed." instead
+    if (isNoContentMessage) {
+      return 'Completed.';
+    }
     if (!message.parts || message.parts.length === 0) return message.content;
 
     // When we have parts, only use text from the parts, not the accumulated content
@@ -27,10 +38,14 @@ const CoderMessage: React.FC<CoderMessageProps> = ({ message, index }) => {
     textParts = textParts.replace(/\[Result:\s*[\s\S]*?\]/g, '').trim();
 
     return textParts; // Don't fall back to message.content when we have parts
-  }, [message.parts, message.content]);
+  }, [message.parts, message.content, isNoContentMessage]);
 
   // Get full message content for copying
   const fullMessageContent = React.useMemo(() => {
+    // If this is a "no content" message, use "Completed." for copying too
+    if (isNoContentMessage) {
+      return 'Completed.';
+    }
     if (!message.parts || message.parts.length === 0) return message.content;
 
     let fullContent = '';
@@ -45,7 +60,7 @@ const CoderMessage: React.FC<CoderMessageProps> = ({ message, index }) => {
     });
 
     return fullContent.trim() || message.content;
-  }, [message.parts, message.content]);
+  }, [message.parts, message.content, isNoContentMessage]);
 
   // Create parts array for UIChatMessage - it expects a specific format
   const messageParts = React.useMemo(() => {
@@ -163,7 +178,7 @@ const CoderMessage: React.FC<CoderMessageProps> = ({ message, index }) => {
         if (!cleanedText) return null;
 
         return (
-          <div key={`text-${idx}`} className={`prose prose-invert max-w-none ${message.role === 'user' ? 'flex justify-end' : ''}`}>
+          <div key={`text-${idx}`} className={`w-full overflow-hidden ${message.role === 'user' ? 'flex justify-end' : ''}`}>
             <UIChatMessage
               id={`${message.id}-text-${idx}`}
               role={message.role === 'user' ? 'user' : 'assistant'}
@@ -225,7 +240,7 @@ const CoderMessage: React.FC<CoderMessageProps> = ({ message, index }) => {
       <div className={`coder-chat-message ${message.role === 'user' ? 'user-message' : 'assistant-message'} relative group space-y-2`}>
         {renderParts()}
         {message.isStreaming && message.role === 'assistant' && (
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center justify-center gap-2 mt-2">
             <span className="text-xs text-muted-foreground italic opacity-60">Claude Code is working</span>
             <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
           </div>
@@ -252,7 +267,7 @@ const CoderMessage: React.FC<CoderMessageProps> = ({ message, index }) => {
         showCopyButton={false}
       />
       {message.isStreaming && message.role === 'assistant' && (
-        <div className="flex items-center gap-2 mt-2">
+        <div className="flex items-center justify-center gap-2 mt-2">
           <span className="text-xs text-muted-foreground italic opacity-60">Claude Code is working</span>
           <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
         </div>

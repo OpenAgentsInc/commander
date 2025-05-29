@@ -40,12 +40,7 @@ export function useCoderChat(props: UseCoderChatProps) {
       console.log(`[CoderPane coder_pa] Restoring ${initialMessages.length} persisted messages for pane ${paneId}`);
       return initialMessages;
     }
-    return [{
-      id: 'system',
-      role: 'system',
-      content: 'You are Claude Code, a helpful AI coding assistant.',
-      timestamp: Date.now(),
-    }];
+    return [];
   });
 
   // Local state for loading and focus
@@ -80,12 +75,7 @@ export function useCoderChat(props: UseCoderChatProps) {
   }, [paneId, updatePaneContent]);
 
   const clearMessages = useCallback(() => {
-    const newMessages: ChatMessage[] = [{
-      id: 'system',
-      role: 'system' as const,
-      content: 'You are Claude Code, a helpful AI coding assistant.',
-      timestamp: Date.now(),
-    }];
+    const newMessages: ChatMessage[] = [];
     setMessages(newMessages);
     // Update pane content with cleared messages
     updatePaneContent(paneId, { messages: newMessages });
@@ -141,12 +131,7 @@ export function useCoderChat(props: UseCoderChatProps) {
         const { messages: dbMessages, toolExecutionsByMessage } = exitResult.value;
         console.log(`${componentName} Loaded ${dbMessages.length} messages from DB for session ${sessionIdToLoad}`);
 
-        const newMessagesState: ChatMessage[] = [{
-          id: 'system',
-          role: 'system',
-          content: 'You are Claude Code, a helpful AI coding assistant.',
-          timestamp: Date.now(),
-        }];
+        const newMessagesState: ChatMessage[] = [];
 
         dbMessages.forEach(dbMsg => {
           let parts;
@@ -376,10 +361,12 @@ export function useCoderChat(props: UseCoderChatProps) {
       // Use current messages from local state
       const currentMessages = messages;
 
-      // Extract system message content. Use the one from messages state if available,
-      // otherwise fallback to a default.
-      const systemMessageContent = currentMessages.find(m => m.role === 'system')?.content ||
-                                   'You are Claude Code, a helpful AI coding assistant.';
+      // Extract system message content if explicitly set (not the default)
+      const systemMessage = currentMessages.find(m => m.role === 'system');
+      const systemPromptContent = systemMessage && 
+                                  systemMessage.content !== 'You are Claude Code, a helpful AI coding assistant.' 
+                                  ? systemMessage.content 
+                                  : undefined;
 
       // Prepare messages for Claude Code API - only include messages from current session
       const apiMessages = currentMessages
@@ -391,7 +378,7 @@ export function useCoderChat(props: UseCoderChatProps) {
       const cleanup = window.electronAPI.claudeCode?.streamChat(
         {
           messages: apiMessages,
-          systemPrompt: systemMessageContent, // <-- ADD THIS LINE
+          ...(systemPromptContent && { systemPrompt: systemPromptContent }), // Only include if not default
           model: 'claude-3-sonnet-20240229',
           max_tokens: 4096,
           temperature: 0.7,

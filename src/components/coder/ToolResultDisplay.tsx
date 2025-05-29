@@ -25,10 +25,10 @@ export const ToolResultDisplay: React.FC<ToolResultDisplayProps> = ({
   const contentTextColor = isError ? 'text-red-400' : 'text-foreground';
   
   return (
-    <div className="ml-4 rounded-lg border bg-muted/30 border-muted">
+    <div className="ml-4 rounded-lg border bg-muted/30 border-muted max-w-full overflow-hidden">
       <div className="p-1">
-        <div className="max-h-60 overflow-y-auto overflow-x-auto">
-          <pre className={`text-xs ${contentTextColor} whitespace-pre-wrap bg-transparent border border-white/15 p-2 break-all`}>
+        <div className="max-h-60 overflow-auto">
+          <pre className={`text-xs ${contentTextColor} whitespace-pre bg-transparent border border-white/15 p-2 overflow-x-auto`}>
             {displayContent}
           </pre>
         </div>

@@ -12,7 +12,7 @@ interface MarkdownRendererProps {
 
 export function MarkdownRenderer({ children }: MarkdownRendererProps) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 max-w-full overflow-hidden break-words">
       <Markdown remarkPlugins={[remarkGfm]} components={COMPONENTS}>
         {children}
       </Markdown>
@@ -93,12 +93,12 @@ const CodeBlock = ({
       : childrenTakeAllStringContents(children)
 
   const preClass = cn(
-    "overflow-x-scroll rounded-md border bg-background/50 p-4 font-mono text-sm [scrollbar-width:none]",
+    "overflow-x-auto rounded-md border bg-background/50 p-4 font-mono text-sm w-full",
     className
   )
 
   return (
-    <div className="group/code relative mb-4">
+    <div className="group/code relative mb-4 w-full overflow-hidden">
       <Suspense
         fallback={
           <pre className={preClass} {...restProps}>

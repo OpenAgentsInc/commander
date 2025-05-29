@@ -320,9 +320,11 @@ export function setupClaudeWebSocketHandler() {
     //     args.push("--max-tokens-to-sample", String(params.max_tokens));
     // }
 
-    if (systemPromptContent) {
-      console.log('skipping system pormpt ez')
-      // args.push("--system-prompt", systemPromptContent);
+    if (systemPromptContent && systemPromptContent.trim() !== "") {
+      args.push("--system-prompt", systemPromptContent);
+      console.log(`[Main Process] Using system prompt (first 100 chars): ${systemPromptContent.substring(0, 100)}...`);
+    } else {
+      console.log("[Main Process] No system prompt provided by params, or it's empty. Claude CLI will use its default system prompt.");
     }
 
     // Tool management for Claude Code CLI
@@ -592,7 +594,16 @@ export function setupClaudeWebSocketHandler() {
             } else {
               // Log any other message types we're not handling
               console.log("[Main Process] Unhandled Claude message type:", claudeMessage.type);
-              console.log("[Main Process] Message content:", JSON.stringify(claudeMessage, null, 2));
+              console.log("[Main Process] Full unhandled message object:", JSON.stringify(claudeMessage, null, 2));
+              
+              // Additional detailed logging for debugging
+              if (claudeMessage.type === "system") {
+                console.log("[Main Process] System message details:");
+                console.log("  - id:", claudeMessage.id);
+                console.log("  - type:", claudeMessage.type);
+                console.log("  - message:", JSON.stringify(claudeMessage.message, null, 2));
+                console.log("  - timestamp:", new Date().toISOString());
+              }
             }
             break;
 
