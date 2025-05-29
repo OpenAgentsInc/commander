@@ -125,7 +125,7 @@ const CoderMessage: React.FC<CoderMessageProps> = ({ message, index }) => {
               content={cleanedText}
               animation="none"
               showTimeStamp={false}
-              showCopyButton={message.role === 'user'}
+              showCopyButton={false}
             />
           </div>
         );
@@ -203,7 +203,7 @@ const CoderMessage: React.FC<CoderMessageProps> = ({ message, index }) => {
         content={textContent}
         animation="none"
         showTimeStamp={false}
-        showCopyButton={message.role === 'user'}
+        showCopyButton={false}
       />
       {message.isStreaming && message.role === 'assistant' && (
         <div className="flex items-center gap-2 mt-2">
