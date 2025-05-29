@@ -5,6 +5,8 @@ import { getMainRuntime } from '@/services/runtime';
 import { usePaneStore } from '@/stores/pane';
 import { CODER_PANE_TITLE } from '@/stores/panes/constants';
 
+const componentName = 'useCoderChat';
+
 // Local message interface - each pane has its own messages
 export interface ChatMessage {
   id: string;
