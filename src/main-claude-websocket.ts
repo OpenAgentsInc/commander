@@ -319,9 +319,39 @@ export function setupClaudeWebSocketHandler() {
     if (systemPromptContent) {
       args.push("--system-prompt", systemPromptContent);
     }
+
+    // Tool management for Claude Code CLI
+    if (params.allowedTools && Array.isArray(params.allowedTools) && params.allowedTools.length > 0) {
+      // If allowedTools is explicitly provided, use it.
+      args.push("--allowedTools", params.allowedTools.join(','));
+      console.log(`[Main Process] Using allowedTools from params for Claude Code: ${params.allowedTools.join(',')}`);
+    } else {
+      // If allowedTools is not specified, we will manage disallowedTools.
+      // Start with any disallowedTools passed in params, or an empty array.
+      let disallowedToolsArray: string[] = [];
+      if (params.disallowedTools && Array.isArray(params.disallowedTools) && params.disallowedTools.length > 0) {
+        disallowedToolsArray = [...params.disallowedTools];
+      }
+
+      // Ensure "Task" is in the disallowed list.
+      // Note: Claude CLI tool names are case-sensitive. "Task" is the default name.
+      if (!disallowedToolsArray.includes("Task")) {
+        disallowedToolsArray.push("Task");
+      }
+
+      // If there are any tools to disallow, add the flag.
+      if (disallowedToolsArray.length > 0) {
+        args.push("--disallowedTools", disallowedToolsArray.join(','));
+        console.log(`[Main Process] Disallowing tools for Claude Code: ${disallowedToolsArray.join(',')}`);
+      } else {
+        // If no allowedTools and no disallowedTools (even after adding "Task", which shouldn't happen if Task is always disallowed),
+        // this means no tool-related flags are added.
+        console.log(`[Main Process] No specific tool restrictions applied for Claude Code (Task should be implicitly disallowed if not in an allowed list).`);
+      }
+    }
     
     console.log("[Main Process] Conversation context being sent:", conversationContext);
-    console.log("[Main Process] Connecting to bridge service with args:", args);
+    console.log("[Main Process] Final Claude CLI args to be sent to bridge:", args);
     
     // Save user message to database
     if (chatMessagesForPrompt.length > 0) {
