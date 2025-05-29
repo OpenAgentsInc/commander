@@ -18,13 +18,14 @@ import { CODER_PANE_ID } from '@/stores/panes/constants';
 export interface CoderPaneProps {
   paneId: string; // The pane's ID
   sessionId?: string; // Passed from pane content
+  initialMessages?: any[]; // Passed from pane content
   titleBarButtonsRef?: { current: any; set: (value: any) => void }; // Ref to set title bar buttons and menus
 }
 
-const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSessionId, titleBarButtonsRef }) => {
+const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSessionId, initialMessages, titleBarButtonsRef }) => {
   // Only log on mount, not every render
   useEffect(() => {
-    console.log(`[coder_pa CoderPane] Mounted with paneId: ${paneId}, initialSessionId:`, initialSessionId);
+    console.log(`[coder_pa CoderPane] Mounted with paneId: ${paneId}, initialSessionId:`, initialSessionId, 'initialMessages:', initialMessages?.length || 0);
   }, []); // Empty deps = only on mount
   
   const runtime = getMainRuntime(); // For telemetry
@@ -40,7 +41,7 @@ const CoderPane: React.FC<CoderPaneProps> = ({ paneId, sessionId: initialSession
     sendMessage,
     loadMessagesForSession,
     clearMessagesAndSession
-  } = useCoderChat({ paneId, initialSessionId });
+  } = useCoderChat({ paneId, initialSessionId, initialMessages });
 
   // Auto-scroll hook - trigger on messages change
   const {
