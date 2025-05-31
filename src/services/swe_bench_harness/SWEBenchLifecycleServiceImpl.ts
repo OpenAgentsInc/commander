@@ -112,9 +112,10 @@ export const SWEBenchLifecycleServiceLive = Layer.effect(
             AttachStdout: false,
             AttachStderr: false,
             OpenStdin: false,
-            WorkingDir: containerEvalDir,
+            WorkingDir: "/swe_bench_workdir",
             HostConfig: {
               AutoRemove: false,
+              RestartPolicy: { Name: 'no' },
               Mounts: [{
                 Type: 'bind',
                 Source: hostEvalDir,
@@ -122,12 +123,15 @@ export const SWEBenchLifecycleServiceLive = Layer.effect(
                 ReadOnly: false
               }]
             },
-            // Keep container running
-            Cmd: ["tail", "-f", "/dev/null"]
+            // Override entrypoint and cmd to keep container running
+            Entrypoint: ["/bin/sh", "-c"],
+            Cmd: ["tail -f /dev/null"]
           };
 
           const containerId = yield* docker.createContainer(containerOptions);
           yield* docker.startContainer(containerId);
+          
+          console.log(`[Lifecycle] Container ${containerId} started with tail -f /dev/null`);
 
           const context: ContainerContext = {
             containerId,
@@ -190,11 +194,18 @@ export const SWEBenchLifecycleServiceLive = Layer.effect(
             );
 
             // Execute eval script in container
+            console.log(`[Lifecycle] Executing eval.sh in container ${containerContext.containerId}`);
             const execResult = yield* docker.execInContainer(
               containerContext.containerId,
               ["/bin/bash", path.join(containerContext.containerEvalDir, "eval.sh")],
               { WorkingDir: containerContext.containerRepoPath }
             );
+
+            // Log execution results for debugging
+            console.log(`[Lifecycle] Eval script execution results:`);
+            console.log(`  Exit code: ${execResult.exitCode}`);
+            console.log(`  Stdout: ${execResult.stdout.substring(0, 500)}...`);
+            console.log(`  Stderr: ${execResult.stderr.substring(0, 500)}...`);
 
             // Try to retrieve report.json from container
             const reportStream = yield* docker.copyFromContainer(

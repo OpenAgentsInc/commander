@@ -365,7 +365,7 @@ export const SWEBenchEnvironmentSetupServiceLive = Layer.effect(
 
           lines.push("# Final pytest installation to ensure it's available");
           lines.push("echo '=== Ensuring pytest is installed ==='");
-          lines.push("pip install pytest pytest-xvs || pip install pytest");
+          lines.push("pip install pytest || echo 'Warning: pytest installation failed'");
           lines.push("");
 
           lines.push("echo '=== Environment Setup Complete ==='");
