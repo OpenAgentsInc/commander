@@ -1,5 +1,6 @@
 import { Effect, Layer } from "effect";
 import { SWEBenchEvaluationScriptService } from "./SWEBenchEvaluationScriptService";
+import { SWEBenchEnvironmentSetupService } from "./SWEBenchEnvironmentSetupService";
 import type { SWEBenchTask } from "./types";
 import { ScriptBuildError } from "./errors";
 import { TelemetryService } from "@/services/telemetry";
@@ -8,6 +9,7 @@ export const SWEBenchEvaluationScriptServiceLive = Layer.effect(
   SWEBenchEvaluationScriptService,
   Effect.gen(function* () {
     const telemetry = yield* TelemetryService;
+    const envSetup = yield* SWEBenchEnvironmentSetupService;
 
     return SWEBenchEvaluationScriptService.of({
       buildEvalScript: (task, patchFileNameInContainer, containerEvalDir, containerRepoPath, testPatchFileNameInContainer) => 
@@ -17,12 +19,23 @@ export const SWEBenchEvaluationScriptServiceLive = Layer.effect(
             const patchPath = `${containerEvalDir}/${patchFileNameInContainer}`;
             const patchApplyCmd = `git apply -v --reverse ${patchPath} 2>/dev/null || git apply -v ${patchPath}`;
 
+            // Extract test targets from test patch if available
+            let testTargets: string[] = [];
+            if (task.test_patch) {
+              testTargets = yield* envSetup.extractTestTargets(task.test_patch);
+            }
+
             // Test execution command
-            // This is a simplified approach - real implementation would parse test_patch
-            let testCmd = `echo "Test execution placeholder for ${task.instance_id}" && python -m pytest`;
-            if (task.FAIL_TO_PASS && task.FAIL_TO_PASS.length > 0) {
-              // Naive approach: assume FAIL_TO_PASS contains pytest markers or file paths
-              testCmd = `python -m pytest ${task.FAIL_TO_PASS.join(" ")}`;
+            let testCmd = "";
+            if (testTargets.length > 0) {
+              // Use extracted test targets from test patch
+              testCmd = `python -m pytest -xvs ${testTargets.join(" ")}`;
+            } else if (task.FAIL_TO_PASS && task.FAIL_TO_PASS.length > 0) {
+              // Fall back to FAIL_TO_PASS list
+              testCmd = `python -m pytest -xvs ${task.FAIL_TO_PASS.join(" ")}`;
+            } else {
+              // Generic test command as last resort
+              testCmd = `echo "No specific tests identified for ${task.instance_id}" && python -m pytest -xvs`;
             }
 
             // Report generation

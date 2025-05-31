@@ -9,7 +9,8 @@ import {
   SWEBenchEvaluationScriptServiceLive,
   SWEBenchLifecycleServiceLive,
   SWEBenchHarnessServiceLive,
-  DockerBuildManagerServiceLive
+  DockerBuildManagerServiceLive,
+  SWEBenchEnvironmentSetupServiceLive
 } from "@/services/swe_bench_harness";
 
 // First provide the base ConfigurationService implementation
@@ -34,5 +35,6 @@ export const FullSWEBenchHarnessLayer = SWEBenchHarnessServiceLive.pipe(
   Layer.provide(SWEBenchEvaluationScriptServiceLive),
   Layer.provide(SWEBenchTaskServiceLive),
   Layer.provide(DockerBuildManagerServiceLive),
+  Layer.provide(SWEBenchEnvironmentSetupServiceLive),
   Layer.provide(BaseServicesLayer)
 );

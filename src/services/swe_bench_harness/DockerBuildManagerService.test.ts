@@ -4,6 +4,7 @@ import { Effect, Exit, Layer } from "effect";
 import { NodeFileSystem } from "@effect/platform-node";
 import { DockerBuildManagerService } from "./DockerBuildManagerService";
 import { DockerBuildManagerServiceLive } from "./DockerBuildManagerServiceImpl";
+import { SWEBenchEnvironmentSetupServiceTestImpl } from "./SWEBenchEnvironmentSetupServiceTestImpl";
 import { DockerBuildPrepError } from "./errors";
 import type { SWEBenchTask } from "./types";
 import { ConfigurationService, ConfigurationServiceLive } from "@/services/configuration";
@@ -40,7 +41,8 @@ describe("DockerBuildManagerService", () => {
     Layer.provide(TestConfigLayer),
     Layer.provide(TelemetryServiceLive),
     Layer.provide(DefaultTelemetryConfigLayer),
-    Layer.provide(NodeFileSystem.layer)
+    Layer.provide(NodeFileSystem.layer),
+    Layer.provide(SWEBenchEnvironmentSetupServiceTestImpl)
   );
 
   describe("prepareBuildContext", () => {
@@ -122,7 +124,8 @@ describe("DockerBuildManagerService", () => {
         Layer.provide(ErrorConfigLayer),
         Layer.provide(TelemetryServiceLive),
         Layer.provide(DefaultTelemetryConfigLayer),
-        Layer.provide(NodeFileSystem.layer)
+        Layer.provide(NodeFileSystem.layer),
+        Layer.provide(SWEBenchEnvironmentSetupServiceTestImpl)
       );
 
       const program = Effect.gen(function* (_) {
