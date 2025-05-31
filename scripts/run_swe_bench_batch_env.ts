@@ -16,8 +16,7 @@ interface BatchOptions {
   instance_ids?: string;
   max_tasks?: number;
   output_dir?: string;
-  use_gold_patch: boolean;
-  skip_if_no_patch: boolean;
+  patch_source: string;
   stop_on_failure: boolean;
 }
 
@@ -29,9 +28,7 @@ program
   .option('--instance_ids <ids>', 'Comma-separated list of instance IDs to run')
   .option('--max_tasks <N>', 'Maximum number of tasks to run', (val) => parseInt(val, 10))
   .option('--output_dir <path>', 'Directory to save evaluation results')
-  .option('--use_gold_patch', 'Use the gold patch from the task data', true)
-  .option('--no-use_gold_patch', 'Do not use the gold patch (run with empty patch)')
-  .option('--skip_if_no_patch', 'Skip tasks if no gold patch is available and --use_gold_patch is true', false)
+  .option('--patch_source <type>', 'Patch source type: gold, empty, or agent:<provider_key> (e.g., agent:claude_code)', 'gold')
   .option('--stop_on_failure', 'Stop batch execution on the first task failure', false);
 
 program.parse(process.argv);
@@ -113,32 +110,28 @@ async function runBatch() {
       // Load task details
       const task = await loadTask(options.tasks_dir, instanceId);
 
-      // Determine patch content
-      let patchContent = "";
-      if (options.use_gold_patch) {
-        if (task.patch) {
-          patchContent = task.patch;
-          console.log("✓ Using gold patch from task data");
-        } else {
-          if (options.skip_if_no_patch) {
-            console.log("⚠️  Skipping task: No gold patch available and --skip_if_no_patch is set");
-            tasksSkipped++;
-            results.push({ 
-              instanceId, 
-              result: { error: "Skipped: No gold patch available" } 
-            });
-            continue;
-          }
-          console.log("⚠️  Warning: No gold patch available, using empty patch");
-        }
+      // Parse patch source
+      let patchSource: any;
+      if (options.patch_source === "gold") {
+        patchSource = { type: "gold" };
+        console.log("✓ Using gold patch from task data");
+      } else if (options.patch_source === "empty") {
+        patchSource = { type: "empty" };
+        console.log("ℹ️  Using empty patch");
+      } else if (options.patch_source.startsWith("agent:")) {
+        const providerKey = options.patch_source.substring(6);
+        patchSource = { type: "agent_generated", providerKey };
+        console.log(`🤖 Using agent-generated patch from provider: ${providerKey}`);
       } else {
-        console.log("ℹ️  Using empty patch as per --no-use_gold_patch");
+        console.error(`❌ Invalid patch source: ${options.patch_source}`);
+        tasksFailed++;
+        continue;
       }
 
       // Create evaluation program
       const evaluationProgram = Effect.gen(function* (_) {
         const harness = yield* _(SWEBenchHarnessService);
-        return yield* _(harness.evaluateTask(instanceId, patchContent));
+        return yield* _(harness.evaluateTask(instanceId, patchSource));
       });
 
       // Run evaluation
@@ -152,7 +145,7 @@ async function runBatch() {
         
         console.log(`\n📊 Task Results:`);
         console.log(`   Resolved: ${resolved ? '✅ YES' : '❌ NO'}`);
-        console.log(`   Tests Run: ${evalResult.report.tests_run}`);
+        console.log(`   Patch Source: ${evalResult.patch_source_type}`);
         
         results.push({ instanceId, result: evalResult });
         
