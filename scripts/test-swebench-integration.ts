@@ -15,12 +15,13 @@ const testProgram = Effect.gen(function* (_) {
 
   yield* _(Console.log("🚀 SWE-Bench Harness Integration Test Starting..."));
 
-  const instanceId = "django__django-11099";
-  const patchContent = `--- a/django/core/cache/backends/memcached.py
-+++ b/django/core/cache/backends/memcached.py
-@@ -1,5 +1,5 @@
--"Memcached cache backend"
-+"Memcached cache backend."`;
+  const instanceId = "astropy__astropy-6938";
+  // Use a simple test patch for astropy
+  const patchContent = `--- a/astropy/io/fits/card.py
++++ b/astropy/io/fits/card.py
+@@ -1,4 +1,4 @@
+-# Licensed under a 3-clause BSD style license - see LICENSE.rst
++# Licensed under a 3-clause BSD style license - see LICENSE.rst.`;
 
   yield* _(Console.log(`Evaluating task: ${instanceId}`));
 
