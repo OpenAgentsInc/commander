@@ -55,7 +55,7 @@ describe('SWEBenchEvaluationScriptService', () => {
       if (Exit.isSuccess(result)) {
         const script = result.value;
         expect(script).toContain('#!/bin/bash');
-        expect(script).toContain('set -eo pipefail');
+        expect(script).toContain("# Don't use set -e because we need to continue even if tests fail");
         expect(script).toContain('Virtual environment: ${VIRTUAL_ENV}');
         expect(script).toContain('if [[ "$(which python)" != "${VIRTUAL_ENV}/bin/python" ]]');
         expect(script).toContain('cd "/container/eval/repo"');
