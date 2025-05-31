@@ -31,19 +31,17 @@ export const SWEBenchEvaluationScriptServiceLive = Layer.effect(
             const scriptContent = `#!/bin/bash
 set -eo pipefail # Exit on error, treat pipe failures as errors
 
-# Get conda environment name from Docker environment variable
-CONDA_ENV_NAME_FROM_DOCKER_ENV="\${CONDA_ENV_NAME}"
-echo "=== Activating Conda Environment from Docker ENV: \${CONDA_ENV_NAME_FROM_DOCKER_ENV} ==="
+# Virtual environment is already activated via PATH in Docker ENV
+echo "=== Verifying Python Environment ==="
+echo "Virtual environment: \${VIRTUAL_ENV}"
+echo "Current Python: \$(which python) - \$(python --version)"
+echo "Current pip: \$(which pip)"
 
-# Ensure conda is initialized for bash
-source /opt/miniconda/etc/profile.d/conda.sh
-conda activate "\${CONDA_ENV_NAME_FROM_DOCKER_ENV}"
-if [ $? -ne 0 ]; then
-  echo '{"error": "Conda activation failed in eval.sh"}' > ${reportFile}
+# Verify we're using the virtual environment's Python
+if [[ "\$(which python)" != "\${VIRTUAL_ENV}/bin/python" ]]; then
+  echo '{"error": "Virtual environment not properly activated"}' > ${reportFile}
   exit 1
 fi
-echo "Current Python: \$(which python) - \$(python --version)"
-echo "Conda environment: \$CONDA_PREFIX"
 
 echo "=== Navigating to Repository: ${containerRepoPath} ==="
 cd "${containerRepoPath}"
