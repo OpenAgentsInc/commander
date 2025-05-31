@@ -5,12 +5,13 @@
 When working with `Provider<AiLanguageModel>` from @effect/ai, direct method access fails:
 
 ```typescript
-const provider = yield* _(/* ... */);
+const provider = yield * _(/* ... */);
 // This doesn't work:
 provider.generateText({ prompt: "..." }); // Property 'generateText' does not exist
 ```
 
 ### Error Message
+
 ```
 Property 'generateText' does not exist on type 'Provider<AiLanguageModel | Tokenizer>'
 ```
@@ -21,7 +22,9 @@ The `Provider<T>` interface from @effect/ai doesn't expose service methods direc
 
 ```typescript
 interface Provider<Provides> {
-  readonly use: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Provides>>;
+  readonly use: <A, E, R>(
+    effect: Effect.Effect<A, E, R>,
+  ) => Effect.Effect<A, E, Exclude<R, Provides>>;
 }
 ```
 
@@ -90,13 +93,13 @@ streamText: (options: StreamTextOptions) =>
 ```typescript
 export const ProviderAgentLanguageModelLive = Effect.gen(function* (_) {
   // ... setup code to get provider ...
-  
+
   const provider = yield* _(
-    (aiModel as unknown) as Effect.Effect<
+    aiModel as unknown as Effect.Effect<
       Provider<AiLanguageModel | Tokenizer>,
       never,
       never
-    >
+    >,
   );
 
   return makeAgentLanguageModel({
@@ -104,14 +107,16 @@ export const ProviderAgentLanguageModelLive = Effect.gen(function* (_) {
       provider.use(
         Effect.gen(function* (_) {
           const languageModel = yield* _(AiLanguageModel);
-          return yield* _(languageModel.generateText({
-            prompt: options.prompt,
-            model: options.model,
-            temperature: options.temperature,
-            maxTokens: options.maxTokens,
-            stopSequences: options.stopSequences
-          }));
-        })
+          return yield* _(
+            languageModel.generateText({
+              prompt: options.prompt,
+              model: options.model,
+              temperature: options.temperature,
+              maxTokens: options.maxTokens,
+              stopSequences: options.stopSequences,
+            }),
+          );
+        }),
       ),
 
     streamText: (options: StreamTextOptions) =>
@@ -119,26 +124,30 @@ export const ProviderAgentLanguageModelLive = Effect.gen(function* (_) {
         provider.use(
           Effect.gen(function* (_) {
             const languageModel = yield* _(AiLanguageModel);
-            return languageModel.streamText({
-              prompt: options.prompt,
-              model: options.model,
-              temperature: options.temperature,
-              maxTokens: options.maxTokens,
-              signal: options.signal
-            }).pipe(
-              Stream.map((aiResponse) => new AiTextChunk({ text: aiResponse.text }))
-            );
-          })
-        )
+            return languageModel
+              .streamText({
+                prompt: options.prompt,
+                model: options.model,
+                temperature: options.temperature,
+                maxTokens: options.maxTokens,
+                signal: options.signal,
+              })
+              .pipe(
+                Stream.map(
+                  (aiResponse) => new AiTextChunk({ text: aiResponse.text }),
+                ),
+              );
+          }),
+        ),
       ),
 
     generateStructured: (options: GenerateStructuredOptions) =>
       Effect.fail(
         new AiProviderError({
           message: "generateStructured not supported",
-          isRetryable: false
-        })
-      )
+          isRetryable: false,
+        }),
+      ),
   });
 });
 ```
@@ -146,12 +155,14 @@ export const ProviderAgentLanguageModelLive = Effect.gen(function* (_) {
 ## Key Points for Stream vs Effect
 
 ### Effect Methods (generateText)
+
 - Return `Effect<AiResponse, Error, never>`
 - Use `provider.use()` directly
 - Wrap with error handling
 
-### Stream Methods (streamText)  
-- Return `Stream<AiResponse, Error, never>` 
+### Stream Methods (streamText)
+
+- Return `Stream<AiResponse, Error, never>`
 - Need `Stream.unwrap()` to extract from the Effect returned by `provider.use()`
 - Convert `AiResponse` to `AiTextChunk` if needed
 - Use `Stream.mapError()` for error handling
@@ -159,6 +170,7 @@ export const ProviderAgentLanguageModelLive = Effect.gen(function* (_) {
 ## When to Apply This Fix
 
 Apply this pattern when:
+
 1. Working with `Provider<AiLanguageModel>` from @effect/ai
 2. Getting "Property does not exist" errors on provider methods
 3. Implementing AgentLanguageModel wrappers around @effect/ai providers
@@ -170,36 +182,41 @@ Apply this pattern when:
 
 ```typescript
 generateText: (options: GenerateTextOptions) =>
-  provider.use(
-    Effect.gen(function* (_) {
-      const languageModel = yield* _(AiLanguageModel);
-      const effectAiResponse = yield* _(languageModel.generateText(options));
-      
-      // CRITICAL: Map @effect/ai AiResponse to your custom AiResponse
-      return AiResponse.fromSimple({
-        text: effectAiResponse.text,
-        toolCalls: effectAiResponse.toolCalls?.map(tc => ({
-          id: tc.id,
-          name: tc.name,
-          arguments: tc.params as Record<string, unknown>
-        })),
-        metadata: {
-          usage: {
-            promptTokens: 0,
-            completionTokens: effectAiResponse.text.length,
-            totalTokens: effectAiResponse.text.length
-          }
-        }
-      });
-    })
-  ).pipe(
-    Effect.mapError((error) => new AiProviderError({
-      message: `Provider error: ${error instanceof Error ? error.message : String(error)}`,
-      provider: "ProviderName",
-      isRetryable: true,
-      cause: error
-    }))
-  )
+  provider
+    .use(
+      Effect.gen(function* (_) {
+        const languageModel = yield* _(AiLanguageModel);
+        const effectAiResponse = yield* _(languageModel.generateText(options));
+
+        // CRITICAL: Map @effect/ai AiResponse to your custom AiResponse
+        return AiResponse.fromSimple({
+          text: effectAiResponse.text,
+          toolCalls: effectAiResponse.toolCalls?.map((tc) => ({
+            id: tc.id,
+            name: tc.name,
+            arguments: tc.params as Record<string, unknown>,
+          })),
+          metadata: {
+            usage: {
+              promptTokens: 0,
+              completionTokens: effectAiResponse.text.length,
+              totalTokens: effectAiResponse.text.length,
+            },
+          },
+        });
+      }),
+    )
+    .pipe(
+      Effect.mapError(
+        (error) =>
+          new AiProviderError({
+            message: `Provider error: ${error instanceof Error ? error.message : String(error)}`,
+            provider: "ProviderName",
+            isRetryable: true,
+            cause: error,
+          }),
+      ),
+    );
 ```
 
 Without this mapping, you'll get type errors because @effect/ai returns its own AiResponse type, not your application's AiResponse type.

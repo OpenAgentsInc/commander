@@ -4,145 +4,170 @@ Here are the specific instructions:
 
 **I. Complete `OllamaAsOpenAIClientLive.ts` Implementation (Highest Priority)**
 
-*   **File:** `src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts`
-*   **Error:** `(32,3): error TS2345: Argument of type 'Effect<{ client: { createChatCompletion: ... } }>' is not assignable to parameter of type 'Effect<Service, never, TelemetryService>'.`
-    *   **This error means the object being returned by `OllamaAsOpenAIClientLive`'s `Effect.gen` block does not fully match the `OpenAiClient.Service` interface from `@effect/ai-openai`.**
-*   **Action:**
-    1.  You've already started adding stubs for `Generated.Client` methods. **Continue adding stubs for ALL remaining methods listed in `node_modules/@effect/ai-openai/dist/dts/Generated.d.ts` under the `Client` interface.**
-        *   There are 96 methods in total. The log `1430-log.md` mentioned "missing 24 Generated.Client methods" after adding `listChatCompletions`, `getChatCompletion`, `updateChatCompletion`, `deleteChatCompletion`. This means you need to add stubs for the other ~70 methods related to assistants, files, fine-tuning, images, models, moderation, projects, users, threads, runs, uploads, vector stores, etc.
-        *   Use the `stubMethod(methodName: string)` helper you previously defined for this:
-            ```typescript
-            // Example stubs from Generated.d.ts to complete in OllamaAsOpenAIClientLive.ts
-            // client: {
-            //   createChatCompletion: (options) => { /* your IPC logic */ },
-            //   listChatCompletions: (_options: any) => stubMethod("listChatCompletions"),
-            //   getChatCompletion: (_chatCompletionId: string) => stubMethod("getChatCompletion"),
-            //   updateChatCompletion: (_chatCompletionId: string, _options: any) => stubMethod("updateChatCompletion"),
-            //   deleteChatCompletion: (_chatCompletionId: string) => stubMethod("deleteChatCompletion"),
+- **File:** `src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts`
+- **Error:** `(32,3): error TS2345: Argument of type 'Effect<{ client: { createChatCompletion: ... } }>' is not assignable to parameter of type 'Effect<Service, never, TelemetryService>'.`
+  - **This error means the object being returned by `OllamaAsOpenAIClientLive`'s `Effect.gen` block does not fully match the `OpenAiClient.Service` interface from `@effect/ai-openai`.**
+- **Action:**
 
-            //   // CONTINUE FROM HERE, ADDING ALL METHODS FROM Generated.Client
-            //   // Assistant methods
-            //   listAssistants: (_options: any) => stubMethod("listAssistants"),
-            //   createAssistant: (_options: any) => stubMethod("createAssistant"),
-            //   getAssistant: (_assistantId: string) => stubMethod("getAssistant"),
-            //   // ... and so on for ALL methods in Generated.Client
-            // }
-            ```
-    2.  **Verify the top-level `stream` and `streamRequest` methods on the service object returned by `OllamaAsOpenAIClientLive` are correctly implemented and typed** as per the `OpenAiClient.Service` interface. The current `stream` method looks okay; ensure `streamRequest` is also present (can be a stub similar to other `Generated.Client` methods if not used by Ollama integration).
+  1.  You've already started adding stubs for `Generated.Client` methods. **Continue adding stubs for ALL remaining methods listed in `node_modules/@effect/ai-openai/dist/dts/Generated.d.ts` under the `Client` interface.**
+
+      - There are 96 methods in total. The log `1430-log.md` mentioned "missing 24 Generated.Client methods" after adding `listChatCompletions`, `getChatCompletion`, `updateChatCompletion`, `deleteChatCompletion`. This means you need to add stubs for the other ~70 methods related to assistants, files, fine-tuning, images, models, moderation, projects, users, threads, runs, uploads, vector stores, etc.
+      - Use the `stubMethod(methodName: string)` helper you previously defined for this:
+
         ```typescript
-        // OllamaAsOpenAIClientLive's returned object should look like:
-        // return {
-        //   client: { /* all 96 methods from Generated.Client, mostly stubs */ },
-        //   stream: (params: StreamCompletionRequest) => { /* your IPC streaming logic */ },
-        //   streamRequest: <A>(_request: HttpClientRequest.HttpClientRequest) => Stream.fail(...) // Stub this one too
-        // };
+        // Example stubs from Generated.d.ts to complete in OllamaAsOpenAIClientLive.ts
+        // client: {
+        //   createChatCompletion: (options) => { /* your IPC logic */ },
+        //   listChatCompletions: (_options: any) => stubMethod("listChatCompletions"),
+        //   getChatCompletion: (_chatCompletionId: string) => stubMethod("getChatCompletion"),
+        //   updateChatCompletion: (_chatCompletionId: string, _options: any) => stubMethod("updateChatCompletion"),
+        //   deleteChatCompletion: (_chatCompletionId: string) => stubMethod("deleteChatCompletion"),
+
+        //   // CONTINUE FROM HERE, ADDING ALL METHODS FROM Generated.Client
+        //   // Assistant methods
+        //   listAssistants: (_options: any) => stubMethod("listAssistants"),
+        //   createAssistant: (_options: any) => stubMethod("createAssistant"),
+        //   getAssistant: (_assistantId: string) => stubMethod("getAssistant"),
+        //   // ... and so on for ALL methods in Generated.Client
+        // }
         ```
+
+  2.  **Verify the top-level `stream` and `streamRequest` methods on the service object returned by `OllamaAsOpenAIClientLive` are correctly implemented and typed** as per the `OpenAiClient.Service` interface. The current `stream` method looks okay; ensure `streamRequest` is also present (can be a stub similar to other `Generated.Client` methods if not used by Ollama integration).
+      ```typescript
+      // OllamaAsOpenAIClientLive's returned object should look like:
+      // return {
+      //   client: { /* all 96 methods from Generated.Client, mostly stubs */ },
+      //   stream: (params: StreamCompletionRequest) => { /* your IPC streaming logic */ },
+      //   streamRequest: <A>(_request: HttpClientRequest.HttpClientRequest) => Stream.fail(...) // Stub this one too
+      // };
+      ```
 
 ---
 
 **II. Test File Fixes: Mock Completeness**
 
 1.  **File: `src/tests/unit/services/ai/providers/openai/OpenAIAgentLanguageModelLive.test.ts`**
-    *   **Error 1:** `(51,5): error TS2345: Argument of type '{ _tag: string; }' is not assignable to parameter of type 'Service'. Type '{ _tag: string; }' is missing the following properties from type 'Service': client, streamRequest, stream`
-        *   **Fix:** The `mockOpenAiClient` instance needs to fully implement `OpenAiClient.Service`. Add the `client` property (an object with all `Generated.Client` methods mocked, e.g., with `vi.fn()`) and the `stream` and `streamRequest` methods (also `vi.fn()`).
-            ```typescript
-            // In OpenAIAgentLanguageModelLive.test.ts
-            const mockGeneratedClientMethods = { /* mock all 96 methods from Generated.Client with vi.fn() */ };
-            const mockOpenAiClient = {
-              _tag: "OpenAiClient", // This might not be needed if it's just an implementation
-              client: mockGeneratedClientMethods,
-              stream: vi.fn(() => Stream.empty), // Mock stream method
-              streamRequest: vi.fn(() => Stream.empty) // Mock streamRequest method
-            };
-            const TestOpenAiClientLayer = Layer.succeed(OpenAiClient.OpenAiClient, mockOpenAiClient as any); // Cast as any if full mock is too verbose for now
-            ```
-    *   **Error 2:** `(56,5): error TS2345: Argument of type '{ get: Mock<...>; }' is not assignable to parameter of type 'ConfigurationService'. Type '{ get: Mock<...>; }' is missing ...: getSecret, set, delete`
-        *   **Fix:** Complete the `mockConfigService` implementation:
-            ```typescript
-            const mockConfigService = {
-              get: vi.fn((key: string) => Effect.succeed("gpt-4")),
-              getSecret: vi.fn((key: string) => Effect.succeed("mock-secret")),
-              set: vi.fn((key: string, value: string) => Effect.void),
-              delete: vi.fn((key: string) => Effect.void)
-            };
-            ```
-    *   **Error 3:** `(61,5): error TS2345: Argument of type '{ trackEvent: Mock<...>; isEnabled: Mock<...>; }' is not assignable to parameter of type 'TelemetryService'. Property 'setEnabled' is missing...`
-        *   **Fix:** Complete the `mockTelemetry` implementation:
-            ```typescript
-            const mockTelemetry = {
-              trackEvent: vi.fn(() => Effect.void),
-              isEnabled: vi.fn(() => Effect.succeed(true)),
-              setEnabled: vi.fn((enabled: boolean) => Effect.void) // Add missing method
-            };
-            ```
+    - **Error 1:** `(51,5): error TS2345: Argument of type '{ _tag: string; }' is not assignable to parameter of type 'Service'. Type '{ _tag: string; }' is missing the following properties from type 'Service': client, streamRequest, stream`
+      - **Fix:** The `mockOpenAiClient` instance needs to fully implement `OpenAiClient.Service`. Add the `client` property (an object with all `Generated.Client` methods mocked, e.g., with `vi.fn()`) and the `stream` and `streamRequest` methods (also `vi.fn()`).
+        ```typescript
+        // In OpenAIAgentLanguageModelLive.test.ts
+        const mockGeneratedClientMethods = {
+          /* mock all 96 methods from Generated.Client with vi.fn() */
+        };
+        const mockOpenAiClient = {
+          _tag: "OpenAiClient", // This might not be needed if it's just an implementation
+          client: mockGeneratedClientMethods,
+          stream: vi.fn(() => Stream.empty), // Mock stream method
+          streamRequest: vi.fn(() => Stream.empty), // Mock streamRequest method
+        };
+        const TestOpenAiClientLayer = Layer.succeed(
+          OpenAiClient.OpenAiClient,
+          mockOpenAiClient as any,
+        ); // Cast as any if full mock is too verbose for now
+        ```
+    - **Error 2:** `(56,5): error TS2345: Argument of type '{ get: Mock<...>; }' is not assignable to parameter of type 'ConfigurationService'. Type '{ get: Mock<...>; }' is missing ...: getSecret, set, delete`
+      - **Fix:** Complete the `mockConfigService` implementation:
+        ```typescript
+        const mockConfigService = {
+          get: vi.fn((key: string) => Effect.succeed("gpt-4")),
+          getSecret: vi.fn((key: string) => Effect.succeed("mock-secret")),
+          set: vi.fn((key: string, value: string) => Effect.void),
+          delete: vi.fn((key: string) => Effect.void),
+        };
+        ```
+    - **Error 3:** `(61,5): error TS2345: Argument of type '{ trackEvent: Mock<...>; isEnabled: Mock<...>; }' is not assignable to parameter of type 'TelemetryService'. Property 'setEnabled' is missing...`
+      - **Fix:** Complete the `mockTelemetry` implementation:
+        ```typescript
+        const mockTelemetry = {
+          trackEvent: vi.fn(() => Effect.void),
+          isEnabled: vi.fn(() => Effect.succeed(true)),
+          setEnabled: vi.fn((enabled: boolean) => Effect.void), // Add missing method
+        };
+        ```
 
 ---
 
 **III. Test File Fixes: Error Types and Property Access**
 
 1.  **File: `src/tests/unit/services/ai/core/AIError.test.ts`**
-    *   **Error 1 (`TS2353` for `context` on `AiContentPolicyError` line 205):**
-        *   **Fix:** In `src/services/ai/core/AiError.ts`, add `readonly context?: Record<string, any>;` to the props of `AiContentPolicyError`.
-            ```typescript
-            // src/services/ai/core/AiError.ts
-            export class AiContentPolicyError extends Data.TaggedError("AiContentPolicyError")<{
-              // ... existing props
-              readonly context?: Record<string, any>; // ADD THIS
-            }> {}
-            ```
-    *   **Error 2 (`TS2339 error.context` line 216):** This should be fixed by the above.
+
+    - **Error 1 (`TS2353` for `context` on `AiContentPolicyError` line 205):**
+      - **Fix:** In `src/services/ai/core/AiError.ts`, add `readonly context?: Record<string, any>;` to the props of `AiContentPolicyError`.
+        ```typescript
+        // src/services/ai/core/AiError.ts
+        export class AiContentPolicyError extends Data.TaggedError(
+          "AiContentPolicyError",
+        )<{
+          // ... existing props
+          readonly context?: Record<string, any>; // ADD THIS
+        }> {}
+        ```
+    - **Error 2 (`TS2339 error.context` line 216):** This should be fixed by the above.
 
 2.  **File: `src/tests/unit/services/ai/providers/openai/OpenAIAgentLanguageModelLive.test.ts`**
-    *   **Error (`TS2551: Property 'total_tokens' does not exist on type '{ promptTokens: number; ... Did you mean 'totalTokens'?` line 89):**
-        *   **Fix:** In the test, when asserting `result.metadata?.usage?.total_tokens`, change it to `result.metadata?.usage?.totalTokens`. Also, ensure the mock `generateText` in this test file returns `usage: { totalTokens: ..., promptTokens: ..., completionTokens: ... }`.
+    - **Error (`TS2551: Property 'total_tokens' does not exist on type '{ promptTokens: number; ... Did you mean 'totalTokens'?` line 89):**
+      - **Fix:** In the test, when asserting `result.metadata?.usage?.total_tokens`, change it to `result.metadata?.usage?.totalTokens`. Also, ensure the mock `generateText` in this test file returns `usage: { totalTokens: ..., promptTokens: ..., completionTokens: ... }`.
 
 ---
 
 **IV. Test File Fixes: `Effect.provide` and `R = never`**
 
-*   **Files:**
-    *   `src/tests/unit/services/ai/providers/ollama/OllamaAgentLanguageModelLive.test.ts` (Line 213, 216)
-    *   `src/tests/unit/services/ai/providers/openai/OpenAIAgentLanguageModelLive.test.ts` (Lines 84, 109, 147, 174)
-*   **Action:**
-    1.  Ensure all test programs (`const program = Effect.gen(...)` or `Effect.flatMap(...)`) are piped with `Effect.provide(TestSUTLayer)` before being passed to `Effect.runPromise` or `Effect.runPromiseExit`.
-    2.  The `TestSUTLayer` (e.g., `OllamaProvider.OllamaAgentLanguageModelLiveLayer.pipe(Layer.provide(DependenciesLayer))`) must itself have all its input requirements (`RIn`) satisfied (i.e., its `RIn` should be `never`). This means `DependenciesLayer` must provide everything `OllamaAgentLanguageModelLiveLayer` needs.
-    *   **Example (Ollama Test):**
-        ```typescript
-        // In OllamaAgentLanguageModelLive.test.ts
-        const MockOllamaOpenAIClientLayer = Layer.succeed(OllamaOpenAIClientTag, mockFullOpenAiClientImpl); // mockFullOpenAiClientImpl is the complete mock
-        const MockConfigurationServiceLayer = Layer.succeed(ConfigurationService, mockFullConfigServiceImpl);
-        const MockTelemetryServiceLayer = Layer.succeed(TelemetryService, mockFullTelemetryServiceImpl);
+- **Files:**
+  - `src/tests/unit/services/ai/providers/ollama/OllamaAgentLanguageModelLive.test.ts` (Line 213, 216)
+  - `src/tests/unit/services/ai/providers/openai/OpenAIAgentLanguageModelLive.test.ts` (Lines 84, 109, 147, 174)
+- **Action:**
 
-        const DependenciesLayer = Layer.mergeAll(
-          MockOllamaOpenAIClientLayer,
-          MockConfigurationServiceLayer,
-          MockTelemetryServiceLayer
-          // MockHttpClient might be needed if OllamaAsOpenAIClientLive has it as direct dep
-        );
-        const TestSUTLayer = OllamaProvider.OllamaAgentLanguageModelLiveLayer.pipe(
-          Layer.provide(DependenciesLayer)
-        );
+  1.  Ensure all test programs (`const program = Effect.gen(...)` or `Effect.flatMap(...)`) are piped with `Effect.provide(TestSUTLayer)` before being passed to `Effect.runPromise` or `Effect.runPromiseExit`.
+  2.  The `TestSUTLayer` (e.g., `OllamaProvider.OllamaAgentLanguageModelLiveLayer.pipe(Layer.provide(DependenciesLayer))`) must itself have all its input requirements (`RIn`) satisfied (i.e., its `RIn` should be `never`). This means `DependenciesLayer` must provide everything `OllamaAgentLanguageModelLiveLayer` needs.
 
-        // In test:
-        // const result = await Effect.runPromise(program.pipe(Effect.provide(TestSUTLayer)));
-        ```
-    *   This pattern ensures that by the time `program.pipe(Effect.provide(TestSUTLayer))` is evaluated, the resulting effect has `R = never`.
+  - **Example (Ollama Test):**
+
+    ```typescript
+    // In OllamaAgentLanguageModelLive.test.ts
+    const MockOllamaOpenAIClientLayer = Layer.succeed(
+      OllamaOpenAIClientTag,
+      mockFullOpenAiClientImpl,
+    ); // mockFullOpenAiClientImpl is the complete mock
+    const MockConfigurationServiceLayer = Layer.succeed(
+      ConfigurationService,
+      mockFullConfigServiceImpl,
+    );
+    const MockTelemetryServiceLayer = Layer.succeed(
+      TelemetryService,
+      mockFullTelemetryServiceImpl,
+    );
+
+    const DependenciesLayer = Layer.mergeAll(
+      MockOllamaOpenAIClientLayer,
+      MockConfigurationServiceLayer,
+      MockTelemetryServiceLayer,
+      // MockHttpClient might be needed if OllamaAsOpenAIClientLive has it as direct dep
+    );
+    const TestSUTLayer = OllamaProvider.OllamaAgentLanguageModelLiveLayer.pipe(
+      Layer.provide(DependenciesLayer),
+    );
+
+    // In test:
+    // const result = await Effect.runPromise(program.pipe(Effect.provide(TestSUTLayer)));
+    ```
+
+  - This pattern ensures that by the time `program.pipe(Effect.provide(TestSUTLayer))` is evaluated, the resulting effect has `R = never`.
 
 ---
 
 **V. Minor Remaining Test Fixes**
 
 1.  **File: `src/tests/unit/services/ai/core/AgentLanguageModel.test.ts`**
-    *   **Error (`TS2300 Duplicate AiError` lines 3, 11):**
-        *   **Fix:** Alias the import from the library: `import { AiError as EffectLibAiError } from "@effect/ai/AiError";` (or `@effect/ai` if it's a top-level export there). Then use `EffectLibAiError` when referring to the library's error type.
-    *   **Error (`TS2353 'message' does not exist...` for `MockAiError` line 25):**
-        *   **Fix:** `MockAiError` should be defined as `class MockAiError extends Data.TaggedError("MockAiErrorTag")<{ message: string; cause?: unknown; /* other needed test props */ }> {}`. Then instantiate with `new MockAiError({ message: "..." })`.
+    - **Error (`TS2300 Duplicate AiError` lines 3, 11):**
+      - **Fix:** Alias the import from the library: `import { AiError as EffectLibAiError } from "@effect/ai/AiError";` (or `@effect/ai` if it's a top-level export there). Then use `EffectLibAiError` when referring to the library's error type.
+    - **Error (`TS2353 'message' does not exist...` for `MockAiError` line 25):**
+      - **Fix:** `MockAiError` should be defined as `class MockAiError extends Data.TaggedError("MockAiErrorTag")<{ message: string; cause?: unknown; /* other needed test props */ }> {}`. Then instantiate with `new MockAiError({ message: "..." })`.
 
 ---
 
 After these steps, the error count should be very low. Any remaining errors will likely be very specific and can be addressed individually by carefully checking type signatures and Effect-TS patterns. The most labor-intensive part here is completing the `Generated.Client` stubs for `OllamaAsOpenAIClientLive.ts`.
 
-```
+````
 Okay, Agent, we are down to **39 errors**. This is excellent. The main remaining categories are:
 
 1.  **`OllamaAsOpenAIClientLive.ts`**: Still needs all `Generated.Client` methods stubbed out (currently has 24 missing, was 28 initially, so 4 were added or the count was off).
@@ -304,17 +329,33 @@ By completing the `OllamaAsOpenAIClientLive` stubs and ensuring all test mocks a
 
 After this, run `pnpm t` and then `pnpm test` to see where we stand.
 
-```
+````
 
 ```json
 [
-  {"command": "Replace in `src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts`: Stub out all remaining 24 methods from `Generated.Client` in the `client` object. Use the existing `stubMethod` helper. Ensure the top-level `streamRequest` method is also present and stubbed if not implemented. Reference `node_modules/@effect/ai-openai/dist/dts/Generated.d.ts` for the full `Client` interface."},
-  {"command": "Replace in `src/tests/unit/services/ai/providers/openai/OpenAIAgentLanguageModelLive.test.ts`: Complete the `mockOpenAiClient` to fully implement `OpenAiClient.Service`, including a `client` property with all `Generated.Client` methods mocked (e.g., as `vi.fn()`) and top-level `stream` and `streamRequest` methods (also `vi.fn()`)."},
-  {"command": "Replace in `src/tests/unit/services/ai/providers/openai/OpenAIAgentLanguageModelLive.test.ts`: Complete the `mockConfigService` to implement all methods of `ConfigurationService` (`getSecret`, `set`, `delete`) as `vi.fn()` returning appropriate Effect types (e.g., `Effect.succeed(\"mock-secret\")`, `Effect.void`)."},
-  {"command": "Replace in `src/tests/unit/services/ai/providers/openai/OpenAIAgentLanguageModelLive.test.ts`: Complete the `mockTelemetry` service to implement the `setEnabled` method as `vi.fn((enabled: boolean) => Effect.void)`."},
-  {"command": "Replace in `src/tests/unit/services/ai/providers/ollama/OllamaAgentLanguageModelLive.test.ts` (and similar test files like `OpenAIAgentLanguageModelLive.test.ts`): Refactor test layer setup to ensure `R=never`. Define a `DependenciesLayer` using `Layer.mergeAll` for all direct mocks. Then, define `TestSUTLayer = YourProviderAgentLanguageModelLiveLayer.pipe(Layer.provide(DependenciesLayer))`. Use `program.pipe(Effect.provide(TestSUTLayer))` for running test effects."},
-  {"command": "Replace in `src/tests/unit/services/ai/core/AgentLanguageModel.test.ts`: For `MockAiError`, ensure it extends `Data.TaggedError(\"MockAiErrorTag\")<{ message: string; cause?: unknown; }>` and remove manual `this._tag` assignment. Access `_tag` on instances: `expect(errorInstance._tag).toBe(\"MockAiErrorTag\");`."},
-  {"command": "Replace in `src/tests/unit/services/ai/providers/openai/OpenAIAgentLanguageModelLive.test.ts`: In the mock for `generateText`, change `usage: { total_tokens: ... }` to `usage: { totalTokens: ..., promptTokens: ..., completionTokens: ... }`. Update assertions to `result.metadata?.usage?.totalTokens`."},
-  {"command": "Replace in `src/tests/unit/services/ai/providers/openai/OpenAIAgentLanguageModelLive.test.ts`: When mocking failures for `mockOpenAiModel.generateText` or `streamText`, ensure they fail with `new AiProviderError({ message: \"...\", provider: \"OpenAI\", isRetryable: false })` instead of generic `Error`."}
+  {
+    "command": "Replace in `src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts`: Stub out all remaining 24 methods from `Generated.Client` in the `client` object. Use the existing `stubMethod` helper. Ensure the top-level `streamRequest` method is also present and stubbed if not implemented. Reference `node_modules/@effect/ai-openai/dist/dts/Generated.d.ts` for the full `Client` interface."
+  },
+  {
+    "command": "Replace in `src/tests/unit/services/ai/providers/openai/OpenAIAgentLanguageModelLive.test.ts`: Complete the `mockOpenAiClient` to fully implement `OpenAiClient.Service`, including a `client` property with all `Generated.Client` methods mocked (e.g., as `vi.fn()`) and top-level `stream` and `streamRequest` methods (also `vi.fn()`)."
+  },
+  {
+    "command": "Replace in `src/tests/unit/services/ai/providers/openai/OpenAIAgentLanguageModelLive.test.ts`: Complete the `mockConfigService` to implement all methods of `ConfigurationService` (`getSecret`, `set`, `delete`) as `vi.fn()` returning appropriate Effect types (e.g., `Effect.succeed(\"mock-secret\")`, `Effect.void`)."
+  },
+  {
+    "command": "Replace in `src/tests/unit/services/ai/providers/openai/OpenAIAgentLanguageModelLive.test.ts`: Complete the `mockTelemetry` service to implement the `setEnabled` method as `vi.fn((enabled: boolean) => Effect.void)`."
+  },
+  {
+    "command": "Replace in `src/tests/unit/services/ai/providers/ollama/OllamaAgentLanguageModelLive.test.ts` (and similar test files like `OpenAIAgentLanguageModelLive.test.ts`): Refactor test layer setup to ensure `R=never`. Define a `DependenciesLayer` using `Layer.mergeAll` for all direct mocks. Then, define `TestSUTLayer = YourProviderAgentLanguageModelLiveLayer.pipe(Layer.provide(DependenciesLayer))`. Use `program.pipe(Effect.provide(TestSUTLayer))` for running test effects."
+  },
+  {
+    "command": "Replace in `src/tests/unit/services/ai/core/AgentLanguageModel.test.ts`: For `MockAiError`, ensure it extends `Data.TaggedError(\"MockAiErrorTag\")<{ message: string; cause?: unknown; }>` and remove manual `this._tag` assignment. Access `_tag` on instances: `expect(errorInstance._tag).toBe(\"MockAiErrorTag\");`."
+  },
+  {
+    "command": "Replace in `src/tests/unit/services/ai/providers/openai/OpenAIAgentLanguageModelLive.test.ts`: In the mock for `generateText`, change `usage: { total_tokens: ... }` to `usage: { totalTokens: ..., promptTokens: ..., completionTokens: ... }`. Update assertions to `result.metadata?.usage?.totalTokens`."
+  },
+  {
+    "command": "Replace in `src/tests/unit/services/ai/providers/openai/OpenAIAgentLanguageModelLive.test.ts`: When mocking failures for `mockOpenAiModel.generateText` or `streamText`, ensure they fail with `new AiProviderError({ message: \"...\", provider: \"OpenAI\", isRetryable: false })` instead of generic `Error`."
+  }
 ]
 ```

@@ -5,11 +5,13 @@
 When implementing custom language model services that wrap @effect/ai providers, you need to convert between @effect/ai's AiResponse type and your application's AiResponse type. Direct constructor calls fail because the types have different structures and requirements.
 
 ### Error Message
+
 ```
 Type 'AiResponse' is missing the following properties from type 'AiResponse': toolCalls, metadata
 ```
 
 Or:
+
 ```
 Object literal may only specify known properties, and 'text' does not exist in type '{ readonly parts: readonly (TextPart | ReasoningPart | ...) }'
 ```
@@ -26,14 +28,14 @@ new AiResponse({
 })
 
 // ✅ New pattern (required)
-new AiResponse({ 
+new AiResponse({
   parts: [
     new TextPart({ text: "Generated text", annotations: [] }),
-    new FinishPart({ 
+    new FinishPart({
       usage: new Usage({ totalTokens: 100, ... }),
-      reason: "stop" 
+      reason: "stop"
     })
-  ] 
+  ]
 })
 ```
 
@@ -46,41 +48,65 @@ Additionally, when extending @effect/ai's AiResponse for application use, you ne
 Create your custom AiResponse by extending @effect/ai's base class and adding convenience methods:
 
 ```typescript
-import { AiResponse as EffectAiResponse, TypeId as EffectAiResponseTypeId, TextPart, FinishPart, Usage } from "@effect/ai/AiResponse";
+import {
+  AiResponse as EffectAiResponse,
+  TypeId as EffectAiResponseTypeId,
+  TextPart,
+  FinishPart,
+  Usage,
+} from "@effect/ai/AiResponse";
 
 export class AiResponse extends EffectAiResponse {
-  readonly [EffectAiResponseTypeId]: typeof EffectAiResponseTypeId = EffectAiResponseTypeId;
+  readonly [EffectAiResponseTypeId]: typeof EffectAiResponseTypeId =
+    EffectAiResponseTypeId;
 
   // Convenience getters for backward compatibility
   get text(): string {
     return this.parts
       .filter((part): part is typeof TextPart.Type => part._tag === "TextPart")
-      .map(part => part.text)
+      .map((part) => part.text)
       .join("");
   }
 
-  get toolCalls(): Array<{id: string; name: string; arguments: Record<string, unknown>}> {
+  get toolCalls(): Array<{
+    id: string;
+    name: string;
+    arguments: Record<string, unknown>;
+  }> {
     return this.parts
-      .filter((part): part is typeof ToolCallPart.Type => part._tag === "ToolCallPart")
-      .map(part => ({
+      .filter(
+        (part): part is typeof ToolCallPart.Type =>
+          part._tag === "ToolCallPart",
+      )
+      .map((part) => ({
         id: part.id,
         name: part.name,
-        arguments: part.params as Record<string, unknown>
+        arguments: part.params as Record<string, unknown>,
       }));
   }
 
   // Factory method for easy construction
   static fromSimple(props: {
     text: string;
-    toolCalls?: Array<{id: string; name: string; arguments: Record<string, unknown>}>;
-    metadata?: {usage?: {promptTokens: number; completionTokens: number; totalTokens: number}};
+    toolCalls?: Array<{
+      id: string;
+      name: string;
+      arguments: Record<string, unknown>;
+    }>;
+    metadata?: {
+      usage?: {
+        promptTokens: number;
+        completionTokens: number;
+        totalTokens: number;
+      };
+    };
   }): AiResponse {
     const parts: any[] = [];
-    
+
     if (props.text) {
       parts.push(new TextPart({ text: props.text, annotations: [] }));
     }
-    
+
     if (props.toolCalls) {
       for (const toolCall of props.toolCalls) {
         parts.push({
@@ -88,24 +114,26 @@ export class AiResponse extends EffectAiResponse {
           [PartTypeId]: PartTypeId,
           id: toolCall.id,
           name: toolCall.name,
-          params: toolCall.arguments
+          params: toolCall.arguments,
         });
       }
     }
-    
-    parts.push(new FinishPart({
-      reason: "unknown" as FinishReason,
-      usage: new Usage({
-        inputTokens: props.metadata?.usage?.promptTokens || 0,
-        outputTokens: props.metadata?.usage?.completionTokens || 0,
-        totalTokens: props.metadata?.usage?.totalTokens || 0,
-        reasoningTokens: 0,
-        cacheReadInputTokens: 0,
-        cacheWriteInputTokens: 0
+
+    parts.push(
+      new FinishPart({
+        reason: "unknown" as FinishReason,
+        usage: new Usage({
+          inputTokens: props.metadata?.usage?.promptTokens || 0,
+          outputTokens: props.metadata?.usage?.completionTokens || 0,
+          totalTokens: props.metadata?.usage?.totalTokens || 0,
+          reasoningTokens: 0,
+          cacheReadInputTokens: 0,
+          cacheWriteInputTokens: 0,
+        }),
+        providerMetadata: {},
       }),
-      providerMetadata: {}
-    }));
-    
+    );
+
     return new AiResponse({ parts });
   }
 }
@@ -127,7 +155,7 @@ generateText: (options: GenerateTextOptions) =>
         maxTokens: options.maxTokens,
         stopSequences: options.stopSequences
       }));
-      
+
       // Map @effect/ai AiResponse to your custom AiResponse
       return AiResponse.fromSimple({
         text: effectAiResponse.text,
@@ -187,20 +215,29 @@ If you have interface mismatches (AiTextChunk vs AiResponse), update to use AiRe
 ```typescript
 // ❌ Before: Mixed types
 export interface AgentLanguageModel {
-  generateText(options: GenerateTextOptions): Effect.Effect<AiResponse, AiProviderError, never>;
-  streamText(options: StreamTextOptions): Stream.Stream<AiTextChunk, AiProviderError, never>; // Inconsistent
+  generateText(
+    options: GenerateTextOptions,
+  ): Effect.Effect<AiResponse, AiProviderError, never>;
+  streamText(
+    options: StreamTextOptions,
+  ): Stream.Stream<AiTextChunk, AiProviderError, never>; // Inconsistent
 }
 
 // ✅ After: Consistent types
 export interface AgentLanguageModel {
-  generateText(options: GenerateTextOptions): Effect.Effect<AiResponse, AiProviderError, never>;
-  streamText(options: StreamTextOptions): Stream.Stream<AiResponse, AiProviderError, never>; // Consistent
+  generateText(
+    options: GenerateTextOptions,
+  ): Effect.Effect<AiResponse, AiProviderError, never>;
+  streamText(
+    options: StreamTextOptions,
+  ): Stream.Stream<AiResponse, AiProviderError, never>; // Consistent
 }
 ```
 
 ## Complete Migration Example
 
 ### Before: Direct Constructor (Broken)
+
 ```typescript
 const createAiResponse = (text: string): AiResponse => {
   return new AiResponse({
@@ -209,14 +246,15 @@ const createAiResponse = (text: string): AiResponse => {
       usage: {
         promptTokens: 0,
         completionTokens: text.length,
-        totalTokens: text.length
-      }
-    }
+        totalTokens: text.length,
+      },
+    },
   });
 };
 ```
 
 ### After: Factory Method (Working)
+
 ```typescript
 const createAiResponse = (text: string): AiResponse => {
   return AiResponse.fromSimple({
@@ -225,9 +263,9 @@ const createAiResponse = (text: string): AiResponse => {
       usage: {
         promptTokens: 0,
         completionTokens: text.length,
-        totalTokens: text.length
-      }
-    }
+        totalTokens: text.length,
+      },
+    },
   });
 };
 ```
@@ -243,6 +281,7 @@ const createAiResponse = (text: string): AiResponse => {
 ## When to Apply This Pattern
 
 Apply this pattern when:
+
 1. Upgrading @effect/ai and seeing AiResponse constructor errors
 2. Building custom language model services that wrap @effect/ai providers
 3. Converting between different response types in streaming vs non-streaming contexts
@@ -254,7 +293,7 @@ Apply this pattern when:
 When migrating existing code:
 
 1. **✅ Update AiResponse class**: Extend @effect/ai's AiResponse instead of Data.TaggedClass
-2. **✅ Add factory method**: Create `fromSimple()` for backward compatibility  
+2. **✅ Add factory method**: Create `fromSimple()` for backward compatibility
 3. **✅ Find constructor calls**: Use `grep "new AiResponse\(\{.*text:"` to find old patterns
 4. **✅ Update constructors**: Replace with `AiResponse.fromSimple()` calls
 5. **✅ Update interfaces**: Use AiResponse consistently instead of mixing with AiTextChunk

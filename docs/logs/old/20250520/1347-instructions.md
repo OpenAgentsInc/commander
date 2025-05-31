@@ -414,17 +414,15 @@ Okay, Agent, the next phase is to implement the core logic for the `Kind5050DVMS
           );
 
           const ollamaResult = yield* _(
-            ollama
-              .generateChatCompletion(ollamaRequest)
-              .pipe(
-                Effect.mapError(
-                  (e) =>
-                    new DVMJobProcessingError({
-                      message: "Ollama inference failed",
-                      cause: e,
-                    }),
-                ),
+            ollama.generateChatCompletion(ollamaRequest).pipe(
+              Effect.mapError(
+                (e) =>
+                  new DVMJobProcessingError({
+                    message: "Ollama inference failed",
+                    cause: e,
+                  }),
               ),
+            ),
           );
           const ollamaOutput = ollamaResult.choices[0]?.message.content || "";
           const usage = ollamaResult.usage || {
@@ -485,17 +483,15 @@ Okay, Agent, the next phase is to implement the core logic for the `Kind5050DVMS
             isRequestEncrypted,
           );
           yield* _(
-            nostr
-              .publishEvent(jobResultEvent)
-              .pipe(
-                Effect.mapError(
-                  (e) =>
-                    new DVMJobProcessingError({
-                      message: "Failed to publish job result event",
-                      cause: e,
-                    }),
-                ),
+            nostr.publishEvent(jobResultEvent).pipe(
+              Effect.mapError(
+                (e) =>
+                  new DVMJobProcessingError({
+                    message: "Failed to publish job result event",
+                    cause: e,
+                  }),
               ),
+            ),
           );
 
           const successFeedback = createNip90FeedbackEvent(
@@ -1256,17 +1252,15 @@ We'll also integrate this service with the "Go Online" / "Go Offline" button in 
           );
 
           const ollamaResult = yield* _(
-            ollama
-              .generateChatCompletion(ollamaRequest)
-              .pipe(
-                Effect.mapError(
-                  (e) =>
-                    new DVMJobProcessingError({
-                      message: "Ollama inference failed",
-                      cause: e,
-                    }),
-                ),
+            ollama.generateChatCompletion(ollamaRequest).pipe(
+              Effect.mapError(
+                (e) =>
+                  new DVMJobProcessingError({
+                    message: "Ollama inference failed",
+                    cause: e,
+                  }),
               ),
+            ),
           );
           const ollamaOutput = ollamaResult.choices[0]?.message.content || "";
           const usage = ollamaResult.usage || {
@@ -1327,17 +1321,15 @@ We'll also integrate this service with the "Go Online" / "Go Offline" button in 
             isRequestEncrypted,
           );
           yield* _(
-            nostr
-              .publishEvent(jobResultEvent)
-              .pipe(
-                Effect.mapError(
-                  (e) =>
-                    new DVMJobProcessingError({
-                      message: "Failed to publish job result event",
-                      cause: e,
-                    }),
-                ),
+            nostr.publishEvent(jobResultEvent).pipe(
+              Effect.mapError(
+                (e) =>
+                  new DVMJobProcessingError({
+                    message: "Failed to publish job result event",
+                    cause: e,
+                  }),
               ),
+            ),
           );
 
           const successFeedback = createNip90FeedbackEvent(

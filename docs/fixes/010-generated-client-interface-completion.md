@@ -1,18 +1,22 @@
 # Fix 010: Generated.Client Interface Completion Pattern
 
 ## Problem
+
 When implementing adapters for @effect/ai-openai's `OpenAiClient.Service`, incomplete method implementations in the `Generated.Client` interface cause TypeScript errors about missing properties.
 
 ### Error Message
+
 ```typescript
 error TS2345: Types of property 'client' are incompatible.
-  Type '{ createChatCompletion: ...; /* ... */ }' is missing the following properties from type 'Client': 
-  "getChatCompletionMessages", "listFineTuningCheckpointPermissions", "createFineTuningCheckpointPermission", 
+  Type '{ createChatCompletion: ...; /* ... */ }' is missing the following properties from type 'Client':
+  "getChatCompletionMessages", "listFineTuningCheckpointPermissions", "createFineTuningCheckpointPermission",
   "deleteFineTuningCheckpointPermission", and 24 more.
 ```
 
 ## Root Cause
+
 The `@effect/ai-openai` library defines a comprehensive `Generated.Client` interface with 96+ methods covering:
+
 - Chat completions, assistants, audio, batches, files, fine-tuning
 - Images, models, moderation, admin APIs, audit logs, usage tracking
 - Invites, projects, users, threads, messages, runs, uploads, vector stores
@@ -21,9 +25,11 @@ The `@effect/ai-openai` library defines a comprehensive `Generated.Client` inter
 When implementing custom adapters (e.g., Ollama-to-OpenAI), you typically only implement core methods like `createChatCompletion`, but TypeScript requires ALL interface methods to be present.
 
 ## Solution
+
 **Implement a systematic stubbing pattern** for all unused Generated.Client methods:
 
 ### Step 1: Create a Stub Helper
+
 ```typescript
 const stubMethod = (methodName: string) => {
   const request = HttpClientRequest.get(`adapter-${methodName}`);
@@ -39,18 +45,20 @@ const stubMethod = (methodName: string) => {
         isRetryable: false,
       }),
       description: `Adapter: ${methodName} not implemented`,
-    })
+    }),
   );
 };
 ```
 
 ### Step 2: Reference the Generated.d.ts
+
 ```bash
 # Find the interface definition
 grep -n "export interface Client" node_modules/@effect/ai-openai/dist/dts/Generated.d.ts
 ```
 
 ### Step 3: Systematically Stub All Methods
+
 ```typescript
 export const AdapterClientLive = Layer.effect(
   OpenAiClient.OpenAiClient,
@@ -72,7 +80,7 @@ export const AdapterClientLive = Layer.effect(
         // Core methods
         createEmbedding: (_options: any) => stubMethod("createEmbedding"),
         listModels: () => stubMethod("listModels"),
-        
+
         // Assistant methods (all stubbed)
         listAssistants: (_options: any) => stubMethod("listAssistants"),
         createAssistant: (_options: any) => stubMethod("createAssistant"),
@@ -103,6 +111,7 @@ export const AdapterClientLive = Layer.effect(
 ```
 
 ### Step 4: Categorized Method Groups
+
 Organize stubs by API category for maintainability:
 
 ```typescript
@@ -112,7 +121,7 @@ createBatch: (_options: any) => stubMethod("createBatch"),
 retrieveBatch: (_batchId: string) => stubMethod("retrieveBatch"),
 cancelBatch: (_batchId: string) => stubMethod("cancelBatch"),
 
-// File methods  
+// File methods
 listFiles: (_options: any) => stubMethod("listFiles"),
 createFile: (_options: any) => stubMethod("createFile"),
 retrieveFile: (_fileId: string) => stubMethod("retrieveFile"),
@@ -131,6 +140,7 @@ adminApiKeysCreate: (_options: any) => stubMethod("adminApiKeysCreate"),
 ```
 
 ## Why This Pattern is Safe
+
 1. **Explicit Failure**: Unimplemented methods fail with clear error messages
 2. **Type Completeness**: Satisfies TypeScript's interface requirements
 3. **Runtime Safety**: Client code gets meaningful errors for unsupported operations
@@ -140,6 +150,7 @@ adminApiKeysCreate: (_options: any) => stubMethod("adminApiKeysCreate"),
 ## Complete Implementation Strategy
 
 ### Method Categories (96+ total methods)
+
 - **Chat Operations**: 6 methods (listChatCompletions, createChatCompletion, etc.)
 - **Assistants**: 5 methods (listAssistants, createAssistant, etc.)
 - **Audio**: 3 methods (createSpeech, createTranscription, createTranslation)
@@ -156,18 +167,21 @@ adminApiKeysCreate: (_options: any) => stubMethod("adminApiKeysCreate"),
 - **Realtime**: 2 methods (createRealtimeSession, createRealtimeTranscriptionSession)
 
 ### Incremental Implementation
+
 1. **Start with core methods**: Implement only what your adapter actually supports
 2. **Stub everything else**: Use the systematic stubbing pattern for all other methods
 3. **Add methods as needed**: Convert stubs to real implementations when requirements change
 4. **Version tracking**: Comment which OpenAI API version the interface targets
 
 ## When to Apply This Fix
+
 - When implementing custom OpenAI client adapters
 - When you see "missing properties from type 'Client'" errors
 - When adapting other LLM providers to work with @effect/ai-openai
 - When upgrading @effect/ai-openai versions that add new interface methods
 
 ## Related Issues
+
 - Common when building Ollama, Anthropic, or other provider adapters
 - Related to [001 - AiModel to Provider Type Inference](./001-aimodel-provider-type-inference.md) for using the completed client
 - May need [009 - Test Type Import Conflicts](./009-test-type-import-conflicts.md) when testing adapters

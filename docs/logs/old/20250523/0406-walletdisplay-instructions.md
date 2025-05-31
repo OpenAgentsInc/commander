@@ -15,6 +15,7 @@ Update the balance fetching logic to refresh every 1 second.
 **File 1: `src/components/wallet/WalletPane.tsx`**
 
 1.  **Locate the `useQuery` hook** responsible for fetching the wallet balance. It currently looks like this:
+
     ```typescript
     const {
       data: balanceData,
@@ -23,23 +24,29 @@ Update the balance fetching logic to refresh every 1 second.
       refetch: refetchBalance,
     } = useQuery<BalanceInfo, Error>({
       queryKey: ["walletPaneBitcoinBalance"], // <--- Current key
-      queryFn: async () => { /* ... */ },
+      queryFn: async () => {
+        /* ... */
+      },
       refetchInterval: 60000, // <--- Current interval
     });
     ```
 
 2.  **Modify the `queryKey`**:
-    *   Change the `queryKey` from `["walletPaneBitcoinBalance"]` to `["walletBalance"]`.
-    This standardized key will ensure React Query treats balance data from different components as the same resource.
+
+    - Change the `queryKey` from `["walletPaneBitcoinBalance"]` to `["walletBalance"]`.
+      This standardized key will ensure React Query treats balance data from different components as the same resource.
 
 3.  **Modify the `refetchInterval`**:
-    *   Change `refetchInterval: 60000` to `refetchInterval: 1000`.
+
+    - Change `refetchInterval: 60000` to `refetchInterval: 1000`.
 
 4.  **Add a performance warning comment**:
-    *   Immediately above or below the `refetchInterval: 1000` line, add the following comment:
-      ```typescript
-      // TODO: Aggressive 1s balance refresh. Monitor performance and API rate limits. Consider websockets or longer intervals for production.
-      ```
+
+    - Immediately above or below the `refetchInterval: 1000` line, add the following comment:
+
+    ```typescript
+    // TODO: Aggressive 1s balance refresh. Monitor performance and API rate limits. Consider websockets or longer intervals for production.
+    ```
 
 5.  The modified `useQuery` options should look like this:
     ```typescript
@@ -50,7 +57,9 @@ Update the balance fetching logic to refresh every 1 second.
       refetch: refetchBalance,
     } = useQuery<BalanceInfo, Error>({
       queryKey: ["walletBalance"], // <--- MODIFIED
-      queryFn: async () => { /* ... */ },
+      queryFn: async () => {
+        /* ... */
+      },
       // TODO: Aggressive 1s balance refresh. Monitor performance and API rate limits. Consider websockets or longer intervals for production.
       refetchInterval: 1000, // <--- MODIFIED
     });
@@ -59,6 +68,7 @@ Update the balance fetching logic to refresh every 1 second.
 **File 2: `src/components/hud/BitcoinBalanceDisplay.tsx`**
 
 1.  **Locate the `useQuery` hook** responsible for fetching the wallet balance. It currently looks like this (based on its functionality):
+
     ```typescript
     const {
       data: balanceData,
@@ -68,24 +78,30 @@ Update the balance fetching logic to refresh every 1 second.
       isFetching,
     } = useQuery<BalanceInfo, Error>({
       queryKey: ["bitcoinBalance"], // <--- Current key
-      queryFn: async () => { /* ... */ },
+      queryFn: async () => {
+        /* ... */
+      },
       refetchInterval: 30000, // <--- Current interval
       refetchIntervalInBackground: true,
     });
     ```
 
 2.  **Modify the `queryKey`**:
-    *   Change the `queryKey` from `["bitcoinBalance"]` to `["walletBalance"]`.
-    This ensures it uses the same React Query cache entry as the `WalletPane.tsx`.
+
+    - Change the `queryKey` from `["bitcoinBalance"]` to `["walletBalance"]`.
+      This ensures it uses the same React Query cache entry as the `WalletPane.tsx`.
 
 3.  **Modify the `refetchInterval`**:
-    *   Change `refetchInterval: 30000` to `refetchInterval: 1000`.
+
+    - Change `refetchInterval: 30000` to `refetchInterval: 1000`.
 
 4.  **Add a performance warning comment**:
-    *   Immediately above or below the `refetchInterval: 1000` line, add the following comment:
-      ```typescript
-      // TODO: Aggressive 1s balance refresh. Monitor performance and API rate limits. Consider websockets or longer intervals for production.
-      ```
+
+    - Immediately above or below the `refetchInterval: 1000` line, add the following comment:
+
+    ```typescript
+    // TODO: Aggressive 1s balance refresh. Monitor performance and API rate limits. Consider websockets or longer intervals for production.
+    ```
 
 5.  The modified `useQuery` options should look like this:
     ```typescript
@@ -97,7 +113,9 @@ Update the balance fetching logic to refresh every 1 second.
       isFetching,
     } = useQuery<BalanceInfo, Error>({
       queryKey: ["walletBalance"], // <--- MODIFIED
-      queryFn: async () => { /* ... */ },
+      queryFn: async () => {
+        /* ... */
+      },
       // TODO: Aggressive 1s balance refresh. Monitor performance and API rate limits. Consider websockets or longer intervals for production.
       refetchInterval: 1000, // <--- MODIFIED
       refetchIntervalInBackground: true,

@@ -23,8 +23,8 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:status', action: 'chec
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:status', action: 'check_wallet_status_success', label: 'Wallet ready, balance: 0', timestamp: 1748108127559}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:admin', action: 'check_listening_status', value: 'inactive', timestamp: 1748108127559}
 VM568 renderer_init:2 Electron Security Warning (Insecure Content-Security-Policy) This renderer process has either no Content Security
-  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
-  this app to unnecessary security risks.
+Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+this app to unnecessary security risks.
 
 For more information and help, consult
 https://electronjs.org/docs/tutorial/security.
@@ -51,7 +51,7 @@ DVM PROVIDER PUBKEY: 714617896896f2838ad6cd25d27b0b6507d1d6e0a5d0072ff65372d1233
 Configure consumer with this pubkey!
 ========================================
 
-TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:admin', action: 'start_listening_attempt', label: '714617896896f2838ad6cd25d27b0b6507d1d6e0a5d0072ff65372d123378827', value: 'Relays: 3', timestamp: 1748108130032}
+TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:admin', action: 'start*listening_attempt', label: '714617896896f2838ad6cd25d27b0b6507d1d6e0a5d0072ff65372d123378827', value: 'Relays: 3', timestamp: 1748108130032}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:admin', action: 'DVM_PUBKEY_FOR_CONSUMER', label: '714617896896f2838ad6cd25d27b0b6507d1d6e0a5d0072ff65372d123378827', value: 'USE THIS PUBKEY IN CONSUMER CONFIG!', timestamp: 1748108130033}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'check_all_invoices_start', label: 'Checking 0 pending jobs', timestamp: 1748108130036}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'no_pending_jobs_to_check', timestamp: 1748108130036}
@@ -151,9 +151,9 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'log:info', action: 'nostr_pu
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:job', action: 'payment_requested', label: '2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb', value: '3 sats', timestamp: 1748108156021}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:job', action: 'job_pending_payment', label: '2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb', value: '{"priceSats":3,"estimatedTokens":49,"encrypted":true}', timestamp: 1748108156021}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'check_all_invoices_start', label: 'Checking 1 pending jobs', timestamp: 1748108156085}
-TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'individual_invoice_check_start', label: 'Job ID: 2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb, Attempt: 1', value: 'Invoice: lnbc3n1mock_invoice_...', timestamp: 1748108156085}
-TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:invoice', action: 'check_status_start', label: 'lnbc3n1mock_invoice_', timestamp: 1748108156088}
-TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:invoice', action: 'check_status_success', label: 'Status: pending', value: undefined, timestamp: 1748108156088}
+TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'individual_invoice_check_start', label: 'Job ID: 2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb, Attempt: 1', value: 'Invoice: lnbc3n1mock_invoice*...', timestamp: 1748108156085}
+TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:invoice', action: 'check*status_start', label: 'lnbc3n1mock_invoice*', timestamp: 1748108156088}
+TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:invoice', action: 'check*status_success', label: 'Status: pending', value: undefined, timestamp: 1748108156088}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'invoice_still_pending', label: '2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb', value: 'Attempt: 1', timestamp: 1748108156089}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'check_all_invoices_start', label: 'Checking 1 pending jobs', timestamp: 1748108157091}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'check_all_invoices_start', label: 'Checking 1 pending jobs', timestamp: 1748108158093}
@@ -165,9 +165,9 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'check_all_invoices_start', label: 'Checking 1 pending jobs', timestamp: 1748108162101}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'check_all_invoices_start', label: 'Checking 1 pending jobs', timestamp: 1748108163102}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'check_all_invoices_start', label: 'Checking 1 pending jobs', timestamp: 1748108164104}
-TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'individual_invoice_check_start', label: 'Job ID: 2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb, Attempt: 2', value: 'Invoice: lnbc3n1mock_invoice_...', timestamp: 1748108164105}
-TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:invoice', action: 'check_status_start', label: 'lnbc3n1mock_invoice_', timestamp: 1748108164105}
-TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:invoice', action: 'check_status_success', label: 'Status: pending', value: undefined, timestamp: 1748108164106}
+TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'individual_invoice_check_start', label: 'Job ID: 2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb, Attempt: 2', value: 'Invoice: lnbc3n1mock_invoice*...', timestamp: 1748108164105}
+TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:invoice', action: 'check*status_start', label: 'lnbc3n1mock_invoice*', timestamp: 1748108164105}
+TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:invoice', action: 'check*status_success', label: 'Status: pending', value: undefined, timestamp: 1748108164106}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment', action: 'OPTIMISTIC_PROCESSING_TRIGGERED', label: '2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb', value: 'After 2 attempts - FAST MODE', timestamp: 1748108164106}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:job', action: 'processing_optimistic', label: '2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb', value: '3 sats (FAST MODE)', timestamp: 1748108164107}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:feedback', action: 'creating_feedback_event', label: 'Job: 2926c22322fda4733c2f227991e63ab93d88625e60459…50) from pubkey: 9d93f44dd7... status: processing', timestamp: 1748108164108}
@@ -194,9 +194,9 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'check_all_invoices_start', label: 'Checking 1 pending jobs', timestamp: 1748108174230}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'check_all_invoices_start', label: 'Checking 1 pending jobs', timestamp: 1748108175232}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'check_all_invoices_start', label: 'Checking 1 pending jobs', timestamp: 1748108176234}
-TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'individual_invoice_check_start', label: 'Job ID: 2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb, Attempt: 3', value: 'Invoice: lnbc3n1mock_invoice_...', timestamp: 1748108176234}
-TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:invoice', action: 'check_status_start', label: 'lnbc3n1mock_invoice_', timestamp: 1748108176235}
-TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:invoice', action: 'check_status_success', label: 'Status: pending', value: undefined, timestamp: 1748108176235}
+TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'individual_invoice_check_start', label: 'Job ID: 2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb, Attempt: 3', value: 'Invoice: lnbc3n1mock_invoice*...', timestamp: 1748108176234}
+TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:invoice', action: 'check*status_start', label: 'lnbc3n1mock_invoice*', timestamp: 1748108176235}
+TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:invoice', action: 'check*status_success', label: 'Status: pending', value: undefined, timestamp: 1748108176235}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'invoice_still_pending', label: '2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb', value: 'Attempt: 3', timestamp: 1748108176235}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:balance', action: 'get_balance_start', label: 'Fetching balance', value: '', timestamp: 1748108176378}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:balance', action: 'get_balance_success', label: 'Balance: 30 sats', value: 'Token count: 0', timestamp: 1748108176712}
@@ -223,9 +223,9 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:balance', action: 'get_balance_start', label: 'Fetching balance', value: '', timestamp: 1748108192396}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:balance', action: 'get_balance_success', label: 'Balance: 30 sats', value: 'Token count: 0', timestamp: 1748108192776}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'check_all_invoices_start', label: 'Checking 1 pending jobs', timestamp: 1748108193266}
-TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'individual_invoice_check_start', label: 'Job ID: 2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb, Attempt: 4', value: 'Invoice: lnbc3n1mock_invoice_...', timestamp: 1748108193266}
-TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:invoice', action: 'check_status_start', label: 'lnbc3n1mock_invoice_', timestamp: 1748108193267}
-TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:invoice', action: 'check_status_success', label: 'Status: pending', value: undefined, timestamp: 1748108193267}
+TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'individual_invoice_check_start', label: 'Job ID: 2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb, Attempt: 4', value: 'Invoice: lnbc3n1mock_invoice*...', timestamp: 1748108193266}
+TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:invoice', action: 'check*status_start', label: 'lnbc3n1mock_invoice*', timestamp: 1748108193267}
+TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:invoice', action: 'check*status_success', label: 'Status: pending', value: undefined, timestamp: 1748108193267}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'invoice_still_pending', label: '2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb', value: 'Attempt: 4', timestamp: 1748108193268}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'check_all_invoices_start', label: 'Checking 1 pending jobs', timestamp: 1748108194270}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'check_all_invoices_start', label: 'Checking 1 pending jobs', timestamp: 1748108195271}
@@ -262,9 +262,9 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'check_all_invoices_start', label: 'Checking 1 pending jobs', timestamp: 1748108218325}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:balance', action: 'get_balance_start', label: 'Fetching balance', value: '', timestamp: 1748108219304}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'check_all_invoices_start', label: 'Checking 1 pending jobs', timestamp: 1748108219327}
-TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'individual_invoice_check_start', label: 'Job ID: 2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb, Attempt: 5', value: 'Invoice: lnbc3n1mock_invoice_...', timestamp: 1748108219327}
- [Telemetry] {category: 'spark:invoice', action: 'check_status_start', label: 'lnbc3n1mock_invoice_', timestamp: 1748108219327}
- [Telemetry] {category: 'spark:invoice', action: 'check_status_success', label: 'Status: pending', value: undefined, timestamp: 1748108219328}
- [Telemetry] {category: 'dvm:payment_check', action: 'invoice_still_pending', label: '2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb', value: 'Attempt: 5', timestamp: 1748108219328}
- [Telemetry] {category: 'spark:balance', action: 'get_balance_success', label: 'Balance: 30 sats', value: 'Token count: 0', timestamp: 1748108219663}
- [Telemetry] {category: 'dvm:payment_check', action: 'check_all_invoices_start', label: 'Checking 1 pending jobs', timestamp: 1748108220329}
+TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:payment_check', action: 'individual_invoice_check_start', label: 'Job ID: 2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb, Attempt: 5', value: 'Invoice: lnbc3n1mock_invoice*...', timestamp: 1748108219327}
+[Telemetry] {category: 'spark:invoice', action: 'check*status_start', label: 'lnbc3n1mock_invoice*', timestamp: 1748108219327}
+[Telemetry] {category: 'spark:invoice', action: 'check_status_success', label: 'Status: pending', value: undefined, timestamp: 1748108219328}
+[Telemetry] {category: 'dvm:payment_check', action: 'invoice_still_pending', label: '2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb', value: 'Attempt: 5', timestamp: 1748108219328}
+[Telemetry] {category: 'spark:balance', action: 'get_balance_success', label: 'Balance: 30 sats', value: 'Token count: 0', timestamp: 1748108219663}
+[Telemetry] {category: 'dvm:payment_check', action: 'check_all_invoices_start', label: 'Checking 1 pending jobs', timestamp: 1748108220329}

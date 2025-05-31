@@ -354,28 +354,26 @@ src/
 1.  **Imports:** `Effect`, `Context`, `Schema`, `Layer`, `Stream`, `Option`, `Data` from `effect`; `ParseResult` from `effect/ParseResult`.
 2.  **`SparkServiceConfig` Interface & Tag:**
 
-
-    *   `network: Schema.Union(Schema.Literal("MAINNET"), Schema.Literal("TESTNET"), Schema.Literal("REGTEST"))` (Align with `SparkNetwork` from SDK).
-    *   `defaultInvoiceMemo: Schema.optional(Schema.String)`.
-    *   `SparkServiceConfigTag = Context.GenericTag<SparkServiceConfig>("SparkServiceConfig")`.
+    - `network: Schema.Union(Schema.Literal("MAINNET"), Schema.Literal("TESTNET"), Schema.Literal("REGTEST"))` (Align with `SparkNetwork` from SDK).
+    - `defaultInvoiceMemo: Schema.optional(Schema.String)`.
+    - `SparkServiceConfigTag = Context.GenericTag<SparkServiceConfig>("SparkServiceConfig")`.
 
 3.  **Request & Response Schemas (using `@effect/schema`):**
 
-
-    *   `MnemonicSchema = Schema.String.pipe(Schema.pattern(/^(\w+\s){11}\w+$/)) // Basic 12-word check, extend for 24`
-    *   `InitializeWalletRequestSchema = Schema.Struct({ mnemonic: MnemonicSchema })`
-    *   `SparkSDKTokenInfoSchema = Schema.Struct({ name: Schema.optional(Schema.String), ticker: Schema.optional(Schema.String), decimals: Schema.optional(Schema.Number) /* ... other fields ... */ })`
-    *   `BalanceEntrySchema = Schema.Struct({ balance: Schema.BigIntFromNumber, tokenInfo: SparkSDKTokenInfoSchema })`
-    *   `BalanceInfoSchema = Schema.Struct({ balance: Schema.BigIntFromNumber, tokenBalances: Schema.optional(Schema.Map(Schema.String, BalanceEntrySchema)) })`
-    *   `CreateLightningInvoiceRequestSchema = Schema.Struct({ amountSats: Schema.Number.pipe(Schema.positive()), memo: Schema.optional(Schema.String) })`
-    *   `LightningInvoiceSchema = Schema.String.pipe(Schema.startsWith("ln"))`
-    *   `PayLightningInvoiceRequestSchema = Schema.Struct({ invoice: LightningInvoiceSchema, maxFeeSats: Schema.optional(Schema.Number.pipe(Schema.nonNegative())) })`
-    *   `SparkAddressSchema = Schema.String.pipe(Schema.pattern(/^(sp1p|sprt1p)[\w\d]+$/))`
-    *   `SparkTransferRequestSchema = Schema.Struct({ receiverSparkAddress: SparkAddressSchema, amountSats: Schema.Number.pipe(Schema.positive()), memo: Schema.optional(Schema.String) })`
-    *   `SparkTransactionSchema = Schema.Struct({ id: Schema.String, createdTime: Schema.DateFromString, type: Schema.String, status: Schema.String, transferDirection: Schema.Union(Schema.Literal("INCOMING"), Schema.Literal("OUTGOING")), totalValue: Schema.BigIntFromNumber, description: Schema.optional(Schema.String), fee: Schema.optional(Schema.BigIntFromNumber) /* ... other fields from SDK ... */ })`
-    *   `GetTransactionsRequestSchema = Schema.Struct({ count: Schema.Number.pipe(Schema.int(), Schema.positive()), offset: Schema.Number.pipe(Schema.int(), Schema.nonNegative()) })`
-    *   `TransferClaimedEventPayloadSchema = Schema.Struct({ id: Schema.String, balance: Schema.Number /* SDK gives number here */, /* other relevant fields */ })`
-    *   `WalletEventSchema = Schema.Tagged("_tag").pipe(Schema.Union( Schema.Struct({ _tag: Schema.Literal("TransferClaimed"), id: Schema.String, updatedBalanceSat: Schema.BigIntFromNumber }), Schema.Struct({ _tag: Schema.Literal("DepositConfirmed"), id: Schema.String, updatedBalanceSat: Schema.BigIntFromNumber }), Schema.Struct({ _tag: Schema.Literal("StreamStatus"), status: Schema.String, message: Schema.optional(Schema.String)}) ))`
+    - `MnemonicSchema = Schema.String.pipe(Schema.pattern(/^(\w+\s){11}\w+$/)) // Basic 12-word check, extend for 24`
+    - `InitializeWalletRequestSchema = Schema.Struct({ mnemonic: MnemonicSchema })`
+    - `SparkSDKTokenInfoSchema = Schema.Struct({ name: Schema.optional(Schema.String), ticker: Schema.optional(Schema.String), decimals: Schema.optional(Schema.Number) /* ... other fields ... */ })`
+    - `BalanceEntrySchema = Schema.Struct({ balance: Schema.BigIntFromNumber, tokenInfo: SparkSDKTokenInfoSchema })`
+    - `BalanceInfoSchema = Schema.Struct({ balance: Schema.BigIntFromNumber, tokenBalances: Schema.optional(Schema.Map(Schema.String, BalanceEntrySchema)) })`
+    - `CreateLightningInvoiceRequestSchema = Schema.Struct({ amountSats: Schema.Number.pipe(Schema.positive()), memo: Schema.optional(Schema.String) })`
+    - `LightningInvoiceSchema = Schema.String.pipe(Schema.startsWith("ln"))`
+    - `PayLightningInvoiceRequestSchema = Schema.Struct({ invoice: LightningInvoiceSchema, maxFeeSats: Schema.optional(Schema.Number.pipe(Schema.nonNegative())) })`
+    - `SparkAddressSchema = Schema.String.pipe(Schema.pattern(/^(sp1p|sprt1p)[\w\d]+$/))`
+    - `SparkTransferRequestSchema = Schema.Struct({ receiverSparkAddress: SparkAddressSchema, amountSats: Schema.Number.pipe(Schema.positive()), memo: Schema.optional(Schema.String) })`
+    - `SparkTransactionSchema = Schema.Struct({ id: Schema.String, createdTime: Schema.DateFromString, type: Schema.String, status: Schema.String, transferDirection: Schema.Union(Schema.Literal("INCOMING"), Schema.Literal("OUTGOING")), totalValue: Schema.BigIntFromNumber, description: Schema.optional(Schema.String), fee: Schema.optional(Schema.BigIntFromNumber) /* ... other fields from SDK ... */ })`
+    - `GetTransactionsRequestSchema = Schema.Struct({ count: Schema.Number.pipe(Schema.int(), Schema.positive()), offset: Schema.Number.pipe(Schema.int(), Schema.nonNegative()) })`
+    - `TransferClaimedEventPayloadSchema = Schema.Struct({ id: Schema.String, balance: Schema.Number /* SDK gives number here */, /* other relevant fields */ })`
+    - `WalletEventSchema = Schema.Tagged("_tag").pipe(Schema.Union( Schema.Struct({ _tag: Schema.Literal("TransferClaimed"), id: Schema.String, updatedBalanceSat: Schema.BigIntFromNumber }), Schema.Struct({ _tag: Schema.Literal("DepositConfirmed"), id: Schema.String, updatedBalanceSat: Schema.BigIntFromNumber }), Schema.Struct({ _tag: Schema.Literal("StreamStatus"), status: Schema.String, message: Schema.optional(Schema.String)}) ))`
 
 4.  **Custom Error Types (using `Data.TaggedError`):**
     - `export class SparkError extends Data.TaggedError("SparkError")<{ readonly message: string; readonly cause?: unknown }> {}`

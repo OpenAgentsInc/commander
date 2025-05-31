@@ -7,17 +7,20 @@
 ## Summary of Attempts
 
 ### 1. Initial utilityProcess Implementation
+
 - Created utility wrapper with node-pty
 - Process spawned but exited with code 1
 - No logs created, suggesting early crash
 
 ### 2. Minimal Wrapper Test
+
 - Simplified to basic spawn without node-pty
 - Added extensive logging to diagnose
 - **Result**: Wrapper doesn't execute at all
 - No log file created, no messages received
 
 ### 3. Ultra-Minimal Debug Wrapper
+
 - Removed all dependencies except core Node.js
 - Added immediate logging on startup
 - **Result**: Still no execution - log file never created
@@ -27,6 +30,7 @@
 **The utility wrapper JavaScript file is never executed by utilityProcess**
 
 Evidence:
+
 - No log files created (first line writes to log)
 - No console output from wrapper
 - No messages received by main process
@@ -37,11 +41,13 @@ Evidence:
 ### utilityProcess Limitations
 
 1. **Module System Mismatch**
+
    - utilityProcess may expect ES modules, not CommonJS
    - The `require()` calls might be failing silently
    - Worker threads context might not be properly initialized
 
 2. **File Path Resolution**
+
    - The wrapper path might be correct but not loadable
    - utilityProcess might have different module resolution rules
 
@@ -56,9 +62,9 @@ Given the utilityProcess failures, the external service approach is now the most
 
 ```javascript
 // Separate Node.js service (not Electron)
-const express = require('express');
-const WebSocket = require('ws');
-const pty = require('node-pty');
+const express = require("express");
+const WebSocket = require("ws");
+const pty = require("node-pty");
 
 // Full Node.js environment
 // No Electron restrictions
@@ -87,6 +93,7 @@ const pty = require('node-pty');
 ```
 
 Benefits:
+
 - Full Node.js environment (no restrictions)
 - node-pty works perfectly (proven in standalone test)
 - Complete network access
@@ -96,11 +103,13 @@ Benefits:
 ## Implementation Plan
 
 1. Create `claude-bridge-service.js`:
+
    - Express server for health checks
    - WebSocket server for streaming
    - node-pty for Claude CLI execution
 
 2. Update Electron main process:
+
    - Check if service is running
    - Auto-start if needed
    - Connect via WebSocket
@@ -114,6 +123,7 @@ Benefits:
 ## Conclusion
 
 The utilityProcess approach has fundamental limitations that prevent it from running our wrapper code. The external service approach is the clear path forward, providing:
+
 - ✅ Full Node.js capabilities
 - ✅ Proven node-pty compatibility
 - ✅ Network access for Claude CLI

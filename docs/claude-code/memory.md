@@ -6,11 +6,11 @@ Claude Code can remember your preferences across sessions, like style guidelines
 
 Claude Code offers three memory locations, each serving a different purpose:
 
-| Memory Type | Location | Purpose | Use Case Examples |
-|------------|----------|---------|-------------------|
-| **Project memory** | `./CLAUDE.md` | Team-shared instructions for the project | Project architecture, coding standards, common workflows |
-| **User memory** | `~/.claude/CLAUDE.md` | Personal preferences for all projects | Code styling preferences, personal tooling shortcuts |
-| **Project memory (local)** | `./CLAUDE.local.md` | Personal project-specific preferences | *(Deprecated)* Your sandbox URLs, preferred test data |
+| Memory Type                | Location              | Purpose                                  | Use Case Examples                                        |
+| -------------------------- | --------------------- | ---------------------------------------- | -------------------------------------------------------- |
+| **Project memory**         | `./CLAUDE.md`         | Team-shared instructions for the project | Project architecture, coding standards, common workflows |
+| **User memory**            | `~/.claude/CLAUDE.md` | Personal preferences for all projects    | Code styling preferences, personal tooling shortcuts     |
+| **Project memory (local)** | `./CLAUDE.local.md`   | Personal project-specific preferences    | _(Deprecated)_ Your sandbox URLs, preferred test data    |
 
 All memory files are automatically loaded into Claude Code's context when launched.
 
@@ -30,6 +30,7 @@ Both relative and absolute paths are allowed. Importing files in the user's home
 ## How Claude looks up memories
 
 Claude Code reads memories recursively:
+
 - Starts in the current working directory
 - Recurses up to root (/) reading CLAUDE.md or CLAUDE.local.md files
 - Discovers CLAUDE.md in subtrees, loading them when reading files in those subtrees

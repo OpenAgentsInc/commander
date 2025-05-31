@@ -342,16 +342,16 @@ Here are the specific instructions:
 - **Instructions:**
   1.  Correct the `context` field definition:
       `typescript
-    // src/services/telemetry/TelemetryService.ts
-    export const TelemetryEventSchema = Schema.Struct({
-      category: Schema.String,
-      action: Schema.String,
-      value: Schema.optional(Schema.Union(Schema.String, Schema.Number, Schema.Boolean, Schema.Undefined)),
-      label: Schema.optional(Schema.String),
-      timestamp: Schema.optional(Schema.Number),
-      context: Schema.optional(Schema.record(Schema.String, Schema.Unknown)) // Corrected: use Schema.record
-    });
-    `
+// src/services/telemetry/TelemetryService.ts
+export const TelemetryEventSchema = Schema.Struct({
+  category: Schema.String,
+  action: Schema.String,
+  value: Schema.optional(Schema.Union(Schema.String, Schema.Number, Schema.Boolean, Schema.Undefined)),
+  label: Schema.optional(Schema.String),
+  timestamp: Schema.optional(Schema.Number),
+  context: Schema.optional(Schema.record(Schema.String, Schema.Unknown)) // Corrected: use Schema.record
+});
+`
       This fixes both the `TS2554` (from original error list) and `TS2353` (from logs).
 
 **IV. `ollama-listeners.ts` Error Object Fix (Addressing TS2322)**

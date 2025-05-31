@@ -23,8 +23,8 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:status', action: 'chec
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:status', action: 'check_wallet_status_success', label: 'Wallet ready, balance: 0', timestamp: 1748021924969}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:admin', action: 'check_listening_status', value: 'inactive', timestamp: 1748021924969}
 VM561 renderer_init:2 Electron Security Warning (Insecure Content-Security-Policy) This renderer process has either no Content Security
-  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
-  this app to unnecessary security risks.
+Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+this app to unnecessary security risks.
 
 For more information and help, consult
 https://electronjs.org/docs/tutorial/security.
@@ -369,7 +369,7 @@ processRootScheduleInMicrotask @ chunk-QW7VXTSL.js?v=ad354b67:11558
 (anonymous) @ chunk-QW7VXTSL.js?v=ad354b67:11649
 <OutletImpl>
 exports.jsxDEV @ react_jsx-dev-runtime.js?v=ad354b67:250
-Root @ __root.tsx:14
+Root @ \_\_root.tsx:14
 react-stack-bottom-frame @ chunk-QW7VXTSL.js?v=ad354b67:17424
 renderWithHooks @ chunk-QW7VXTSL.js?v=ad354b67:4206
 updateFunctionComponent @ chunk-QW7VXTSL.js?v=ad354b67:6619

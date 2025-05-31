@@ -1,4 +1,5 @@
 # Payment Flow Analysis: Enhanced Polling Working but Payment Verification Still Failing
+
 ## May 24, 2025 - 11:41
 
 ## Executive Summary
@@ -10,10 +11,11 @@ The enhanced 1-second polling with exponential backoff is working perfectly, but
 ### ✅ Enhanced Polling Working Correctly
 
 Provider telemetry shows excellent polling behavior:
+
 - **1-second global checks**: Lines 72-101 show rapid `check_all_invoices_start` every second
-- **Per-job exponential backoff**: 
+- **Per-job exponential backoff**:
   - Attempt 1: Immediate check (line 116)
-  - Attempt 2: ~8 seconds later (line 133)  
+  - Attempt 2: ~8 seconds later (line 133)
   - Attempt 3: ~12 seconds later (line 153)
   - Attempt 4: ~17 seconds later (line 182)
   - Attempt 5: ~26 seconds later (line 222)
@@ -21,6 +23,7 @@ Provider telemetry shows excellent polling behavior:
 ### ❌ Payment Verification Failing
 
 #### Consumer Side Evidence:
+
 ```
 Line 91: pay_invoice_start
 Line 96: pay_invoice_success (Payment status: PENDING)
@@ -29,6 +32,7 @@ Balance: 494 → 488 → 494 → 491 sats (strange bounce, then settles)
 ```
 
 #### Provider Side Evidence:
+
 ```
 Line 111: create_invoice_success (hash: 9aa1a7b2127f2a5fc4d0c1e5c2c6baa29bdb590f6f1c009c9c657d22bc773859)
 Lines 118, 135, 155, 184, 224: check_invoice_status_success (Invoice status: pending)
@@ -46,12 +50,15 @@ Lines 118, 135, 155, 184, 224: check_invoice_status_success (Invoice status: pen
 The issue is NOT with polling frequency - that's working perfectly. The problem is with how `SparkService.checkInvoiceStatus()` is determining payment status.
 
 ### Hypothesis 1: Wrong Status Field Check (Most Likely)
+
 The SparkServiceImpl might be checking the wrong field in the SDK response. Based on previous fixes, we know the SDK doesn't have a reliable `status` field and we should check `paymentPreimage` presence instead.
 
 ### Hypothesis 2: Invoice Lookup Issue
+
 The provider might be checking the invoice status using the wrong identifier (invoice string vs payment hash).
 
 ### Hypothesis 3: Mock vs Real Implementation
+
 Line 118 shows very fast response time (1ms) for invoice check, suggesting it might be using a mock implementation rather than real Spark SDK.
 
 ## Specific Code Investigation Instructions
@@ -104,7 +111,7 @@ Add comprehensive logging to understand the SDK response:
 ```typescript
 checkInvoiceStatus(invoice: string) {
   const sdkResult = yield* _(/* SDK call */);
-  
+
   // Log the ENTIRE SDK response
   yield* _(telemetry.trackEvent({
     category: "spark:debug",
@@ -112,9 +119,9 @@ checkInvoiceStatus(invoice: string) {
     label: invoice.substring(0, 20) + "...",
     value: JSON.stringify(sdkResult), // See EVERYTHING the SDK returns
   }));
-  
+
   // Then determine status
-  const status = sdkResult.paymentPreimage ? "paid" : 
+  const status = sdkResult.paymentPreimage ? "paid" :
                  sdkResult.state === "SETTLED" ? "paid" :
                  sdkResult.isPaid === true ? "paid" :
                  sdkResult.settledAt ? "paid" :
@@ -141,17 +148,17 @@ const spark = isTest ? SparkServiceTestLive : SparkServiceLive; // Should use Li
 checkInvoiceStatus: (invoice: string) =>
   Effect.gen(function* (_) {
     // ... existing code ...
-    
+
     const invoiceResponse = yield* _(
       Effect.tryPromise({
         try: () => sdk.xxx(invoice), // Find the actual SDK method being used
         catch: (error) => new SparkError({ /* ... */ }),
       }),
     );
-    
+
     // Log for debugging
     console.log("[SparkService] Invoice check response:", invoiceResponse);
-    
+
     // Check multiple fields for payment confirmation
     const isPaid = !!(
       invoiceResponse.paymentPreimage ||
@@ -160,13 +167,13 @@ checkInvoiceStatus: (invoice: string) =>
       invoiceResponse.isPaid === true ||
       invoiceResponse.amountPaidMsat > 0
     );
-    
+
     return {
-      status: isPaid ? "paid" : 
-              invoiceResponse.state === "EXPIRED" ? "expired" : 
+      status: isPaid ? "paid" :
+              invoiceResponse.state === "EXPIRED" ? "expired" :
               "pending",
-      amountPaidMsats: invoiceResponse.amountPaidMsat || 
-                       invoiceResponse.amountMsat || 
+      amountPaidMsats: invoiceResponse.amountPaidMsat ||
+                       invoiceResponse.amountMsat ||
                        0,
     };
   }),
@@ -179,14 +186,16 @@ checkInvoiceStatus: (invoice: string) =>
 if (!isPaid && invoice.includes("lnbc")) {
   // Extract payment hash from bolt11 invoice
   const paymentHash = extractPaymentHashFromBolt11(invoice);
-  
-  const paymentLookup = yield* _(
-    Effect.tryPromise({
-      try: () => sdk.lookupPayment(paymentHash),
-      catch: () => null, // Ignore errors
-    }),
-  );
-  
+
+  const paymentLookup =
+    yield *
+    _(
+      Effect.tryPromise({
+        try: () => sdk.lookupPayment(paymentHash),
+        catch: () => null, // Ignore errors
+      }),
+    );
+
   if (paymentLookup?.settled) {
     isPaid = true;
   }
@@ -202,7 +211,10 @@ For immediate user experience improvement while debugging:
 const timeSinceCreation = Date.now() - pendingJob.createdAt;
 if (timeSinceCreation > 15000 && ENABLE_PAYMENT_BYPASS) {
   console.warn("[DVM] BYPASSING PAYMENT CHECK - Dev mode only!");
-  return { status: "paid" as const, amountPaidMsats: pendingJob.amountSats * 1000 };
+  return {
+    status: "paid" as const,
+    amountPaidMsats: pendingJob.amountSats * 1000,
+  };
 }
 ```
 

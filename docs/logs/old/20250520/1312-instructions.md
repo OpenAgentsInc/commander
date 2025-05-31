@@ -832,6 +832,7 @@ createNip28Channel(defaultName);
 };
 
 return (
+
 <div
 className={cn(
 "fixed bottom-4 left-1/2 transform -translate-x-1/2 z-[10000] flex space-x-1 p-1 bg-background/50 border border-border/30 rounded-md shadow-lg backdrop-blur-sm",
@@ -973,6 +974,7 @@ return;
 }, [isHandTrackingActive, handData, draggingPaneId]);
 
 return (
+
 <div className="relative w-full h-full overflow-hidden">
 <SimpleGrid />
 <PaneManager />
@@ -1172,6 +1174,7 @@ const walletStatusColor = isWalletConnected ? 'text-green-500' : 'text-destructi
 const ollamaStatusColor = isOllamaConnected ? 'text-green-500' : 'text-destructive';
 
 return (
+
 <div className="p-4 h-full flex flex-col items-center justify-center text-sm">
 <Card className="w-full max-w-md bg-background/80 backdrop-blur-sm">
 <CardHeader>
@@ -1244,16 +1247,16 @@ import { SellComputePane } from '@/components/sell-compute'; // Add this import
 {pane.type === 'sell_compute' && <SellComputePane />}
 ...
 _/
-// Add 'sell_compute' to the exclusion list for the default placeholder:
-/_
+// Add 'sell*compute' to the exclusion list for the default placeholder:
+/*
 ...
 !(
 pane.type === 'chat' ||
 // ... other types
-pane.type === 'sell_compute' || // Add this
+pane.type === 'sell*compute' || // Add this
 pane.type === 'default'
 ) && <PlaceholderDefaultComponent type={pane.type} />
-_/
+*/
 
 // File: src/services/spark/SparkService.ts
 // Add checkWalletStatus to the interface

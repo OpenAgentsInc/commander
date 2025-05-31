@@ -79,12 +79,12 @@ This helper function will now handle NIP-04 encryption.
 
   const template: EventTemplate = {
   kind: jobKind,
-  created_at: Math.floor(Date.now() / 1000),
+  created*at: Math.floor(Date.now() / 1000),
   tags: [
   ['p', targetDvmPkHex], // Tag the DVM's public key so it knows the request is for it
   ['encrypted'], // Standard tag to indicate content is NIP-04 encrypted
   ['output', outputMimeType],
-  // Note: The 'i' and 'param' tags are now _inside_ the encrypted content.
+  // Note: The 'i' and 'param' tags are now \_inside* the encrypted content.
   // Do NOT add them unencrypted here if they contain sensitive information.
   // Only non-sensitive 'param' tags (if any) could be added unencrypted.
   ],

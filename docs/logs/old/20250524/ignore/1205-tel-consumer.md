@@ -23,8 +23,8 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:status', action: 'chec
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:status', action: 'check_wallet_status_success', label: 'Wallet ready, balance: 0', timestamp: 1748106203843}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:admin', action: 'check_listening_status', value: 'inactive', timestamp: 1748106203843}
 VM8166 renderer_init:2 Electron Security Warning (Insecure Content-Security-Policy) This renderer process has either no Content Security
-  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
-  this app to unnecessary security risks.
+Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+this app to unnecessary security risks.
 
 For more information and help, consult
 https://electronjs.org/docs/tutorial/security.
@@ -95,8 +95,8 @@ overrideMethod @ hook.js:608
 onevent @ NostrServiceImpl.ts:478
 handleNext @ nostr-tools.js?v=ad354b67:2248
 runQueue @ nostr-tools.js?v=ad354b67:2215
-_onmessage @ nostr-tools.js?v=ad354b67:2378
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"Okay. I can help with that. Please tell me what you’d like to work on!","annotations":[],"_tag":"TextPart"},{"usage":{"inputTokens":0,"outputTokens":70,"totalTokens":70,"reasoningTokens":0,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"reason":"unknown","providerMetadata":{},"_tag":"FinishPart"}]} Abort signal status: false
+\_onmessage @ nostr-tools.js?v=ad354b67:2378
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"Okay. I can help with that. Please tell me what you’d like to work on!","annotations":[],"\_tag":"TextPart"},{"usage":{"inputTokens":0,"outputTokens":70,"totalTokens":70,"reasoningTokens":0,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"reason":"unknown","providerMetadata":{},"\_tag":"FinishPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1748106214652 Chunk length: 70
 useAgentChat.ts:265 [useAgentChat] Ensuring block entered. {messageId: 'assistant-1748106214652', abortController: 'present', signalAborted: false, isLoading: false}
 useAgentChat.ts:281 [useAgentChat] Clearing abort controller for message: assistant-1748106214652
@@ -142,7 +142,7 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:balance', action: 'get
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:balance', action: 'get_balance_success', label: 'Balance: 480 sats', value: 'Token count: 0', timestamp: 1748106248788}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:lightning', action: 'pay_invoice_success', label: 'Payment status: PENDING', value: 'Amount: 0, Fee: 0', timestamp: 1748106251153}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'nip90:consumer', action: 'payment_success', label: '6ee59a154531ccd823801c347873add1a2e717a92c404ec1f95d25e8b4d76a38', value: 'cca8d86bcaa445fadb2f7a32068dc48bb81043074ca6c7699b1203799399b060', timestamp: 1748106251155}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"Auto-paid 3 sats. Payment hash: cca8d86bcaa4... Waiting for DVM to process...","annotations":[],"_tag":"TextPart"},{"usage":{"inputTokens":0,"outputTokens":77,"totalTokens":77,"reasoningTokens":0,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"reason":"unknown","providerMetadata":{},"_tag":"FinishPart"}]} Abort signal status: false
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"Auto-paid 3 sats. Payment hash: cca8d86bcaa4... Waiting for DVM to process...","annotations":[],"\_tag":"TextPart"},{"usage":{"inputTokens":0,"outputTokens":77,"totalTokens":77,"reasoningTokens":0,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"reason":"unknown","providerMetadata":{},"\_tag":"FinishPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1748106241187 Chunk length: 77
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'nip90:subscription', action: 'event_received', label: 'c5fc3a686bf011556694c962f1e8feb28c384d1545a6d7877c0bcf6dddb71816', value: 'Kind: 7000 | Job: 6ee59a154531ccd823801c347873add1…38ad6cd25d27b0b6507d1d6e0a5d0072ff65372d123378827', timestamp: 1748106251162}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'nip90:subscription', action: 'kind_7000_feedback_received', label: 'c5fc3a686bf011556694c962f1e8feb28c384d1545a6d7877c0bcf6dddb71816', value: 'Content: ... | Tags: [["e","6ee59a154531ccd823801c…atus","processing","Processing your request..."]]', timestamp: 1748106251162}
@@ -153,8 +153,8 @@ overrideMethod @ hook.js:608
 onevent @ NostrServiceImpl.ts:478
 handleNext @ nostr-tools.js?v=ad354b67:2248
 runQueue @ nostr-tools.js?v=ad354b67:2215
-_onmessage @ nostr-tools.js?v=ad354b67:2378
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"I am Gemma, a large language model created by the Gemma team at Google DeepMind. I was trained on a massive dataset of text and code.","annotations":[],"_tag":"TextPart"},{"usage":{"inputTokens":0,"outputTokens":133,"totalTokens":133,"reasoningTokens":0,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"reason":"unknown","providerMetadata":{},"_tag":"FinishPart"}]} Abort signal status: false
+\_onmessage @ nostr-tools.js?v=ad354b67:2378
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"I am Gemma, a large language model created by the Gemma team at Google DeepMind. I was trained on a massive dataset of text and code.","annotations":[],"\_tag":"TextPart"},{"usage":{"inputTokens":0,"outputTokens":133,"totalTokens":133,"reasoningTokens":0,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"reason":"unknown","providerMetadata":{},"\_tag":"FinishPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1748106241187 Chunk length: 133
 useAgentChat.ts:265 [useAgentChat] Ensuring block entered. {messageId: 'assistant-1748106241187', abortController: 'present', signalAborted: false, isLoading: false}
 useAgentChat.ts:281 [useAgentChat] Clearing abort controller for message: assistant-1748106241187
@@ -205,8 +205,8 @@ overrideMethod @ hook.js:608
 onevent @ NostrServiceImpl.ts:478
 handleNext @ nostr-tools.js?v=ad354b67:2248
 runQueue @ nostr-tools.js?v=ad354b67:2215
-_onmessage @ nostr-tools.js?v=ad354b67:2378
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"Assistant: I am Gemma, a large language model created by Google DeepMind.","annotations":[],"_tag":"TextPart"},{"usage":{"inputTokens":0,"outputTokens":73,"totalTokens":73,"reasoningTokens":0,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"reason":"unknown","providerMetadata":{},"_tag":"FinishPart"}]} Abort signal status: false
+\_onmessage @ nostr-tools.js?v=ad354b67:2378
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"Assistant: I am Gemma, a large language model created by Google DeepMind.","annotations":[],"\_tag":"TextPart"},{"usage":{"inputTokens":0,"outputTokens":73,"totalTokens":73,"reasoningTokens":0,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"reason":"unknown","providerMetadata":{},"\_tag":"FinishPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1748106268835 Chunk length: 73
 useAgentChat.ts:265 [useAgentChat] Ensuring block entered. {messageId: 'assistant-1748106268835', abortController: 'present', signalAborted: false, isLoading: false}
 useAgentChat.ts:281 [useAgentChat] Clearing abort controller for message: assistant-1748106268835

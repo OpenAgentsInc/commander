@@ -802,17 +802,15 @@ import * as HttpClient from "@effect/platform/HttpClient"; // Import HttpClient 
 vi.mock("@buildonspark/spark-sdk", () => {
   // ... (existing spark mock) ...
   const mockWalletInstance = {
-    createLightningInvoice: vi
-      .fn()
-      .mockResolvedValue({
-        invoice: {
-          encodedInvoice: "mockInvoiceFromSdk",
-          paymentHash: "mockHashFromSdk",
-          amountSats: 100,
-          createdAt: "2023-01-01T00:00:00Z",
-          expiresAt: "2023-01-01T01:00:00Z",
-        },
-      }),
+    createLightningInvoice: vi.fn().mockResolvedValue({
+      invoice: {
+        encodedInvoice: "mockInvoiceFromSdk",
+        paymentHash: "mockHashFromSdk",
+        amountSats: 100,
+        createdAt: "2023-01-01T00:00:00Z",
+        expiresAt: "2023-01-01T01:00:00Z",
+      },
+    }),
     getBalance: vi
       .fn()
       .mockResolvedValue({ balance: BigInt(0), tokenBalances: new Map() }),

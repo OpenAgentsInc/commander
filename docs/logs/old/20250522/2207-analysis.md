@@ -17,6 +17,7 @@ This analysis reveals a **fundamental architectural crisis** in our Effect runti
 ### The Deceptive Nature of the Error
 
 The error message is **completely misleading**:
+
 - It suggests a missing service configuration
 - Reality: The entire runtime failed to initialize
 - The service configuration IS correct in the code
@@ -54,14 +55,17 @@ if (
   !window.electronAPI?.ollama?.generateChatCompletionStream
 ) {
   // This Effect.die() KILLS the entire runtime initialization
-  return yield* _(
-    Effect.die(
-      new AiProviderError({
-        message: errorMsg,
-        provider: "Ollama",
-        isRetryable: false,
-      }),
-    ),
+  return (
+    yield *
+    _(
+      Effect.die(
+        new AiProviderError({
+          message: errorMsg,
+          provider: "Ollama",
+          isRetryable: false,
+        }),
+      ),
+    )
   );
 }
 ```
@@ -112,7 +116,7 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
   OllamaOpenAIClientTag,
   Effect.gen(function* (_) {
     const telemetry = yield* _(TelemetryService);
-    
+
     // Create a client that checks IPC availability lazily
     return {
       client: {
@@ -122,8 +126,9 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
             return Effect.fail(
               new HttpClientError.ResponseError({
                 reason: "ServiceUnavailable",
-                description: "Ollama IPC bridge not available in current environment"
-              })
+                description:
+                  "Ollama IPC bridge not available in current environment",
+              }),
             );
           }
           // Proceed with actual implementation
@@ -137,9 +142,9 @@ export const OllamaAsOpenAIClientLive = Layer.effect(
           return Stream.fail(/* appropriate error */);
         }
         return actualStreamImplementation(params);
-      }
+      },
     };
-  })
+  }),
 );
 ```
 
@@ -161,42 +166,43 @@ export const ProviderRegistryLive = Layer.effect(
     const providers: ProviderCapability[] = [
       {
         provider: "ollama",
-        isAvailable: Effect.sync(() => 
-          typeof window !== 'undefined' && 
-          !!window.electronAPI?.ollama
+        isAvailable: Effect.sync(
+          () => typeof window !== "undefined" && !!window.electronAPI?.ollama,
         ),
-        priority: 1
+        priority: 1,
       },
       {
         provider: "openai",
-        isAvailable: Effect.flatMap(
-          ConfigurationService,
-          (config) => config.getSecret("OPENAI_API_KEY").pipe(
+        isAvailable: Effect.flatMap(ConfigurationService, (config) =>
+          config.getSecret("OPENAI_API_KEY").pipe(
             Effect.map(() => true),
-            Effect.orElseSucceed(() => false)
-          )
+            Effect.orElseSucceed(() => false),
+          ),
         ),
-        priority: 2
+        priority: 2,
       },
       {
         provider: "nip90",
         isAvailable: Effect.succeed(true), // Always available
-        priority: 3
-      }
+        priority: 3,
+      },
     ];
-    
+
     return {
-      getAvailableProvider: () => Effect.gen(function* (_) {
-        for (const provider of providers.sort((a, b) => a.priority - b.priority)) {
-          const isAvailable = yield* _(provider.isAvailable);
-          if (isAvailable) {
-            return provider.provider;
+      getAvailableProvider: () =>
+        Effect.gen(function* (_) {
+          for (const provider of providers.sort(
+            (a, b) => a.priority - b.priority,
+          )) {
+            const isAvailable = yield* _(provider.isAvailable);
+            if (isAvailable) {
+              return provider.provider;
+            }
           }
-        }
-        return yield* _(Effect.fail(new NoProvidersAvailableError()));
-      })
+          return yield* _(Effect.fail(new NoProvidersAvailableError()));
+        }),
     };
-  })
+  }),
 );
 ```
 
@@ -209,41 +215,42 @@ export const DynamicAgentLanguageModelLayer = Layer.effect(
   Effect.gen(function* (_) {
     const registry = yield* _(ProviderRegistry);
     const configService = yield* _(ConfigurationService);
-    
+
     // Lazy provider resolution
-    const getActiveProvider = () => Effect.gen(function* (_) {
-      const providerKey = yield* _(registry.getAvailableProvider());
-      
-      switch (providerKey) {
-        case "ollama":
-          return yield* _(OllamaAgentLanguageModelLive);
-        case "openai":
-          return yield* _(OpenAIAgentLanguageModelLive);
-        case "nip90":
-          return yield* _(NIP90AgentLanguageModelLive);
-        default:
-          return yield* _(Effect.fail(new UnknownProviderError(providerKey)));
-      }
-    });
-    
+    const getActiveProvider = () =>
+      Effect.gen(function* (_) {
+        const providerKey = yield* _(registry.getAvailableProvider());
+
+        switch (providerKey) {
+          case "ollama":
+            return yield* _(OllamaAgentLanguageModelLive);
+          case "openai":
+            return yield* _(OpenAIAgentLanguageModelLive);
+          case "nip90":
+            return yield* _(NIP90AgentLanguageModelLive);
+          default:
+            return yield* _(Effect.fail(new UnknownProviderError(providerKey)));
+        }
+      });
+
     // Return a proxy that resolves provider on each call
     return makeAgentLanguageModel({
-      generateText: (options) => 
-        Effect.flatMap(getActiveProvider(), (provider) => 
-          provider.generateText(options)
+      generateText: (options) =>
+        Effect.flatMap(getActiveProvider(), (provider) =>
+          provider.generateText(options),
         ),
       streamText: (options) =>
         Stream.unwrap(
           Effect.map(getActiveProvider(), (provider) =>
-            provider.streamText(options)
-          )
+            provider.streamText(options),
+          ),
         ),
       generateStructured: (options) =>
         Effect.flatMap(getActiveProvider(), (provider) =>
-          provider.generateStructured(options)
-        )
+          provider.generateStructured(options),
+        ),
     });
-  })
+  }),
 );
 ```
 
@@ -260,7 +267,7 @@ describe("Runtime Initialization Resilience", () => {
     // Simulate non-browser environment
     const originalWindow = global.window;
     delete (global as any).window;
-    
+
     try {
       const runtime = await initializeMainRuntime();
       expect(runtime).toBeDefined();
@@ -268,34 +275,34 @@ describe("Runtime Initialization Resilience", () => {
       (global as any).window = originalWindow;
     }
   });
-  
+
   it("should initialize runtime with partial IPC availability", async () => {
     // Simulate partial IPC (some methods missing)
     const mockWindow = {
       electronAPI: {
         ollama: {
           generateChatCompletion: undefined,
-          generateChatCompletionStream: jest.fn()
-        }
-      }
+          generateChatCompletionStream: jest.fn(),
+        },
+      },
     };
-    
+
     (global as any).window = mockWindow;
-    
+
     const runtime = await initializeMainRuntime();
     expect(runtime).toBeDefined();
   });
-  
+
   it("should handle provider failures gracefully", async () => {
     const runtime = await initializeMainRuntime();
-    
+
     // Should be able to access other services even if AI providers fail
     const result = await Effect.runPromise(
-      Effect.flatMap(TelemetryService, (telemetry) => 
-        telemetry.trackEvent({ category: "test", action: "test" })
-      ).pipe(Effect.provide(runtime))
+      Effect.flatMap(TelemetryService, (telemetry) =>
+        telemetry.trackEvent({ category: "test", action: "test" }),
+      ).pipe(Effect.provide(runtime)),
     );
-    
+
     expect(result).toBeUndefined(); // trackEvent returns void
   });
 });
@@ -309,19 +316,19 @@ describe("Service Initialization Pattern Validation", () => {
   it("should detect services with hard environment dependencies", async () => {
     const servicesWithHardDeps = await analyzeServiceLayers({
       searchPattern: /window\.|global\.|process\./,
-      layerFiles: "src/services/**/*Live.ts"
+      layerFiles: "src/services/**/*Live.ts",
     });
-    
+
     // These should use lazy initialization
     expect(servicesWithHardDeps).toEqual([
       "OllamaAsOpenAIClientLive", // Known issue, should be fixed
       // Add any other services found
     ]);
   });
-  
+
   it("should validate all services use deferred initialization for env deps", async () => {
     const violations = await findEffectDieInLayers("src/services/**/*Live.ts");
-    
+
     expect(violations).toHaveLength(0); // No Effect.die in Layer construction
   });
 });
@@ -332,12 +339,14 @@ describe("Service Initialization Pattern Validation", () => {
 ### Immediate Actions (Fix the Current Crisis)
 
 1. **Fix OllamaAsOpenAIClientLive.ts**:
+
    - Remove `Effect.die()` from Layer construction
    - Move IPC availability check to method invocation time
    - Return appropriate HTTP errors instead of dying
    - Ensure Layer construction always succeeds
 
 2. **Create Fallback Mechanism**:
+
    - If Ollama IPC not available, methods should return ServiceUnavailable errors
    - These errors should be recoverable (not defects)
 
@@ -349,11 +358,13 @@ describe("Service Initialization Pattern Validation", () => {
 ### Medium-term Architecture (Prevent Future Issues)
 
 1. **Implement Provider Registry**:
+
    - Create ProviderRegistry service
    - Add capability detection for each provider
    - Implement priority-based selection
 
 2. **Create Dynamic Language Model Layer**:
+
    - Replace static OllamaAgentLanguageModelLiveLayer in runtime
    - Use dynamic provider selection
    - Lazy provider resolution on each call
@@ -366,11 +377,13 @@ describe("Service Initialization Pattern Validation", () => {
 ### Long-term Resilience Patterns
 
 1. **Service Initialization Patterns**:
+
    - Document "Deferred Initialization" pattern
    - Add linting rules to detect Effect.die in Layers
    - Create Layer construction guidelines
 
 2. **Testing Infrastructure**:
+
    - Add environment simulation to test matrix
    - Test all permutations of service availability
    - Validate graceful degradation paths
@@ -383,26 +396,31 @@ describe("Service Initialization Pattern Validation", () => {
 ## Key Architectural Lessons
 
 ### 1. Effect.die() is Nuclear
+
 - Never use Effect.die() in Layer construction
 - It creates unrecoverable defects that kill the entire runtime
 - Use Effect.fail() for recoverable errors
 
 ### 2. Environment Dependencies Must Be Lazy
+
 - Check environment when service methods are called, not during construction
 - Layer construction should ALWAYS succeed
 - Failures should happen at usage time, not initialization time
 
 ### 3. Service Independence is Critical
+
 - One service's failure shouldn't cascade
 - Runtime should initialize even with some services unavailable
 - Users should get degraded functionality, not complete failure
 
 ### 4. Testing Must Include Environment Variations
+
 - Test with missing browser APIs
 - Test with partial API availability
 - Test service degradation paths
 
 ### 5. Error Messages Can Be Deeply Misleading
+
 - "Service not found" might mean "Runtime never initialized"
 - Always check runtime initialization success first
 - Add better error reporting for initialization failures

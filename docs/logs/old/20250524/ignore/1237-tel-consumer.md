@@ -23,14 +23,14 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:status', action: 'chec
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:status', action: 'check_wallet_status_success', label: 'Wallet ready, balance: 0', timestamp: 1748107891932}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:admin', action: 'check_listening_status', value: 'inactive', timestamp: 1748107891942}
 VM5858 renderer_init:2 Electron Security Warning (Insecure Content-Security-Policy) This renderer process has either no Content Security
-  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
-  this app to unnecessary security risks.
+Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+this app to unnecessary security risks.
 
 For more information and help, consult
 https://electronjs.org/docs/tutorial/security.
 This warning will not show up
 once the app is packaged.
-warnAboutInsecureCSP @ VM5858 renderer_init:2
+warnAboutInsecureCSP @ VM5858 renderer*init:2
 logSecurityWarnings @ VM5858 renderer_init:2
 (anonymous) @ VM5858 renderer_init:2
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:init', action: 'wallet_initialize_success', label: 'Network: MAINNET', value: 'success', timestamp: 1748107892755}
@@ -188,13 +188,13 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'nip90:subscription', action:
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'nip90:subscription', action: 'kind_7000_feedback_received', label: 'd70537cded971f5a32dab9f8f5e0b7a607b04fbd546223fdb9a7c48f5fdd29fa', value: 'Content: ... | Tags: [["e","2926c22322fda4733c2f22…unt","3000","lnbc3n1mock_invoice_1748108155829"]]', timestamp: 1748108156001}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'nip90:consumer', action: 'payment_required', label: '2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb', value: '3 sats', timestamp: 1748108156001}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'nip90:consumer', action: 'auto_payment_triggered', label: '2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb', value: '3 sats', timestamp: 1748108156002}
-TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:lightning', action: 'pay_invoice_start', label: 'Invoice: lnbc3n1mock_invoice_...', value: '{"maxFeeSats":10,"timeoutSeconds":60}', timestamp: 1748108156002}
+TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:lightning', action: 'pay_invoice_start', label: 'Invoice: lnbc3n1mock_invoice*...', value: '{"maxFeeSats":10,"timeoutSeconds":60}', timestamp: 1748108156002}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:lightning', action: 'pay_invoice_failure', label: 'Failed to pay Lightning invoice via SparkSDK', value: '{"errorMessage":"Failed to pay Lightning invoice v…108155829","maxFeeSats":10,"timeoutSeconds":60}}}', timestamp: 1748108156004}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'nip90:consumer', action: 'payment_error', label: '2926c22322fda4733c2f227991e63ab93d88625e6045900cff959d947d2b48bb', value: 'Failed to pay Lightning invoice via SparkSDK', timestamp: 1748108156004}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'orchestrator', action: 'stream_error', label: 'Payment failed: Failed to pay Lightning invoice via SparkSDK', timestamp: 1748108156007}
 useAgentChat.ts:228 [useAgentChat] Stream error state: {isAbort: false, messageId: 'assistant-1748108155534', signalAborted: false, causeType: 'Fail', defectType: 'N/A'}
 useAgentChat.ts:248 [useAgentChat] Stream error: {messageId: 'assistant-1748108155534', error: AiProviderError: Payment failed: Failed to pay Lightning invoice via SparkSDK
-    at http://localho…, cause: 'AiProviderError: Payment failed: Failed to pay Lig…0AgentLanguageModelLive.ts?t=1748107685673:264:35'}
+at http://localho…, cause: 'AiProviderError: Payment failed: Failed to pay Lig…0AgentLanguageModelLive.ts?t=1748107685673:264:35'}
 overrideMethod @ hook.js:608
 (anonymous) @ useAgentChat.ts:248
 (anonymous) @ chunk-QHMFDAEA.js?v=ad354b67:9242
@@ -261,7 +261,7 @@ Promise.catch
 onevent @ NostrServiceImpl.ts:478
 handleNext @ nostr-tools.js?v=ad354b67:2248
 runQueue @ nostr-tools.js?v=ad354b67:2215
-_onmessage @ nostr-tools.js?v=ad354b67:2378
+\_onmessage @ nostr-tools.js?v=ad354b67:2378
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'agent_chat', action: 'send_message_failure_stream', label: 'Payment failed: Failed to pay Lightning invoice via SparkSDK', value: 'AiProviderError: Payment failed: Failed to pay Lig…0AgentLanguageModelLive.ts?t=1748107685673:264:35', timestamp: 1748108156009}
 useAgentChat.ts:265 [useAgentChat] Ensuring block entered. {messageId: 'assistant-1748108155534', abortController: 'present', signalAborted: false, isLoading: false}
 useAgentChat.ts:281 [useAgentChat] Clearing abort controller for message: assistant-1748108155534
@@ -279,4 +279,4 @@ overrideMethod @ hook.js:608
 onevent @ NostrServiceImpl.ts:478
 handleNext @ nostr-tools.js?v=ad354b67:2248
 runQueue @ nostr-tools.js?v=ad354b67:2215
-_onmessage @ nostr-tools.js?v=ad354b67:2378
+\_onmessage @ nostr-tools.js?v=ad354b67:2378

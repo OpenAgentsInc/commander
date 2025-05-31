@@ -48,12 +48,12 @@ $ claude -p "Build a REST API" --system-prompt "You are a senior backend enginee
 
 ## Key CLI Options
 
-| Flag | Description | Example |
-|------|-------------|---------|
-| `--print`, `-p` | Run in non-interactive mode | `claude -p "query"` |
-| `--output-format` | Specify output format | `claude -p --output-format json` |
-| `--resume`, `-r` | Resume conversation by session ID | `claude --resume abc123` |
-| `--system-prompt` | Override system prompt | `claude --system-prompt "Custom instruction"` |
+| Flag              | Description                       | Example                                       |
+| ----------------- | --------------------------------- | --------------------------------------------- |
+| `--print`, `-p`   | Run in non-interactive mode       | `claude -p "query"`                           |
+| `--output-format` | Specify output format             | `claude -p --output-format json`              |
+| `--resume`, `-r`  | Resume conversation by session ID | `claude --resume abc123`                      |
+| `--system-prompt` | Override system prompt            | `claude --system-prompt "Custom instruction"` |
 
 ## Output Formats
 

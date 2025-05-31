@@ -9,6 +9,7 @@ TypeError: yield* (intermediate value)(intermediate value)(intermediate value) i
 ```
 
 ### Error Context
+
 This error typically appears during application startup when initializing AI providers that use the @effect/ai library.
 
 ## Root Cause
@@ -34,31 +35,33 @@ Eliminate the double yield by getting the provider directly from the original Ef
 
 ```typescript
 // CORRECT PATTERN
-const provider = yield* _(configuredAiModelEffect);  // Get provider directly
+const provider = yield * _(configuredAiModelEffect); // Get provider directly
 ```
 
 ### Complete Fix Example
 
 **Before (Broken)**:
+
 ```typescript
 export const ProviderAgentLanguageModelLive = Effect.gen(function* (_) {
   // ... service setup ...
-  
+
   const aiModelEffectDefinition = OpenAiLanguageModel.model(modelName);
   const configuredAiModelEffect = Effect.provideService(
     aiModelEffectDefinition,
     OpenAiClient.OpenAiClient,
-    client
+    client,
   );
 
   // PROBLEM: Double yield
-  const aiModel = yield* _(configuredAiModelEffect);    // First yield - gets provider
-  const provider = yield* _(                            // Second yield - ERROR!
-    (aiModel as unknown) as Effect.Effect<
+  const aiModel = yield* _(configuredAiModelEffect); // First yield - gets provider
+  const provider = yield* _(
+    // Second yield - ERROR!
+    aiModel as unknown as Effect.Effect<
       Provider<AiLanguageModel | Tokenizer>,
       never,
       never
-    >
+    >,
   );
 
   // ... rest of implementation
@@ -66,18 +69,19 @@ export const ProviderAgentLanguageModelLive = Effect.gen(function* (_) {
 ```
 
 **After (Fixed)**:
+
 ```typescript
 export const ProviderAgentLanguageModelLive = Effect.gen(function* (_) {
   // ... service setup ...
-  
+
   const aiModelEffectDefinition = OpenAiLanguageModel.model(modelName, {
     temperature: 0.7,
-    max_tokens: 2048
+    max_tokens: 2048,
   });
   const configuredAiModelEffect = Effect.provideService(
     aiModelEffectDefinition,
     OpenAiClient.OpenAiClient,
-    client
+    client,
   );
 
   // SOLUTION: Single yield to get provider directly
@@ -98,7 +102,7 @@ export const ProviderAgentLanguageModelLive = Effect.gen(function* (_) {
 
 Apply this fix when you see:
 
-1. **Runtime Error**: "yield* (intermediate value) is not iterable"
+1. **Runtime Error**: "yield\* (intermediate value) is not iterable"
 2. **Pattern Recognition**: Two consecutive yields where second uses type casting
 3. **Provider Libraries**: Code using @effect/ai or similar provider-pattern libraries
 4. **Effect Generators**: Complex Effect.gen functions with provider setup
@@ -115,18 +119,20 @@ This pattern commonly appears in:
 ## Related Patterns
 
 ### Similar Issues
+
 - [001 - AiModel to Provider Type Inference](./001-aimodel-provider-type-inference.md): Related type casting issues
 - [002 - Provider Service Access Pattern](./002-provider-service-access-pattern.md): How to use providers correctly
 - [013 - Runtime Error Detection Testing](./013-runtime-error-detection-testing.md): Testing to catch these errors
 
 ### Prevention
+
 ```typescript
 // GOOD: Direct provider extraction
-const provider = yield* _(providerEffect);
+const provider = yield * _(providerEffect);
 
 // BAD: Double yield pattern
-const intermediate = yield* _(providerEffect);
-const provider = yield* _(intermediate as Effect);  // This will fail
+const intermediate = yield * _(providerEffect);
+const provider = yield * _(intermediate as Effect); // This will fail
 ```
 
 ## Testing Strategy
@@ -143,7 +149,7 @@ describe("Provider Double Yield Detection", () => {
     });
 
     const exit = await Effect.runPromise(Effect.exit(testEffect));
-    
+
     if (Exit.isFailure(exit)) {
       const errorMessage = String(exit.cause);
       expect(errorMessage).not.toContain("yield* (intermediate value)");
@@ -156,6 +162,7 @@ describe("Provider Double Yield Detection", () => {
 ## High-Impact Prevention
 
 This fix prevents:
+
 1. **Application Startup Failures**: Critical runtime errors during initialization
 2. **Provider Integration Issues**: Incorrect Effect generator patterns
 3. **Type Casting Complexity**: Eliminates unnecessary type assertions

@@ -517,7 +517,8 @@ The errors primarily fall into these categories:
     - **File:** `src/services/nip28/NIP28ServiceImpl.ts`
     - The previous attempt to `pipe(Layer.provide(TelemetryServiceLive))` to `NIP28ServiceLive` was incorrect. `NIP28ServiceLive` itself should only depend on `NostrService` if `createNIP28Service` itself (the factory function) doesn't directly use `TelemetryService`.
     - If `createNIP28Service` _does_ require `TelemetryService` (e.g., for an initial log when the service is created), the layer definition should be:
-      ```typescript
+
+      ````typescript
       // src/services/nip28/NIP28ServiceImpl.ts
       // ...
       // export function createNIP28Service(telemetryService: TelemetryService): NIP28Service { ... } // If factory needs it
@@ -536,6 +537,7 @@ The errors primarily fall into these categories:
           ```
 
       The `signAndPublishEvent` refactor above means the individual NIP28 methods will handle their telemetry calls internally, so `createNIP28Service` should not need `TelemetryService` passed to it, and `NIP28ServiceLive` should just be `Layer.succeed(NIP28Service, createNIP28Service())`. The context requirements for `NIP28Service` methods will be `NostrService`.
+      ````
 
 **Step 2: Fix `NIP28Service.test.ts`**
 
@@ -562,7 +564,8 @@ The errors primarily fall into these categories:
 
     - **File:** `src/tests/unit/services/nip28/NIP28Service.test.ts`
     - The `TestServiceLayer` needs to provide all dependencies for `NIP28ServiceLive`. Since `NIP28ServiceLive` creates `NIP28Service` which uses `NostrService`, and its methods internally use `TelemetryService` (provided locally via `TelemetryServiceLive`), `TestServiceLayer` should look like this:
-      ```typescript
+
+      ````typescript
       // src/tests/unit/services/nip28/NIP28Service.test.ts
       import { TelemetryServiceLive } from '@/services/telemetry'; // Add this
 
@@ -580,6 +583,7 @@ The errors primarily fall into these categories:
           ```
 
       This means `runTestEffect`'s `Effect.provide(effect, TestServiceLayer)` should correctly resolve all dependencies for the `effect` (which requires `NIP28Service`), making its final context `never`.
+      ````
 
 3.  **Correct `Exit` and `Cause` Usage in Assertions:**
 
@@ -1064,21 +1068,21 @@ Here are the precise instructions to fix these TypeScript errors:
     - The `TS2345` error "Type 'NostrService' is not assignable to type 'never'" usually means that `MockNostrServiceLayer` or `TestServiceLayer` isn't correctly satisfying all dependencies down to `never`.
     - Ensure the mocked methods in `MockNostrServiceLayer` precisely match the return types of the `NostrService` interface (including their `R` channel being `never`).
       `typescript
-    // Check MockNostrServiceLayer return types carefully
-    const MockNostrServiceLayer = Layer.succeed(NostrService, {
-        getPool: (): Effect.Effect<any, UnderlyingNostrPoolError, never> => Effect.succeed({} as any),
-        publishEvent: mockPublishEvent, // mockPublishEvent should return Effect.Effect<void, UnderlyingNostrPublishError, never>
-        listEvents: mockListEvents,     // mockListEvents should return Effect.Effect<NostrEvent[], UnderlyingNostrRequestError, never>
-        cleanupPool: (): Effect.Effect<void, UnderlyingNostrPoolError, never> => Effect.succeed(undefined as void)
-    });
-    // And ensure mockPublishEvent and mockListEvents in beforeEach also return Effects with R = never
-    beforeEach(() => {
-        // ...
-        mockPublishEvent.mockImplementation((): Effect.Effect<void, UnderlyingNostrPublishError, never> => Effect.succeed(undefined as void));
-        mockListEvents.mockImplementation((): Effect.Effect<NostrEvent[], UnderlyingNostrRequestError, never> => Effect.succeed([] as NostrEvent[]));
-        // ...
-    });
-    `
+// Check MockNostrServiceLayer return types carefully
+const MockNostrServiceLayer = Layer.succeed(NostrService, {
+    getPool: (): Effect.Effect<any, UnderlyingNostrPoolError, never> => Effect.succeed({} as any),
+    publishEvent: mockPublishEvent, // mockPublishEvent should return Effect.Effect<void, UnderlyingNostrPublishError, never>
+    listEvents: mockListEvents,     // mockListEvents should return Effect.Effect<NostrEvent[], UnderlyingNostrRequestError, never>
+    cleanupPool: (): Effect.Effect<void, UnderlyingNostrPoolError, never> => Effect.succeed(undefined as void)
+});
+// And ensure mockPublishEvent and mockListEvents in beforeEach also return Effects with R = never
+beforeEach(() => {
+    // ...
+    mockPublishEvent.mockImplementation((): Effect.Effect<void, UnderlyingNostrPublishError, never> => Effect.succeed(undefined as void));
+    mockListEvents.mockImplementation((): Effect.Effect<NostrEvent[], UnderlyingNostrRequestError, never> => Effect.succeed([] as NostrEvent[]));
+    // ...
+});
+`
       If `UnderlyingNostrPoolError` is not defined, use `any` or a generic `Error` for the mock, but ensure `R` is `never`.
 
 After these changes, run `pnpm t` and then `pnpm test "NIP28Service"`. The type errors should be resolved. The test failures might reveal further logic issues or incorrect mock setups, which can then be addressed.

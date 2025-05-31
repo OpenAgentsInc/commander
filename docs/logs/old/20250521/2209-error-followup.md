@@ -12,22 +12,23 @@ Let's correct the instructions for fixing the error handling in `OllamaAsOpenAIC
 
 **Revised Instructions for Error Handling in `OllamaAsOpenAIClientLive.ts`**
 
-*   **File to Modify:** `src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts`
+- **File to Modify:** `src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts`
 
 **Goal:** Ensure that the methods implemented for the `OpenAiClient.Service` interface (specifically `client.createChatCompletion`, `client.createEmbedding`, `client.listModels`, and the top-level `stream` method) fail with error types that are compatible with what the library's `Generated.Client` and `OpenAiClient.Service` interfaces expect. This is typically `HttpClientError.HttpClientError | ParseError`.
 
 **Detailed Instructions for the Coding Agent:**
 
 1.  **Remove `OpenAiError` Import and Usage:**
-    *   **Action:** In `src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts`, remove the import for `OpenAiError` from `@effect/ai-openai`.
-    *   **Action:** Remove all instances of `new OpenAiError(...)`.
+
+    - **Action:** In `src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts`, remove the import for `OpenAiError` from `@effect/ai-openai`.
+    - **Action:** Remove all instances of `new OpenAiError(...)`.
 
 2.  **Update Error Channel for `client.createChatCompletion`:**
     The method signature for `client.createChatCompletion` in the `Generated.Client` interface is:
     `(options: typeof CreateChatCompletionRequest.Encoded) => Effect.Effect<typeof CreateChatCompletionResponse.Type, HttpClientError.HttpClientError | ParseError>`
 
-    *   **Action:** Modify your `createChatCompletion` method to match this error channel.
-    *   When your IPC call `ollamaIPC.generateChatCompletion` results in an error (e.g., `response.__error` is true, or the `tryPromise` catches something), you should construct and fail with an appropriate `HttpClientError.HttpClientError`. A `HttpClientError.ResponseError` is suitable here.
+    - **Action:** Modify your `createChatCompletion` method to match this error channel.
+    - When your IPC call `ollamaIPC.generateChatCompletion` results in an error (e.g., `response.__error` is true, or the `tryPromise` catches something), you should construct and fail with an appropriate `HttpClientError.HttpClientError`. A `HttpClientError.ResponseError` is suitable here.
 
     ```typescript
     // src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts
@@ -134,7 +135,8 @@ Let's correct the instructions for fixing the error handling in `OllamaAsOpenAIC
     The `stream` method of `OpenAiClient.Service` is typically typed as:
     `(request: StreamCompletionRequest) => Stream.Stream<StreamChunk, HttpClientError.HttpClientError>` (Note: sometimes the error can also include `ParseError`).
 
-    *   **Action:** Modify your `stream` method's return type and error handling:
+    - **Action:** Modify your `stream` method's return type and error handling:
+
     ```typescript
     // src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts
     // ...
@@ -218,10 +220,10 @@ Let's correct the instructions for fixing the error handling in `OllamaAsOpenAIC
 
 **Summary of Changes:**
 
-*   The core idea is to make your `OllamaAsOpenAIClientLive` adapter's methods fail with `HttpClientError.HttpClientError` (or a union including `ParseError` where appropriate), as this is what the raw `Generated.Client` interface from the OpenAI SDK (which `@effect/ai-openai` wraps) typically does.
-*   Do not attempt to construct `OpenAiError` yourself within this adapter layer.
-*   The `OpenAiLanguageModel.model()` function from `@effect/ai-openai` will take your adapter (which implements `OpenAiClient.Service` and fails with `HttpClientError | ParseError`) and *it* will be responsible for mapping those lower-level errors into its own `OpenAiError` type if its `generateText`, `streamText` methods are called.
-*   Then, your `OllamaAgentLanguageModelLive` (which uses `OpenAiLanguageModel.model()`) will map that resulting `OpenAiError` into your application-specific `AIProviderError`.
+- The core idea is to make your `OllamaAsOpenAIClientLive` adapter's methods fail with `HttpClientError.HttpClientError` (or a union including `ParseError` where appropriate), as this is what the raw `Generated.Client` interface from the OpenAI SDK (which `@effect/ai-openai` wraps) typically does.
+- Do not attempt to construct `OpenAiError` yourself within this adapter layer.
+- The `OpenAiLanguageModel.model()` function from `@effect/ai-openai` will take your adapter (which implements `OpenAiClient.Service` and fails with `HttpClientError | ParseError`) and _it_ will be responsible for mapping those lower-level errors into its own `OpenAiError` type if its `generateText`, `streamText` methods are called.
+- Then, your `OllamaAgentLanguageModelLive` (which uses `OpenAiLanguageModel.model()`) will map that resulting `OpenAiError` into your application-specific `AIProviderError`.
 
 This layered error handling is crucial for Effect-TS and library compatibility.
 

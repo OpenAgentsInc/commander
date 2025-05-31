@@ -23,14 +23,14 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:status', action: 'chec
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:status', action: 'check_wallet_status_success', label: 'Wallet ready, balance: 0', timestamp: 1748033414924}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:admin', action: 'check_listening_status', value: 'inactive', timestamp: 1748033414924}
 VM12481 renderer_init:2 Electron Security Warning (Insecure Content-Security-Policy) This renderer process has either no Content Security
-  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
-  this app to unnecessary security risks.
+Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+this app to unnecessary security risks.
 
 For more information and help, consult
 https://electronjs.org/docs/tutorial/security.
 This warning will not show up
 once the app is packaged.
-warnAboutInsecureCSP @ VM12481 renderer_init:2
+warnAboutInsecureCSP @ VM12481 renderer*init:2
 logSecurityWarnings @ VM12481 renderer_init:2
 (anonymous) @ VM12481 renderer_init:2
 SellComputePane.tsx:142 [SellComputePane] Running delayed Ollama status check
@@ -68,10 +68,10 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'nip90:subscription', action:
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'nip90:subscription', action: 'kind_7000_feedback_received', label: '0c90160dbf9b21c4aa5eb48194fa425e47775014d0126b59e1bba7be7a5a08aa', value: 'Content: ... | Tags: [["e","a28c91e96890cc84e6d9d8…unt","3000","lnbc3n1mock_invoice_1748033422744"]]', timestamp: 1748033422866}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'nip90:consumer', action: 'payment_required', label: 'a28c91e96890cc84e6d9d89700fc80cfcbfc77df0302f5be005a066e04d96579', value: '3 sats', timestamp: 1748033422867}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'nip90:consumer', action: 'auto_payment_triggered', label: 'a28c91e96890cc84e6d9d89700fc80cfcbfc77df0302f5be005a066e04d96579', value: '3 sats', timestamp: 1748033422867}
-TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:lightning', action: 'pay_invoice_start', label: 'lnbc3n1mock_invoice_', timestamp: 1748033422867}
-TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:lightning', action: 'pay_invoice_success', label: 'lnbc3n1mock_invoice_', timestamp: 1748033422867}
+TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:lightning', action: 'pay_invoice_start', label: 'lnbc3n1mock_invoice*', timestamp: 1748033422867}
+TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:lightning', action: 'pay*invoice_success', label: 'lnbc3n1mock_invoice*', timestamp: 1748033422867}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'nip90:consumer', action: 'payment_success', label: 'a28c91e96890cc84e6d9d89700fc80cfcbfc77df0302f5be005a066e04d96579', value: 'mock_hash_1748033422867', timestamp: 1748033422869}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"Auto-paid 3 sats. Payment hash: mock_hash_17... Waiting for DVM to process...","annotations":[],"_tag":"TextPart"},{"usage":{"inputTokens":0,"outputTokens":77,"totalTokens":77,"reasoningTokens":0,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"reason":"unknown","providerMetadata":{},"_tag":"FinishPart"}]} Abort signal status: false
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"Auto-paid 3 sats. Payment hash: mock_hash_17... Waiting for DVM to process...","annotations":[],"\_tag":"TextPart"},{"usage":{"inputTokens":0,"outputTokens":77,"totalTokens":77,"reasoningTokens":0,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"reason":"unknown","providerMetadata":{},"\_tag":"FinishPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1748033421977 Chunk length: 77
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:balance', action: 'get_balance_start', timestamp: 1748033424947}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:balance', action: 'get_balance_success', label: 'Balance: 0 sats (no wallet)', value: 'Token count: 0', timestamp: 1748033424948}
@@ -97,8 +97,8 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:balance', action: 'get
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:balance', action: 'get_balance_success', label: 'Balance: 0 sats (no wallet)', value: 'Token count: 0', timestamp: 1748033474971}
 SparkServiceImpl.ts:70
 
-
            POST https://2.spark.flashnet.xyz/spark_authn.SparkAuthnService/get_challenge 504 (Gateway Timeout)
+
 fetchTransport @ lib-6GUHA7WW.js?v=ad354b67:394
 await in fetchTransport
 handleTransportErrors @ lib-6GUHA7WW.js?v=ad354b67:815
@@ -216,7 +216,7 @@ start @ chunk-QHMFDAEA.js?v=ad354b67:9108
 (anonymous) @ chunk-KYPYFHD7.js?v=ad354b67:109
 buildRuntimeAsync @ runtime.ts:225
 reinitializeRuntime @ runtime.ts:275
-_initializeServices @ walletStore.ts:176
+\_initializeServices @ walletStore.ts:176
 (anonymous) @ walletStore.ts:204
 (anonymous) @ chunk-FDM57WKT.js?v=ad354b67:388
 (anonymous) @ chunk-FDM57WKT.js?v=ad354b67:274
@@ -228,6 +228,7 @@ createStore @ chunk-THUVLC43.js?v=ad354b67:23
 createImpl @ chunk-F5CQ472C.js?v=ad354b67:24
 (anonymous) @ walletStore.ts:35
 SparkServiceImpl.ts:70 Authentication error: ClientError: /spark_authn.SparkAuthnService/get_challenge UNKNOWN: Transport error: /spark_authn.SparkAuthnService/get_challenge UNAVAILABLE: Received HTTP 504 response: <html>
+
 <head><title>504 Gateway Time-out</title></head>
 <body>
 <center><h1>504 Gateway Time-out</h1></center>

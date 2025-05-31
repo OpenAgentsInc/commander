@@ -1,6 +1,7 @@
 # Preload Script Error Analysis
 
 ## Current Error
+
 ```
 VM2851 renderer_init:2 Unable to load preload script: /Users/christopherdavid/code/commander/.vite/build/preload.js
 VM2851 renderer_init:2 Error: Cannot bind an API on top of an existing property on the window object
@@ -18,12 +19,14 @@ The error "Cannot bind an API on top of an existing property on the window objec
 
 ### Potential Sources
 
-1. **Duplicate IPC Context Exposure**: 
+1. **Duplicate IPC Context Exposure**:
+
    - `exposeOllamaContext()` might be called multiple times
    - `exposeClaudeCodeContext()` might be conflicting even if disabled
    - `exposeThemeContext()` or `exposeWindowContext()` duplication
 
 2. **Preload Script Build Issues**:
+
    - Vite might be failing to properly build the preload script
    - Path resolution issues in development vs production builds
 
@@ -35,7 +38,7 @@ The error "Cannot bind an API on top of an existing property on the window objec
 
 1. **src/preload.ts** - Main preload entry point
 2. **src/helpers/ipc/context-exposer.ts** - Context exposure coordination
-3. **src/helpers/ipc/*/context.ts** - Individual context exposers
+3. **src/helpers/ipc/\*/context.ts** - Individual context exposers
 4. **forge.config.ts** - Preload script configuration
 5. **vite.preload.config.mts** - Vite preload build configuration
 
@@ -56,12 +59,14 @@ The error "Cannot bind an API on top of an existing property on the window objec
 
 **Problem**: Multiple `contextBridge.exposeInMainWorld("electronAPI", ...)` calls are attempting to bind to the same window property.
 
-**Specific Issue**: 
+**Specific Issue**:
+
 1. `exposeOllamaContext()` calls `contextBridge.exposeInMainWorld("electronAPI", {...})`
 2. `exposeClaudeCodeContext()` also calls `contextBridge.exposeInMainWorld("electronAPI", {...})`
 3. The second call fails because "electronAPI" is already bound
 
 **Evidence**:
+
 - Both ollama-context.ts and claude-code-context.ts use the same binding key
 - Error occurs because contextBridge doesn't allow overwriting existing properties
 - The `...(window.electronAPI || {})` spread attempt doesn't work in preload context
@@ -73,11 +78,13 @@ Disabled `exposeClaudeCodeContext()` in context-exposer.ts to resolve the immedi
 ### Architectural Fix Needed
 
 The current approach of each context trying to bind the entire `electronAPI` object is flawed. Should implement:
+
 1. **Single electronAPI builder** that collects all API surfaces
-2. **Conditional API assembly** based on enabled features  
+2. **Conditional API assembly** based on enabled features
 3. **Guard clauses** to prevent duplicate bindings
 
 ### Immediate Status
+
 - App should now load without preload errors
 - Claude Code provider temporarily disabled to resolve conflict
 - Ollama and other IPC functions should work normally

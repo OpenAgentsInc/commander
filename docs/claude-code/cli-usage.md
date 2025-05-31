@@ -4,17 +4,17 @@
 
 Customize Claude Code's behavior with these command-line flags:
 
-| Flag | Description | Example |
-|------|-------------|---------|
-| `--print`, `-p` | Print response without interactive mode (see SDK documentation for programmatic usage details) | `claude -p "query"` |
-| `--output-format` | Specify output format for print mode (options: text, json, stream-json) | `claude -p "query" --output-format json` |
-| `--verbose` | Enable verbose logging, shows full turn-by-turn output (helpful for debugging in both print and interactive modes) | `claude --verbose` |
-| `--max-turns` | Limit the number of agentic turns in non-interactive mode | `claude -p --max-turns 3 "query"` |
-| `--model` | Sets the model for the current session with an alias for the latest model (sonnet or opus) or a model's full name | `claude --model claude-sonnet-4-20250514` |
-| `--permission-prompt-tool` | Specify an MCP tool to handle permission prompts in non-interactive mode | `claude -p --permission-prompt-tool mcp_auth_tool "query"` |
-| `--resume` | Resume a specific session by ID, or by choosing in interactive mode | `claude --resume abc123 "query"` |
-| `--continue` | Load the most recent conversation in the current directory | `claude --continue` |
-| `--dangerously-skip-permissions` | Skip permission prompts (use with caution) | `claude --dangerously-skip-permissions` |
+| Flag                             | Description                                                                                                        | Example                                                    |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| `--print`, `-p`                  | Print response without interactive mode (see SDK documentation for programmatic usage details)                     | `claude -p "query"`                                        |
+| `--output-format`                | Specify output format for print mode (options: text, json, stream-json)                                            | `claude -p "query" --output-format json`                   |
+| `--verbose`                      | Enable verbose logging, shows full turn-by-turn output (helpful for debugging in both print and interactive modes) | `claude --verbose`                                         |
+| `--max-turns`                    | Limit the number of agentic turns in non-interactive mode                                                          | `claude -p --max-turns 3 "query"`                          |
+| `--model`                        | Sets the model for the current session with an alias for the latest model (sonnet or opus) or a model's full name  | `claude --model claude-sonnet-4-20250514`                  |
+| `--permission-prompt-tool`       | Specify an MCP tool to handle permission prompts in non-interactive mode                                           | `claude -p --permission-prompt-tool mcp_auth_tool "query"` |
+| `--resume`                       | Resume a specific session by ID, or by choosing in interactive mode                                                | `claude --resume abc123 "query"`                           |
+| `--continue`                     | Load the most recent conversation in the current directory                                                         | `claude --continue`                                        |
+| `--dangerously-skip-permissions` | Skip permission prompts (use with caution)                                                                         | `claude --dangerously-skip-permissions`                    |
 
 ## Basic Commands
 

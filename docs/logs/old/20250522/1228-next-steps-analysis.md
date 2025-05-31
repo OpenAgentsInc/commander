@@ -12,23 +12,32 @@ The @effect/ai library implements a sophisticated three-stage pattern for model 
 
 ```typescript
 // Stage 1: Model Definition (returns AiModel<Provides, Requires>)
-const aiModelDef = OpenAiLanguageModel.model("gpt-4", config)
+const aiModelDef = OpenAiLanguageModel.model("gpt-4", config);
 
 // Stage 2: Dependency Injection (returns Effect<AiModel<...>, never, never>)
-const aiModelWithDeps = Effect.provideService(aiModelDef, OpenAiClient.OpenAiClient, client)
+const aiModelWithDeps = Effect.provideService(
+  aiModelDef,
+  OpenAiClient.OpenAiClient,
+  client,
+);
 
 // Stage 3: Model Building (returns Effect<Provider<Provides>, never, never>)
-const providerEffect = Effect.flatMap(aiModelWithDeps, model => model)
+const providerEffect = Effect.flatMap(aiModelWithDeps, (model) => model);
 
 // Stage 4: Service Usage via Provider
-const result = Effect.flatMap(providerEffect, provider => 
-  provider.use(yourEffect)
-)
+const result = Effect.flatMap(providerEffect, (provider) =>
+  provider.use(yourEffect),
+);
 ```
 
 **Key Insight**: The `AiModel` extends `AiPlan`, which extends `Builder<Provides, Requires>`. A Builder is defined as:
+
 ```typescript
-type Builder<Provides, Requires> = Effect.Effect<Provider<Provides>, never, Requires>
+type Builder<Provides, Requires> = Effect.Effect<
+  Provider<Provides>,
+  never,
+  Requires
+>;
 ```
 
 This means when you yield an AiModel, you get a Provider, not the services directly.
@@ -36,9 +45,12 @@ This means when you yield an AiModel, you get a Provider, not the services direc
 ### 2. The Provider Pattern
 
 A Provider is a simple interface:
+
 ```typescript
 interface Provider<Provides> {
-  readonly use: <A, E, R>(effect: Effect<A, E, R>) => Effect<A, E, Exclude<R, Provides>>
+  readonly use: <A, E, R>(
+    effect: Effect<A, E, R>,
+  ) => Effect<A, E, Exclude<R, Provides>>;
 }
 ```
 
@@ -47,8 +59,9 @@ The `use` method removes the provided services from the requirements of an effec
 ### 3. Effect's Variance Annotations
 
 Effect uses variance annotations (`in`, `out`, `in out`) to help TypeScript's type checker:
+
 - `in`: contravariant (input position)
-- `out`: covariant (output position)  
+- `out`: covariant (output position)
 - `in out`: invariant (both positions)
 
 The AiModel definition uses `in out` for both Provides and Requires, making it invariant. This strict typing helps catch errors but makes inference harder.
@@ -57,20 +70,23 @@ The AiModel definition uses `in out` for both Provides and Requires, making it i
 
 ### Issue 1: Ollama Provider Type Inference Failure
 
-**Problem**: 
+**Problem**:
+
 ```typescript
-const provider = yield* _(aiModel); // TypeScript infers 'unknown'
+const provider = yield * _(aiModel); // TypeScript infers 'unknown'
 ```
 
 **Root Cause**: The yield operation on an AiModel should return a Provider, but TypeScript's inference fails due to:
+
 1. Complex generic constraints through multiple levels (AiModel → AiPlan → Builder → Effect)
 2. The union type `AiLanguageModel | Tokenizer` in the Provides position
 3. Missing explicit type annotations in the chain
 
 **Solution Approach**:
+
 ```typescript
 // Option 1: Explicit type annotation at the provider level
-const provider: Provider<AiLanguageModel.AiLanguageModel> = yield* _(aiModel);
+const provider: Provider<AiLanguageModel.AiLanguageModel> = yield * _(aiModel);
 
 // Option 2: Type the entire Effect.gen function
 export const OllamaAgentLanguageModelLive = Effect.gen<
@@ -86,37 +102,39 @@ const aiModelTyped = aiModel as AiModel.AiModel<
   AiLanguageModel.AiLanguageModel | Tokenizer.Tokenizer,
   never
 >;
-const provider = yield* _(aiModelTyped);
+const provider = yield * _(aiModelTyped);
 ```
 
 ### Issue 2: ChatOrchestratorService Stream/Effect Mixing
 
 **Problem**:
+
 ```typescript
 return Stream.unwrap(
   Effect.retry(
     activeAgentLM.streamText(streamOptions), // Returns Stream, not Effect
-    Schedule.exponential("100 millis")
-  )
-)
+    Schedule.exponential("100 millis"),
+  ),
+);
 ```
 
 **Root Cause**: The code attempts to use `Effect.retry` on a Stream, but retry expects an Effect. The conceptual mistake is trying to retry stream creation rather than stream operations.
 
 **Solution Pattern**:
+
 ```typescript
 // Correct: Retry the Effect that creates the stream
 return Stream.unwrapScoped(
   Effect.retry(
     Effect.succeed(activeAgentLM.streamText(streamOptions)),
-    retrySchedule
-  )
-)
+    retrySchedule,
+  ),
+);
 
 // Or use Stream-specific retry
-return activeAgentLM.streamText(streamOptions).pipe(
-  Stream.retry(retrySchedule)
-)
+return activeAgentLM
+  .streamText(streamOptions)
+  .pipe(Stream.retry(retrySchedule));
 ```
 
 ### Issue 3: Test File Pattern Updates
@@ -124,15 +142,17 @@ return activeAgentLM.streamText(streamOptions).pipe(
 **Problem**: Tests use `Effect.provideLayer` which doesn't exist in current Effect.
 
 **Root Cause**: API change in Effect. The correct pattern is now:
+
 ```typescript
 // Old (incorrect)
-Effect.runPromise(effect.pipe(Effect.provideLayer(layer)))
+Effect.runPromise(effect.pipe(Effect.provideLayer(layer)));
 
 // New (correct)
-Effect.runPromise(effect.pipe(Effect.provide(layer)))
+Effect.runPromise(effect.pipe(Effect.provide(layer)));
 ```
 
 **Additional Test Patterns**:
+
 ```typescript
 // Service access in tests
 // Old: yield* _(ServiceTag)
@@ -149,18 +169,20 @@ Effect.runPromise(effect.pipe(Effect.provide(layer)))
 
 ### Issue 4: NIP90 Layer Type Mismatch
 
-**Problem**: 
+**Problem**:
+
 ```typescript
 // Error: Layer<AgentLanguageModel, never, ...> not assignable to Effect<AgentLanguageModel, unknown, unknown>
 export const NIP90AgentLanguageModelLive = Layer.effect(
   AgentLanguageModel.Tag,
-  NIP90AgentLanguageModelLive
-)
+  NIP90AgentLanguageModelLive,
+);
 ```
 
 **Root Cause**: Naming collision - the Effect is named the same as the Layer being created.
 
 **Solution**:
+
 ```typescript
 const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
   // ... implementation
@@ -168,7 +190,7 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
 
 export const NIP90AgentLanguageModelLive = Layer.effect(
   AgentLanguageModel.Tag,
-  nip90AgentLanguageModelEffect
+  nip90AgentLanguageModelEffect,
 );
 ```
 
@@ -177,18 +199,21 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
 ### Phase 1: Type Inference Fixes
 
 1. **Ollama Provider**:
+
    ```typescript
    // Add explicit type parameters to Effect.gen
    export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
      // ... existing code ...
-     
+
      // Type the provider explicitly
-     const provider = yield* _(aiModel) as Provider<AiLanguageModel.AiLanguageModel>;
-     
+     const provider = yield* _(
+       aiModel,
+     ) as Provider<AiLanguageModel.AiLanguageModel>;
+
      // Use type assertion for the model config if needed
      const modelConfig = {
        temperature: 0.7,
-       maxTokens: 2048
+       maxTokens: 2048,
      } satisfies Partial<OpenAiLanguageModel.Config.Service>;
    });
    ```
@@ -208,106 +233,112 @@ export const NIP90AgentLanguageModelLive = Layer.effect(
        prompt: JSON.stringify({ messages }),
        model: preferredProvider.modelName,
      };
-     
+
      // Option 1: Retry at the operation level
      const createStream = () => activeAgentLM.streamText(streamOptions);
-     
+
      return Stream.unwrapScoped(
-       Effect.retry(
-         Effect.sync(createStream),
-         retrySchedule
-       ).pipe(
+       Effect.retry(Effect.sync(createStream), retrySchedule).pipe(
          Effect.flatten,
          Effect.catchTag("AiProviderError", (error) => {
            if (!error.isRetryable) {
              return Effect.fail(error);
            }
            // Fallback logic here
-         })
-       )
+         }),
+       ),
      );
-   }
+   };
    ```
 
 ### Phase 3: Test Modernization Patterns
 
 1. **Create Test Helper Module** (`src/tests/helpers/effect-test-utils.ts`):
+
    ```typescript
    import { Effect, Layer, Context } from "effect";
-   
+
    // Helper for providing layers in tests
    export const runTest = <A, E>(
      effect: Effect.Effect<A, E, any>,
-     layer: Layer.Layer<any, any, any>
+     layer: Layer.Layer<any, any, any>,
    ) => Effect.runPromise(effect.pipe(Effect.provide(layer)));
-   
+
    // Mock service creator
    export const mockService = <I, S>(
      tag: Context.Tag<I, S>,
-     implementation: S
-   ): Layer.Layer<I, never, never> => 
-     Layer.succeed(tag, implementation);
+     implementation: S,
+   ): Layer.Layer<I, never, never> => Layer.succeed(tag, implementation);
    ```
 
 2. **Test File Updates Pattern**:
+
    ```typescript
    // Before
    const result = await Effect.runPromise(
-     program.pipe(Effect.provideLayer(testLayer))
+     program.pipe(Effect.provideLayer(testLayer)),
    );
-   
+
    // After
    const result = await Effect.runPromise(
-     program.pipe(Effect.provide(testLayer))
+     program.pipe(Effect.provide(testLayer)),
    );
-   
+
    // Service access
-   const service = yield* _(ServiceTag.Tag);
-   
+   const service = yield * _(ServiceTag.Tag);
+
    // Error creation
    const error = new AiProviderError({
      message: "test error",
-     isRetryable: false
+     isRetryable: false,
    });
    ```
 
 ### Phase 4: Advanced Type Solutions
 
 1. **Generic Constraints Helper Types**:
+
    ```typescript
    // In src/services/ai/core/types.ts
    import type { AiLanguageModel } from "@effect/ai";
    import type { Provider } from "@effect/ai/AiPlan";
-   
-   export type LanguageModelProvider = Provider<AiLanguageModel.AiLanguageModel>;
+
+   export type LanguageModelProvider =
+     Provider<AiLanguageModel.AiLanguageModel>;
    export type ExtractProvides<T> = T extends Provider<infer P> ? P : never;
    ```
 
 2. **Type Guards for Runtime Checks**:
    ```typescript
    export const isProvider = <T>(value: unknown): value is Provider<T> => {
-     return value !== null && 
-            typeof value === 'object' && 
-            'use' in value &&
-            typeof (value as any).use === 'function';
+     return (
+       value !== null &&
+       typeof value === "object" &&
+       "use" in value &&
+       typeof (value as any).use === "function"
+     );
    };
    ```
 
 ## Implementation Priority Order
 
 1. **Fix Ollama Provider Type Inference** (High Priority)
+
    - Add explicit Provider type import and annotation
    - This will validate the pattern for other providers
 
 2. **Fix ChatOrchestratorService Architecture** (High Priority)
+
    - Redesign to properly separate Effect and Stream operations
    - Critical for application functionality
 
 3. **Create Test Utilities Module** (Medium Priority)
+
    - Provides patterns for all test updates
    - Enables batch fixing of test files
 
 4. **Fix NIP90 Naming Collision** (Low Priority)
+
    - Simple rename to avoid confusion
    - Low impact on functionality
 

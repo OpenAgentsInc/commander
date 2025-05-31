@@ -1,4 +1,5 @@
 import type { DBSession, DBMessage, DBToolExecution } from "@/services/db";
+import type { EvaluationResult as SWEBenchEvaluationResult } from "@/services/swe_bench_harness/types";
 
 declare global {
   // Types for Claude Code (defined locally to avoid importing Node.js modules in renderer)
@@ -78,6 +79,9 @@ declare global {
     claudeCode?: ClaudeCodeAPI;
     ollama: OllamaAPI; // Make ollama non-optional
     database: DatabaseAPI;
+    sweBench?: {
+      evaluateTask: (instanceId: string, patchContent: string) => Promise<SWEBenchEvaluationResult | IpcErrorObject>;
+    };
   }
 
   interface Window {

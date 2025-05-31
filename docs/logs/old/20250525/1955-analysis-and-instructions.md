@@ -28,21 +28,22 @@ Create `src/services/ai/providers/claude_code/claude-utility-wrapper.js`:
 ```javascript
 // claude-utility-wrapper.js
 // This runs in the utility process, not main process
-const pty = require('node-pty');
-const path = require('path');
-const { parentPort } = require('worker_threads');
+const pty = require("node-pty");
+const path = require("path");
+const { parentPort } = require("worker_threads");
 
 // Listen for commands from main process
-parentPort.on('message', async (message) => {
+parentPort.on("message", async (message) => {
   const { id, command, args, env } = message;
 
   try {
     // Find Claude CLI
-    const claudePath = env.CLAUDE_PATH || '/Users/christopherdavid/.npm-global/bin/claude';
+    const claudePath =
+      env.CLAUDE_PATH || "/Users/christopherdavid/.npm-global/bin/claude";
 
     // Spawn with PTY
     const ptyProcess = pty.spawn(claudePath, args, {
-      name: 'xterm-256color',
+      name: "xterm-256color",
       cols: 120,
       rows: 30,
       cwd: env.HOME || process.env.HOME,
@@ -50,34 +51,34 @@ parentPort.on('message', async (message) => {
         ...process.env,
         ...env,
         // Ensure PATH includes Claude location
-        PATH: `${path.dirname(claudePath)}:${process.env.PATH}`
-      }
+        PATH: `${path.dirname(claudePath)}:${process.env.PATH}`,
+      },
     });
 
-    let outputBuffer = '';
+    let outputBuffer = "";
 
     ptyProcess.onData((data) => {
       outputBuffer += data;
 
       // Parse JSON lines
-      const lines = outputBuffer.split('\n');
+      const lines = outputBuffer.split("\n");
       if (lines.length > 1) {
         for (let i = 0; i < lines.length - 1; i++) {
-          const line = lines[i].trim().replace(/\x1b\[[0-9;]*[mGKHJ]/g, '');
-          if (line && line.startsWith('{')) {
+          const line = lines[i].trim().replace(/\x1b\[[0-9;]*[mGKHJ]/g, "");
+          if (line && line.startsWith("{")) {
             try {
               const json = JSON.parse(line);
               parentPort.postMessage({
                 id,
-                type: 'data',
-                data: json
+                type: "data",
+                data: json,
               });
             } catch (e) {
               // Send raw line if not JSON
               parentPort.postMessage({
                 id,
-                type: 'raw',
-                data: line
+                type: "raw",
+                data: line,
               });
             }
           }
@@ -89,29 +90,30 @@ parentPort.on('message', async (message) => {
     ptyProcess.onExit(({ exitCode, signal }) => {
       // Send any remaining data
       if (outputBuffer.trim()) {
-        const cleaned = outputBuffer.trim().replace(/\x1b\[[0-9;]*[mGKHJ]/g, '');
+        const cleaned = outputBuffer
+          .trim()
+          .replace(/\x1b\[[0-9;]*[mGKHJ]/g, "");
         if (cleaned) {
           parentPort.postMessage({
             id,
-            type: 'raw',
-            data: cleaned
+            type: "raw",
+            data: cleaned,
           });
         }
       }
 
       parentPort.postMessage({
         id,
-        type: 'exit',
+        type: "exit",
         exitCode,
-        signal
+        signal,
       });
     });
-
   } catch (error) {
     parentPort.postMessage({
       id,
-      type: 'error',
-      error: error.message
+      type: "error",
+      error: error.message,
     });
   }
 });
@@ -123,75 +125,92 @@ Replace the current implementation in `src/main.ts`:
 
 ```javascript
 // Add to imports
-const { utilityProcess } = require('electron');
-const path = require('path');
+const { utilityProcess } = require("electron");
+const path = require("path");
 
 // Store active utility processes
 const activeUtilityProcesses = new Map();
 
 // Replace the current claude-code:chat-stream handler
 ipcMain.on("claude-code:chat-stream", (event, requestId, params) => {
-  console.log("[Main Process] Received claude-code:chat-stream request:", requestId);
+  console.log(
+    "[Main Process] Received claude-code:chat-stream request:",
+    requestId,
+  );
 
   try {
     // Create utility process with network access
-    const utilityPath = path.join(__dirname, 'services/ai/providers/claude_code/claude-utility-wrapper.js');
+    const utilityPath = path.join(
+      __dirname,
+      "services/ai/providers/claude_code/claude-utility-wrapper.js",
+    );
 
     const utility = utilityProcess.fork(utilityPath, [], {
-      serviceName: 'claude-cli-service',
+      serviceName: "claude-cli-service",
       respondToAuthRequestsFromMainProcess: true, // Critical for HTTPS/API access
-      stdio: 'pipe'
+      stdio: "pipe",
     });
 
     activeUtilityProcesses.set(requestId, utility);
 
     // Prepare Claude CLI arguments
-    const userMessage = params.messages?.find(m => m.role === "user")?.content || "Hello";
-    const args = ["-p", userMessage, "--output-format", "stream-json", "--verbose"];
+    const userMessage =
+      params.messages?.find((m) => m.role === "user")?.content || "Hello";
+    const args = [
+      "-p",
+      userMessage,
+      "--output-format",
+      "stream-json",
+      "--verbose",
+    ];
 
     // Send command to utility process
     utility.postMessage({
       id: requestId,
-      command: 'claude',
+      command: "claude",
       args: args,
       env: {
         HOME: process.env.HOME,
-        CLAUDE_PATH: '/Users/christopherdavid/.npm-global/bin/claude'
-      }
+        CLAUDE_PATH: "/Users/christopherdavid/.npm-global/bin/claude",
+      },
     });
 
     // Handle responses from utility process
-    utility.on('message', (message) => {
+    utility.on("message", (message) => {
       console.log("[Main Process] Utility message:", message.type);
 
       switch (message.type) {
-        case 'data':
+        case "data":
           // Send parsed JSON to renderer
-          event.sender.send(`claude-code:chat-stream:chunk`, requestId, JSON.stringify(message.data));
+          event.sender.send(
+            `claude-code:chat-stream:chunk`,
+            requestId,
+            JSON.stringify(message.data),
+          );
           break;
 
-        case 'raw':
+        case "raw":
           // Send raw text if needed
           console.log("[Main Process] Raw data:", message.data);
           break;
 
-        case 'exit':
+        case "exit":
           activeUtilityProcesses.delete(requestId);
           if (message.exitCode === 0) {
             event.sender.send(`claude-code:chat-stream:done`, requestId);
           } else {
             event.sender.send(`claude-code:chat-stream:error`, requestId, {
               __error: true,
-              message: `Claude CLI exited with code ${message.exitCode}`
+              message: `Claude CLI exited with code ${message.exitCode}`,
             });
           }
           break;
 
-        case 'error':
+        case "error":
           activeUtilityProcesses.delete(requestId);
           event.sender.send(`claude-code:chat-stream:error`, requestId, {
             __error: true,
-            message: message.error
+            message: message.error,
           });
           break;
       }
@@ -205,16 +224,15 @@ ipcMain.on("claude-code:chat-stream", (event, requestId, params) => {
         activeUtilityProcesses.delete(requestId);
         event.sender.send(`claude-code:chat-stream:error`, requestId, {
           __error: true,
-          message: "Claude CLI timeout via utilityProcess"
+          message: "Claude CLI timeout via utilityProcess",
         });
       }
     }, 30000); // 30 second timeout
-
   } catch (error) {
     console.error("[Main Process] Failed to create utility process:", error);
     event.sender.send(`claude-code:chat-stream:error`, requestId, {
       __error: true,
-      message: `Failed to create utility process: ${error.message}`
+      message: `Failed to create utility process: ${error.message}`,
     });
   }
 });
@@ -236,8 +254,8 @@ Ensure the utility wrapper is included in the build. Add to `forge.config.ts`:
 ```javascript
 // In the packagerConfig section
 extraResource: [
-  'src/services/ai/providers/claude_code/claude-utility-wrapper.js'
-]
+  "src/services/ai/providers/claude_code/claude-utility-wrapper.js",
+];
 ```
 
 ## Workaround Option 2: External Service Bridge
@@ -253,10 +271,10 @@ Create `services/claude-bridge-service.js`:
 ```javascript
 // claude-bridge-service.js
 // Run this as a separate process: node services/claude-bridge-service.js
-const express = require('express');
-const WebSocket = require('ws');
-const pty = require('node-pty');
-const { execSync } = require('child_process');
+const express = require("express");
+const WebSocket = require("ws");
+const pty = require("node-pty");
+const { execSync } = require("child_process");
 
 const app = express();
 const PORT = 43210;
@@ -264,9 +282,9 @@ const PORT = 43210;
 // Find Claude CLI
 let claudePath;
 try {
-  claudePath = execSync('which claude', { encoding: 'utf8' }).trim();
+  claudePath = execSync("which claude", { encoding: "utf8" }).trim();
 } catch (e) {
-  claudePath = '/Users/christopherdavid/.npm-global/bin/claude';
+  claudePath = "/Users/christopherdavid/.npm-global/bin/claude";
 }
 
 console.log(`Claude Bridge Service starting on port ${PORT}`);
@@ -275,37 +293,39 @@ console.log(`Claude CLI path: ${claudePath}`);
 // WebSocket server for streaming
 const wss = new WebSocket.Server({ port: PORT + 1 });
 
-wss.on('connection', (ws) => {
-  console.log('WebSocket client connected');
+wss.on("connection", (ws) => {
+  console.log("WebSocket client connected");
 
-  ws.on('message', (message) => {
+  ws.on("message", (message) => {
     const { id, args } = JSON.parse(message);
     console.log(`Executing Claude CLI:`, args);
 
     try {
       const ptyProcess = pty.spawn(claudePath, args, {
-        name: 'xterm-256color',
+        name: "xterm-256color",
         cols: 120,
         rows: 30,
         cwd: process.env.HOME,
-        env: process.env
+        env: process.env,
       });
 
-      let outputBuffer = '';
+      let outputBuffer = "";
 
       ptyProcess.onData((data) => {
         outputBuffer += data;
-        const lines = outputBuffer.split('\n');
+        const lines = outputBuffer.split("\n");
 
         if (lines.length > 1) {
           for (let i = 0; i < lines.length - 1; i++) {
-            const line = lines[i].trim().replace(/\x1b\[[0-9;]*[mGKHJ]/g, '');
-            if (line && line.startsWith('{')) {
-              ws.send(JSON.stringify({
-                id,
-                type: 'data',
-                data: line
-              }));
+            const line = lines[i].trim().replace(/\x1b\[[0-9;]*[mGKHJ]/g, "");
+            if (line && line.startsWith("{")) {
+              ws.send(
+                JSON.stringify({
+                  id,
+                  type: "data",
+                  data: line,
+                }),
+              );
             }
           }
           outputBuffer = lines[lines.length - 1];
@@ -313,26 +333,29 @@ wss.on('connection', (ws) => {
       });
 
       ptyProcess.onExit(({ exitCode }) => {
-        ws.send(JSON.stringify({
-          id,
-          type: 'exit',
-          exitCode
-        }));
+        ws.send(
+          JSON.stringify({
+            id,
+            type: "exit",
+            exitCode,
+          }),
+        );
       });
-
     } catch (error) {
-      ws.send(JSON.stringify({
-        id,
-        type: 'error',
-        error: error.message
-      }));
+      ws.send(
+        JSON.stringify({
+          id,
+          type: "error",
+          error: error.message,
+        }),
+      );
     }
   });
 });
 
 // Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', claudePath });
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", claudePath });
 });
 
 app.listen(PORT, () => {
@@ -346,12 +369,12 @@ app.listen(PORT, () => {
 In `src/main.ts`:
 
 ```javascript
-const WebSocket = require('ws');
+const WebSocket = require("ws");
 
 // Check if bridge service is running
 async function checkBridgeService() {
   try {
-    const response = await fetch('http://localhost:43210/health');
+    const response = await fetch("http://localhost:43210/health");
     return response.ok;
   } catch (e) {
     return false;
@@ -365,53 +388,65 @@ ipcMain.on("claude-code:chat-stream", async (event, requestId, params) => {
   if (!bridgeAvailable) {
     event.sender.send(`claude-code:chat-stream:error`, requestId, {
       __error: true,
-      message: "Claude Bridge Service not running. Start it with: node services/claude-bridge-service.js"
+      message:
+        "Claude Bridge Service not running. Start it with: node services/claude-bridge-service.js",
     });
     return;
   }
 
   // Connect to bridge service
-  const ws = new WebSocket('ws://localhost:43211');
+  const ws = new WebSocket("ws://localhost:43211");
 
-  ws.on('open', () => {
-    const userMessage = params.messages?.find(m => m.role === "user")?.content || "Hello";
-    const args = ["-p", userMessage, "--output-format", "stream-json", "--verbose"];
+  ws.on("open", () => {
+    const userMessage =
+      params.messages?.find((m) => m.role === "user")?.content || "Hello";
+    const args = [
+      "-p",
+      userMessage,
+      "--output-format",
+      "stream-json",
+      "--verbose",
+    ];
 
     ws.send(JSON.stringify({ id: requestId, args }));
   });
 
-  ws.on('message', (data) => {
+  ws.on("message", (data) => {
     const message = JSON.parse(data);
 
     switch (message.type) {
-      case 'data':
-        event.sender.send(`claude-code:chat-stream:chunk`, requestId, message.data);
+      case "data":
+        event.sender.send(
+          `claude-code:chat-stream:chunk`,
+          requestId,
+          message.data,
+        );
         break;
-      case 'exit':
+      case "exit":
         ws.close();
         if (message.exitCode === 0) {
           event.sender.send(`claude-code:chat-stream:done`, requestId);
         } else {
           event.sender.send(`claude-code:chat-stream:error`, requestId, {
             __error: true,
-            message: `Claude CLI exited with code ${message.exitCode}`
+            message: `Claude CLI exited with code ${message.exitCode}`,
           });
         }
         break;
-      case 'error':
+      case "error":
         ws.close();
         event.sender.send(`claude-code:chat-stream:error`, requestId, {
           __error: true,
-          message: message.error
+          message: message.error,
         });
         break;
     }
   });
 
-  ws.on('error', (error) => {
+  ws.on("error", (error) => {
     event.sender.send(`claude-code:chat-stream:error`, requestId, {
       __error: true,
-      message: `WebSocket error: ${error.message}`
+      message: `WebSocket error: ${error.message}`,
     });
   });
 });
@@ -436,6 +471,7 @@ ipcMain.on("claude-code:chat-stream", async (event, requestId, params) => {
 ## Expected Outcomes
 
 With either workaround, you should see:
+
 - First data within 1-2 seconds (system init)
 - Assistant response within 5-7 seconds
 - Clean JSON streaming without timeouts

@@ -27,7 +27,7 @@ export function formatMessagesForClaudeCli(messages: AgentChatMessage[]): string
     return ""; // Return empty string if no user/assistant messages
   }
 
-  let promptParts: string[] = [];
+  const promptParts: string[] = [];
 
   for (const message of relevantMessages) {
     const rolePrefix = message.role === "user" ? "Human: " : "Assistant: ";

@@ -9,6 +9,7 @@ The payment failure persists because **28-bit PoW mining is computationally infe
 ### 1. PoW Difficulty Reality Check
 
 **28 bits of difficulty means finding a hash with 28 leading zero bits**. The probability of finding such a hash is:
+
 - Probability per attempt: 1 / 2^28 = 1 / 268,435,456
 - Expected iterations: ~268 million attempts
 - At 100k iterations/second (optimistic JS performance): ~45 minutes
@@ -17,6 +18,7 @@ The payment failure persists because **28-bit PoW mining is computationally infe
 ### 2. Current Implementation Analysis
 
 From the telemetry:
+
 ```
 [Nostr] Mining PoW for event 587da2d24e21ac7f4e3a657a88e884195005cadfec4f4ec0a63f5b00aed9915a
 Target difficulty: 28 bits
@@ -39,12 +41,13 @@ The provider is working perfectly - it's listening on wss://nos.lol and ready to
 ### 1. Relay Configuration Issue
 
 Looking at `NostrServiceConfig.ts`:
+
 ```typescript
 relayConfigs: [
   { url: "wss://nos.lol" }, // No PoW required
   { url: "wss://relay.damus.io", powRequirement: 28 }, // Requires 28-bit PoW
   { url: "wss://relay.nostr.band", powRequirement: 28 }, // Requires 28-bit PoW
-]
+];
 ```
 
 **THE CRITICAL BUG**: The NostrService is using the MAXIMUM PoW requirement across ALL relays, even when publishing to non-PoW relays!
@@ -52,6 +55,7 @@ relayConfigs: [
 ### 2. Code Logic Flaw
 
 In `NostrServiceImpl.ts`:
+
 ```typescript
 // Determine maximum PoW requirement
 let maxPowRequired = 0;
@@ -80,6 +84,7 @@ The consumer should ONLY use wss://nos.lol (no PoW) for testing, but it's config
 **File**: `src/services/nostr/NostrServiceImpl.ts`
 
 **Current** (WRONG):
+
 ```typescript
 // Uses ALL configured relays and mines for MAX difficulty
 const relayConfigs = getRelayConfigs();
@@ -92,6 +97,7 @@ for (const relayConfig of relayConfigs) {
 ```
 
 **Change to**:
+
 ```typescript
 // Add optional relay filter parameter to publishEvent
 const publishEvent = (
@@ -100,12 +106,12 @@ const publishEvent = (
 ): Effect.Effect<void, NostrPublishError, never> =>
   Effect.gen(function* (_) {
     const allRelayConfigs = getRelayConfigs();
-    
+
     // Filter to only requested relays if specified
-    const relayConfigs = targetRelays 
+    const relayConfigs = targetRelays
       ? allRelayConfigs.filter(r => targetRelays.includes(r.url))
       : allRelayConfigs;
-    
+
     // Only mine for relays we're actually using
     let maxPowRequired = 0;
     for (const relayConfig of relayConfigs) {
@@ -113,7 +119,7 @@ const publishEvent = (
         maxPowRequired = Math.max(maxPowRequired, relayConfig.powRequirement);
       }
     }
-    
+
     // Continue with existing mining logic...
 ```
 
@@ -122,9 +128,10 @@ const publishEvent = (
 **File**: `src/services/nip90/NIP90ServiceImpl.ts`
 
 Find where events are published and add relay override:
+
 ```typescript
 // When publishing NIP-90 events, use specific relays
-yield* _(nostrService.publishEvent(jobRequestEvent, ["wss://nos.lol"])); // NO POW!
+yield * _(nostrService.publishEvent(jobRequestEvent, ["wss://nos.lol"])); // NO POW!
 ```
 
 ### Fix 3: Update Mining Timeout
@@ -132,22 +139,28 @@ yield* _(nostrService.publishEvent(jobRequestEvent, ["wss://nos.lol"])); // NO P
 **File**: `src/services/nostr/NostrServiceImpl.ts`
 
 Change mining parameters for testing:
+
 ```typescript
-const minedEvent = yield* _(
-  nip13Service.mineEvent(event, {
-    targetDifficulty: maxPowRequired,
-    maxIterations: 1_000_000, // Reduce from 5M for faster failure
-    timeoutMs: 30_000, // 30 seconds instead of 60
-    onProgress: (iterations, currentBest) => {
-      if (iterations % 10000 === 0) { // Log every 10k instead of 100k
-        // Add timeout warning
-        if (iterations > 500000) {
-          console.warn(`PoW mining taking too long: ${iterations} iterations, best: ${currentBest}/${maxPowRequired}`);
+const minedEvent =
+  yield *
+  _(
+    nip13Service.mineEvent(event, {
+      targetDifficulty: maxPowRequired,
+      maxIterations: 1_000_000, // Reduce from 5M for faster failure
+      timeoutMs: 30_000, // 30 seconds instead of 60
+      onProgress: (iterations, currentBest) => {
+        if (iterations % 10000 === 0) {
+          // Log every 10k instead of 100k
+          // Add timeout warning
+          if (iterations > 500000) {
+            console.warn(
+              `PoW mining taking too long: ${iterations} iterations, best: ${currentBest}/${maxPowRequired}`,
+            );
+          }
         }
-      }
-    }
-  })
-);
+      },
+    }),
+  );
 ```
 
 ### Fix 4: Temporary Testing Configuration
@@ -155,24 +168,22 @@ const minedEvent = yield* _(
 **File**: `src/services/nostr/NostrServiceConfig.ts`
 
 For testing, use ONLY non-PoW relays:
+
 ```typescript
-export const NostrServiceConfigLive = Layer.succeed(
-  NostrServiceConfig,
-  {
-    relays: [], 
-    relayConfigs: [
-      { url: "wss://nos.lol" }, // NO POW - USE ONLY THIS FOR NOW
-      // COMMENT OUT HIGH-POW RELAYS FOR TESTING
-      // { url: "wss://relay.damus.io", powRequirement: 28 },
-      // { url: "wss://relay.nostr.band", powRequirement: 28 },
-    ],
-    defaultPublicKey: undefined,
-    defaultPrivateKey: undefined,
-    enablePoW: true,
-    defaultPowDifficulty: 0,
-    requestTimeoutMs: 10000,
-  } as const
-);
+export const NostrServiceConfigLive = Layer.succeed(NostrServiceConfig, {
+  relays: [],
+  relayConfigs: [
+    { url: "wss://nos.lol" }, // NO POW - USE ONLY THIS FOR NOW
+    // COMMENT OUT HIGH-POW RELAYS FOR TESTING
+    // { url: "wss://relay.damus.io", powRequirement: 28 },
+    // { url: "wss://relay.nostr.band", powRequirement: 28 },
+  ],
+  defaultPublicKey: undefined,
+  defaultPrivateKey: undefined,
+  enablePoW: true,
+  defaultPowDifficulty: 0,
+  requestTimeoutMs: 10000,
+} as const);
 ```
 
 ### Fix 5: Add PoW Bypass for Development
@@ -180,6 +191,7 @@ export const NostrServiceConfigLive = Layer.succeed(
 **File**: `src/services/nip13/NIP13ServiceImpl.ts`
 
 Add development bypass:
+
 ```typescript
 mineEvent: (event: NostrEvent, options: MiningOptions): Effect.Effect<MinedEvent, NIP13Error> => {
   // TEMPORARY: Skip mining in development for high difficulty
@@ -195,7 +207,7 @@ mineEvent: (event: NostrEvent, options: MiningOptions): Effect.Effect<MinedEvent
       }
     });
   }
-  
+
   // Continue with actual mining...
 ```
 
@@ -210,6 +222,7 @@ mineEvent: (event: NostrEvent, options: MiningOptions): Effect.Effect<MinedEvent
 ## Expected Outcome
 
 After implementing these fixes:
+
 1. Consumer will ONLY use wss://nos.lol (no PoW required)
 2. No mining will occur for non-PoW relays
 3. Job requests will publish immediately
@@ -218,6 +231,7 @@ After implementing these fixes:
 ## Long-term Solution
 
 For production use with PoW relays:
+
 1. Implement Web Worker mining (non-blocking)
 2. Use delegated PoW services
 3. Pre-mine events during idle time
@@ -226,6 +240,7 @@ For production use with PoW relays:
 ## Verification Steps
 
 After fixes:
+
 1. Check telemetry for "nostr_pow_mining_start" - should NOT appear when using nos.lol
 2. Verify "nostr_publish_begin" happens immediately
 3. Confirm provider receives job request

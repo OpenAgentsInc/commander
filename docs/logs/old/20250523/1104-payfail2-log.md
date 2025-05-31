@@ -7,14 +7,16 @@ After analyzing the telemetry logs from `1059-telemetry-payfail2-consumer.md`, I
 ## Telemetry Analysis
 
 ### What We See:
+
 1. **Wallet Initialization**: Consumer wallet properly initialized with 500 sats
 2. **Balance Checks**: Repeated balance queries showing 500 sats available
-3. **Runtime Pattern**: 
+3. **Runtime Pattern**:
    - Line 1: "Building SparkService with MOCK implementation"
    - Line 2: "Building SparkService with USER mnemonic"
    - This shows runtime reinitialization happened correctly
 
 ### What's Missing (CRITICAL):
+
 1. **No NIP-90 job events**: No `job_request_published`, `job_update_received`
 2. **No payment events**: No `payment_required`, `payment_start`, `payment_success`, or `payment_failure`
 3. **No interaction events**: No evidence of user sending messages or clicking pay button
@@ -22,19 +24,23 @@ After analyzing the telemetry logs from `1059-telemetry-payfail2-consumer.md`, I
 ## Root Cause Analysis
 
 ### Theory 1: User Never Triggered Payment
+
 The absence of ANY payment telemetry could mean:
+
 - User never sent a message to trigger a job request
 - Or user never clicked the pay button when invoice appeared
 
 However, the user explicitly states the payment is failing, so this is unlikely.
 
 ### Theory 2: Telemetry Context Issue (Most Likely)
+
 The `handlePayment` function tracks telemetry INSIDE the Effect:
+
 ```typescript
 const payEffect = Effect.gen(function* () {
   const spark = yield* SparkService;
   const telemetry = yield* TelemetryService;
-  
+
   yield* telemetry.trackEvent({  // This won't fire if Effect fails early
     category: "nip90_consumer",
     action: "payment_start",
@@ -45,14 +51,17 @@ const payEffect = Effect.gen(function* () {
 If the Effect fails during service resolution (e.g., getting wrong SparkService), the telemetry won't fire.
 
 ### Theory 3: Effect Execution Failure
+
 Looking deeper at the code pattern:
+
 ```typescript
 const paymentExit = await Effect.runPromiseExit(
-  payEffect.pipe(Effect.provide(currentRuntime))
+  payEffect.pipe(Effect.provide(currentRuntime)),
 );
 ```
 
 The Effect might be failing before any telemetry can be tracked. This could happen if:
+
 1. Service resolution fails
 2. The runtime context is incomplete
 3. There's an error in Effect composition
@@ -77,6 +86,7 @@ I've created `src/tests/integration/runtime-reinitialization.test.ts` with compr
 4. **Mock service switching**: Uses V1/V2 mocks to clearly show which runtime is being used
 
 Key test insight:
+
 ```typescript
 // This test demonstrates the exact problem
 const capturedRuntime = getMainRuntime(); // BAD: Captured at component mount
@@ -87,11 +97,13 @@ await reinitializeRuntime(); // Runtime updated with real wallet
 ## Comprehensive Fix Strategy
 
 ### 1. Add Defensive Telemetry
+
 Track telemetry OUTSIDE the Effect to diagnose failures:
+
 ```typescript
 const handlePayment = useCallback(async (invoice: string, jobId: string) => {
   const currentRuntime = getMainRuntime();
-  
+
   // Track attempt immediately (outside Effect)
   const telemetry = Context.get(currentRuntime.context, TelemetryService);
   telemetry.trackEvent({
@@ -99,29 +111,33 @@ const handlePayment = useCallback(async (invoice: string, jobId: string) => {
     action: "payment_attempt",
     label: jobId,
   });
-  
+
   try {
     // ... rest of payment logic
 ```
 
 ### 2. Verify Runtime Services
+
 Before executing payment Effect, verify the runtime has correct services:
+
 ```typescript
 const spark = Context.get(currentRuntime.context, SparkService);
 console.log("SparkService type:", spark.constructor.name);
 ```
 
 ### 3. Enhanced Error Handling
+
 Wrap Effect execution with comprehensive error tracking:
+
 ```typescript
 const paymentExit = await Effect.runPromiseExit(
   payEffect.pipe(
     Effect.tap(() => console.log("Effect starting...")),
     Effect.provide(currentRuntime),
-    Effect.tapError((error) => 
-      Effect.sync(() => console.error("Effect error:", error))
-    )
-  )
+    Effect.tapError((error) =>
+      Effect.sync(() => console.error("Effect error:", error)),
+    ),
+  ),
 );
 ```
 
@@ -143,6 +159,7 @@ const paymentExit = await Effect.runPromiseExit(
 ### Telemetry Analysis Outcome:
 
 The enhanced logging will now reveal:
+
 - Whether `handlePayment` is called at all (`payment_attempt` event)
 - Which SparkService instance is resolved from runtime
 - Where Effect execution fails (if it does)
@@ -151,6 +168,7 @@ The enhanced logging will now reveal:
 ### Test Implementation:
 
 Created comprehensive test that demonstrates:
+
 - Fresh runtime usage after reinitialization
 - Stale closure anti-pattern
 - Multiple reinitialization scenarios

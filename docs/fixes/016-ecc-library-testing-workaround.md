@@ -5,26 +5,32 @@
 When testing services that depend on cryptocurrency libraries (bitcoin/ECC), tests fail with cryptographic library initialization errors in Node.js environments.
 
 ### Error Messages
+
 ```
 Error: ecc library invalid
 ```
+
 ```
 Cannot read properties of undefined (reading 'bip32')
 ```
+
 ```
 Module not found: Can't resolve 'secp256k1'
 ```
 
 ### Common Scenarios
+
 This issue occurs when:
+
 1. Testing services that use Bitcoin/Lightning Network libraries
-2. Running unit tests with cryptocurrency SDK dependencies  
+2. Running unit tests with cryptocurrency SDK dependencies
 3. CI/CD environments without native cryptographic library support
 4. Docker containers missing native binary dependencies
 
 ## Root Cause
 
 Cryptocurrency libraries like `@spark-sdk/core`, `bitcoinjs-lib`, and `secp256k1` require:
+
 1. **Native binary dependencies** that may not be available in test environments
 2. **Platform-specific compilation** during npm install
 3. **Runtime initialization** of cryptographic contexts that fail in isolated test environments
@@ -41,12 +47,21 @@ Create complete mock implementations of services with cryptocurrency dependencie
 ```typescript
 // Original service interface (example)
 export interface SparkService {
-  createLightningInvoice(params: CreateLightningInvoiceParams): Effect.Effect<LightningInvoice, SparkLightningError>;
-  payLightningInvoice(params: PayLightningInvoiceParams): Effect.Effect<LightningPayment, SparkLightningError>;
+  createLightningInvoice(
+    params: CreateLightningInvoiceParams,
+  ): Effect.Effect<LightningInvoice, SparkLightningError>;
+  payLightningInvoice(
+    params: PayLightningInvoiceParams,
+  ): Effect.Effect<LightningPayment, SparkLightningError>;
   getBalance(): Effect.Effect<BalanceInfo, SparkBalanceError>;
   getSingleUseDepositAddress(): Effect.Effect<string, SparkConnectionError>;
   checkWalletStatus(): Effect.Effect<boolean, SparkConnectionError>;
-  checkInvoiceStatus(invoiceBolt11: string): Effect.Effect<{status: string, amountPaidMsats?: number}, SparkValidationError>;
+  checkInvoiceStatus(
+    invoiceBolt11: string,
+  ): Effect.Effect<
+    { status: string; amountPaidMsats?: number },
+    SparkValidationError
+  >;
 }
 ```
 
@@ -55,7 +70,11 @@ export interface SparkService {
 ```typescript
 // src/services/spark/SparkServiceTestImpl.ts
 import { Context, Effect, Layer } from "effect";
-import { SparkService, SparkServiceConfig, SparkServiceConfigTag } from "./SparkService";
+import {
+  SparkService,
+  SparkServiceConfig,
+  SparkServiceConfigTag,
+} from "./SparkService";
 
 export const SparkServiceTestLive = Layer.effect(
   SparkService,
@@ -75,14 +94,16 @@ export const SparkServiceTestLive = Layer.effect(
               createdAt: Date.now(),
               expiresAt: Date.now() + (params.expirySeconds || 3600) * 1000,
               memo: params.memo,
-            }
+            },
           };
 
-          yield* _(telemetry.trackEvent({
-            category: "spark:lightning",
-            action: "create_invoice_success",
-            value: String(params.amountSats),
-          }));
+          yield* _(
+            telemetry.trackEvent({
+              category: "spark:lightning",
+              action: "create_invoice_success",
+              value: String(params.amountSats),
+            }),
+          );
 
           return mockInvoice;
         }),
@@ -91,12 +112,14 @@ export const SparkServiceTestLive = Layer.effect(
         Effect.gen(function* (_) {
           // Mock payment processing with conditional behavior for testing
           if (params.invoice.includes("fail")) {
-            return yield* _(Effect.fail(
-              new SparkLightningError({
-                message: "Mock payment failed for testing",
-                context: { invoice: params.invoice },
-              })
-            ));
+            return yield* _(
+              Effect.fail(
+                new SparkLightningError({
+                  message: "Mock payment failed for testing",
+                  context: { invoice: params.invoice },
+                }),
+              ),
+            );
           }
 
           // Successful mock payment
@@ -109,7 +132,7 @@ export const SparkServiceTestLive = Layer.effect(
               createdAt: Date.now(),
               status: "SUCCESS",
               destination: "mock_destination",
-            }
+            },
           };
 
           return mockPayment;
@@ -118,12 +141,12 @@ export const SparkServiceTestLive = Layer.effect(
       getBalance: () =>
         Effect.succeed({
           balance: BigInt(100000), // 100k sats
-          tokenBalances: new Map()
+          tokenBalances: new Map(),
         }),
 
       // ... other methods with mock implementations
     });
-  })
+  }),
 );
 ```
 
@@ -135,13 +158,14 @@ export const TestSparkServiceConfigLayer = Layer.succeed(
   SparkServiceConfigTag,
   {
     network: "REGTEST",
-    mnemonicOrSeed: "test test test test test test test test test test test junk",
+    mnemonicOrSeed:
+      "test test test test test test test test test test test junk",
     accountNumber: 2,
     sparkSdkOptions: {
       grpcUrl: "http://localhost:8080",
       authToken: "test_token",
     },
-  } satisfies SparkServiceConfig
+  } satisfies SparkServiceConfig,
 );
 ```
 
@@ -150,14 +174,17 @@ export const TestSparkServiceConfigLayer = Layer.succeed(
 ```typescript
 // src/tests/helpers/test-runtime.ts
 import { Layer } from "effect";
-import { SparkServiceTestLive, TestSparkServiceConfigLayer } from "@/services/spark/SparkServiceTestImpl";
+import {
+  SparkServiceTestLive,
+  TestSparkServiceConfigLayer,
+} from "@/services/spark/SparkServiceTestImpl";
 
 // Test runtime without ECC dependencies
 export const TestRuntime = Layer.mergeAll(
   TelemetryServiceLive,
   ConfigurationServiceLive,
   TestSparkServiceConfigLayer,
-  SparkServiceTestLive
+  SparkServiceTestLive,
   // ... other services
 );
 
@@ -165,9 +192,7 @@ export const TestRuntime = Layer.mergeAll(
 export const createMinimalTestLayer = () =>
   Layer.merge(
     TelemetryServiceLive,
-    SparkServiceTestLive.pipe(
-      Layer.provide(TestSparkServiceConfigLayer)
-    )
+    SparkServiceTestLive.pipe(Layer.provide(TestSparkServiceConfigLayer)),
   );
 ```
 
@@ -181,34 +206,37 @@ describe("Service Integration Tests", () => {
   it("should process Lightning payments without ECC library", async () => {
     const result = await Effect.gen(function* (_) {
       const sparkService = yield* _(SparkService);
-      
-      const invoice = yield* _(sparkService.createLightningInvoice({
-        amountSats: 1000,
-        memo: "Test payment"
-      }));
-      
+
+      const invoice = yield* _(
+        sparkService.createLightningInvoice({
+          amountSats: 1000,
+          memo: "Test payment",
+        }),
+      );
+
       expect(invoice.invoice.amountSats).toBe(1000);
-      expect(invoice.invoice.encodedInvoice).toContain("lnbc1000n1mock_invoice_");
-      
+      expect(invoice.invoice.encodedInvoice).toContain(
+        "lnbc1000n1mock_invoice_",
+      );
+
       return invoice;
-    }).pipe(
-      Effect.provide(TestRuntime),
-      Effect.runPromise
-    );
+    }).pipe(Effect.provide(TestRuntime), Effect.runPromise);
   });
 
   it("should handle payment failures for testing", async () => {
     const result = await Effect.gen(function* (_) {
       const sparkService = yield* _(SparkService);
-      
+
       // Use special "fail" invoice to trigger mock failure
-      return yield* _(sparkService.payLightningInvoice({
-        invoice: "lnbc_fail_test_invoice"
-      }));
+      return yield* _(
+        sparkService.payLightningInvoice({
+          invoice: "lnbc_fail_test_invoice",
+        }),
+      );
     }).pipe(
       Effect.provide(TestRuntime),
       Effect.runPromise,
-      Effect.flip // Expect this to fail
+      Effect.flip, // Expect this to fail
     );
 
     expect(result._tag).toBe("SparkLightningError");
@@ -219,7 +247,9 @@ describe("Service Integration Tests", () => {
 ## Key Design Principles
 
 ### 1. Complete Interface Coverage
+
 The mock implementation must provide **every method** of the original service interface:
+
 ```typescript
 // ✅ GOOD - Complete implementation
 return SparkService.of({
@@ -228,7 +258,7 @@ return SparkService.of({
   getBalance: mockImplementation,
   getSingleUseDepositAddress: mockImplementation,
   checkWalletStatus: mockImplementation,
-  checkInvoiceStatus: mockImplementation
+  checkInvoiceStatus: mockImplementation,
 });
 
 // ❌ BAD - Partial implementation causes runtime errors
@@ -239,7 +269,9 @@ return SparkService.of({
 ```
 
 ### 2. Realistic Mock Data
+
 Mock responses should closely match real service responses:
+
 ```typescript
 // ✅ GOOD - Realistic structure
 const mockInvoice: LightningInvoice = {
@@ -250,7 +282,7 @@ const mockInvoice: LightningInvoice = {
     createdAt: Date.now(),
     expiresAt: Date.now() + (params.expirySeconds || 3600) * 1000,
     memo: params.memo,
-  }
+  },
 };
 
 // ❌ BAD - Overly simplified mock
@@ -258,17 +290,26 @@ const mockInvoice = { invoice: "fake" };
 ```
 
 ### 3. Conditional Behavior for Testing
+
 Enable specific test scenarios through input patterns:
+
 ```typescript
 // Enable testing of error cases
 if (params.invoice.includes("fail")) {
-  return yield* _(Effect.fail(new SparkLightningError({
-    message: "Mock payment failed for testing",
-    context: { invoice: params.invoice },
-  })));
+  return (
+    yield *
+    _(
+      Effect.fail(
+        new SparkLightningError({
+          message: "Mock payment failed for testing",
+          context: { invoice: params.invoice },
+        }),
+      ),
+    )
+  );
 }
 
-// Enable testing of specific conditions  
+// Enable testing of specific conditions
 if (invoiceBolt11.includes("paid")) {
   status = "paid";
   amountPaidMsats = 1000000;
@@ -278,18 +319,24 @@ if (invoiceBolt11.includes("paid")) {
 ```
 
 ### 4. Maintain Side Effects
+
 Keep telemetry and logging for test validation:
+
 ```typescript
-yield* _(telemetry.trackEvent({
-  category: "spark:lightning",
-  action: "create_invoice_success",
-  value: String(params.amountSats),
-}));
+yield *
+  _(
+    telemetry.trackEvent({
+      category: "spark:lightning",
+      action: "create_invoice_success",
+      value: String(params.amountSats),
+    }),
+  );
 ```
 
 ## When to Apply This Pattern
 
 Apply this workaround when:
+
 1. **Native Library Dependencies**: Service uses libraries with native binary requirements
 2. **Cryptocurrency Libraries**: Bitcoin, Lightning, Ethereum, or other blockchain SDKs
 3. **Platform-Specific Code**: Libraries that require specific OS or hardware features
@@ -299,12 +346,14 @@ Apply this workaround when:
 ## Testing Strategy
 
 ### Mock Service Features to Test
+
 1. **Interface Compliance**: All methods return expected types
 2. **Error Handling**: Mock can simulate all error conditions
 3. **Business Logic**: Core application logic works with mock data
 4. **Integration Points**: Mock integrates correctly with other services
 
 ### What NOT to Test with Mocks
+
 1. **Cryptographic Correctness**: Use integration tests with real libraries
 2. **Network Protocol Compliance**: Use end-to-end tests
 3. **Hardware Compatibility**: Use platform-specific tests
@@ -322,7 +371,9 @@ export const WalletServiceTestLive = Layer.effect(
 
     return WalletService.of({
       generateMnemonic: () =>
-        Effect.succeed("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"),
+        Effect.succeed(
+          "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+        ),
 
       createWalletFromMnemonic: (mnemonic: string) =>
         Effect.gen(function* (_) {
@@ -330,14 +381,16 @@ export const WalletServiceTestLive = Layer.effect(
           const mockWallet = {
             address: `mock_address_${Date.now()}`,
             publicKey: `mock_pubkey_${Date.now()}`,
-            network: "regtest"
+            network: "regtest",
           };
 
-          yield* _(telemetry.trackEvent({
-            category: "wallet",
-            action: "create_success",
-            label: "Mock wallet created"
-          }));
+          yield* _(
+            telemetry.trackEvent({
+              category: "wallet",
+              action: "create_success",
+              label: "Mock wallet created",
+            }),
+          );
 
           return mockWallet;
         }),
@@ -346,17 +399,19 @@ export const WalletServiceTestLive = Layer.effect(
         Effect.gen(function* (_) {
           // Mock signing without real cryptography
           const mockSignature = `mock_signature_${Date.now()}`;
-          
-          yield* _(telemetry.trackEvent({
-            category: "wallet",  
-            action: "sign_transaction",
-            label: `Mock signed: ${tx.id}`
-          }));
+
+          yield* _(
+            telemetry.trackEvent({
+              category: "wallet",
+              action: "sign_transaction",
+              label: `Mock signed: ${tx.id}`,
+            }),
+          );
 
           return mockSignature;
         }),
     });
-  })
+  }),
 );
 ```
 

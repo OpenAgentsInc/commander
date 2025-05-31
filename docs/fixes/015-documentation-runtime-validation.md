@@ -5,6 +5,7 @@
 Documentation can become outdated, incorrect, or describe anti-patterns that actually cause bugs. Even well-intentioned documentation can lead developers down the wrong path if it's not validated against actual runtime behavior.
 
 ### Real Example
+
 During this session, we discovered that [001-aimodel-provider-type-inference.md](./001-aimodel-provider-type-inference.md) documented the exact **wrong pattern** that caused a critical startup failure:
 
 ```typescript
@@ -37,12 +38,12 @@ describe("Fix 001 - Provider Pattern Validation", () => {
     // Test the EXACT pattern shown in the documentation
     const testPattern = Effect.gen(function* (_) {
       // Copy the exact code from the fix documentation
-      const provider = yield* _(configuredEffect);  // Correct pattern
+      const provider = yield* _(configuredEffect); // Correct pattern
       return provider;
     });
 
     const exit = await Effect.runPromise(Effect.exit(testPattern));
-    
+
     // Ensure no "yield* not iterable" errors
     if (Exit.isFailure(exit)) {
       const errorMessage = String(exit.cause);
@@ -70,19 +71,21 @@ Every fix should include:
 ## Runtime Validation
 
 This fix has been validated with:
+
 - [ ] Unit test that exercises the pattern
-- [ ] Integration test in application context  
+- [ ] Integration test in application context
 - [ ] Verification that alternative patterns fail appropriately
 - [ ] Cross-check against existing implementations
 
 ## Test Location
+
 - Test file: `path/to/test.ts`
 - Test description: "specific test name"
 ```
 
 ## Complete Example: Validated Fix Pattern
 
-```typescript
+````typescript
 // docs/fixes/001-corrected-example.md
 
 ## Problem
@@ -101,7 +104,8 @@ const provider = yield* _(configuredAiModelEffect);  // Single yield
 // WRONG - This causes runtime errors:
 const aiModel = yield* _(configuredAiModelEffect);
 const provider = yield* _(aiModel as Effect);  // Error!
-```
+````
+
 ```
 
 ## When to Apply This Protocol
@@ -170,3 +174,4 @@ This validation protocol prevents:
 4. Culture of questioning documentation, especially complex patterns
 
 This approach ensures that documentation becomes a trusted resource that actually helps rather than hindering development.
+```

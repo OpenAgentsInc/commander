@@ -1,4 +1,4 @@
-import { app, BrowserWindow, nativeTheme } from "electron"; // Add nativeTheme
+import { app, BrowserWindow, nativeTheme, ipcMain } from "electron"; // Add nativeTheme
 import registerListeners from "./helpers/ipc/listeners-register";
 import { addOllamaEventListeners } from "./helpers/ipc/ollama/ollama-listeners";
 // import { addClaudeCodeEventListeners } from "./helpers/ipc/claude_code/claude-code-listeners";
@@ -11,6 +11,9 @@ import {
   REACT_DEVELOPER_TOOLS,
 } from "electron-devtools-installer";
 import { setupClaudeWebSocketHandler } from "./main-claude-websocket";
+import { SWE_BENCH_EVALUATE_TASK_CHANNEL } from "./helpers/ipc/swe_bench/swe-bench-channels";
+// @ts-ignore - Conditionally imported in main process only
+let sweBenchImports: any;
 
 const inDevelopment = process.env.NODE_ENV === "development";
 
@@ -455,6 +458,62 @@ app.whenReady().then(async () => {
     console.error("[Main Process] Failed to initialize database:", error);
     // Continue app startup even if database fails - we can show error in UI
   }
+
+  // Lazy load SWE-Bench dependencies
+  if (!sweBenchImports) {
+    try {
+      sweBenchImports = {
+        FullSWEBenchHarnessLayer: require("./services/swe_bench_harness/example-layer-composition").FullSWEBenchHarnessLayer,
+        SWEBenchHarnessService: require("./services/swe_bench_harness").SWEBenchHarnessService,
+        Effect: require("effect").Effect,
+        Cause: require("effect").Cause,
+      };
+    } catch (e) {
+      console.error("[Main Process] Failed to load SWE-Bench dependencies:", e);
+    }
+  }
+
+  // Register SWE-Bench IPC handler
+  ipcMain.handle(SWE_BENCH_EVALUATE_TASK_CHANNEL, async (_event, instanceId: string, patchContent: string) => {
+    console.log(`[IPC Main] Received swebench:evaluate-task for ${instanceId}`);
+    
+    if (!sweBenchImports) {
+      const error = { 
+        __error: true, 
+        message: "SWE-Bench dependencies not loaded",
+        name: "DependencyError"
+      };
+      console.error("[IPC Main] SWE-Bench dependencies not available");
+      return error;
+    }
+
+    const { FullSWEBenchHarnessLayer, SWEBenchHarnessService, Effect, Cause } = sweBenchImports;
+
+    const program = Effect.gen(function* (_: any) {
+      const harness = yield* _(SWEBenchHarnessService);
+      return yield* _(harness.evaluateTask(instanceId, patchContent));
+    });
+
+    try {
+      // Run the program with the layer provided directly
+      const result = await Effect.runPromise(
+        Effect.provide(program, FullSWEBenchHarnessLayer)
+      );
+      console.log(`[IPC Main] Evaluation result for ${instanceId}:`, JSON.stringify(result, null, 2));
+      return result;
+    } catch (error: any) {
+      const errorCause = error instanceof Error ? error : Cause.squash(error);
+      const serializableError = {
+        __error: true,
+        message: errorCause instanceof Error ? errorCause.message : String(errorCause),
+        stack: errorCause instanceof Error ? errorCause.stack : undefined,
+        name: errorCause instanceof Error ? errorCause.name : "Error"
+      };
+      console.error(`[IPC Main] Error evaluating task ${instanceId}:`, serializableError);
+      return serializableError;
+    }
+  });
+  console.log("[Main Process] SWE-Bench IPC handler registered for evaluate-task");
 
   // Create window and install extensions
   createWindow();

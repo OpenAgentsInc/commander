@@ -156,7 +156,9 @@ Here are the instructions for the coding agent:
 -     pinchMidpoint,
 
 *     trackedHands, // New: an array of TrackedHandInfo for all detected hands
+
   };
+
   ```
 
   ```

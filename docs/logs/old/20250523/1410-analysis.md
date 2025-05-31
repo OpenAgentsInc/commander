@@ -7,14 +7,16 @@ Despite completely changing the subscription approach from `subscribeMany()` to 
 ## Timeline Analysis
 
 ### Consumer Timeline
+
 1. **1748027630774** - Job request published
 2. **1748027632317** - Job published successfully (1.54 seconds)
-3. **1748027632318** - Subscription created 
+3. **1748027632318** - Subscription created
 4. **1748027632319** - NostrServiceImpl logs subscription created
 5. **NEVER** - No "job_update_received" events
 6. **NEVER** - No "subscription_eose" events
 
-### Provider Timeline  
+### Provider Timeline
+
 1. **1748027627168** - DVM starts listening
 2. **1748027628223** - Provider DOES receive EOSE
 3. **1748027631406** - Receives job request (948ms before consumer subscription!)
@@ -31,6 +33,7 @@ So timing is NOT the issue - the subscription was active well before the payment
 ## Key Insight: NostrServiceImpl vs Consumer Pool Usage
 
 Looking at line 76 in consumer logs:
+
 ```
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'log:info', action: 'nostr_sub_created', label: '[Nostr] Created subscription'
 ```
@@ -40,10 +43,12 @@ This proves that the subscription IS being created via NostrServiceImpl, but the
 ## The Real Problem: Different Pool Instances!
 
 ### Consumer Flow:
+
 1. Uses its own `poolRef.current.subscribe()` calls
 2. NEVER receives any events or EOSE
 
 ### NostrServiceImpl (working):
+
 1. Creates subscription via internal pool
 2. Successfully logs subscription creation
 3. But this is NOT the same subscription the consumer is creating!
@@ -60,12 +65,14 @@ The NostrServiceImpl successfully creates subscriptions that work, but the consu
 ## Evidence from Logs
 
 ### What Works (NostrServiceImpl):
-- Line 76: `nostr_sub_created` - subscription logged 
+
+- Line 76: `nostr_sub_created` - subscription logged
 - Provider receives EOSE and events normally
 
 ### What Doesn't Work (Consumer SimplePool):
+
 - Consumer's `onevent` callbacks NEVER fire
-- Consumer's `oneose` callbacks NEVER fire  
+- Consumer's `oneose` callbacks NEVER fire
 - No "job_update_received" logs
 - No "subscription_eose" logs
 
@@ -74,6 +81,7 @@ The NostrServiceImpl successfully creates subscriptions that work, but the consu
 The consumer should NOT use its own SimplePool. Instead, it should use the NostrService for subscriptions, just like it uses NostrService for publishing.
 
 The consumer currently:
+
 - ✅ Uses NostrService for publishing (works)
 - ❌ Uses own SimplePool for subscribing (doesn't work)
 
@@ -94,6 +102,7 @@ This would make the consumer use the same working Nostr infrastructure that the 
 ## Why This Explains Everything
 
 This explains why:
+
 1. Multiple subscription attempts have failed
 2. Different SimplePool API patterns don't work
 3. The provider (using NostrService) works perfectly

@@ -5,12 +5,14 @@
 Effect runtime initialization fails completely when any service Layer uses `Effect.die()` during construction, preventing the entire application from starting. This commonly occurs with environment-specific dependencies like browser APIs.
 
 ### Error Messages
+
 ```
 CRITICAL: Failed to create Effect runtime for renderer: (FiberFailure) ReferenceError: window is not defined
 Service not found: [ServiceTag] (misleading - actually means runtime never initialized)
 ```
 
 ### Real Example
+
 The Agent Chat "Service not found: @effect/ai-openai/OpenAiLanguageModel/Config" error was actually caused by `OllamaAsOpenAIClientLive` calling `Effect.die()` when `window.electronAPI` wasn't available, aborting the entire runtime initialization.
 
 ## Root Cause
@@ -26,7 +28,7 @@ export const ServiceLive = Layer.effect(
       return yield* _(Effect.die(new Error("API not available"))); // KILLS RUNTIME!
     }
     return implementation;
-  })
+  }),
 );
 ```
 
@@ -36,24 +38,23 @@ Move environment checks from Layer construction time to method invocation time:
 
 ```typescript
 // CORRECT: Defers checks to usage time
-export const ServiceLive = Layer.succeed(
-  ServiceTag,
-  {
-    someMethod: (params) => Effect.suspend(() => {
+export const ServiceLive = Layer.succeed(ServiceTag, {
+  someMethod: (params) =>
+    Effect.suspend(() => {
       if (!window.someAPI) {
         return Effect.fail(new ServiceUnavailableError());
       }
       return actualImplementation(params);
     }),
-    
-    someStream: (params) => Stream.suspend(() => {
+
+  someStream: (params) =>
+    Stream.suspend(() => {
       if (!window.someAPI) {
         return Stream.fail(new ServiceUnavailableError());
       }
       return actualStreamImplementation(params);
-    })
-  }
-);
+    }),
+});
 ```
 
 ### Key Principles
@@ -75,7 +76,8 @@ export interface BrowserAPIService {
   streamData: (url: string) => Stream.Stream<Uint8Array, BrowserAPIError>;
 }
 
-export const BrowserAPIService = Context.GenericTag<BrowserAPIService>("BrowserAPIService");
+export const BrowserAPIService =
+  Context.GenericTag<BrowserAPIService>("BrowserAPIService");
 
 // Error types
 export class BrowserAPIError extends Data.TaggedError("BrowserAPIError")<{
@@ -84,36 +86,41 @@ export class BrowserAPIError extends Data.TaggedError("BrowserAPIError")<{
 }> {}
 
 // Resilient implementation
-export const BrowserAPIServiceLive = Layer.succeed(
-  BrowserAPIService,
-  {
-    _tag: "BrowserAPIService" as const,
-    
-    fetchData: (url: string) => Effect.suspend(() => {
+export const BrowserAPIServiceLive = Layer.succeed(BrowserAPIService, {
+  _tag: "BrowserAPIService" as const,
+
+  fetchData: (url: string) =>
+    Effect.suspend(() => {
       // Check environment when method is called
-      if (typeof window === 'undefined' || !window.fetch) {
-        return Effect.fail(new BrowserAPIError({
-          message: "Browser fetch API not available in current environment"
-        }));
+      if (typeof window === "undefined" || !window.fetch) {
+        return Effect.fail(
+          new BrowserAPIError({
+            message: "Browser fetch API not available in current environment",
+          }),
+        );
       }
-      
+
       // Proceed with implementation
       return Effect.tryPromise({
-        try: () => window.fetch(url).then(r => r.text()),
-        catch: (error) => new BrowserAPIError({
-          message: `Failed to fetch: ${error}`,
-          cause: error
-        })
+        try: () => window.fetch(url).then((r) => r.text()),
+        catch: (error) =>
+          new BrowserAPIError({
+            message: `Failed to fetch: ${error}`,
+            cause: error,
+          }),
       });
     }),
-    
-    streamData: (url: string) => Stream.suspend(() => {
-      if (typeof window === 'undefined' || !window.fetch) {
-        return Stream.fail(new BrowserAPIError({
-          message: "Browser fetch API not available for streaming"
-        }));
+
+  streamData: (url: string) =>
+    Stream.suspend(() => {
+      if (typeof window === "undefined" || !window.fetch) {
+        return Stream.fail(
+          new BrowserAPIError({
+            message: "Browser fetch API not available for streaming",
+          }),
+        );
       }
-      
+
       return Stream.unwrap(
         Effect.tryPromise({
           try: async () => {
@@ -122,7 +129,7 @@ export const BrowserAPIServiceLive = Layer.succeed(
             if (!reader) {
               throw new Error("No response body");
             }
-            
+
             return Stream.async<Uint8Array, BrowserAPIError>((emit) => {
               const read = async () => {
                 try {
@@ -134,26 +141,28 @@ export const BrowserAPIServiceLive = Layer.succeed(
                     read();
                   }
                 } catch (error) {
-                  emit.fail(new BrowserAPIError({
-                    message: "Stream read error",
-                    cause: error
-                  }));
+                  emit.fail(
+                    new BrowserAPIError({
+                      message: "Stream read error",
+                      cause: error,
+                    }),
+                  );
                 }
               };
               read();
-              
+
               return Effect.sync(() => reader.cancel());
             });
           },
-          catch: (error) => new BrowserAPIError({
-            message: `Failed to start stream: ${error}`,
-            cause: error
-          })
-        })
+          catch: (error) =>
+            new BrowserAPIError({
+              message: `Failed to start stream: ${error}`,
+              cause: error,
+            }),
+        }),
       );
-    })
-  }
-);
+    }),
+});
 
 // Usage in runtime - always succeeds
 export const AppRuntime = Layer.mergeAll(
@@ -164,10 +173,10 @@ export const AppRuntime = Layer.mergeAll(
 // Service usage - fails gracefully
 const program = Effect.gen(function* (_) {
   const browserAPI = yield* _(BrowserAPIService);
-  
+
   // This might fail if not in browser, but won't crash the runtime
   const data = yield* _(browserAPI.fetchData("https://api.example.com"));
-  
+
   return data;
 });
 ```
@@ -182,22 +191,22 @@ describe("Runtime Initialization Resilience", () => {
     const environments = [
       { name: "browser", window: { fetch: globalThis.fetch } },
       { name: "node", window: undefined },
-      { name: "partial", window: {} }
+      { name: "partial", window: {} },
     ];
-    
+
     for (const env of environments) {
       (global as any).window = env.window;
-      
+
       const runtime = await initializeRuntime();
       expect(runtime).toBeDefined();
-      
+
       // Other services should work regardless
       const result = await Effect.runPromise(
-        Effect.flatMap(SomeOtherService, service => 
-          service.doSomething()
-        ).pipe(Effect.provide(runtime))
+        Effect.flatMap(SomeOtherService, (service) =>
+          service.doSomething(),
+        ).pipe(Effect.provide(runtime)),
       );
-      
+
       expect(result).toBeDefined();
     }
   });
@@ -210,14 +219,14 @@ describe("Runtime Initialization Resilience", () => {
 describe("Service Degradation", () => {
   it("should provide clear errors when environment deps missing", async () => {
     delete (global as any).window;
-    
+
     const runtime = await initializeRuntime();
     const result = await Effect.runPromiseExit(
-      Effect.flatMap(BrowserAPIService, service =>
-        service.fetchData("https://example.com")
-      ).pipe(Effect.provide(runtime))
+      Effect.flatMap(BrowserAPIService, (service) =>
+        service.fetchData("https://example.com"),
+      ).pipe(Effect.provide(runtime)),
     );
-    
+
     expect(result._tag).toBe("Failure");
     // Should get service error, not runtime crash
     const error = Cause.failureOption(result.cause);

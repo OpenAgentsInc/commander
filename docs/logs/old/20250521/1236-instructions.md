@@ -28,7 +28,7 @@ Here are the specific instructions for the coding agent:
       export type Pane = {
         // ... existing fields ...
         type: /* ... existing types ... */
-          | "second_page_content"
+        | "second_page_content"
           | "wallet_setup_content"
           | "seed_phrase_backup_content"
           | "restore_wallet_content"
@@ -278,7 +278,7 @@ Here are the specific instructions:
       export type Pane = {
         // ... existing fields ...
         type: /* ... existing types ... */
-          | "second_page_content"
+        | "second_page_content"
           | "wallet_setup_content"
           | "seed_phrase_backup_content"
           | "restore_wallet_content"

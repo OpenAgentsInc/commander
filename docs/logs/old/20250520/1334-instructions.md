@@ -413,17 +413,15 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         // TODO: Map other NIP-90 params to Ollama params (max_tokens, temperature etc.)
 
         const ollamaResult = yield* _(
-          ollama
-            .generateChatCompletion(ollamaRequest)
-            .pipe(
-              Effect.mapError(
-                (e) =>
-                  new DVMJobProcessingError({
-                    message: "Ollama inference failed",
-                    cause: e,
-                  }),
-              ),
+          ollama.generateChatCompletion(ollamaRequest).pipe(
+            Effect.mapError(
+              (e) =>
+                new DVMJobProcessingError({
+                  message: "Ollama inference failed",
+                  cause: e,
+                }),
             ),
+          ),
         );
         const ollamaOutput = ollamaResult.choices[0]?.message.content || "";
         const totalTokens =
@@ -462,17 +460,15 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         if (isRequestEncrypted) {
           const dvmSkBytes = hexToBytes(config.dvmPrivateKeyHex);
           finalOutputContent = yield* _(
-            nip04
-              .encrypt(dvmSkBytes, requesterPubkey, ollamaOutput)
-              .pipe(
-                Effect.mapError(
-                  (e) =>
-                    new DVMJobProcessingError({
-                      message: "Failed to encrypt NIP-90 job result",
-                      cause: e,
-                    }),
-                ),
+            nip04.encrypt(dvmSkBytes, requesterPubkey, ollamaOutput).pipe(
+              Effect.mapError(
+                (e) =>
+                  new DVMJobProcessingError({
+                    message: "Failed to encrypt NIP-90 job result",
+                    cause: e,
+                  }),
               ),
+            ),
           );
         }
 
@@ -485,17 +481,15 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           isRequestEncrypted,
         );
         yield* _(
-          nostr
-            .publishEvent(jobResultEvent)
-            .pipe(
-              Effect.mapError(
-                (e) =>
-                  new DVMJobProcessingError({
-                    message: "Failed to publish job result event",
-                    cause: e,
-                  }),
-              ),
+          nostr.publishEvent(jobResultEvent).pipe(
+            Effect.mapError(
+              (e) =>
+                new DVMJobProcessingError({
+                  message: "Failed to publish job result event",
+                  cause: e,
+                }),
             ),
+          ),
         );
 
         // 6. Send "success" Feedback
@@ -1186,17 +1180,15 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         };
 
         const ollamaResult = yield* _(
-          ollama
-            .generateChatCompletion(ollamaRequest)
-            .pipe(
-              Effect.mapError(
-                (e) =>
-                  new DVMJobProcessingError({
-                    message: "Ollama inference failed",
-                    cause: e,
-                  }),
-              ),
+          ollama.generateChatCompletion(ollamaRequest).pipe(
+            Effect.mapError(
+              (e) =>
+                new DVMJobProcessingError({
+                  message: "Ollama inference failed",
+                  cause: e,
+                }),
             ),
+          ),
         );
         const ollamaOutput = ollamaResult.choices[0]?.message.content || "";
         // Ensure usage is defined, provide default values if not.
@@ -1258,17 +1250,15 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           isRequestEncrypted,
         );
         yield* _(
-          nostr
-            .publishEvent(jobResultEvent)
-            .pipe(
-              Effect.mapError(
-                (e) =>
-                  new DVMJobProcessingError({
-                    message: "Failed to publish job result event",
-                    cause: e,
-                  }),
-              ),
+          nostr.publishEvent(jobResultEvent).pipe(
+            Effect.mapError(
+              (e) =>
+                new DVMJobProcessingError({
+                  message: "Failed to publish job result event",
+                  cause: e,
+                }),
             ),
+          ),
         );
 
         const successFeedback = createNip90FeedbackEvent(

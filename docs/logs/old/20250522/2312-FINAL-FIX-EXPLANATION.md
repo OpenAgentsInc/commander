@@ -7,12 +7,15 @@ The error "Service not found: @effect/ai-openai/OpenAiLanguageModel/Config" pers
 ## Why Previous Fixes Failed
 
 ### Fix 1: Runtime Context (useAgentChat.ts)
+
 ```typescript
-Effect.runFork(Effect.provide(program, runtimeRef.current))
+Effect.runFork(Effect.provide(program, runtimeRef.current));
 ```
+
 **Why it failed**: This provided the runtime context to the initial Effect, but not to the execution contexts created later by `provider.use()`.
 
 ### Fix 2: Layer-Level Service Provision
+
 ```typescript
 export const OllamaAgentLanguageModelLiveLayer = Layer.effect(
   AgentLanguageModel.Tag,
@@ -23,28 +26,33 @@ export const OllamaAgentLanguageModelLiveLayer = Layer.effect(
       temperature: 0.7,
       max_tokens: 2048,
     };
-    return yield* _(Effect.provideService(
-      OllamaAgentLanguageModelLive, 
-      OpenAiLanguageModel.Config, 
-      openAiModelConfigServiceValue
-    ));
-  })
+    return yield* _(
+      Effect.provideService(
+        OllamaAgentLanguageModelLive,
+        OpenAiLanguageModel.Config,
+        openAiModelConfigServiceValue,
+      ),
+    );
+  }),
 );
 ```
+
 **Why it failed**: This made the Config service available during service construction, but not in the execution context created by `provider.use()`.
 
 ### Fix 3: Model Effect Service Provision
+
 ```typescript
 const configuredAiModelEffect = Effect.provideService(
   Effect.provideService(
     aiModelEffectDefinition,
     OpenAiLanguageModel.Config,
-    modelConfig
+    modelConfig,
   ),
-  OpenAiClient.OpenAiClient, 
-  ollamaClient
+  OpenAiClient.OpenAiClient,
+  ollamaClient,
 );
 ```
+
 **Why it failed**: This provided the Config service to the model creation effect, but again, not to the execution context created by `provider.use()`.
 
 ## The Root Cause
@@ -85,7 +93,7 @@ streamText: (options: StreamTextOptions) =>
 
 1. `provider.use()` creates a new execution context
 2. The generator function runs in that context
-3. Before the generator runs, we pipe it through `Effect.provideService()` 
+3. Before the generator runs, we pipe it through `Effect.provideService()`
 4. This ensures the Config service is available when `languageModel.streamText()` needs it
 
 ## Lessons Learned
@@ -98,6 +106,7 @@ streamText: (options: StreamTextOptions) =>
 ## Testing the Fix
 
 The fix was validated by:
+
 1. All 259 unit tests passing
 2. Manual testing in the Electron app confirming streaming works
 3. No more "Service not found" errors in telemetry
@@ -105,6 +114,7 @@ The fix was validated by:
 ## Future Considerations
 
 When working with Effect libraries that use the provider pattern:
+
 1. Always check if `provider.use()` is creating new contexts
 2. Provide required services to each execution context explicitly
 3. Test streaming operations separately from non-streaming ones

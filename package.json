@@ -22,6 +22,7 @@
     "test:e2e": "playwright test",
     "test:all": "vitest run --config vitest.config.mts && playwright test",
     "test:docker": "node scripts/test-docker.js",
+    "test:swebench": "tsx ./scripts/test-swebench-integration.ts",
     "copy": "node scripts/copyAllToClipboard.js",
     "t": "tsc --noEmit",
     "tfile": "node scripts/typecheckFile.js"

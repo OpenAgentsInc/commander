@@ -5,301 +5,420 @@ Here are the specific instructions for the coding agent:
 **Phase D1: PGlite & Database Service Setup (Main Process)**
 
 1.  **Add PGlite Dependency:**
-    *   **File:** `package.json`
-    *   **Action:** Add `@electric-sql/pglite` to `dependencies`.
-        ```json
-        // In "dependencies":
-        "@electric-sql/pglite": "^0.1.25", // Or latest stable version
-        ```
-    *   **Action:** Run `pnpm install`.
-    *   **Note:** PGlite relies on WASM. Ensure `wasm-unsafe-eval` (or broader `blob:`) is allowed in `script-src` of your `Content-Security-Policy` in `index.html` if it wasn't already for `@effect/ai`. (Already present: `script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' blob:;`)
+
+    - **File:** `package.json`
+    - **Action:** Add `@electric-sql/pglite` to `dependencies`.
+      ```json
+      // In "dependencies":
+      "@electric-sql/pglite": "^0.1.25", // Or latest stable version
+      ```
+    - **Action:** Run `pnpm install`.
+    - **Note:** PGlite relies on WASM. Ensure `wasm-unsafe-eval` (or broader `blob:`) is allowed in `script-src` of your `Content-Security-Policy` in `index.html` if it wasn't already for `@effect/ai`. (Already present: `script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' blob:;`)
 
 2.  **Configure Database Directory:**
-    *   **File:** `src/services/configuration/ConfigurationServiceImpl.ts`
-    *   **Action:** Inside `DefaultDevConfigLayer`'s `Effect.gen` block, add:
-        ```typescript
-        yield* _(configService.set("DB_DATA_DIR", "commander-data/pglite-db")); // Subdirectory within userData
-        ```
+
+    - **File:** `src/services/configuration/ConfigurationServiceImpl.ts`
+    - **Action:** Inside `DefaultDevConfigLayer`'s `Effect.gen` block, add:
+      ```typescript
+      yield * _(configService.set("DB_DATA_DIR", "commander-data/pglite-db")); // Subdirectory within userData
+      ```
 
 3.  **Create PGlite Service (Main Process):**
-    *   **File:** `src/services/db/PGliteService.ts` (New file)
-    *   **Content:**
-        ```typescript
-        import { Context, Effect, Layer, Config, Data } from "effect";
-        import { PGlite } from "@electric-sql/pglite";
-        import path from "path";
-        import { app } from "electron"; // Electron API available in main process
-        import fs from "fs";
-        import { ConfigurationService } from "@/services/configuration";
 
-        export class PGliteError extends Data.TaggedError("PGliteError")<{
-          message: string;
-          cause?: unknown;
-        }> {}
+    - **File:** `src/services/db/PGliteService.ts` (New file)
+    - **Content:**
 
-        export interface PGliteService {
-          readonly client: PGlite;
-        }
-        export const PGliteService = Context.GenericTag<PGliteService>("PGliteService");
+      ```typescript
+      import { Context, Effect, Layer, Config, Data } from "effect";
+      import { PGlite } from "@electric-sql/pglite";
+      import path from "path";
+      import { app } from "electron"; // Electron API available in main process
+      import fs from "fs";
+      import { ConfigurationService } from "@/services/configuration";
 
-        export const PGliteServiceLive = Layer.effect(
-          PGliteService,
-          Effect.gen(function*(_) {
-            const configService = yield* _(ConfigurationService);
-            const dbDataDirName = yield* _(configService.get("DB_DATA_DIR"));
+      export class PGliteError extends Data.TaggedError("PGliteError")<{
+        message: string;
+        cause?: unknown;
+      }> {}
 
-            const userDataPath = app.getPath("userData");
-            const dataDir = path.join(userDataPath, dbDataDirName);
+      export interface PGliteService {
+        readonly client: PGlite;
+      }
+      export const PGliteService =
+        Context.GenericTag<PGliteService>("PGliteService");
 
-            // Ensure the directory exists
-            if (!fs.existsSync(dataDir)) {
-              fs.mkdirSync(dataDir, { recursive: true });
-            }
+      export const PGliteServiceLive = Layer.effect(
+        PGliteService,
+        Effect.gen(function* (_) {
+          const configService = yield* _(ConfigurationService);
+          const dbDataDirName = yield* _(configService.get("DB_DATA_DIR"));
 
-            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.log(`[PGliteService] Initializing PGlite in main process at: ${dataDir}`);
+          const userDataPath = app.getPath("userData");
+          const dataDir = path.join(userDataPath, dbDataDirName);
 
-            const pgliteClient = yield* _(Effect.tryPromise({
+          // Ensure the directory exists
+          if (!fs.existsSync(dataDir)) {
+            fs.mkdirSync(dataDir, { recursive: true });
+          }
+
+          // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+          console.log(
+            `[PGliteService] Initializing PGlite in main process at: ${dataDir}`,
+          );
+
+          const pgliteClient = yield* _(
+            Effect.tryPromise({
               try: async () => {
                 // Using new PGlite() with a file path for Node.js persistence
                 const client = new PGlite(`file://${dataDir}`);
                 await client.waitReady; // Ensure the DB is ready
                 return client;
               },
-              catch: (cause) => new PGliteError({ message: "Failed to initialize PGlite client", cause })
-            }));
+              catch: (cause) =>
+                new PGliteError({
+                  message: "Failed to initialize PGlite client",
+                  cause,
+                }),
+            }),
+          );
 
-            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.log("[PGliteService] PGlite client initialized successfully in main process.");
-            return PGliteService.of({ client: pgliteClient });
-          })
-        );
-        ```
-    *   **Directory:** `src/services/db/`
+          // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+          console.log(
+            "[PGliteService] PGlite client initialized successfully in main process.",
+          );
+          return PGliteService.of({ client: pgliteClient });
+        }),
+      );
+      ```
+
+    - **Directory:** `src/services/db/`
 
 4.  **Create Database Schemas (Effect Schemas):**
-    *   **File:** `src/services/db/DatabaseSchemas.ts` (New file)
-    *   **Content:**
-        ```typescript
-        import { Schema } from "effect";
 
-        export const DBSessionSchema = Schema.Struct({
-          id: Schema.String, // e.g., UUID or derived from pane ID
-          created_at: Schema.Number, // Unix timestamp (seconds)
-          last_updated_at: Schema.Number, // Unix timestamp (seconds)
-          provider_key: Schema.String, // e.g., "claude_code_cli"
-          model_name: Schema.optional(Schema.String),
-          system_prompt: Schema.optional(Schema.String),
-          metadata_json: Schema.optional(Schema.String), // For other session settings
-        });
-        export type DBSession = Schema.Schema.Type<typeof DBSessionSchema>;
+    - **File:** `src/services/db/DatabaseSchemas.ts` (New file)
+    - **Content:**
 
-        export const DBMessageSchema = Schema.Struct({
-          id: Schema.String, // e.g., UUID
-          session_id: Schema.String, // FK to sessions.id
-          role: Schema.Union(
-            Schema.Literal("user"),
-            Schema.Literal("assistant"),
-            Schema.Literal("system"),
-            Schema.Literal("tool")
-          ),
-          content: Schema.NullishOr(Schema.String),
-          name: Schema.optional(Schema.String), // For tool role
-          tool_call_id: Schema.optional(Schema.String), // For tool role response
-          timestamp: Schema.Number, // Unix timestamp (seconds)
-          provider_message_id: Schema.optional(Schema.String), // ID from AI provider
-          metadata_json: Schema.optional(Schema.String), // For usage, finish_reason
-        });
-        export type DBMessage = Schema.Schema.Type<typeof DBMessageSchema>;
+      ```typescript
+      import { Schema } from "effect";
 
-        export const DBToolCallSchema = Schema.Struct({
-          id: Schema.String, // From tool_calls[].id
-          message_id: Schema.String, // FK to messages.id (assistant message)
-          tool_name: Schema.String,
-          arguments_json: Schema.String, // JSON string of arguments
-          result_json: Schema.optional(Schema.String), // JSON string of tool result
-          status: Schema.Union(
-            Schema.Literal("pending"),
-            Schema.Literal("executed_success"),
-            Schema.Literal("executed_error")
-          ),
-          created_at: Schema.Number, // Unix timestamp
-          updated_at: Schema.Number, // Unix timestamp
-        });
-        export type DBToolCall = Schema.Schema.Type<typeof DBToolCallSchema>;
-        ```
+      export const DBSessionSchema = Schema.Struct({
+        id: Schema.String, // e.g., UUID or derived from pane ID
+        created_at: Schema.Number, // Unix timestamp (seconds)
+        last_updated_at: Schema.Number, // Unix timestamp (seconds)
+        provider_key: Schema.String, // e.g., "claude_code_cli"
+        model_name: Schema.optional(Schema.String),
+        system_prompt: Schema.optional(Schema.String),
+        metadata_json: Schema.optional(Schema.String), // For other session settings
+      });
+      export type DBSession = Schema.Schema.Type<typeof DBSessionSchema>;
+
+      export const DBMessageSchema = Schema.Struct({
+        id: Schema.String, // e.g., UUID
+        session_id: Schema.String, // FK to sessions.id
+        role: Schema.Union(
+          Schema.Literal("user"),
+          Schema.Literal("assistant"),
+          Schema.Literal("system"),
+          Schema.Literal("tool"),
+        ),
+        content: Schema.NullishOr(Schema.String),
+        name: Schema.optional(Schema.String), // For tool role
+        tool_call_id: Schema.optional(Schema.String), // For tool role response
+        timestamp: Schema.Number, // Unix timestamp (seconds)
+        provider_message_id: Schema.optional(Schema.String), // ID from AI provider
+        metadata_json: Schema.optional(Schema.String), // For usage, finish_reason
+      });
+      export type DBMessage = Schema.Schema.Type<typeof DBMessageSchema>;
+
+      export const DBToolCallSchema = Schema.Struct({
+        id: Schema.String, // From tool_calls[].id
+        message_id: Schema.String, // FK to messages.id (assistant message)
+        tool_name: Schema.String,
+        arguments_json: Schema.String, // JSON string of arguments
+        result_json: Schema.optional(Schema.String), // JSON string of tool result
+        status: Schema.Union(
+          Schema.Literal("pending"),
+          Schema.Literal("executed_success"),
+          Schema.Literal("executed_error"),
+        ),
+        created_at: Schema.Number, // Unix timestamp
+        updated_at: Schema.Number, // Unix timestamp
+      });
+      export type DBToolCall = Schema.Schema.Type<typeof DBToolCallSchema>;
+      ```
 
 5.  **Create Database Service Interface (Main Process):**
-    *   **File:** `src/services/db/DatabaseService.ts` (New file)
-    *   **Content:**
-        ```typescript
-        import { Context, Effect, Data } from "effect";
-        import type { DBSession, DBMessage, DBToolCall } from "./DatabaseSchemas";
 
-        export class DatabaseError extends Data.TaggedError("DatabaseError")<{
-          message: string;
-          cause?: unknown;
-          query?: string;
-          params?: any[];
-        }> {}
+    - **File:** `src/services/db/DatabaseService.ts` (New file)
+    - **Content:**
 
-        export interface DatabaseService {
-          readonly _tag: "DatabaseService";
-          initDB(): Effect.Effect<void, DatabaseError>;
+      ```typescript
+      import { Context, Effect, Data } from "effect";
+      import type { DBSession, DBMessage, DBToolCall } from "./DatabaseSchemas";
 
-          saveSession(session: DBSession): Effect.Effect<void, DatabaseError>;
-          getSession(sessionId: string): Effect.Effect<DBSession | null, DatabaseError>;
-          updateSession(sessionId: string, updates: Partial<Omit<DBSession, "id" | "created_at">>): Effect.Effect<void, DatabaseError>;
+      export class DatabaseError extends Data.TaggedError("DatabaseError")<{
+        message: string;
+        cause?: unknown;
+        query?: string;
+        params?: any[];
+      }> {}
 
-          saveMessage(message: DBMessage): Effect.Effect<void, DatabaseError>;
-          getMessagesForSession(sessionId: string, limit?: number, offset?: number): Effect.Effect<DBMessage[], DatabaseError>;
+      export interface DatabaseService {
+        readonly _tag: "DatabaseService";
+        initDB(): Effect.Effect<void, DatabaseError>;
 
-          saveToolCall(toolCall: DBToolCall): Effect.Effect<void, DatabaseError>;
-          updateToolCallResult(toolCallId: string, resultJson: string, status: "executed_success" | "executed_error"): Effect.Effect<void, DatabaseError>;
-          getToolCallsForMessage(messageId: string): Effect.Effect<DBToolCall[], DatabaseError>;
-        }
-        export const DatabaseService = Context.GenericTag<DatabaseService>("DatabaseService");
-        ```
+        saveSession(session: DBSession): Effect.Effect<void, DatabaseError>;
+        getSession(
+          sessionId: string,
+        ): Effect.Effect<DBSession | null, DatabaseError>;
+        updateSession(
+          sessionId: string,
+          updates: Partial<Omit<DBSession, "id" | "created_at">>,
+        ): Effect.Effect<void, DatabaseError>;
+
+        saveMessage(message: DBMessage): Effect.Effect<void, DatabaseError>;
+        getMessagesForSession(
+          sessionId: string,
+          limit?: number,
+          offset?: number,
+        ): Effect.Effect<DBMessage[], DatabaseError>;
+
+        saveToolCall(toolCall: DBToolCall): Effect.Effect<void, DatabaseError>;
+        updateToolCallResult(
+          toolCallId: string,
+          resultJson: string,
+          status: "executed_success" | "executed_error",
+        ): Effect.Effect<void, DatabaseError>;
+        getToolCallsForMessage(
+          messageId: string,
+        ): Effect.Effect<DBToolCall[], DatabaseError>;
+      }
+      export const DatabaseService =
+        Context.GenericTag<DatabaseService>("DatabaseService");
+      ```
 
 6.  **Implement Database Service (Main Process):**
-    *   **File:** `src/services/db/DatabaseServiceImpl.ts` (New file)
-    *   **Action:** Implement the `DatabaseService` interface using the `PGliteService`. This will involve writing SQL queries.
-        ```typescript
-        import { Effect, Layer } from "effect";
-        import type { PGlite } from "@electric-sql/pglite";
-        import { PGliteService } from "./PGliteService";
-        import { DatabaseService, DatabaseError } from "./DatabaseService";
-        import type { DBSession, DBMessage, DBToolCall } from "./DatabaseSchemas";
-        import { TelemetryService } from "@/services/telemetry";
 
-        export const DatabaseServiceLive = Layer.effect(
-          DatabaseService,
-          Effect.gen(function*(_) {
-            const pgliteService = yield* _(PGliteService);
-            const telemetry = yield* _(TelemetryService); // For logging DB operations
-            const client: PGlite = pgliteService.client;
+    - **File:** `src/services/db/DatabaseServiceImpl.ts` (New file)
+    - **Action:** Implement the `DatabaseService` interface using the `PGliteService`. This will involve writing SQL queries.
 
-            const runQuery = <T = any>(sql: string, params: any[] = []) =>
-              Effect.tryPromise({
-                try: () => client.query<T>(sql, params),
-                catch: (cause) => new DatabaseError({ message: "Query failed", cause, query: sql, params })
-              }).pipe(
-                  Effect.tapError((err) => telemetry.trackEvent({ category: "db_error", action: "query_failed", label: sql.substring(0, 50), value: err.message }))
+      ```typescript
+      import { Effect, Layer } from "effect";
+      import type { PGlite } from "@electric-sql/pglite";
+      import { PGliteService } from "./PGliteService";
+      import { DatabaseService, DatabaseError } from "./DatabaseService";
+      import type { DBSession, DBMessage, DBToolCall } from "./DatabaseSchemas";
+      import { TelemetryService } from "@/services/telemetry";
+
+      export const DatabaseServiceLive = Layer.effect(
+        DatabaseService,
+        Effect.gen(function* (_) {
+          const pgliteService = yield* _(PGliteService);
+          const telemetry = yield* _(TelemetryService); // For logging DB operations
+          const client: PGlite = pgliteService.client;
+
+          const runQuery = <T = any>(sql: string, params: any[] = []) =>
+            Effect.tryPromise({
+              try: () => client.query<T>(sql, params),
+              catch: (cause) =>
+                new DatabaseError({
+                  message: "Query failed",
+                  cause,
+                  query: sql,
+                  params,
+                }),
+            }).pipe(
+              Effect.tapError((err) =>
+                telemetry.trackEvent({
+                  category: "db_error",
+                  action: "query_failed",
+                  label: sql.substring(0, 50),
+                  value: err.message,
+                }),
+              ),
+            );
+
+          const runExec = (sql: string, params: any[] = []) =>
+            Effect.tryPromise({
+              try: () => client.exec(sql, params),
+              catch: (cause) =>
+                new DatabaseError({
+                  message: "Exec failed",
+                  cause,
+                  query: sql,
+                  params,
+                }),
+            }).pipe(
+              Effect.tapError((err) =>
+                telemetry.trackEvent({
+                  category: "db_error",
+                  action: "exec_failed",
+                  label: sql.substring(0, 50),
+                  value: err.message,
+                }),
+              ),
+            );
+
+          const initDB = Effect.gen(function* (_) {
+            yield* _(
+              telemetry.trackEvent({ category: "db_init", action: "start" }),
+            );
+            yield* _(
+              runExec(`
+              CREATE TABLE IF NOT EXISTS sessions (
+                id TEXT PRIMARY KEY,
+                created_at INTEGER NOT NULL,
+                last_updated_at INTEGER NOT NULL,
+                provider_key TEXT NOT NULL,
+                model_name TEXT,
+                system_prompt TEXT,
+                metadata_json TEXT
               );
-
-            const runExec = (sql: string, params: any[] = []) =>
-              Effect.tryPromise({
-                try: () => client.exec(sql, params),
-                catch: (cause) => new DatabaseError({ message: "Exec failed", cause, query: sql, params })
-              }).pipe(
-                  Effect.tapError((err) => telemetry.trackEvent({ category: "db_error", action: "exec_failed", label: sql.substring(0, 50), value: err.message }))
+            `),
+            );
+            yield* _(
+              runExec(`
+              CREATE TABLE IF NOT EXISTS messages (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+                role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system', 'tool')),
+                content TEXT,
+                name TEXT,
+                tool_call_id TEXT,
+                timestamp INTEGER NOT NULL,
+                provider_message_id TEXT,
+                metadata_json TEXT
               );
+            `),
+            );
+            yield* _(
+              runExec(
+                `CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id);`,
+              ),
+            );
+            yield* _(
+              runExec(`
+              CREATE TABLE IF NOT EXISTS tool_calls (
+                id TEXT PRIMARY KEY,
+                message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+                tool_name TEXT NOT NULL,
+                arguments_json TEXT NOT NULL,
+                result_json TEXT,
+                status TEXT NOT NULL CHECK (status IN ('pending', 'executed_success', 'executed_error')),
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+              );
+            `),
+            );
+            yield* _(
+              runExec(
+                `CREATE INDEX IF NOT EXISTS idx_tool_calls_message_id ON tool_calls(message_id);`,
+              ),
+            );
+            yield* _(
+              telemetry.trackEvent({ category: "db_init", action: "success" }),
+            );
+          });
 
-            const initDB = Effect.gen(function*(_) {
-              yield* _(telemetry.trackEvent({ category: "db_init", action: "start" }));
-              yield* _(runExec(`
-                CREATE TABLE IF NOT EXISTS sessions (
-                  id TEXT PRIMARY KEY,
-                  created_at INTEGER NOT NULL,
-                  last_updated_at INTEGER NOT NULL,
-                  provider_key TEXT NOT NULL,
-                  model_name TEXT,
-                  system_prompt TEXT,
-                  metadata_json TEXT
-                );
-              `));
-              yield* _(runExec(`
-                CREATE TABLE IF NOT EXISTS messages (
-                  id TEXT PRIMARY KEY,
-                  session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-                  role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system', 'tool')),
-                  content TEXT,
-                  name TEXT,
-                  tool_call_id TEXT,
-                  timestamp INTEGER NOT NULL,
-                  provider_message_id TEXT,
-                  metadata_json TEXT
-                );
-              `));
-              yield* _(runExec(`CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id);`));
-              yield* _(runExec(`
-                CREATE TABLE IF NOT EXISTS tool_calls (
-                  id TEXT PRIMARY KEY,
-                  message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
-                  tool_name TEXT NOT NULL,
-                  arguments_json TEXT NOT NULL,
-                  result_json TEXT,
-                  status TEXT NOT NULL CHECK (status IN ('pending', 'executed_success', 'executed_error')),
-                  created_at INTEGER NOT NULL,
-                  updated_at INTEGER NOT NULL
-                );
-              `));
-              yield* _(runExec(`CREATE INDEX IF NOT EXISTS idx_tool_calls_message_id ON tool_calls(message_id);`));
-              yield* _(telemetry.trackEvent({ category: "db_init", action: "success" }));
-            });
+          return DatabaseService.of({
+            _tag: "DatabaseService",
+            initDB: initDB.pipe(Effect.catchAll((e) => Effect.die(e))), // initDB must succeed or app shouldn't start
 
-            return DatabaseService.of({
-              _tag: "DatabaseService",
-              initDB: initDB.pipe(Effect.catchAll(e => Effect.die(e))), // initDB must succeed or app shouldn't start
-
-              saveSession: (session) => runExec(
+            saveSession: (session) =>
+              runExec(
                 `INSERT INTO sessions (id, created_at, last_updated_at, provider_key, model_name, system_prompt, metadata_json)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7)
-                 ON CONFLICT(id) DO UPDATE SET
-                   last_updated_at = excluded.last_updated_at,
-                   provider_key = excluded.provider_key,
-                   model_name = excluded.model_name,
-                   system_prompt = excluded.system_prompt,
-                   metadata_json = excluded.metadata_json;`,
-                [session.id, session.created_at, session.last_updated_at, session.provider_key, session.model_name, session.system_prompt, session.metadata_json]
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               ON CONFLICT(id) DO UPDATE SET
+                 last_updated_at = excluded.last_updated_at,
+                 provider_key = excluded.provider_key,
+                 model_name = excluded.model_name,
+                 system_prompt = excluded.system_prompt,
+                 metadata_json = excluded.metadata_json;`,
+                [
+                  session.id,
+                  session.created_at,
+                  session.last_updated_at,
+                  session.provider_key,
+                  session.model_name,
+                  session.system_prompt,
+                  session.metadata_json,
+                ],
               ).pipe(Effect.asVoid),
 
-              getSession: (sessionId) => runQuery<DBSession>(
-                `SELECT * FROM sessions WHERE id = $1;`, [sessionId]
-              ).pipe(Effect.map(result => result.rows[0] || null)),
+            getSession: (sessionId) =>
+              runQuery<DBSession>(`SELECT * FROM sessions WHERE id = $1;`, [
+                sessionId,
+              ]).pipe(Effect.map((result) => result.rows[0] || null)),
 
-              updateSession: (sessionId, updates) => {
-                  const setClauses = Object.keys(updates).map((key, i) => `${key} = $${i + 2}`).join(', ');
-                  const values = Object.values(updates);
-                  if (!setClauses) return Effect.void; // No updates to make
-                  return runExec(
-                      `UPDATE sessions SET ${setClauses}, last_updated_at = $${values.length + 2} WHERE id = $1;`,
-                      [sessionId, ...values, Math.floor(Date.now() / 1000)]
-                  ).pipe(Effect.asVoid);
-              },
+            updateSession: (sessionId, updates) => {
+              const setClauses = Object.keys(updates)
+                .map((key, i) => `${key} = $${i + 2}`)
+                .join(", ");
+              const values = Object.values(updates);
+              if (!setClauses) return Effect.void; // No updates to make
+              return runExec(
+                `UPDATE sessions SET ${setClauses}, last_updated_at = $${values.length + 2} WHERE id = $1;`,
+                [sessionId, ...values, Math.floor(Date.now() / 1000)],
+              ).pipe(Effect.asVoid);
+            },
 
-              saveMessage: (message) => runExec(
+            saveMessage: (message) =>
+              runExec(
                 `INSERT INTO messages (id, session_id, role, content, name, tool_call_id, timestamp, provider_message_id, metadata_json)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
-                [message.id, message.session_id, message.role, message.content, message.name, message.tool_call_id, message.timestamp, message.provider_message_id, message.metadata_json]
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
+                [
+                  message.id,
+                  message.session_id,
+                  message.role,
+                  message.content,
+                  message.name,
+                  message.tool_call_id,
+                  message.timestamp,
+                  message.provider_message_id,
+                  message.metadata_json,
+                ],
               ).pipe(Effect.asVoid),
 
-              getMessagesForSession: (sessionId, limit = 50, offset = 0) => runQuery<DBMessage>(
+            getMessagesForSession: (sessionId, limit = 50, offset = 0) =>
+              runQuery<DBMessage>(
                 `SELECT * FROM messages WHERE session_id = $1 ORDER BY timestamp ASC LIMIT $2 OFFSET $3;`,
-                [sessionId, limit, offset]
-              ).pipe(Effect.map(result => result.rows)),
+                [sessionId, limit, offset],
+              ).pipe(Effect.map((result) => result.rows)),
 
-              saveToolCall: (toolCall) => runExec(
+            saveToolCall: (toolCall) =>
+              runExec(
                 `INSERT INTO tool_calls (id, message_id, tool_name, arguments_json, result_json, status, created_at, updated_at)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`,
-                [toolCall.id, toolCall.message_id, toolCall.tool_name, toolCall.arguments_json, toolCall.result_json, toolCall.status, toolCall.created_at, toolCall.updated_at]
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`,
+                [
+                  toolCall.id,
+                  toolCall.message_id,
+                  toolCall.tool_name,
+                  toolCall.arguments_json,
+                  toolCall.result_json,
+                  toolCall.status,
+                  toolCall.created_at,
+                  toolCall.updated_at,
+                ],
               ).pipe(Effect.asVoid),
 
-              updateToolCallResult: (toolCallId, resultJson, status) => runExec(
+            updateToolCallResult: (toolCallId, resultJson, status) =>
+              runExec(
                 `UPDATE tool_calls SET result_json = $1, status = $2, updated_at = $3 WHERE id = $4;`,
-                [resultJson, status, Math.floor(Date.now()/1000), toolCallId]
+                [resultJson, status, Math.floor(Date.now() / 1000), toolCallId],
               ).pipe(Effect.asVoid),
 
-              getToolCallsForMessage: (messageId) => runQuery<DBToolCall>(
+            getToolCallsForMessage: (messageId) =>
+              runQuery<DBToolCall>(
                 `SELECT * FROM tool_calls WHERE message_id = $1 ORDER BY created_at ASC;`,
-                [messageId]
-              ).pipe(Effect.map(result => result.rows)),
-            });
-          })
-        );
-        ```
+                [messageId],
+              ).pipe(Effect.map((result) => result.rows)),
+          });
+        }),
+      );
+      ```
 
 7.  **Update `src/services/db/index.ts`:**
+
     ```typescript
     export * from "./DatabaseSchemas";
     export * from "./DatabaseService";
@@ -308,647 +427,918 @@ Here are the specific instructions for the coding agent:
     ```
 
 8.  **Update Main Process Runtime & Call `initDB`:**
-    *   **File:** `src/main-process-runtime.ts`
-    *   **Action:**
-        *   Import `PGliteServiceLive`, `DatabaseService`, `DatabaseServiceLive` from `../db`.
-        *   Add `PGliteServiceLive` and `DatabaseServiceLive` to the `mainProcessLayer`. `DatabaseServiceLive` depends on `PGliteServiceLive` and `TelemetryService`. `PGliteServiceLive` depends on `ConfigurationService`.
-        *   Modify `initializeMainProcessRuntime` to get `DatabaseService` from the runtime and call `initDB()`. This ensures tables are created on startup.
-        ```typescript
-        // src/main-process-runtime.ts
-        // ... other imports ...
-        import { PGliteServiceLive } from "@/services/db/PGliteService";
-        import { DatabaseService, DatabaseServiceLive } from "@/services/db";
 
-        export type MainProcessAppContext = ConfigurationService | TelemetryService | ClaudeCodeCliService | DatabaseService; // Add DatabaseService
+    - **File:** `src/main-process-runtime.ts`
+    - **Action:**
 
-        // ... telemetryLayer, configLayer, mainProcessBaseLayer setup ...
-        // ... claudeCodeCliLayer setup ...
+      - Import `PGliteServiceLive`, `DatabaseService`, `DatabaseServiceLive` from `../db`.
+      - Add `PGliteServiceLive` and `DatabaseServiceLive` to the `mainProcessLayer`. `DatabaseServiceLive` depends on `PGliteServiceLive` and `TelemetryService`. `PGliteServiceLive` depends on `ConfigurationService`.
+      - Modify `initializeMainProcessRuntime` to get `DatabaseService` from the runtime and call `initDB()`. This ensures tables are created on startup.
 
-        const pgliteLayer = PGliteServiceLive.pipe(Layer.provide(mainProcessBaseLayer)); // PGlite needs ConfigurationService
-        const databaseLayer = DatabaseServiceLive.pipe(Layer.provide(Layer.merge(pgliteLayer, telemetryLayer))); // DB needs PGlite and Telemetry
+      ```typescript
+      // src/main-process-runtime.ts
+      // ... other imports ...
+      import { PGliteServiceLive } from "@/services/db/PGliteService";
+      import { DatabaseService, DatabaseServiceLive } from "@/services/db";
 
-        const mainProcessLayer = Layer.mergeAll(
-            mainProcessBaseLayer,
-            claudeCodeCliLayer,
-            pgliteLayer, // Added
-            databaseLayer  // Added
-        );
+      export type MainProcessAppContext =
+        | ConfigurationService
+        | TelemetryService
+        | ClaudeCodeCliService
+        | DatabaseService; // Add DatabaseService
 
-        export async function initializeMainProcessRuntime(): Promise<void> {
-          if (mainProcessRuntimeInstance) { /* ... */ return; }
-          try {
-            // ...
-            mainProcessRuntimeInstance = Runtime.make(runtimeContext);
-            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.log("[Main Runtime] Main process Effect runtime initialized successfully.");
+      // ... telemetryLayer, configLayer, mainProcessBaseLayer setup ...
+      // ... claudeCodeCliLayer setup ...
 
-            // Initialize Database
-            const dbService = Context.get(mainProcessRuntimeInstance.context, DatabaseService);
-            await Effect.runPromise(dbService.initDB());
-            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.log("[Main Runtime] Database initialized successfully.");
+      const pgliteLayer = PGliteServiceLive.pipe(
+        Layer.provide(mainProcessBaseLayer),
+      ); // PGlite needs ConfigurationService
+      const databaseLayer = DatabaseServiceLive.pipe(
+        Layer.provide(Layer.merge(pgliteLayer, telemetryLayer)),
+      ); // DB needs PGlite and Telemetry
 
-          } catch (e) { /* ... */ throw e; }
+      const mainProcessLayer = Layer.mergeAll(
+        mainProcessBaseLayer,
+        claudeCodeCliLayer,
+        pgliteLayer, // Added
+        databaseLayer, // Added
+      );
+
+      export async function initializeMainProcessRuntime(): Promise<void> {
+        if (mainProcessRuntimeInstance) {
+          /* ... */ return;
         }
-        // ... getMainProcessRuntime ...
-        ```
+        try {
+          // ...
+          mainProcessRuntimeInstance = Runtime.make(runtimeContext);
+          // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+          console.log(
+            "[Main Runtime] Main process Effect runtime initialized successfully.",
+          );
+
+          // Initialize Database
+          const dbService = Context.get(
+            mainProcessRuntimeInstance.context,
+            DatabaseService,
+          );
+          await Effect.runPromise(dbService.initDB());
+          // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+          console.log("[Main Runtime] Database initialized successfully.");
+        } catch (e) {
+          /* ... */ throw e;
+        }
+      }
+      // ... getMainProcessRuntime ...
+      ```
 
 **Phase D2: IPC for DatabaseService**
 
 1.  **Define DB IPC Channels (`db-channels.ts`):**
-    *   **File:** `src/helpers/ipc/db/db-channels.ts` (New file)
-    *   **Content:**
-        ```typescript
-        export const DB_SERVICE_CHANNEL_PREFIX = "db-service";
 
-        export const dbChannels = {
-          initDB: `${DB_SERVICE_CHANNEL_PREFIX}:initDB`,
-          saveSession: `${DB_SERVICE_CHANNEL_PREFIX}:saveSession`,
-          getSession: `${DB_SERVICE_CHANNEL_PREFIX}:getSession`,
-          updateSession: `${DB_SERVICE_CHANNEL_PREFIX}:updateSession`,
-          saveMessage: `${DB_SERVICE_CHANNEL_PREFIX}:saveMessage`,
-          getMessagesForSession: `${DB_SERVICE_CHANNEL_PREFIX}:getMessagesForSession`,
-          saveToolCall: `${DB_SERVICE_CHANNEL_PREFIX}:saveToolCall`,
-          updateToolCallResult: `${DB_SERVICE_CHANNEL_PREFIX}:updateToolCallResult`,
-          getToolCallsForMessage: `${DB_SERVICE_CHANNEL_PREFIX}:getToolCallsForMessage`,
-        };
-        ```
+    - **File:** `src/helpers/ipc/db/db-channels.ts` (New file)
+    - **Content:**
+
+      ```typescript
+      export const DB_SERVICE_CHANNEL_PREFIX = "db-service";
+
+      export const dbChannels = {
+        initDB: `${DB_SERVICE_CHANNEL_PREFIX}:initDB`,
+        saveSession: `${DB_SERVICE_CHANNEL_PREFIX}:saveSession`,
+        getSession: `${DB_SERVICE_CHANNEL_PREFIX}:getSession`,
+        updateSession: `${DB_SERVICE_CHANNEL_PREFIX}:updateSession`,
+        saveMessage: `${DB_SERVICE_CHANNEL_PREFIX}:saveMessage`,
+        getMessagesForSession: `${DB_SERVICE_CHANNEL_PREFIX}:getMessagesForSession`,
+        saveToolCall: `${DB_SERVICE_CHANNEL_PREFIX}:saveToolCall`,
+        updateToolCallResult: `${DB_SERVICE_CHANNEL_PREFIX}:updateToolCallResult`,
+        getToolCallsForMessage: `${DB_SERVICE_CHANNEL_PREFIX}:getToolCallsForMessage`,
+      };
+      ```
 
 2.  **Implement Main Process DB IPC Listeners (`db-listeners.ts`):**
-    *   **File:** `src/helpers/ipc/db/db-listeners.ts` (New file)
-    *   **Action:** Create listeners for each `DatabaseService` method. These will use the `mainProcessRuntime` to get the `DatabaseService` instance and execute methods.
-        ```typescript
-        // src/helpers/ipc/db/db-listeners.ts
-        import { ipcMain } from "electron";
-        import { Effect, Runtime, Cause } from "effect";
-        import type { MainProcessAppContext } from "@/main-process-runtime";
-        import { DatabaseService, DatabaseError } from "@/services/db";
-        import type { DBSession, DBMessage, DBToolCall } from "@/services/db";
-        import { dbChannels } from "./db-channels";
 
-        interface IpcErrorObject { /* ... (copy from ollama-listeners.ts or claude-code-cli-listeners.ts) ... */ }
-        function extractErrorForIPC(error: any): IpcErrorObject { /* ... */ }
+    - **File:** `src/helpers/ipc/db/db-listeners.ts` (New file)
+    - **Action:** Create listeners for each `DatabaseService` method. These will use the `mainProcessRuntime` to get the `DatabaseService` instance and execute methods.
 
-        export function addDatabaseEventListeners(runtime: Runtime.Runtime<MainProcessAppContext>) {
-          const runDbEffect = <A, E extends DatabaseError>(effect: Effect.Effect<A, E, DatabaseService>) =>
-            Effect.runPromise(Effect.provide(effect, runtime)).catch(error => extractErrorForIPC(error));
+      ```typescript
+      // src/helpers/ipc/db/db-listeners.ts
+      import { ipcMain } from "electron";
+      import { Effect, Runtime, Cause } from "effect";
+      import type { MainProcessAppContext } from "@/main-process-runtime";
+      import { DatabaseService, DatabaseError } from "@/services/db";
+      import type { DBSession, DBMessage, DBToolCall } from "@/services/db";
+      import { dbChannels } from "./db-channels";
 
-          ipcMain.handle(dbChannels.initDB, () =>
-            runDbEffect(Effect.flatMap(DatabaseService, db => db.initDB()))
+      interface IpcErrorObject {
+        /* ... (copy from ollama-listeners.ts or claude-code-cli-listeners.ts) ... */
+      }
+      function extractErrorForIPC(error: any): IpcErrorObject {
+        /* ... */
+      }
+
+      export function addDatabaseEventListeners(
+        runtime: Runtime.Runtime<MainProcessAppContext>,
+      ) {
+        const runDbEffect = <A, E extends DatabaseError>(
+          effect: Effect.Effect<A, E, DatabaseService>,
+        ) =>
+          Effect.runPromise(Effect.provide(effect, runtime)).catch((error) =>
+            extractErrorForIPC(error),
           );
-          ipcMain.handle(dbChannels.saveSession, (_, session: DBSession) =>
-            runDbEffect(Effect.flatMap(DatabaseService, db => db.saveSession(session)))
-          );
-          ipcMain.handle(dbChannels.getSession, (_, sessionId: string) =>
-            runDbEffect(Effect.flatMap(DatabaseService, db => db.getSession(sessionId)))
-          );
-          ipcMain.handle(dbChannels.updateSession, (_, sessionId: string, updates: Partial<DBSession>) =>
-             runDbEffect(Effect.flatMap(DatabaseService, db => db.updateSession(sessionId, updates)))
-          );
-          ipcMain.handle(dbChannels.saveMessage, (_, message: DBMessage) =>
-            runDbEffect(Effect.flatMap(DatabaseService, db => db.saveMessage(message)))
-          );
-          ipcMain.handle(dbChannels.getMessagesForSession, (_, sessionId: string, limit?: number, offset?: number) =>
-            runDbEffect(Effect.flatMap(DatabaseService, db => db.getMessagesForSession(sessionId, limit, offset)))
-          );
-          ipcMain.handle(dbChannels.saveToolCall, (_, toolCall: DBToolCall) =>
-            runDbEffect(Effect.flatMap(DatabaseService, db => db.saveToolCall(toolCall)))
-          );
-          ipcMain.handle(dbChannels.updateToolCallResult, (_, toolCallId: string, resultJson: string, status: "executed_success" | "executed_error") =>
-            runDbEffect(Effect.flatMap(DatabaseService, db => db.updateToolCallResult(toolCallId, resultJson, status)))
-          );
-          ipcMain.handle(dbChannels.getToolCallsForMessage, (_, messageId: string) =>
-            runDbEffect(Effect.flatMap(DatabaseService, db => db.getToolCallsForMessage(messageId)))
-          );
-          // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-          console.log("[IPC Setup] Database event listeners registered.");
-        }
-        ```
-    *   **Modify `src/main.ts`:** Import and call `addDatabaseEventListeners(getMainProcessRuntime())` inside `app.whenReady().then(async () => { ... after runtime init ... });`.
+
+        ipcMain.handle(dbChannels.initDB, () =>
+          runDbEffect(Effect.flatMap(DatabaseService, (db) => db.initDB())),
+        );
+        ipcMain.handle(dbChannels.saveSession, (_, session: DBSession) =>
+          runDbEffect(
+            Effect.flatMap(DatabaseService, (db) => db.saveSession(session)),
+          ),
+        );
+        ipcMain.handle(dbChannels.getSession, (_, sessionId: string) =>
+          runDbEffect(
+            Effect.flatMap(DatabaseService, (db) => db.getSession(sessionId)),
+          ),
+        );
+        ipcMain.handle(
+          dbChannels.updateSession,
+          (_, sessionId: string, updates: Partial<DBSession>) =>
+            runDbEffect(
+              Effect.flatMap(DatabaseService, (db) =>
+                db.updateSession(sessionId, updates),
+              ),
+            ),
+        );
+        ipcMain.handle(dbChannels.saveMessage, (_, message: DBMessage) =>
+          runDbEffect(
+            Effect.flatMap(DatabaseService, (db) => db.saveMessage(message)),
+          ),
+        );
+        ipcMain.handle(
+          dbChannels.getMessagesForSession,
+          (_, sessionId: string, limit?: number, offset?: number) =>
+            runDbEffect(
+              Effect.flatMap(DatabaseService, (db) =>
+                db.getMessagesForSession(sessionId, limit, offset),
+              ),
+            ),
+        );
+        ipcMain.handle(dbChannels.saveToolCall, (_, toolCall: DBToolCall) =>
+          runDbEffect(
+            Effect.flatMap(DatabaseService, (db) => db.saveToolCall(toolCall)),
+          ),
+        );
+        ipcMain.handle(
+          dbChannels.updateToolCallResult,
+          (
+            _,
+            toolCallId: string,
+            resultJson: string,
+            status: "executed_success" | "executed_error",
+          ) =>
+            runDbEffect(
+              Effect.flatMap(DatabaseService, (db) =>
+                db.updateToolCallResult(toolCallId, resultJson, status),
+              ),
+            ),
+        );
+        ipcMain.handle(
+          dbChannels.getToolCallsForMessage,
+          (_, messageId: string) =>
+            runDbEffect(
+              Effect.flatMap(DatabaseService, (db) =>
+                db.getToolCallsForMessage(messageId),
+              ),
+            ),
+        );
+        // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+        console.log("[IPC Setup] Database event listeners registered.");
+      }
+      ```
+
+    - **Modify `src/main.ts`:** Import and call `addDatabaseEventListeners(getMainProcessRuntime())` inside `app.whenReady().then(async () => { ... after runtime init ... });`.
 
 3.  **Expose DB IPC Context in Preload (`db-context.ts`):**
-    *   **File:** `src/helpers/ipc/db/db-context.ts` (New file)
-    *   **Content:**
-        ```typescript
-        import { contextBridge, ipcRenderer } from "electron";
-        import { dbChannels } from "./db-channels";
-        import type { DBSession, DBMessage, DBToolCall } from "@/services/db"; // Use types from our schema
 
-        export function exposeDatabaseContext() {
-          contextBridge.exposeInMainWorld("electronAPI", {
-            ...(window.electronAPI || {}),
-            database: {
-              initDB: () => ipcRenderer.invoke(dbChannels.initDB),
-              saveSession: (session: DBSession) => ipcRenderer.invoke(dbChannels.saveSession, session),
-              getSession: (sessionId: string) => ipcRenderer.invoke(dbChannels.getSession, sessionId),
-              updateSession: (sessionId: string, updates: Partial<DBSession>) => ipcRenderer.invoke(dbChannels.updateSession, sessionId, updates),
-              saveMessage: (message: DBMessage) => ipcRenderer.invoke(dbChannels.saveMessage, message),
-              getMessagesForSession: (sessionId: string, limit?: number, offset?: number) => ipcRenderer.invoke(dbChannels.getMessagesForSession, sessionId, limit, offset),
-              saveToolCall: (toolCall: DBToolCall) => ipcRenderer.invoke(dbChannels.saveToolCall, toolCall),
-              updateToolCallResult: (toolCallId: string, resultJson: string, status: "executed_success" | "executed_error") => ipcRenderer.invoke(dbChannels.updateToolCallResult, toolCallId, resultJson, status),
-              getToolCallsForMessage: (messageId: string) => ipcRenderer.invoke(dbChannels.getToolCallsForMessage, messageId),
-            },
-          });
+    - **File:** `src/helpers/ipc/db/db-context.ts` (New file)
+    - **Content:**
+
+      ```typescript
+      import { contextBridge, ipcRenderer } from "electron";
+      import { dbChannels } from "./db-channels";
+      import type { DBSession, DBMessage, DBToolCall } from "@/services/db"; // Use types from our schema
+
+      export function exposeDatabaseContext() {
+        contextBridge.exposeInMainWorld("electronAPI", {
+          ...(window.electronAPI || {}),
+          database: {
+            initDB: () => ipcRenderer.invoke(dbChannels.initDB),
+            saveSession: (session: DBSession) =>
+              ipcRenderer.invoke(dbChannels.saveSession, session),
+            getSession: (sessionId: string) =>
+              ipcRenderer.invoke(dbChannels.getSession, sessionId),
+            updateSession: (sessionId: string, updates: Partial<DBSession>) =>
+              ipcRenderer.invoke(dbChannels.updateSession, sessionId, updates),
+            saveMessage: (message: DBMessage) =>
+              ipcRenderer.invoke(dbChannels.saveMessage, message),
+            getMessagesForSession: (
+              sessionId: string,
+              limit?: number,
+              offset?: number,
+            ) =>
+              ipcRenderer.invoke(
+                dbChannels.getMessagesForSession,
+                sessionId,
+                limit,
+                offset,
+              ),
+            saveToolCall: (toolCall: DBToolCall) =>
+              ipcRenderer.invoke(dbChannels.saveToolCall, toolCall),
+            updateToolCallResult: (
+              toolCallId: string,
+              resultJson: string,
+              status: "executed_success" | "executed_error",
+            ) =>
+              ipcRenderer.invoke(
+                dbChannels.updateToolCallResult,
+                toolCallId,
+                resultJson,
+                status,
+              ),
+            getToolCallsForMessage: (messageId: string) =>
+              ipcRenderer.invoke(dbChannels.getToolCallsForMessage, messageId),
+          },
+        });
+      }
+      ```
+
+    - **Action:** Add `exposeDatabaseContext()` to `src/helpers/ipc/context-exposer.ts`.
+    - **Action:** Update `src/types.d.ts` for `window.electronAPI.database`. Use the `DBSession`, `DBMessage`, `DBToolCall` types from `DatabaseSchemas.ts`.
+      ```typescript
+      // src/types.d.ts
+      // ...
+      import type { DBSession, DBMessage, DBToolCall } from "@/services/db";
+      // ...
+      declare global {
+        interface DatabaseAPI {
+          initDB: () => Promise<void | IpcErrorObject>;
+          saveSession: (session: DBSession) => Promise<void | IpcErrorObject>;
+          getSession: (
+            sessionId: string,
+          ) => Promise<DBSession | null | IpcErrorObject>;
+          updateSession: (
+            sessionId: string,
+            updates: Partial<DBSession>,
+          ) => Promise<void | IpcErrorObject>;
+          saveMessage: (message: DBMessage) => Promise<void | IpcErrorObject>;
+          getMessagesForSession: (
+            sessionId: string,
+            limit?: number,
+            offset?: number,
+          ) => Promise<DBMessage[] | IpcErrorObject>;
+          saveToolCall: (
+            toolCall: DBToolCall,
+          ) => Promise<void | IpcErrorObject>;
+          updateToolCallResult: (
+            toolCallId: string,
+            resultJson: string,
+            status: "executed_success" | "executed_error",
+          ) => Promise<void | IpcErrorObject>;
+          getToolCallsForMessage: (
+            messageId: string,
+          ) => Promise<DBToolCall[] | IpcErrorObject>;
         }
-        ```
-    *   **Action:** Add `exposeDatabaseContext()` to `src/helpers/ipc/context-exposer.ts`.
-    *   **Action:** Update `src/types.d.ts` for `window.electronAPI.database`. Use the `DBSession`, `DBMessage`, `DBToolCall` types from `DatabaseSchemas.ts`.
-        ```typescript
-        // src/types.d.ts
-        // ...
-        import type { DBSession, DBMessage, DBToolCall } from "@/services/db";
-        // ...
-        declare global {
-          interface DatabaseAPI {
-            initDB: () => Promise<void | IpcErrorObject>;
-            saveSession: (session: DBSession) => Promise<void | IpcErrorObject>;
-            getSession: (sessionId: string) => Promise<DBSession | null | IpcErrorObject>;
-            updateSession: (sessionId: string, updates: Partial<DBSession>) => Promise<void | IpcErrorObject>;
-            saveMessage: (message: DBMessage) => Promise<void | IpcErrorObject>;
-            getMessagesForSession: (sessionId: string, limit?: number, offset?: number) => Promise<DBMessage[] | IpcErrorObject>;
-            saveToolCall: (toolCall: DBToolCall) => Promise<void | IpcErrorObject>;
-            updateToolCallResult: (toolCallId: string, resultJson: string, status: "executed_success" | "executed_error") => Promise<void | IpcErrorObject>;
-            getToolCallsForMessage: (messageId: string) => Promise<DBToolCall[] | IpcErrorObject>;
-          }
-          interface ElectronAPI {
-            // ...
-            database: DatabaseAPI;
-          }
+        interface ElectronAPI {
+          // ...
+          database: DatabaseAPI;
         }
-        ```
+      }
+      ```
 
 **Phase D3: Renderer-Side Database Service Proxy**
 
 1.  **Create Proxy Layer (`DatabaseServiceRendererProxy.ts`):**
-    *   **File:** `src/services/db/DatabaseServiceRendererProxy.ts` (New file)
-    *   **Content:**
-        ```typescript
-        import { Effect, Layer } from "effect";
-        import { DatabaseService, DatabaseError } from "./DatabaseService";
-        import type { DBSession, DBMessage, DBToolCall } from "./DatabaseSchemas";
 
-        export const DatabaseServiceRendererProxyLive = Layer.succeed(
-          DatabaseService,
-          DatabaseService.of({
-            _tag: "DatabaseService",
-            initDB: () => Effect.tryPromise({
-                try: () => window.electronAPI.database.initDB().then(res => { if (res && (res as any).__error) throw res; return; }),
-                catch: (e) => new DatabaseError({ message: "IPC initDB failed", cause: e})
+    - **File:** `src/services/db/DatabaseServiceRendererProxy.ts` (New file)
+    - **Content:**
+
+      ```typescript
+      import { Effect, Layer } from "effect";
+      import { DatabaseService, DatabaseError } from "./DatabaseService";
+      import type { DBSession, DBMessage, DBToolCall } from "./DatabaseSchemas";
+
+      export const DatabaseServiceRendererProxyLive = Layer.succeed(
+        DatabaseService,
+        DatabaseService.of({
+          _tag: "DatabaseService",
+          initDB: () =>
+            Effect.tryPromise({
+              try: () =>
+                window.electronAPI.database.initDB().then((res) => {
+                  if (res && (res as any).__error) throw res;
+                  return;
+                }),
+              catch: (e) =>
+                new DatabaseError({ message: "IPC initDB failed", cause: e }),
             }),
-            saveSession: (session) => Effect.tryPromise({
-                try: () => window.electronAPI.database.saveSession(session).then(res => { if (res && (res as any).__error) throw res; return; }),
-                catch: (e) => new DatabaseError({ message: "IPC saveSession failed", cause: e})
+          saveSession: (session) =>
+            Effect.tryPromise({
+              try: () =>
+                window.electronAPI.database.saveSession(session).then((res) => {
+                  if (res && (res as any).__error) throw res;
+                  return;
+                }),
+              catch: (e) =>
+                new DatabaseError({
+                  message: "IPC saveSession failed",
+                  cause: e,
+                }),
             }),
-            getSession: (sessionId) => Effect.tryPromise({
-                try: async () => {
-                    const res = await window.electronAPI.database.getSession(sessionId);
+          getSession: (sessionId) =>
+            Effect.tryPromise({
+              try: async () => {
+                const res =
+                  await window.electronAPI.database.getSession(sessionId);
+                if (res && (res as any).__error) throw res;
+                return res as DBSession | null;
+              },
+              catch: (e) =>
+                new DatabaseError({
+                  message: "IPC getSession failed",
+                  cause: e,
+                }),
+            }),
+          updateSession: (sessionId, updates) =>
+            Effect.tryPromise({
+              try: () =>
+                window.electronAPI.database
+                  .updateSession(sessionId, updates)
+                  .then((res) => {
                     if (res && (res as any).__error) throw res;
-                    return res as DBSession | null;
-                },
-                catch: (e) => new DatabaseError({ message: "IPC getSession failed", cause: e})
+                    return;
+                  }),
+              catch: (e) =>
+                new DatabaseError({
+                  message: "IPC updateSession failed",
+                  cause: e,
+                }),
             }),
-            updateSession: (sessionId, updates) => Effect.tryPromise({
-                try: () => window.electronAPI.database.updateSession(sessionId, updates).then(res => { if (res && (res as any).__error) throw res; return; }),
-                catch: (e) => new DatabaseError({ message: "IPC updateSession failed", cause: e })
+          saveMessage: (message) =>
+            Effect.tryPromise({
+              try: () =>
+                window.electronAPI.database.saveMessage(message).then((res) => {
+                  if (res && (res as any).__error) throw res;
+                  return;
+                }),
+              catch: (e) =>
+                new DatabaseError({
+                  message: "IPC saveMessage failed",
+                  cause: e,
+                }),
             }),
-            saveMessage: (message) => Effect.tryPromise({
-                try: () => window.electronAPI.database.saveMessage(message).then(res => { if (res && (res as any).__error) throw res; return; }),
-                catch: (e) => new DatabaseError({ message: "IPC saveMessage failed", cause: e})
+          getMessagesForSession: (sessionId, limit, offset) =>
+            Effect.tryPromise({
+              try: async () => {
+                const res =
+                  await window.electronAPI.database.getMessagesForSession(
+                    sessionId,
+                    limit,
+                    offset,
+                  );
+                if (res && (res as any).__error) throw res;
+                return res as DBMessage[];
+              },
+              catch: (e) =>
+                new DatabaseError({
+                  message: "IPC getMessagesForSession failed",
+                  cause: e,
+                }),
             }),
-            getMessagesForSession: (sessionId, limit, offset) => Effect.tryPromise({
-                try: async () => {
-                    const res = await window.electronAPI.database.getMessagesForSession(sessionId, limit, offset);
+          saveToolCall: (toolCall) =>
+            Effect.tryPromise({
+              try: () =>
+                window.electronAPI.database
+                  .saveToolCall(toolCall)
+                  .then((res) => {
                     if (res && (res as any).__error) throw res;
-                    return res as DBMessage[];
-                },
-                catch: (e) => new DatabaseError({ message: "IPC getMessagesForSession failed", cause: e})
+                    return;
+                  }),
+              catch: (e) =>
+                new DatabaseError({
+                  message: "IPC saveToolCall failed",
+                  cause: e,
+                }),
             }),
-            saveToolCall: (toolCall) => Effect.tryPromise({
-                try: () => window.electronAPI.database.saveToolCall(toolCall).then(res => { if (res && (res as any).__error) throw res; return; }),
-                catch: (e) => new DatabaseError({ message: "IPC saveToolCall failed", cause: e})
-            }),
-            updateToolCallResult: (toolCallId, resultJson, status) => Effect.tryPromise({
-                try: () => window.electronAPI.database.updateToolCallResult(toolCallId, resultJson, status).then(res => { if (res && (res as any).__error) throw res; return; }),
-                catch: (e) => new DatabaseError({ message: "IPC updateToolCallResult failed", cause: e})
-            }),
-            getToolCallsForMessage: (messageId) => Effect.tryPromise({
-                try: async () => {
-                    const res = await window.electronAPI.database.getToolCallsForMessage(messageId);
+          updateToolCallResult: (toolCallId, resultJson, status) =>
+            Effect.tryPromise({
+              try: () =>
+                window.electronAPI.database
+                  .updateToolCallResult(toolCallId, resultJson, status)
+                  .then((res) => {
                     if (res && (res as any).__error) throw res;
-                    return res as DBToolCall[];
-                },
-                catch: (e) => new DatabaseError({ message: "IPC getToolCallsForMessage failed", cause: e})
+                    return;
+                  }),
+              catch: (e) =>
+                new DatabaseError({
+                  message: "IPC updateToolCallResult failed",
+                  cause: e,
+                }),
             }),
-          })
-        );
-        ```
-    *   **Update `src/services/db/index.ts`** to export `DatabaseServiceRendererProxyLive`.
+          getToolCallsForMessage: (messageId) =>
+            Effect.tryPromise({
+              try: async () => {
+                const res =
+                  await window.electronAPI.database.getToolCallsForMessage(
+                    messageId,
+                  );
+                if (res && (res as any).__error) throw res;
+                return res as DBToolCall[];
+              },
+              catch: (e) =>
+                new DatabaseError({
+                  message: "IPC getToolCallsForMessage failed",
+                  cause: e,
+                }),
+            }),
+        }),
+      );
+      ```
+
+    - **Update `src/services/db/index.ts`** to export `DatabaseServiceRendererProxyLive`.
 
 2.  **Integrate Proxy into Renderer Runtime:**
-    *   **File:** `src/services/runtime.ts`
-    *   **Action:** Add `DatabaseServiceRendererProxyLive` to `FullAppLayer` (the renderer's runtime).
-        ```typescript
-        // src/services/runtime.ts
-        // ...
-        import { DatabaseServiceRendererProxyLive } from "@/services/db"; // Use the renderer proxy
-        // ...
-        export type FullAppContext = /* ... */ | DatabaseService; // Add DatabaseService
 
-        // ... (buildFullAppLayer function) ...
-        const databaseProxyLayer = DatabaseServiceRendererProxyLive; // This is for the renderer
+    - **File:** `src/services/runtime.ts`
+    - **Action:** Add `DatabaseServiceRendererProxyLive` to `FullAppLayer` (the renderer's runtime).
+
+      ```typescript
+      // src/services/runtime.ts
+      // ...
+      import { DatabaseServiceRendererProxyLive } from "@/services/db"; // Use the renderer proxy
+      // ...
+      export type FullAppContext /* ... */ = DatabaseService; // Add DatabaseService
+
+      // ... (buildFullAppLayer function) ...
+      const databaseProxyLayer = DatabaseServiceRendererProxyLive; // This is for the renderer
+      // ...
+      return Layer.mergeAll(
         // ...
-        return Layer.mergeAll(
-          // ...
-          databaseProxyLayer,
-          // ...
-        );
-        ```
+        databaseProxyLayer,
+        // ...
+      );
+      ```
 
 **Phase D4: Claude Code Service & Chat Session DB Integration**
 
 1.  **Modify `ClaudeCodeCliServiceLive` (Main Process) to use `DatabaseService`:**
-    *   **File:** `src/services/ai/providers/claude_code_cli/ClaudeCodeCliServiceLive.ts`
-    *   **Action:**
-        *   Add `DatabaseService` to its dependencies.
-        *   In `executeCommand` and `streamCommand` (or their wrappers in `claude-code-listeners.ts` if logic is there):
-            1.  Generate a `sessionId` if one isn't provided (e.g., from pane ID). A simple UUID or timestamp-based ID can work. `const sessionId = params.sessionId || crypto.randomUUID();`
-            2.  Ensure session exists:
-                ```typescript
-                // At start of handling a command/stream
-                const session: DBSession = {
-                    id: sessionId, // Must be passed or generated
-                    created_at: Math.floor(Date.now() / 1000),
-                    last_updated_at: Math.floor(Date.now() / 1000),
-                    provider_key: "claude_code_cli",
-                    model_name: execParams.model, // from ClaudeExecParams
-                    system_prompt: execParams.systemPrompt,
-                };
-                yield* _(dbService.saveSession(session));
-                ```
-            3.  Before calling `executor.execute` or `executor.executeStream`:
-                *   Create a `DBMessage` for the user prompt. `messageId` can be `crypto.randomUUID()`.
-                *   `yield* _(dbService.saveMessage(userMessageToSave));`
-            4.  After CLI response (non-streaming `executeCommand`):
-                *   Parse the `rawCliResponse`.
-                *   Create `DBMessage` for assistant response.
-                *   If `tool_calls` are present, create `DBToolCall` entries for each, linking to the assistant message's ID. Save them.
-                *   `yield* _(dbService.saveMessage(assistantResponseMessage));`
-                *   `yield* _(Effect.all(toolCallsToSave.map(tc => dbService.saveToolCall(tc))));`
-            5.  For `streamCommand`:
-                *   When a chunk is parsed by the IPC listener (`claude-code-listeners.ts`):
-                    *   If it's the *first* assistant chunk for a new response, create an assistant `DBMessage` with initial content and `isStreaming: true` (if we add such a field, or just save partial content). The `messageId` for this assistant response stream needs to be generated once.
-                    *   For subsequent text chunks, *append* to the existing assistant message's content in the DB (or save each chunk as a separate small message if appending is too complex initially, though not ideal). A simpler approach for streaming is to collect the full response in the renderer and save it once, but the user wants to save *all* messages, implying chunks if they are distinct. **Let's simplify: the main process CLI service will log the *complete* assistant response after the stream is done, or when non-streaming command completes. This simplifies DB updates.**
-                    *   If a chunk contains `tool_calls`, save them.
-                *   **Correction for streaming:** `ClaudeCodeCliServiceLive`'s `streamCommand` returns an Effect `Stream`. The IPC listener (`claude-code-listeners.ts`) is iterating this stream. The saving logic should happen *inside* the `streamCommand`'s Effect `Stream` pipeline in `ClaudeCodeCliServiceLive` if possible, or in the IPC listener *after* parsing each chunk if that's easier.
-                    *   **Revised streaming save logic for `claude-code-listeners.ts`:**
-                        ```typescript
-                        // Inside ipcMain.on(claudeCodeChannels.chatStream, ...)
-                        // ... after getting cliStream from claudeService.streamCommand ...
-                        const assistantMessageId = crypto.randomUUID(); // Create once for the whole response
-                        let fullAssistantContent = "";
-                        const toolCallsDetected: DBToolCall[] = [];
 
-                        yield* _(Stream.runForEach(cliStream, (rawJsonStringChunk: string) => Effect.gen(function*(_) {
-                            // ... (parse rawJsonStringChunk into cliJsonChunk) ...
-                            // ... (extract textContent and tool_calls from cliJsonChunk) ...
-                            fullAssistantContent += textContent;
-                            // if (tool_calls_from_chunk) toolCallsDetected.push(...mapToDBToolCalls(tool_calls_from_chunk, assistantMessageId));
-                            // Send chunk to renderer: event.sender.send(..., rawJsonStringChunk)
-                            // NO DB SAVING PER CHUNK HERE - save at the end.
-                        })));
-                        // AFTER Stream.runForEach completes (stream done):
-                        const assistantMessageToSave: DBMessage = { /* ... role: 'assistant', content: fullAssistantContent, tool_calls (if any were aggregated) ... */ };
-                        yield* _(dbService.saveMessage(assistantMessageToSave));
-                        // if (toolCallsDetected.length > 0) {
-                        //   yield* _(Effect.all(toolCallsDetected.map(tc => dbService.saveToolCall(tc))));
-                        // }
-                        ```
+    - **File:** `src/services/ai/providers/claude_code_cli/ClaudeCodeCliServiceLive.ts`
+    - **Action:**
+
+      - Add `DatabaseService` to its dependencies.
+      - In `executeCommand` and `streamCommand` (or their wrappers in `claude-code-listeners.ts` if logic is there):
+
+        1.  Generate a `sessionId` if one isn't provided (e.g., from pane ID). A simple UUID or timestamp-based ID can work. `const sessionId = params.sessionId || crypto.randomUUID();`
+        2.  Ensure session exists:
+            ```typescript
+            // At start of handling a command/stream
+            const session: DBSession = {
+              id: sessionId, // Must be passed or generated
+              created_at: Math.floor(Date.now() / 1000),
+              last_updated_at: Math.floor(Date.now() / 1000),
+              provider_key: "claude_code_cli",
+              model_name: execParams.model, // from ClaudeExecParams
+              system_prompt: execParams.systemPrompt,
+            };
+            yield * _(dbService.saveSession(session));
+            ```
+        3.  Before calling `executor.execute` or `executor.executeStream`:
+            - Create a `DBMessage` for the user prompt. `messageId` can be `crypto.randomUUID()`.
+            - `yield* _(dbService.saveMessage(userMessageToSave));`
+        4.  After CLI response (non-streaming `executeCommand`):
+            - Parse the `rawCliResponse`.
+            - Create `DBMessage` for assistant response.
+            - If `tool_calls` are present, create `DBToolCall` entries for each, linking to the assistant message's ID. Save them.
+            - `yield* _(dbService.saveMessage(assistantResponseMessage));`
+            - `yield* _(Effect.all(toolCallsToSave.map(tc => dbService.saveToolCall(tc))));`
+        5.  For `streamCommand`:
+
+            - When a chunk is parsed by the IPC listener (`claude-code-listeners.ts`):
+              - If it's the _first_ assistant chunk for a new response, create an assistant `DBMessage` with initial content and `isStreaming: true` (if we add such a field, or just save partial content). The `messageId` for this assistant response stream needs to be generated once.
+              - For subsequent text chunks, _append_ to the existing assistant message's content in the DB (or save each chunk as a separate small message if appending is too complex initially, though not ideal). A simpler approach for streaming is to collect the full response in the renderer and save it once, but the user wants to save _all_ messages, implying chunks if they are distinct. **Let's simplify: the main process CLI service will log the _complete_ assistant response after the stream is done, or when non-streaming command completes. This simplifies DB updates.**
+              - If a chunk contains `tool_calls`, save them.
+            - **Correction for streaming:** `ClaudeCodeCliServiceLive`'s `streamCommand` returns an Effect `Stream`. The IPC listener (`claude-code-listeners.ts`) is iterating this stream. The saving logic should happen _inside_ the `streamCommand`'s Effect `Stream` pipeline in `ClaudeCodeCliServiceLive` if possible, or in the IPC listener _after_ parsing each chunk if that's easier.
+
+              - **Revised streaming save logic for `claude-code-listeners.ts`:**
+
+                ```typescript
+                // Inside ipcMain.on(claudeCodeChannels.chatStream, ...)
+                // ... after getting cliStream from claudeService.streamCommand ...
+                const assistantMessageId = crypto.randomUUID(); // Create once for the whole response
+                let fullAssistantContent = "";
+                const toolCallsDetected: DBToolCall[] = [];
+
+                yield *
+                  _(
+                    Stream.runForEach(cliStream, (rawJsonStringChunk: string) =>
+                      Effect.gen(function* (_) {
+                        // ... (parse rawJsonStringChunk into cliJsonChunk) ...
+                        // ... (extract textContent and tool_calls from cliJsonChunk) ...
+                        fullAssistantContent += textContent;
+                        // if (tool_calls_from_chunk) toolCallsDetected.push(...mapToDBToolCalls(tool_calls_from_chunk, assistantMessageId));
+                        // Send chunk to renderer: event.sender.send(..., rawJsonStringChunk)
+                        // NO DB SAVING PER CHUNK HERE - save at the end.
+                      }),
+                    ),
+                  );
+                // AFTER Stream.runForEach completes (stream done):
+                const assistantMessageToSave: DBMessage = {
+                  /* ... role: 'assistant', content: fullAssistantContent, tool_calls (if any were aggregated) ... */
+                };
+                yield * _(dbService.saveMessage(assistantMessageToSave));
+                // if (toolCallsDetected.length > 0) {
+                //   yield* _(Effect.all(toolCallsDetected.map(tc => dbService.saveToolCall(tc))));
+                // }
+                ```
 
 2.  **Modify `useAgentChat` (Renderer Process):**
-    *   **File:** `src/hooks/ai/useAgentChat.ts`
-    *   **Action:**
-        *   Add `DatabaseService.Tag` dependency.
-        *   Introduce `sessionId: string` state, or receive it as a prop. Generate a new `sessionId` (e.g., `crypto.randomUUID()`) when a new chat starts (e.g., first message sent if no `sessionId` is active).
-        *   **History Loading:**
-            *   In `useEffect` (on mount or `sessionId` change), call `databaseService.getMessagesForSession(sessionId)`.
-            *   Populate the local `messages` state (`UIAgentChatMessage[]`) from the DB messages. If messages have tool calls, fetch them too via `databaseService.getToolCallsForMessage(message.id)` and reconstruct the `tool_calls` array for the `UIAgentChatMessage`.
-        *   **Message Sending:**
-            *   The `sendMessage` function passes the `sessionId` to `ChatOrchestratorService` (if orchestrator needs to create session records) or directly to the main process if `ClaudeCodeCliService` creates the session.
-            *   Since `ClaudeCodeCliService` (main) is now saving user & assistant messages for its provider, `useAgentChat` might not need to explicitly save messages for the Claude Code provider. It will optimistically add the user message to UI, and new assistant messages/chunks arrive via the stream (and are simultaneously saved by main process).
-        *   **Tool Call Display:** If an `AiResponse` chunk (which wraps an `AgentChatMessage`) contains `tool_calls`, `useAgentChat` will update the UI. The DB is primarily for persistence and history.
+
+    - **File:** `src/hooks/ai/useAgentChat.ts`
+    - **Action:**
+      - Add `DatabaseService.Tag` dependency.
+      - Introduce `sessionId: string` state, or receive it as a prop. Generate a new `sessionId` (e.g., `crypto.randomUUID()`) when a new chat starts (e.g., first message sent if no `sessionId` is active).
+      - **History Loading:**
+        - In `useEffect` (on mount or `sessionId` change), call `databaseService.getMessagesForSession(sessionId)`.
+        - Populate the local `messages` state (`UIAgentChatMessage[]`) from the DB messages. If messages have tool calls, fetch them too via `databaseService.getToolCallsForMessage(message.id)` and reconstruct the `tool_calls` array for the `UIAgentChatMessage`.
+      - **Message Sending:**
+        - The `sendMessage` function passes the `sessionId` to `ChatOrchestratorService` (if orchestrator needs to create session records) or directly to the main process if `ClaudeCodeCliService` creates the session.
+        - Since `ClaudeCodeCliService` (main) is now saving user & assistant messages for its provider, `useAgentChat` might not need to explicitly save messages for the Claude Code provider. It will optimistically add the user message to UI, and new assistant messages/chunks arrive via the stream (and are simultaneously saved by main process).
+      - **Tool Call Display:** If an `AiResponse` chunk (which wraps an `AgentChatMessage`) contains `tool_calls`, `useAgentChat` will update the UI. The DB is primarily for persistence and history.
 
 3.  **(Future/Optional) Tool Execution Logging:**
-    *   If/when `ToolHandlerService` (Phase 7) executes a tool, it should:
-        *   Depend on `DatabaseService.Tag`.
-        *   Call `dbService.updateToolCallResult(toolCall.id, JSON.stringify(result), 'executed_success' | 'executed_error')`.
+    - If/when `ToolHandlerService` (Phase 7) executes a tool, it should:
+      - Depend on `DatabaseService.Tag`.
+      - Call `dbService.updateToolCallResult(toolCall.id, JSON.stringify(result), 'executed_success' | 'executed_error')`.
 
 **Phase D5: Testing**
 
 1.  **Unit Tests for `DatabaseServiceImpl.ts` (Main Process):**
-    *   Mock `PGliteService` (or use an in-memory PGlite instance for these tests).
-    *   Test all DB methods: save/get session, save/get messages, save/get/update tool calls. Verify SQL queries and data mapping.
+    - Mock `PGliteService` (or use an in-memory PGlite instance for these tests).
+    - Test all DB methods: save/get session, save/get messages, save/get/update tool calls. Verify SQL queries and data mapping.
 2.  **Integration Tests for IPC DB Access (Renderer):**
-    *   Test the `DatabaseServiceRendererProxyLive` by calling its methods and ensuring data flows correctly to/from the (mocked) main process DB service via IPC.
+    - Test the `DatabaseServiceRendererProxyLive` by calling its methods and ensuring data flows correctly to/from the (mocked) main process DB service via IPC.
 3.  **Integration Tests for `ClaudeCodeCliServiceLive` (Main Process):**
-    *   Provide mock `DatabaseService` and `ClaudeCliExecutor`.
-    *   Verify that `executeCommand`/`streamCommand` correctly call `dbService.saveSession`, `saveMessage`, `saveToolCall`.
+    - Provide mock `DatabaseService` and `ClaudeCliExecutor`.
+    - Verify that `executeCommand`/`streamCommand` correctly call `dbService.saveSession`, `saveMessage`, `saveToolCall`.
 4.  **E2E Test:**
-    *   Start app, use Claude Code CLI provider to chat.
-    *   Verify messages (user, assistant, tool calls/results if implemented) appear.
-    *   Close and reopen the app.
-    *   Verify the chat history for that session is loaded and displayed from PGlite.
+    - Start app, use Claude Code CLI provider to chat.
+    - Verify messages (user, assistant, tool calls/results if implemented) appear.
+    - Close and reopen the app.
+    - Verify the chat history for that session is loaded and displayed from PGlite.
 
 ---
+
 This plan should provide a solid foundation for database persistence with PGlite, primarily driven by the main process service that interacts with the Claude Code CLI. Remember to handle errors robustly at each layer (Effect errors, IPC errors, DB errors).Okay, Agent, this is a major feature. We're going to integrate PGlite to persist all Claude Code service session information, including messages and tool calls.
 
 **Core Architecture:**
 
-*   **PGlite in Main Process:** The PGlite database instance and the primary `DatabaseService` will run in the Electron main process. This allows the `ClaudeCodeCliService` (which also runs in main to manage the CLI subprocess) to directly interact with the database.
-*   **IPC Bridge for Database:** Renderer-side components (like `AgentChatPane` and `useAgentChat`) will access database functionalities through a new set of IPC channels.
-*   **Schema-Driven:** We'll use `@effect/schema` to define our database table structures.
+- **PGlite in Main Process:** The PGlite database instance and the primary `DatabaseService` will run in the Electron main process. This allows the `ClaudeCodeCliService` (which also runs in main to manage the CLI subprocess) to directly interact with the database.
+- **IPC Bridge for Database:** Renderer-side components (like `AgentChatPane` and `useAgentChat`) will access database functionalities through a new set of IPC channels.
+- **Schema-Driven:** We'll use `@effect/schema` to define our database table structures.
 
 Here are the specific instructions:
 
 **Phase D1: PGlite & Database Service Setup (Main Process)**
 
 1.  **Add PGlite Dependency:**
-    *   **File:** `package.json`
-    *   **Action:** Add `@electric-sql/pglite` to `dependencies`.
-        ```json
-        // In "dependencies":
-        "@electric-sql/pglite": "^0.1.25",
-        ```
-    *   Run `pnpm install`.
+
+    - **File:** `package.json`
+    - **Action:** Add `@electric-sql/pglite` to `dependencies`.
+      ```json
+      // In "dependencies":
+      "@electric-sql/pglite": "^0.1.25",
+      ```
+    - Run `pnpm install`.
 
 2.  **Configure Database Directory:**
-    *   **File:** `src/services/configuration/ConfigurationServiceImpl.ts`
-    *   **Action:** Inside `DefaultDevConfigLayer`'s `Effect.gen` block, add:
-        ```typescript
-        yield* _(configService.set("DB_DATA_DIR", "commander-data/pglite-main-db")); // Ensure unique name
-        ```
+
+    - **File:** `src/services/configuration/ConfigurationServiceImpl.ts`
+    - **Action:** Inside `DefaultDevConfigLayer`'s `Effect.gen` block, add:
+      ```typescript
+      yield *
+        _(configService.set("DB_DATA_DIR", "commander-data/pglite-main-db")); // Ensure unique name
+      ```
 
 3.  **Create PGlite Service (Main Process):**
-    *   **Directory:** `src/services/db/` (Create if it doesn't exist)
-    *   **File:** `src/services/db/PGliteService.ts`
-    *   **Content:** (Copy from your prompt - looks good)
+
+    - **Directory:** `src/services/db/` (Create if it doesn't exist)
+    - **File:** `src/services/db/PGliteService.ts`
+    - **Content:** (Copy from your prompt - looks good)
 
 4.  **Create Database Schemas (Effect Schemas):**
-    *   **File:** `src/services/db/DatabaseSchemas.ts`
-    *   **Content:** (Copy from your prompt - looks good, ensure `Schema` is imported from `"effect"` if not already aliased)
+
+    - **File:** `src/services/db/DatabaseSchemas.ts`
+    - **Content:** (Copy from your prompt - looks good, ensure `Schema` is imported from `"effect"` if not already aliased)
 
 5.  **Create Database Service Interface (Main Process):**
-    *   **File:** `src/services/db/DatabaseService.ts`
-    *   **Content:** (Copy from your prompt - looks good, ensure `Data` is imported from `"effect"`)
+
+    - **File:** `src/services/db/DatabaseService.ts`
+    - **Content:** (Copy from your prompt - looks good, ensure `Data` is imported from `"effect"`)
 
 6.  **Implement Database Service (Main Process):**
-    *   **File:** `src/services/db/DatabaseServiceImpl.ts`
-    *   **Content:** (Copy from your prompt - this is a large chunk, ensure all SQL queries are correct, especially `ON CONFLICT` clauses and FK relationships. Import `TelemetryService` from `@/services/telemetry`).
+
+    - **File:** `src/services/db/DatabaseServiceImpl.ts`
+    - **Content:** (Copy from your prompt - this is a large chunk, ensure all SQL queries are correct, especially `ON CONFLICT` clauses and FK relationships. Import `TelemetryService` from `@/services/telemetry`).
 
 7.  **Export DB Services from `src/services/db/index.ts`:**
-    *   **File:** `src/services/db/index.ts` (New file or update)
-    *   **Content:**
-        ```typescript
-        export * from "./DatabaseSchemas";
-        export * from "./DatabaseService";
-        export * from "./PGliteService";
-        export * from "./DatabaseServiceImpl";
-        // Renderer proxy will be added later
-        ```
+
+    - **File:** `src/services/db/index.ts` (New file or update)
+    - **Content:**
+      ```typescript
+      export * from "./DatabaseSchemas";
+      export * from "./DatabaseService";
+      export * from "./PGliteService";
+      export * from "./DatabaseServiceImpl";
+      // Renderer proxy will be added later
+      ```
 
 8.  **Update Main Process Runtime & Call `initDB`:**
-    *   **File:** `src/main-process-runtime.ts`
-    *   **Action:**
-        *   Import `PGliteServiceLive`, `DatabaseService`, `DatabaseServiceLive` from `@/services/db`.
-        *   Update `MainProcessAppContext` type.
-        *   Add `PGliteServiceLive` and `DatabaseServiceLive` to the `mainProcessLayer`.
-        *   Modify `initializeMainProcessRuntime` to call `dbService.initDB()`.
-        ```typescript
-        // src/main-process-runtime.ts
-        // ... other imports ...
-        import { PGliteServiceLive } from "@/services/db/PGliteService"; // Correct path
-        import { DatabaseService, DatabaseServiceLive } from "@/services/db"; // Correct path
 
-        // Update MainProcessAppContext type
-        export type MainProcessAppContext = ConfigurationService | TelemetryService | ClaudeCodeCliService | DatabaseService; // Add DatabaseService
+    - **File:** `src/main-process-runtime.ts`
+    - **Action:**
 
-        // ... (telemetryLayer, configLayer, mainProcessBaseLayer, claudeCodeCliLayer setup remains) ...
+      - Import `PGliteServiceLive`, `DatabaseService`, `DatabaseServiceLive` from `@/services/db`.
+      - Update `MainProcessAppContext` type.
+      - Add `PGliteServiceLive` and `DatabaseServiceLive` to the `mainProcessLayer`.
+      - Modify `initializeMainProcessRuntime` to call `dbService.initDB()`.
 
-        const pgliteLayer = PGliteServiceLive.pipe(Layer.provide(mainProcessBaseLayer)); // PGlite needs ConfigurationService
-        const databaseLayer = DatabaseServiceLive.pipe(Layer.provide(Layer.merge(pgliteLayer, telemetryLayer))); // DB needs PGlite and Telemetry
+      ```typescript
+      // src/main-process-runtime.ts
+      // ... other imports ...
+      import { PGliteServiceLive } from "@/services/db/PGliteService"; // Correct path
+      import { DatabaseService, DatabaseServiceLive } from "@/services/db"; // Correct path
 
-        // Update mainProcessLayer
-        const mainProcessLayer = Layer.mergeAll(
-            mainProcessBaseLayer,
-            claudeCodeCliLayer,
-            pgliteLayer, // Added
-            databaseLayer  // Added
-        );
+      // Update MainProcessAppContext type
+      export type MainProcessAppContext =
+        | ConfigurationService
+        | TelemetryService
+        | ClaudeCodeCliService
+        | DatabaseService; // Add DatabaseService
 
-        export async function initializeMainProcessRuntime(): Promise<void> {
-          if (mainProcessRuntimeInstance) {
-            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.log("[Main Runtime] Main process Effect runtime already initialized.");
-            return;
-          }
-          try {
-            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.log("[Main Runtime] Initializing main process Effect runtime...");
-            const runtimeContext = await Effect.runPromise(Layer.toRuntime(mainProcessLayer).pipe(Effect.scoped));
-            mainProcessRuntimeInstance = Runtime.make(runtimeContext);
-            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.log("[Main Runtime] Main process Effect runtime initialized successfully.");
+      // ... (telemetryLayer, configLayer, mainProcessBaseLayer, claudeCodeCliLayer setup remains) ...
 
-            // Initialize Database
-            const dbService = Context.get(mainProcessRuntimeInstance.context, DatabaseService);
-            await Effect.runPromise(dbService.initDB());
-            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.log("[Main Runtime] Database initialized successfully.");
+      const pgliteLayer = PGliteServiceLive.pipe(
+        Layer.provide(mainProcessBaseLayer),
+      ); // PGlite needs ConfigurationService
+      const databaseLayer = DatabaseServiceLive.pipe(
+        Layer.provide(Layer.merge(pgliteLayer, telemetryLayer)),
+      ); // DB needs PGlite and Telemetry
 
-          } catch (e) {
-            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-            console.error("[Main Runtime] CRITICAL: Failed to create or initialize main process Effect runtime/DB:", e);
-            throw e;
-          }
+      // Update mainProcessLayer
+      const mainProcessLayer = Layer.mergeAll(
+        mainProcessBaseLayer,
+        claudeCodeCliLayer,
+        pgliteLayer, // Added
+        databaseLayer, // Added
+      );
+
+      export async function initializeMainProcessRuntime(): Promise<void> {
+        if (mainProcessRuntimeInstance) {
+          // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+          console.log(
+            "[Main Runtime] Main process Effect runtime already initialized.",
+          );
+          return;
         }
-        // ... getMainProcessRuntime ...
-        ```
+        try {
+          // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+          console.log(
+            "[Main Runtime] Initializing main process Effect runtime...",
+          );
+          const runtimeContext = await Effect.runPromise(
+            Layer.toRuntime(mainProcessLayer).pipe(Effect.scoped),
+          );
+          mainProcessRuntimeInstance = Runtime.make(runtimeContext);
+          // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+          console.log(
+            "[Main Runtime] Main process Effect runtime initialized successfully.",
+          );
+
+          // Initialize Database
+          const dbService = Context.get(
+            mainProcessRuntimeInstance.context,
+            DatabaseService,
+          );
+          await Effect.runPromise(dbService.initDB());
+          // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+          console.log("[Main Runtime] Database initialized successfully.");
+        } catch (e) {
+          // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+          console.error(
+            "[Main Runtime] CRITICAL: Failed to create or initialize main process Effect runtime/DB:",
+            e,
+          );
+          throw e;
+        }
+      }
+      // ... getMainProcessRuntime ...
+      ```
 
 **Phase D2: IPC for DatabaseService**
 
 1.  **Define DB IPC Channels:**
-    *   **Directory:** `src/helpers/ipc/db/` (Create if it doesn't exist)
-    *   **File:** `src/helpers/ipc/db/db-channels.ts`
-    *   **Content:** (Copy from your prompt - looks good)
+
+    - **Directory:** `src/helpers/ipc/db/` (Create if it doesn't exist)
+    - **File:** `src/helpers/ipc/db/db-channels.ts`
+    - **Content:** (Copy from your prompt - looks good)
 
 2.  **Implement Main Process DB IPC Listeners:**
-    *   **File:** `src/helpers/ipc/db/db-listeners.ts`
-    *   **Action:** Create listeners. Ensure `extractErrorForIPC` is defined (copy from `ollama-listeners.ts` or `claude-code-cli-listeners.ts` if not already a shared utility).
-    *   **Content:** (Copy from your prompt - this looks mostly correct, ensure all methods from `DatabaseService` are covered).
+
+    - **File:** `src/helpers/ipc/db/db-listeners.ts`
+    - **Action:** Create listeners. Ensure `extractErrorForIPC` is defined (copy from `ollama-listeners.ts` or `claude-code-cli-listeners.ts` if not already a shared utility).
+    - **Content:** (Copy from your prompt - this looks mostly correct, ensure all methods from `DatabaseService` are covered).
 
 3.  **Register DB IPC Listeners:**
-    *   **File:** `src/main.ts`
-    *   **Action:**
-        *   Import `addDatabaseEventListeners` from `./helpers/ipc/db/db-listeners`.
-        *   Call `addDatabaseEventListeners(getMainProcessRuntime());` inside `app.whenReady().then(async () => { ... after main runtime init ... });`.
-            ```typescript
-            // src/main.ts
-            // ...
-            import { addDatabaseEventListeners } from "./helpers/ipc/db/db-listeners"; // New
-            // ...
 
-            app.whenReady().then(async () => {
-              // ... (Ollama and Claude Code listener registration) ...
-              try {
-                // ... (initializeMainProcessRuntime call) ...
-                const mainRuntime = getMainProcessRuntime(); // Get after init
-                // ... (addClaudeCodeCliEventListeners(mainRuntime)) ...
-                addDatabaseEventListeners(mainRuntime); // New
-                // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-                console.log("[Main Process] Successfully registered Database listeners.");
-              } catch (error) {
-                // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
-                console.error("[Main Process] Failed to start main process services or Database listeners:", error);
-              }
-              // ...
-            });
-            ```
+    - **File:** `src/main.ts`
+    - **Action:**
+
+      - Import `addDatabaseEventListeners` from `./helpers/ipc/db/db-listeners`.
+      - Call `addDatabaseEventListeners(getMainProcessRuntime());` inside `app.whenReady().then(async () => { ... after main runtime init ... });`.
+
+        ```typescript
+        // src/main.ts
+        // ...
+        import { addDatabaseEventListeners } from "./helpers/ipc/db/db-listeners"; // New
+        // ...
+
+        app.whenReady().then(async () => {
+          // ... (Ollama and Claude Code listener registration) ...
+          try {
+            // ... (initializeMainProcessRuntime call) ...
+            const mainRuntime = getMainProcessRuntime(); // Get after init
+            // ... (addClaudeCodeCliEventListeners(mainRuntime)) ...
+            addDatabaseEventListeners(mainRuntime); // New
+            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+            console.log(
+              "[Main Process] Successfully registered Database listeners.",
+            );
+          } catch (error) {
+            // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+            console.error(
+              "[Main Process] Failed to start main process services or Database listeners:",
+              error,
+            );
+          }
+          // ...
+        });
+        ```
 
 4.  **Expose DB IPC Context in Preload:**
-    *   **File:** `src/helpers/ipc/db/db-context.ts`
-    *   **Action:** Ensure `DBSession`, `DBMessage`, `DBToolCall` types are imported from `@/services/db` (which should re-export from `DatabaseSchemas.ts`).
-    *   **Content:** (Copy from your prompt - looks good)
+
+    - **File:** `src/helpers/ipc/db/db-context.ts`
+    - **Action:** Ensure `DBSession`, `DBMessage`, `DBToolCall` types are imported from `@/services/db` (which should re-export from `DatabaseSchemas.ts`).
+    - **Content:** (Copy from your prompt - looks good)
 
 5.  **Update `context-exposer.ts` and `types.d.ts`:**
-    *   **File:** `src/helpers/ipc/context-exposer.ts`
-    *   **Action:** Add `exposeDatabaseContext()` call.
-    *   **File:** `src/types.d.ts`
-    *   **Action:** Define `DatabaseAPI` interface and add `database: DatabaseAPI;` to `ElectronAPI`. (Copy from your prompt - ensure types are imported from `@/services/db`).
+    - **File:** `src/helpers/ipc/context-exposer.ts`
+    - **Action:** Add `exposeDatabaseContext()` call.
+    - **File:** `src/types.d.ts`
+    - **Action:** Define `DatabaseAPI` interface and add `database: DatabaseAPI;` to `ElectronAPI`. (Copy from your prompt - ensure types are imported from `@/services/db`).
 
 **Phase D3: Renderer-Side Database Service Proxy**
 
 1.  **Create Proxy Layer:**
-    *   **File:** `src/services/db/DatabaseServiceRendererProxy.ts`
-    *   **Content:** (Copy from your prompt - looks good. This layer makes the IPC calls look like a local Effect service to the renderer).
+
+    - **File:** `src/services/db/DatabaseServiceRendererProxy.ts`
+    - **Content:** (Copy from your prompt - looks good. This layer makes the IPC calls look like a local Effect service to the renderer).
 
 2.  **Export Proxy from `src/services/db/index.ts`:**
-    *   **Action:** Add `export * from "./DatabaseServiceRendererProxy";`
+
+    - **Action:** Add `export * from "./DatabaseServiceRendererProxy";`
 
 3.  **Integrate Proxy into Renderer Runtime:**
-    *   **File:** `src/services/runtime.ts` (Renderer's runtime)
-    *   **Action:**
-        *   Import `DatabaseServiceRendererProxyLive` from `@/services/db`.
-        *   Add `DatabaseService` to `FullAppContext` type.
-        *   Add `DatabaseServiceRendererProxyLive` to `FullAppLayer`.
-        ```typescript
-        // src/services/runtime.ts
-        // ...
-        import { DatabaseService, DatabaseServiceRendererProxyLive } from "@/services/db"; // Use the renderer proxy
 
-        // Update FullAppContext type
-        export type FullAppContext = /* ... existing ... */ | DatabaseService;
+    - **File:** `src/services/runtime.ts` (Renderer's runtime)
+    - **Action:**
 
-        export function buildFullAppLayer() {
-          // ...
-          const databaseProxyLayer = DatabaseServiceRendererProxyLive; // This is for the renderer
-          // ...
-          return Layer.mergeAll(
-            // ... existing layers ...
-            databaseProxyLayer,
-            // ...
-          );
-        }
+      - Import `DatabaseServiceRendererProxyLive` from `@/services/db`.
+      - Add `DatabaseService` to `FullAppContext` type.
+      - Add `DatabaseServiceRendererProxyLive` to `FullAppLayer`.
+
+      ```typescript
+      // src/services/runtime.ts
+      // ...
+      import {
+        DatabaseService,
+        DatabaseServiceRendererProxyLive,
+      } from "@/services/db"; // Use the renderer proxy
+
+      // Update FullAppContext type
+      export type FullAppContext /* ... existing ... */ = DatabaseService;
+
+      export function buildFullAppLayer() {
         // ...
-        ```
+        const databaseProxyLayer = DatabaseServiceRendererProxyLive; // This is for the renderer
+        // ...
+        return Layer.mergeAll(
+          // ... existing layers ...
+          databaseProxyLayer,
+          // ...
+        );
+      }
+      // ...
+      ```
 
 **Phase D4: Claude Code Service & Chat Session DB Integration**
 
 1.  **Modify `ClaudeCodeCliServiceLive` (Main Process) to use `DatabaseService`:**
-    *   **File:** `src/services/ai/providers/claude_code_cli/ClaudeCodeCliServiceLive.ts`
-    *   **Action:**
-        *   Add `DatabaseService` to its dependencies (it's already in `MainProcessAppContext`, so `ClaudeCodeCliServiceLive` which is part of `mainProcessLayer` can access it).
-        *   Modify `executeCommand` and `streamCommand`:
-            *   **Session Management:**
-                *   These methods now need to accept a `sessionId: string` as part of their `ClaudeExecParams` or as a separate argument. This `sessionId` will be generated by the renderer (`useAgentChat`) and passed via IPC.
-                *   At the start of each method, use `dbService.getSession(sessionId)`. If it doesn't exist, create and save a new `DBSession` record. Always update `last_updated_at`.
-            *   **Saving User Prompt:**
-                *   Extract the user's prompt (from `ClaudeExecParams.prompt` which is formatted by `claudeCliFormatters.ts`).
-                *   Create a `DBMessage` (role: "user", content: extracted prompt, `id: crypto.randomUUID()`, `session_id: sessionId`, `timestamp`).
-                *   Save it: `yield* _(dbService.saveMessage(userMessageToSave));`
-            *   **Saving Assistant Response (and Tool Calls):**
-                *   **Non-Streaming (`executeCommand`):**
-                    *   After receiving the complete `rawCliResponse` string from the CLI:
-                    *   Parse it into `ClaudeCliCompletionResponse` (using your schema).
-                    *   Extract `textContent` and any `tool_calls`.
-                    *   Create assistant's `DBMessage` (`id: crypto.randomUUID()`, `role: "assistant"`, `content: textContent`, `session_id`, `timestamp`). Save it.
-                    *   If `tool_calls` exist: For each tool call, create a `DBToolCall` linked to the assistant's message ID (`id: tool_call.id`, `message_id: assistantMessageId`, `tool_name: tool_call.function.name`, `arguments_json: tool_call.function.arguments`, `status: "pending"`, timestamps). Save each.
-                *   **Streaming (`streamCommand` - logic primarily in `claude-code-listeners.ts`):**
-                    *   The IPC listener (`claude-code-listeners.ts`) for `claudeCodeChannels.chatStream` needs access to `DatabaseService` from the `mainProcessRuntime`.
-                    *   When the stream starts: Generate an `assistantMessageId = crypto.randomUUID();`.
-                    *   Initialize `let fullAssistantContent = "";` and `const toolCallsDetected: DBToolCall[] = [];`.
-                    *   Inside the `Stream.runForEach` (or `for await...of cliStream` if you refactored `ClaudeCodeCliService.streamCommand` to return an `AsyncGenerator<string>`):
-                        *   Parse each `rawJsonStringChunk` into `ClaudeCliStreamChunk`.
-                        *   Extract `textContentChunk` and any `toolCallChunks`.
-                        *   Append `textContentChunk` to `fullAssistantContent`.
-                        *   Aggregate `toolCallChunks` into `toolCallsDetected`. *This part is complex for streaming tool calls, as arguments can also stream. For an initial pass, you might only fully save tool calls if they arrive complete in one chunk, or save them once the full assistant message is aggregated.*
-                        *   Send the `rawJsonStringChunk` to the renderer as before.
-                    *   **After the stream ends (`:done` or error):**
-                        *   Create the final `DBMessage` for the assistant (`id: assistantMessageId`, `role: "assistant"`, `content: fullAssistantContent`, `session_id`, `timestamp`). Save it.
-                        *   If `toolCallsDetected` has items, save them to `DBToolCall` table, linked to `assistantMessageId`.
-                        *   Update session `last_updated_at`.
+
+    - **File:** `src/services/ai/providers/claude_code_cli/ClaudeCodeCliServiceLive.ts`
+    - **Action:**
+      - Add `DatabaseService` to its dependencies (it's already in `MainProcessAppContext`, so `ClaudeCodeCliServiceLive` which is part of `mainProcessLayer` can access it).
+      - Modify `executeCommand` and `streamCommand`:
+        - **Session Management:**
+          - These methods now need to accept a `sessionId: string` as part of their `ClaudeExecParams` or as a separate argument. This `sessionId` will be generated by the renderer (`useAgentChat`) and passed via IPC.
+          - At the start of each method, use `dbService.getSession(sessionId)`. If it doesn't exist, create and save a new `DBSession` record. Always update `last_updated_at`.
+        - **Saving User Prompt:**
+          - Extract the user's prompt (from `ClaudeExecParams.prompt` which is formatted by `claudeCliFormatters.ts`).
+          - Create a `DBMessage` (role: "user", content: extracted prompt, `id: crypto.randomUUID()`, `session_id: sessionId`, `timestamp`).
+          - Save it: `yield* _(dbService.saveMessage(userMessageToSave));`
+        - **Saving Assistant Response (and Tool Calls):**
+          - **Non-Streaming (`executeCommand`):**
+            - After receiving the complete `rawCliResponse` string from the CLI:
+            - Parse it into `ClaudeCliCompletionResponse` (using your schema).
+            - Extract `textContent` and any `tool_calls`.
+            - Create assistant's `DBMessage` (`id: crypto.randomUUID()`, `role: "assistant"`, `content: textContent`, `session_id`, `timestamp`). Save it.
+            - If `tool_calls` exist: For each tool call, create a `DBToolCall` linked to the assistant's message ID (`id: tool_call.id`, `message_id: assistantMessageId`, `tool_name: tool_call.function.name`, `arguments_json: tool_call.function.arguments`, `status: "pending"`, timestamps). Save each.
+          - **Streaming (`streamCommand` - logic primarily in `claude-code-listeners.ts`):**
+            - The IPC listener (`claude-code-listeners.ts`) for `claudeCodeChannels.chatStream` needs access to `DatabaseService` from the `mainProcessRuntime`.
+            - When the stream starts: Generate an `assistantMessageId = crypto.randomUUID();`.
+            - Initialize `let fullAssistantContent = "";` and `const toolCallsDetected: DBToolCall[] = [];`.
+            - Inside the `Stream.runForEach` (or `for await...of cliStream` if you refactored `ClaudeCodeCliService.streamCommand` to return an `AsyncGenerator<string>`):
+              - Parse each `rawJsonStringChunk` into `ClaudeCliStreamChunk`.
+              - Extract `textContentChunk` and any `toolCallChunks`.
+              - Append `textContentChunk` to `fullAssistantContent`.
+              - Aggregate `toolCallChunks` into `toolCallsDetected`. _This part is complex for streaming tool calls, as arguments can also stream. For an initial pass, you might only fully save tool calls if they arrive complete in one chunk, or save them once the full assistant message is aggregated._
+              - Send the `rawJsonStringChunk` to the renderer as before.
+            - **After the stream ends (`:done` or error):**
+              - Create the final `DBMessage` for the assistant (`id: assistantMessageId`, `role: "assistant"`, `content: fullAssistantContent`, `session_id`, `timestamp`). Save it.
+              - If `toolCallsDetected` has items, save them to `DBToolCall` table, linked to `assistantMessageId`.
+              - Update session `last_updated_at`.
 
 2.  **Modify `useAgentChat` (Renderer Process):**
-    *   **File:** `src/hooks/ai/useAgentChat.ts`
-    *   **Action:**
-        *   Add `DatabaseService.Tag` to its dependencies (will resolve to `DatabaseServiceRendererProxyLive`).
-        *   **Session ID Management:**
-            *   Add `currentSessionId: string | null` to the hook's state.
-            *   When `useAgentChat` initializes or when the chat is cleared/reset, set `currentSessionId` to `null`.
-            *   When the *first* message is sent in a new chat (i.e., `currentSessionId` is `null`):
-                *   Generate a new `sessionId = crypto.randomUUID();`.
-                *   Set `currentSessionId` state.
-                *   This `sessionId` will then be passed to `ChatOrchestratorService` (or directly to the main process if `ClaudeCodeCliService` is called without orchestrator).
-        *   **Passing `sessionId`:**
-            *   The `ChatOrchestratorService.streamConversation` and `generateConversationResponse` methods need to be updated to accept an optional `sessionId?: string`.
-            *   If `sessionId` is provided, the orchestrator should pass it along to the underlying `AgentLanguageModel` provider (if that provider is the Claude Code CLI provider, it will use it). For other providers (OpenAI API, Anthropic API), the orchestrator itself (if running in main) or the `AgentLanguageModel` provider (if running in main) would use this `sessionId` to interact with `DatabaseService` to save messages. *This implies that `ChatOrchestratorService` itself might need to be a main process service accessed via IPC if it's to coordinate DB saving for API-based providers.*
-            *   **Simpler for now for Claude Code:** The `ClaudeCodeCliAgentLanguageModelLive` (renderer) will receive the `sessionId` via its options (e.g., in `StreamTextOptions`/`GenerateTextOptions` or a custom context). It then passes this `sessionId` over IPC to the main process `claude-code-listeners.ts`, which then passes it to `ClaudeCodeCliServiceLive`.
-        *   **History Loading:**
-            *   `useEffect(() => { ... }, [currentSessionId, dbService]);`
-            *   If `currentSessionId` is set, call `dbService.getMessagesForSession(currentSessionId)`.
-            *   For each `DBMessage`, fetch its `DBToolCall[]` using `dbService.getToolCallsForMessage(message.id)`.
-            *   Transform `DBMessage` and `DBToolCall` arrays into `UIAgentChatMessage[]` and update the local `messages` state.
-        *   **Optimistic Updates & Stream Handling:**
-            *   When user sends a message: Optimistically add to UI `messages` state. The *actual saving* of the user message for Claude Code provider is done by `ClaudeCodeCliService` in main.
-            *   When `streamText` from `ChatOrchestratorService` (backed by Claude Code provider's IPC mechanism) emits `AiResponse` chunks:
-                *   These chunks represent what the main process CLI service has processed and *already saved (or is about to save the full response)* to the DB.
-                *   Append text to the current assistant message in UI.
-                *   If tool calls are part of the `AiResponse` (because the CLI indicated them), display them.
+    - **File:** `src/hooks/ai/useAgentChat.ts`
+    - **Action:**
+      - Add `DatabaseService.Tag` to its dependencies (will resolve to `DatabaseServiceRendererProxyLive`).
+      - **Session ID Management:**
+        - Add `currentSessionId: string | null` to the hook's state.
+        - When `useAgentChat` initializes or when the chat is cleared/reset, set `currentSessionId` to `null`.
+        - When the _first_ message is sent in a new chat (i.e., `currentSessionId` is `null`):
+          - Generate a new `sessionId = crypto.randomUUID();`.
+          - Set `currentSessionId` state.
+          - This `sessionId` will then be passed to `ChatOrchestratorService` (or directly to the main process if `ClaudeCodeCliService` is called without orchestrator).
+      - **Passing `sessionId`:**
+        - The `ChatOrchestratorService.streamConversation` and `generateConversationResponse` methods need to be updated to accept an optional `sessionId?: string`.
+        - If `sessionId` is provided, the orchestrator should pass it along to the underlying `AgentLanguageModel` provider (if that provider is the Claude Code CLI provider, it will use it). For other providers (OpenAI API, Anthropic API), the orchestrator itself (if running in main) or the `AgentLanguageModel` provider (if running in main) would use this `sessionId` to interact with `DatabaseService` to save messages. _This implies that `ChatOrchestratorService` itself might need to be a main process service accessed via IPC if it's to coordinate DB saving for API-based providers._
+        - **Simpler for now for Claude Code:** The `ClaudeCodeCliAgentLanguageModelLive` (renderer) will receive the `sessionId` via its options (e.g., in `StreamTextOptions`/`GenerateTextOptions` or a custom context). It then passes this `sessionId` over IPC to the main process `claude-code-listeners.ts`, which then passes it to `ClaudeCodeCliServiceLive`.
+      - **History Loading:**
+        - `useEffect(() => { ... }, [currentSessionId, dbService]);`
+        - If `currentSessionId` is set, call `dbService.getMessagesForSession(currentSessionId)`.
+        - For each `DBMessage`, fetch its `DBToolCall[]` using `dbService.getToolCallsForMessage(message.id)`.
+        - Transform `DBMessage` and `DBToolCall` arrays into `UIAgentChatMessage[]` and update the local `messages` state.
+      - **Optimistic Updates & Stream Handling:**
+        - When user sends a message: Optimistically add to UI `messages` state. The _actual saving_ of the user message for Claude Code provider is done by `ClaudeCodeCliService` in main.
+        - When `streamText` from `ChatOrchestratorService` (backed by Claude Code provider's IPC mechanism) emits `AiResponse` chunks:
+          - These chunks represent what the main process CLI service has processed and _already saved (or is about to save the full response)_ to the DB.
+          - Append text to the current assistant message in UI.
+          - If tool calls are part of the `AiResponse` (because the CLI indicated them), display them.
 
 **Phase D5: Testing**
 
 1.  **Main Process Tests (`DatabaseServiceImpl.test.ts`, `ClaudeCodeCliServiceLive.test.ts`):**
-    *   `DatabaseServiceImpl.test.ts`: Use an in-memory PGlite instance. Test all CRUD operations.
-    *   `ClaudeCodeCliServiceLive.test.ts`: Mock `DatabaseService` and `ClaudeCliExecutor`. Verify that service methods correctly interact with the mocked DB (e.g., `saveSession` called with correct data, `saveMessage` called for user and assistant).
+    - `DatabaseServiceImpl.test.ts`: Use an in-memory PGlite instance. Test all CRUD operations.
+    - `ClaudeCodeCliServiceLive.test.ts`: Mock `DatabaseService` and `ClaudeCliExecutor`. Verify that service methods correctly interact with the mocked DB (e.g., `saveSession` called with correct data, `saveMessage` called for user and assistant).
 2.  **Renderer Process Tests (`DatabaseServiceRendererProxy.test.ts`, `useAgentChat.test.ts`):**
-    *   `DatabaseServiceRendererProxy.test.ts`: Mock `window.electronAPI.database`. Test that proxy methods correctly invoke IPC and handle responses/errors.
-    *   `useAgentChat.test.ts`:
-        *   Mock `DatabaseService` (the proxy).
-        *   Test history loading on `sessionId` change.
-        *   Test `sessionId` generation and passing.
-        *   Test UI updates based on streamed messages (which are now assumed to be persisted by the backend).
+    - `DatabaseServiceRendererProxy.test.ts`: Mock `window.electronAPI.database`. Test that proxy methods correctly invoke IPC and handle responses/errors.
+    - `useAgentChat.test.ts`:
+      - Mock `DatabaseService` (the proxy).
+      - Test history loading on `sessionId` change.
+      - Test `sessionId` generation and passing.
+      - Test UI updates based on streamed messages (which are now assumed to be persisted by the backend).
 3.  **E2E Test:**
-    *   Perform a chat session using "Claude Code (CLI)" provider.
-    *   Verify messages appear.
-    *   Restart the application.
-    *   Open the `AgentChatPane` again. The `sessionId` management in `useAgentChat` should allow it to load the previous session's messages from the database. (This implies `useAgentChat` needs a way to persist/restore its `currentSessionId`, perhaps via `localStorage` or by listing available sessions from the DB).
+    - Perform a chat session using "Claude Code (CLI)" provider.
+    - Verify messages appear.
+    - Restart the application.
+    - Open the `AgentChatPane` again. The `sessionId` management in `useAgentChat` should allow it to load the previous session's messages from the database. (This implies `useAgentChat` needs a way to persist/restore its `currentSessionId`, perhaps via `localStorage` or by listing available sessions from the DB).
 
 ---
+
 This is a complex integration. Pay close attention to where data is saved (main process for Claude Code provider) versus where it's displayed and managed for UI state (renderer process). The `sessionId` is key to linking everything.
 
 Tool call streaming and aggregation for DB saving is particularly tricky. The simplest initial approach for streamed tool calls is to aggregate them in the main process listener and save them once the full assistant message (that contained the tool calls) is complete.
 
 Remember to use `crypto.randomUUID()` for generating IDs for sessions, messages, and tool calls where appropriate. Timestamps should be `Math.floor(Date.now() / 1000)`.
 
-```
+````
 思考ログからコードを生成します。ユーザーは、Claude Codeサービスをデータベースに接続し、メッセージやツールコールを含むすべてのセッション情報をデータベースに保存したいと考えています。PGliteを使用します。
 
 **計画：**
@@ -1936,3 +2326,4 @@ Here's a detailed plan broken down into manageable phases.
     *   Open `AgentChatPane`. `useAgentChat` should attempt to load history for the last active session (if `currentSessionId` is persisted in `useAgentChat` or a global store) or start a new one. Verify history appears.
 
 This is a comprehensive plan. Focus on getting each IPC layer and service interaction correct, especially the data flow and `sessionId` propagation. Good luck!
+````

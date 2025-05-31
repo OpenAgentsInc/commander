@@ -11,11 +11,13 @@ Following the instructions to implement the SWE-Bench Task Management service fo
 Creating error types and task schema...
 
 ✅ Created src/services/swe_bench_harness/errors.ts with:
+
 - SWEBenchHarnessError: Base error type
 - TaskNotFoundError: For missing task files
 - DatasetAccessError: For filesystem/parsing errors
 
 ✅ Created src/services/swe_bench_harness/types.ts with:
+
 - SWEBenchTaskSchema: Effect Schema for task validation
 - SWEBenchTask type: Includes all required fields from SWE-bench format
 
@@ -24,6 +26,7 @@ Creating error types and task schema...
 Defining the service interface...
 
 ✅ Created src/services/swe_bench_harness/SWEBenchTaskService.ts with:
+
 - Interface defining getTask and listAvailableTaskIds methods
 - Context.Tag for dependency injection
 
@@ -32,6 +35,7 @@ Defining the service interface...
 Implementing the live service...
 
 ✅ Created src/services/swe_bench_harness/SWEBenchTaskServiceImpl.ts with:
+
 - FileSystem integration for reading task files
 - In-memory caching using Ref
 - Telemetry tracking for all operations
@@ -43,6 +47,7 @@ Implementing the live service...
 Implementing comprehensive tests...
 
 ✅ Created src/tests/unit/services/swe_bench_harness/SWEBenchTaskService.test.ts with:
+
 - Tests for successful task loading and caching
 - Tests for error scenarios (file not found, invalid JSON, schema validation)
 - Tests for listAvailableTaskIds functionality
@@ -53,6 +58,7 @@ Implementing comprehensive tests...
 ✅ Created src/services/swe_bench_harness/index.ts with exports
 
 ✅ Updated ConfigurationService with:
+
 - SWE_BENCH_DATASET_PATH: "./assets/swe_bench_data"
 - SWE_BENCH_HOST_TEMP_DIR: "/tmp/swe_bench_runs"
 
@@ -61,8 +67,9 @@ Implementing comprehensive tests...
 ✅ Created assets/swe_bench_data/ directory
 
 ✅ Added sample task files:
-- django__django-10973.json: Django settings configuration issue
-- sympy__sympy-13146.json: SymPy simplification issue
+
+- django\_\_django-10973.json: Django settings configuration issue
+- sympy\_\_sympy-13146.json: SymPy simplification issue
 
 ✅ Added assets/swe_bench_data/ to .gitignore
 
@@ -80,8 +87,9 @@ pnpm tsx src/services/swe_bench_harness/test-swebench-integration.ts
 ```
 
 ✅ Integration test results:
+
 - Successfully listed 2 available tasks
-- Loaded django__django-10973 task with all fields
+- Loaded django\_\_django-10973 task with all fields
 - Verified caching works (same object returned)
 - Error handling works for non-existent tasks
 

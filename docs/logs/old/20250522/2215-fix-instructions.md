@@ -3,6 +3,7 @@
 ## Priority: CRITICAL - Runtime Cannot Initialize
 
 ### Problem Summary
+
 The Agent Chat "Service not found" error occurs because the entire Effect runtime fails to initialize. The root cause is `OllamaAsOpenAIClientLive` using `Effect.die()` when `window.electronAPI` is not available, which creates an unrecoverable defect that aborts runtime initialization.
 
 ## Immediate Fix Instructions
@@ -12,8 +13,9 @@ The Agent Chat "Service not found" error occurs because the entire Effect runtim
 **File**: `src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts`
 
 **Current Problem** (Lines 36-61):
+
 ```typescript
-if (!window.electronAPI?.ollama?.generateChatCompletion || 
+if (!window.electronAPI?.ollama?.generateChatCompletion ||
     !window.electronAPI?.ollama?.generateChatCompletionStream) {
   return yield* _(Effect.die(new AiProviderError({...})));  // KILLS RUNTIME!
 }
@@ -29,9 +31,11 @@ export const OllamaAsOpenAIClientLive = Layer.succeed(
   (() => {
     // Helper to check IPC availability
     const checkIPC = () => {
-      if (typeof window === 'undefined' || 
-          !window.electronAPI?.ollama?.generateChatCompletion ||
-          !window.electronAPI?.ollama?.generateChatCompletionStream) {
+      if (
+        typeof window === "undefined" ||
+        !window.electronAPI?.ollama?.generateChatCompletion ||
+        !window.electronAPI?.ollama?.generateChatCompletionStream
+      ) {
         return { available: false, ipc: null };
       }
       return { available: true, ipc: window.electronAPI.ollama };
@@ -41,11 +45,12 @@ export const OllamaAsOpenAIClientLive = Layer.succeed(
     const createIPCError = (operation: string) => {
       const request = HttpClientRequest.post(`ollama-ipc-${operation}`);
       const webResponse = new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: "Ollama IPC bridge not available",
-          details: "The Electron IPC bridge for Ollama is not available in the current environment"
-        }), 
-        { status: 503 } // Service Unavailable
+          details:
+            "The Electron IPC bridge for Ollama is not available in the current environment",
+        }),
+        { status: 503 }, // Service Unavailable
       );
       return new HttpClientError.ResponseError({
         request,
@@ -62,13 +67,15 @@ export const OllamaAsOpenAIClientLive = Layer.succeed(
 
     return {
       client: {
-        createChatCompletion: (options: typeof CreateChatCompletionRequest.Encoded) => 
+        createChatCompletion: (
+          options: typeof CreateChatCompletionRequest.Encoded,
+        ) =>
           Effect.suspend(() => {
             const { available, ipc } = checkIPC();
             if (!available) {
               return Effect.fail(createIPCError("createChatCompletion"));
             }
-            
+
             // Your existing implementation here, using 'ipc' instead of 'ollamaIPC'
             return Effect.tryPromise({
               try: async () => {
@@ -79,23 +86,24 @@ export const OllamaAsOpenAIClientLive = Layer.succeed(
                   max_tokens: options.max_tokens,
                   stream: false as const,
                 };
-                
+
                 const response = await ipc!.generateChatCompletion(ipcParams);
                 // ... rest of existing implementation
                 return response as typeof CreateChatCompletionResponse.Type;
               },
               catch: (error) => {
                 // ... existing error handling
-              }
+              },
             });
           }),
 
         // Apply same pattern to all other methods
-        listChatCompletions: (_options: any) => stubMethod("listChatCompletions"),
+        listChatCompletions: (_options: any) =>
+          stubMethod("listChatCompletions"),
         // ... all other stub methods remain the same
       },
 
-      stream: (params: StreamCompletionRequest) => 
+      stream: (params: StreamCompletionRequest) =>
         Stream.suspend(() => {
           const { available, ipc } = checkIPC();
           if (!available) {
@@ -103,38 +111,43 @@ export const OllamaAsOpenAIClientLive = Layer.succeed(
           }
 
           // Your existing stream implementation, using 'ipc'
-          return Stream.async<AiResponse.AiResponse, HttpClientError.HttpClientError>(
-            (emit) => {
-              // ... existing implementation
-              let ipcStreamCancel: (() => void) | undefined;
-              
-              try {
-                ipcStreamCancel = ipc!.generateChatCompletionStream(
-                  { ...params, stream: true },
-                  // ... existing callbacks
-                );
-              } catch (e) {
-                // ... existing error handling
-              }
-              
-              return Effect.sync(() => {
-                if (ipcStreamCancel) {
-                  ipcStreamCancel();
-                }
-              });
+          return Stream.async<
+            AiResponse.AiResponse,
+            HttpClientError.HttpClientError
+          >((emit) => {
+            // ... existing implementation
+            let ipcStreamCancel: (() => void) | undefined;
+
+            try {
+              ipcStreamCancel = ipc!.generateChatCompletionStream(
+                { ...params, stream: true },
+                // ... existing callbacks
+              );
+            } catch (e) {
+              // ... existing error handling
             }
-          );
+
+            return Effect.sync(() => {
+              if (ipcStreamCancel) {
+                ipcStreamCancel();
+              }
+            });
+          });
         }),
 
       streamRequest: <A>(_request: HttpClientRequest.HttpClientRequest) => {
-        return Stream.fail(createIPCError("streamRequest")) as Stream.Stream<A, HttpClientError.HttpClientError>;
+        return Stream.fail(createIPCError("streamRequest")) as Stream.Stream<
+          A,
+          HttpClientError.HttpClientError
+        >;
       },
     };
-  })()
+  })(),
 );
 ```
 
 **Key Changes**:
+
 1. Use `Layer.succeed` instead of `Layer.effect` - this NEVER fails during construction
 2. Move IPC checks into each method using `Effect.suspend()` or `Stream.suspend()`
 3. Return proper HTTP 503 Service Unavailable errors instead of dying
@@ -154,8 +167,8 @@ if (!available) {
         category: "ollama_adapter:availability",
         action: "ipc_not_available",
         label: methodName,
-      })
-    )
+      }),
+    ),
   );
   return Effect.fail(createIPCError(methodName));
 }
@@ -186,17 +199,17 @@ describe("Runtime Initialization Resilience", () => {
   it("should initialize runtime successfully without window.electronAPI", async () => {
     // Remove window.electronAPI to simulate non-Electron environment
     (global as any).window = {};
-    
+
     const runtime = await initializeMainRuntime();
     expect(getMainRuntime).not.toThrow();
-    
+
     // Verify other services work
     const result = await Effect.runPromise(
-      Effect.flatMap(TelemetryService, (ts) => 
-        ts.trackEvent({ category: "test", action: "runtime_init_test" })
-      ).pipe(Effect.provide(getMainRuntime()))
+      Effect.flatMap(TelemetryService, (ts) =>
+        ts.trackEvent({ category: "test", action: "runtime_init_test" }),
+      ).pipe(Effect.provide(getMainRuntime())),
     );
-    
+
     expect(result).toBeUndefined(); // trackEvent returns void
   });
 
@@ -204,14 +217,14 @@ describe("Runtime Initialization Resilience", () => {
     // Initialize runtime without IPC
     (global as any).window = {};
     await initializeMainRuntime();
-    
+
     // Try to use AgentLanguageModel
     const result = await Effect.runPromiseExit(
       Effect.flatMap(AgentLanguageModel.Tag, (lm) =>
-        lm.generateText({ prompt: "test" })
-      ).pipe(Effect.provide(getMainRuntime()))
+        lm.generateText({ prompt: "test" }),
+      ).pipe(Effect.provide(getMainRuntime())),
     );
-    
+
     expect(result._tag).toBe("Failure");
     if (result._tag === "Failure") {
       const error = result.cause;
@@ -227,10 +240,10 @@ describe("Runtime Initialization Resilience", () => {
         ollama: {
           generateChatCompletion: undefined,
           generateChatCompletionStream: jest.fn(),
-        }
-      }
+        },
+      },
     };
-    
+
     const runtime = await initializeMainRuntime();
     expect(getMainRuntime).not.toThrow();
   });
@@ -260,8 +273,8 @@ Improve error messaging for initialization failures:
       <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #1a1a1a; color: #ffcccc; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: sans-serif; padding: 20px; box-sizing: border-box; z-index: 9999; text-align: center;">
         <h1 style="font-size: 1.5em; color: #ff6666; margin-bottom: 15px;">Application Startup Failed</h1>
         <p style="font-size: 1em; margin-bottom: 10px;">
-          ${isOllamaError 
-            ? "The application requires Electron IPC for AI features but it's not available." 
+          ${isOllamaError
+            ? "The application requires Electron IPC for AI features but it's not available."
             : "A critical error occurred while initializing essential services."}
         </p>
         <p style="font-size: 0.9em; margin-bottom: 20px;">
@@ -280,7 +293,7 @@ Improve error messaging for initialization failures:
 
 1. **Test in Browser**: Open `http://localhost:5173` - app should now start (without AI features)
 2. **Test in Electron**: Run `pnpm start` - app should work with full AI features
-3. **Test Agent Chat**: 
+3. **Test Agent Chat**:
    - In browser: Should get "Service Unavailable" error when trying to send message
    - In Electron: Should work normally
 

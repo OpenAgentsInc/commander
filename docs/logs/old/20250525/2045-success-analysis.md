@@ -11,8 +11,9 @@ After extensive investigation, we've successfully integrated Claude CLI with Ele
 ## Working Solution: External Bridge Service
 
 ### Architecture
+
 ```
-[Electron Renderer] 
+[Electron Renderer]
     ↓ IPC
 [Electron Main Process]
     ↓ WebSocket
@@ -22,6 +23,7 @@ After extensive investigation, we've successfully integrated Claude CLI with Ele
 ```
 
 ### Test Results
+
 - **Connection**: WebSocket establishes immediately
 - **Execution**: Claude CLI spawns successfully via PTY
 - **Response Time**: ~4.4 seconds for complete response
@@ -29,6 +31,7 @@ After extensive investigation, we've successfully integrated Claude CLI with Ele
 - **Exit Code**: 0 (success)
 
 ### Successful Output
+
 1. System init message with tools list
 2. Assistant message with response
 3. Result summary with cost and timing
@@ -37,18 +40,21 @@ After extensive investigation, we've successfully integrated Claude CLI with Ele
 ## Key Implementation Files
 
 ### 1. Bridge Service (`src/services/claude-bridge-service.js`)
+
 - WebSocket server on port 45671
 - Uses node-pty for Claude CLI execution
 - Handles JSON parsing and streaming
 - Comprehensive logging
 
 ### 2. WebSocket Client (`src/main-claude-websocket.ts`)
+
 - Connects to bridge service
 - Handles streaming responses
 - Error handling and timeouts
 - IPC communication with renderer
 
 ### 3. Test Script (`scripts/test-bridge-service.sh`)
+
 - Starts bridge service
 - Tests WebSocket connection
 - Sends test command
@@ -64,6 +70,7 @@ After extensive investigation, we've successfully integrated Claude CLI with Ele
 ## Integration Steps
 
 1. **Start Bridge Service**:
+
    ```bash
    node src/services/claude-bridge-service.js
    ```
@@ -77,11 +84,13 @@ After extensive investigation, we've successfully integrated Claude CLI with Ele
 ## Lessons Learned
 
 ### What Didn't Work
+
 - ❌ Direct spawn/exec from Electron (network isolation)
 - ❌ utilityProcess (unclear limitations, wrapper wouldn't execute)
 - ❌ Various environment variable workarounds
 
 ### What Worked
+
 - ✅ External Node.js service
 - ✅ WebSocket for streaming
 - ✅ node-pty for CLI interaction
@@ -97,6 +106,7 @@ After extensive investigation, we've successfully integrated Claude CLI with Ele
 ## Performance Metrics
 
 From test run:
+
 - Connection time: < 100ms
 - First data: 790ms
 - Complete response: 4.4s
@@ -107,7 +117,7 @@ From test run:
 The external bridge service approach successfully solves the Electron subprocess network isolation issue. The Claude CLI now works perfectly, providing streaming responses with full functionality. This architecture provides:
 
 - ✅ Reliable CLI execution
-- ✅ Streaming JSON responses  
+- ✅ Streaming JSON responses
 - ✅ Full network access
 - ✅ Easy debugging and maintenance
 - ✅ Ready for production use
