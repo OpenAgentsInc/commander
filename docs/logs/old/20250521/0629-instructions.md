@@ -405,17 +405,15 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         ];
 
         const fetchedEvents = yield* _(
-          localNostr
-            .listEvents(filters)
-            .pipe(
-              Effect.mapError(
-                (e) =>
-                  new DVMConnectionError({
-                    message: "Failed to fetch DVM history from relays",
-                    cause: e,
-                  }),
-              ),
+          localNostr.listEvents(filters).pipe(
+            Effect.mapError(
+              (e) =>
+                new DVMConnectionError({
+                  message: "Failed to fetch DVM history from relays",
+                  cause: e,
+                }),
             ),
+          ),
         );
 
         // Sort all fetched events by created_at descending
@@ -522,17 +520,15 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           { kinds: [7000], authors: [dvmPk], limit: 500 }, // Fetch all feedback
         ];
         const allEvents = yield* _(
-          localNostr
-            .listEvents(filters)
-            .pipe(
-              Effect.mapError(
-                (e) =>
-                  new DVMConnectionError({
-                    message: "Failed to fetch DVM stats from relays",
-                    cause: e,
-                  }),
-              ),
+          localNostr.listEvents(filters).pipe(
+            Effect.mapError(
+              (e) =>
+                new DVMConnectionError({
+                  message: "Failed to fetch DVM stats from relays",
+                  cause: e,
+                }),
             ),
+          ),
         );
 
         const stats: JobStatistics = {
@@ -873,17 +869,15 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         );
 
         const ollamaResult = yield* _(
-          ollama
-            .generateChatCompletion(ollamaRequest)
-            .pipe(
-              Effect.mapError(
-                (e) =>
-                  new DVMJobProcessingError({
-                    message: "Ollama inference failed",
-                    cause: e,
-                  }),
-              ),
+          ollama.generateChatCompletion(ollamaRequest).pipe(
+            Effect.mapError(
+              (e) =>
+                new DVMJobProcessingError({
+                  message: "Ollama inference failed",
+                  cause: e,
+                }),
             ),
+          ),
         );
 
         const ollamaOutput = ollamaResult.choices[0]?.message.content || "";
@@ -905,17 +899,15 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           memo: `NIP-90 Job: ${jobRequestEvent.id.substring(0, 8)}`,
         };
         const invoiceResult = yield* _(
-          spark
-            .createLightningInvoice(invoiceParams)
-            .pipe(
-              Effect.mapError(
-                (e) =>
-                  new DVMPaymentError({
-                    message: "Spark invoice creation failed",
-                    cause: e,
-                  }),
-              ),
+          spark.createLightningInvoice(invoiceParams).pipe(
+            Effect.mapError(
+              (e) =>
+                new DVMPaymentError({
+                  message: "Spark invoice creation failed",
+                  cause: e,
+                }),
             ),
+          ),
         );
         const bolt11Invoice = invoiceResult.invoice.encodedInvoice;
 
@@ -1046,17 +1038,15 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           stream: false,
         };
         const ollamaResult = yield* _(
-          ollama
-            .generateChatCompletion(ollamaRequest)
-            .pipe(
-              Effect.mapError(
-                (e) =>
-                  new DVMJobProcessingError({
-                    message: "Test job: Ollama inference failed",
-                    cause: e,
-                  }),
-              ),
+          ollama.generateChatCompletion(ollamaRequest).pipe(
+            Effect.mapError(
+              (e) =>
+                new DVMJobProcessingError({
+                  message: "Test job: Ollama inference failed",
+                  cause: e,
+                }),
             ),
+          ),
         );
         const ollamaOutput = ollamaResult.choices[0]?.message.content || "";
 
@@ -1077,17 +1067,15 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         if (requesterPkOverride) {
           const dvmSkBytes = hexToBytes(dvmPrivateKeyHex);
           finalOutputContent = yield* _(
-            nip04
-              .encrypt(dvmSkBytes, requesterPkOverride, ollamaOutput)
-              .pipe(
-                Effect.mapError(
-                  (e) =>
-                    new DVMJobProcessingError({
-                      message: "Test job: Failed to encrypt result",
-                      cause: e,
-                    }),
-                ),
+            nip04.encrypt(dvmSkBytes, requesterPkOverride, ollamaOutput).pipe(
+              Effect.mapError(
+                (e) =>
+                  new DVMJobProcessingError({
+                    message: "Test job: Failed to encrypt result",
+                    cause: e,
+                  }),
               ),
+            ),
           );
         }
 

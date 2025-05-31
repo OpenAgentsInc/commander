@@ -436,44 +436,38 @@ This roadmap provides a structured approach to migrating Commander to the new Ef
           // and map errors to AIProviderError.
           return AgentLanguageModel.Tag.of({
             generateText: (params) =>
-              provider
-                .generateText(params)
-                .pipe(
-                  Effect.mapError(
-                    (err) =>
-                      new AIProviderError({
-                        message: err.message,
-                        cause: err,
-                        provider: "OpenAI",
-                      }),
-                  ),
+              provider.generateText(params).pipe(
+                Effect.mapError(
+                  (err) =>
+                    new AIProviderError({
+                      message: err.message,
+                      cause: err,
+                      provider: "OpenAI",
+                    }),
                 ),
+              ),
             streamText: (params) =>
-              provider
-                .streamText(params)
-                .pipe(
-                  Stream.mapError(
-                    (err) =>
-                      new AIProviderError({
-                        message: err.message,
-                        cause: err,
-                        provider: "OpenAI",
-                      }),
-                  ),
+              provider.streamText(params).pipe(
+                Stream.mapError(
+                  (err) =>
+                    new AIProviderError({
+                      message: err.message,
+                      cause: err,
+                      provider: "OpenAI",
+                    }),
                 ),
+              ),
             generateStructured: (params) =>
-              provider
-                .generateStructured(params)
-                .pipe(
-                  Effect.mapError(
-                    (err) =>
-                      new AIProviderError({
-                        message: err.message,
-                        cause: err,
-                        provider: "OpenAI",
-                      }),
-                  ),
+              provider.generateStructured(params).pipe(
+                Effect.mapError(
+                  (err) =>
+                    new AIProviderError({
+                      message: err.message,
+                      cause: err,
+                      provider: "OpenAI",
+                    }),
                 ),
+              ),
           });
         }),
       );
@@ -601,7 +595,8 @@ This roadmap provides a structured approach to migrating Commander to the new Ef
         1.  Fetch configurations for preferred, primary fallback, and secondary fallback providers from `ConfigurationService`.
         2.  Dynamically construct the `AiModel` and their respective client layers for each provider in the plan. This is complex with Effect Layers; an alternative is to have pre-composed `AgentLanguageModel` services for each provider type and select them. For simplicity, let's assume we can get handles to the different `AgentLanguageModel` implementations.
         3.  Example `AiPlan` construction:
-            ```typescript
+
+            ````typescript
             const primaryModelEffect = getLanguageModelForProvider(preferredProviderKey); // Helper to get the Effect<AgentLanguageModel,...>
             const fallback1Effect = getLanguageModelForProvider("anthropic_default");
             const fallback2Effect = getLanguageModelForProvider("ollama_default");
@@ -628,6 +623,7 @@ This roadmap provides a structured approach to migrating Commander to the new Ef
                 ```
 
             _Note: Providing context to dynamically built `AiModel`s within `AiPlan.make` needs careful handling with Effect Layers. It might be easier to have `AiPlan` take already built `Provider<AiLanguageModel>` instances._
+            ````
 
 2.  **Refactor `useAgentChat`:**
     - Call `ChatOrchestratorService.streamConversation` instead of `AgentLanguageModel.Tag` directly.

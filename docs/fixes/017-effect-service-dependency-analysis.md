@@ -5,6 +5,7 @@
 Effect services often require multiple dependencies that aren't obvious from the API surface. Missing dependencies cause runtime "Service not found" errors that pass TypeScript compilation but fail at execution time.
 
 ### Error Messages
+
 ```
 Service not found: @effect/ai-openai/OpenAiLanguageModel/Config
 Service not found: SomeService.Tag
@@ -12,13 +13,16 @@ Context.Tag not found in environment
 ```
 
 ### Real Example
+
 During this session, we discovered that `OpenAiLanguageModel.model()` requires **two services**, not just one:
+
 1. `OpenAiClient.OpenAiClient` (obvious from the API)
 2. `OpenAiLanguageModel.Config` (hidden internal dependency)
 
 ## Root Cause
 
 Effect libraries often have:
+
 1. **Hidden Service Dependencies**: Internal services not documented in the main API
 2. **Nested Service Requirements**: Services that depend on other services transitively
 3. **Configuration Services**: Parameter objects that need to be provided as services
@@ -32,10 +36,11 @@ Start with the obvious dependencies from the API:
 
 ```typescript
 // Looking at the API:
-OpenAiLanguageModel.model(modelName, options)
+OpenAiLanguageModel.model(modelName, options);
 ```
 
 This suggests you need:
+
 - A model name (string parameter)
 - Options object (configuration parameter)
 
@@ -67,21 +72,21 @@ Provide ALL required services:
 // INCOMPLETE (causes runtime error)
 const configuredEffect = Effect.provideService(
   aiModelEffect,
-  OpenAiClient.OpenAiClient,  // Only providing one of two required services
-  client
+  OpenAiClient.OpenAiClient, // Only providing one of two required services
+  client,
 );
 
-// COMPLETE (works correctly)  
+// COMPLETE (works correctly)
 const configuredEffect = Effect.provideService(
   aiModelEffect,
-  OpenAiLanguageModel.Config,  // First required service
-  { 
-    model: modelName, 
-    temperature: 0.7, 
-    max_tokens: 2048 
-  }
+  OpenAiLanguageModel.Config, // First required service
+  {
+    model: modelName,
+    temperature: 0.7,
+    max_tokens: 2048,
+  },
 ).pipe(
-  Effect.provideService(OpenAiClient.OpenAiClient, client)  // Second required service
+  Effect.provideService(OpenAiClient.OpenAiClient, client), // Second required service
 );
 ```
 
@@ -118,7 +123,7 @@ const testImplementation = Effect.gen(function* (_) {
 ```typescript
 // Execute and see what services are missing
 const result = await Effect.runPromise(
-  testImplementation.pipe(Effect.provide(yourCurrentLayer))
+  testImplementation.pipe(Effect.provide(yourCurrentLayer)),
 );
 // Error: Service not found: SomeService.Tag
 ```
@@ -131,7 +136,7 @@ const completeImplementation = Effect.gen(function* (_) {
   return model;
 }).pipe(
   Effect.provideService(MissingService.Tag, serviceImplementation),
-  Effect.provideService(AnotherMissingService.Tag, anotherImplementation)
+  Effect.provideService(AnotherMissingService.Tag, anotherImplementation),
 );
 ```
 
@@ -164,8 +169,8 @@ const discoveryTest = Effect.gen(function* (_) {
     return { success: false, error: String(error) };
   }
 }).pipe(
-  Effect.provide(minimalTestLayer),  // Start with minimal dependencies
-  Effect.runPromise
+  Effect.provide(minimalTestLayer), // Start with minimal dependencies
+  Effect.runPromise,
 );
 
 // Step 3: Build complete service provision chain
@@ -178,10 +183,10 @@ const completeServiceEffect = primaryEffect.pipe(
 // Step 4: Validate complete implementation
 const validationTest = Effect.gen(function* (_) {
   const service = yield* _(completeServiceEffect);
-  
+
   // Test actual usage, not just creation
   const operationResult = yield* _(service.performOperation());
-  
+
   return { service, operationResult };
 });
 ```
@@ -189,40 +194,43 @@ const validationTest = Effect.gen(function* (_) {
 ## Common Hidden Dependencies
 
 ### Configuration Services
+
 Many libraries expect configuration to be provided as services:
 
 ```typescript
 // Common pattern: options become services
-const service = Library.create(modelName, options);  // API surface
+const service = Library.create(modelName, options); // API surface
 
 // But internally requires:
-Effect.provideService(Library.Config, options)  // Hidden requirement
+Effect.provideService(Library.Config, options); // Hidden requirement
 ```
 
-### Client Services  
+### Client Services
+
 Network-based services often need client dependencies:
 
 ```typescript
 // Obvious: HTTP client
-Effect.provideService(HttpClient.Tag, httpClient)
+Effect.provideService(HttpClient.Tag, httpClient);
 
 // Less obvious: Authentication service, retry service, telemetry service
-Effect.provideService(AuthService.Tag, authService)
-Effect.provideService(RetryService.Tag, retryConfig)
+Effect.provideService(AuthService.Tag, authService);
+Effect.provideService(RetryService.Tag, retryConfig);
 ```
 
 ### Platform Services
+
 Some services need platform-specific dependencies:
 
 ```typescript
 // File system services
-Effect.provideService(FileSystem.Tag, fileSystemImpl)
+Effect.provideService(FileSystem.Tag, fileSystemImpl);
 
-// Logging services  
-Effect.provideService(Logger.Tag, loggerImpl)
+// Logging services
+Effect.provideService(Logger.Tag, loggerImpl);
 
 // Time services
-Effect.provideService(Clock.Tag, clockImpl)
+Effect.provideService(Clock.Tag, clockImpl);
 ```
 
 ## Testing Strategy for Service Dependencies
@@ -233,7 +241,7 @@ Effect.provideService(Clock.Tag, clockImpl)
 describe("Service Dependency Discovery", () => {
   it("should identify all required services for [ServiceName]", async () => {
     const missingDependencies: string[] = [];
-    
+
     const testEffect = Effect.gen(function* (_) {
       try {
         const service = yield* _(ServiceCreationEffect);
@@ -248,7 +256,7 @@ describe("Service Dependency Discovery", () => {
 
     // Try with minimal layer and collect missing services
     await expect(
-      Effect.runPromise(testEffect.pipe(Effect.provide(minimalLayer)))
+      Effect.runPromise(testEffect.pipe(Effect.provide(minimalLayer))),
     ).rejects.toThrow();
 
     // Document what services are actually required
@@ -264,15 +272,12 @@ describe("Complete Service Provision", () => {
   it("should provide all required services for [ServiceName]", async () => {
     const result = await Effect.gen(function* (_) {
       const service = yield* _(CompleteServiceEffect);
-      
+
       // Test actual usage
       const operationResult = yield* _(service.performOperation());
-      
+
       return { service, operationResult };
-    }).pipe(
-      Effect.provide(completeServiceLayer),
-      Effect.runPromise
-    );
+    }).pipe(Effect.provide(completeServiceLayer), Effect.runPromise);
 
     expect(result.service).toBeDefined();
     expect(result.operationResult).toBeDefined();
@@ -290,23 +295,23 @@ const aiModel = OpenAiLanguageModel.model("gpt-4");
 const completeImplementation = Effect.gen(function* (_) {
   const aiModelEffect = OpenAiLanguageModel.model(modelName, {
     temperature: 0.7,
-    max_tokens: 2048
+    max_tokens: 2048,
   });
 
   // Runtime discovery revealed these services are required:
   const configuredEffect = Effect.provideService(
     aiModelEffect,
-    OpenAiLanguageModel.Config,     // Hidden dependency #1
-    { 
-      model: modelName, 
-      temperature: 0.7, 
-      max_tokens: 2048 
-    }
+    OpenAiLanguageModel.Config, // Hidden dependency #1
+    {
+      model: modelName,
+      temperature: 0.7,
+      max_tokens: 2048,
+    },
   ).pipe(
     Effect.provideService(
-      OpenAiClient.OpenAiClient,    // Obvious dependency #2
-      openAiClient
-    )
+      OpenAiClient.OpenAiClient, // Obvious dependency #2
+      openAiClient,
+    ),
   );
 
   const provider = yield* _(configuredEffect);
@@ -333,15 +338,18 @@ Document discovered dependencies:
 ```typescript
 /**
  * Creates configured OpenAI language model provider
- * 
+ *
  * Required Services:
  * - OpenAiLanguageModel.Config: Model configuration (model name, temperature, etc.)
  * - OpenAiClient.OpenAiClient: HTTP client for OpenAI API
- * 
+ *
  * @param modelName - Model to use (e.g., "gpt-4")
  * @param client - Configured OpenAI HTTP client
  */
-export const createOpenAiProvider = (modelName: string, client: OpenAiClient) => {
+export const createOpenAiProvider = (
+  modelName: string,
+  client: OpenAiClient,
+) => {
   // Implementation...
 };
 ```
@@ -357,14 +365,14 @@ describe("Service Layer Completeness", () => {
     const testAllAiServices = Effect.gen(function* (_) {
       // Test each AI service can be created
       const ollama = yield* _(OllamaService);
-      const openai = yield* _(OpenAIService); 
+      const openai = yield* _(OpenAIService);
       const nip90 = yield* _(NIP90Service);
-      
+
       return { ollama, openai, nip90 };
     });
 
     const result = await Effect.runPromise(
-      testAllAiServices.pipe(Effect.provide(completeAiLayer))
+      testAllAiServices.pipe(Effect.provide(completeAiLayer)),
     );
 
     expect(result.ollama).toBeDefined();

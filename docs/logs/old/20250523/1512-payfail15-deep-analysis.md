@@ -7,11 +7,13 @@ Despite fixing the invoice extraction bug and adding comprehensive telemetry, ev
 ## Critical Findings from New Telemetry
 
 ### ✅ What's Working:
+
 1. **filters_created** (line 73) - Shows filters are correctly created with both result kinds and Kind 7000
-2. **subscription_created_successfully** (line 75) - Confirms NostrService subscription was established  
+2. **subscription_created_successfully** (line 75) - Confirms NostrService subscription was established
 3. Provider publishes feedback event successfully to all 3 relays
 
 ### ❌ What's Missing:
+
 1. **No event_received telemetry** - The handler is NEVER called
 2. **No kind_7000_feedback_received telemetry** - Kind 7000 events never reach handler
 3. **No EOSE events** - No end-of-stored-events notifications
@@ -19,14 +21,16 @@ Despite fixing the invoice extraction bug and adding comprehensive telemetry, ev
 ## Timeline Analysis
 
 ### Consumer:
+
 - **1748030940270** - Job published
 - **1748030940940** - Subscription created with correct filters
 - **1748030940941** - NostrService confirms subscription created
 - **SILENCE** - No events received despite waiting 12+ seconds
 
 ### Provider:
+
 - **1748030940770** - Receives job request (500ms after consumer published)
-- **1748030943506** - Publishes Kind 7000 feedback event  
+- **1748030943506** - Publishes Kind 7000 feedback event
 - **1748030943700** - Event published successfully to all 3 relays
 
 ## Deep Dive: NostrServiceImpl Analysis
@@ -34,14 +38,11 @@ Despite fixing the invoice extraction bug and adding comprehensive telemetry, ev
 Looking at the `subscribeToEvents` implementation:
 
 ```typescript
-const subCloser = pool.subscribe(
-  relaysToUse as string[],
-  filter,
-  subParams,
-);
+const subCloser = pool.subscribe(relaysToUse as string[], filter, subParams);
 ```
 
 Key observations:
+
 1. Uses SimplePool.subscribe() under the hood
 2. Passes only the FIRST filter (`filters[0]`)
 3. Event handler is a simple wrapper: `onevent: (event: any) => { onEvent(event as NostrEvent); }`
@@ -49,6 +50,7 @@ Key observations:
 ## The Hidden Bug: Multiple Filters Not Supported!
 
 Looking at line 485-486 in NostrServiceImpl:
+
 ```typescript
 // Convert array of filters to a single filter object
 const filter: NostrFilter = filters[0];
@@ -57,6 +59,7 @@ const filter: NostrFilter = filters[0];
 **THIS IS THE BUG!** The NostrService only uses the first filter, ignoring all others!
 
 The NIP90ServiceImpl passes TWO filters:
+
 1. Result filter (kinds 6000-6999)
 2. Feedback filter (kind 7000)
 
@@ -71,7 +74,7 @@ The consumer telemetry at line 73 shows a massive filter trying to include all k
 nostr.subscribeToEvents(
   [resultFilter, feedbackFilter], // TWO filters passed
   handleEvent,
-  subscriptionRelays
+  subscriptionRelays,
 );
 
 // But in NostrServiceImpl.subscribeToEvents:
@@ -99,6 +102,7 @@ But the current implementation only passes one filter to SimplePool.
 ## Recommendations for Next Coding Agent
 
 ### Option 1: Fix NostrServiceImpl (Correct Solution)
+
 Modify NostrServiceImpl.subscribeToEvents to support multiple filters:
 
 ```typescript
@@ -107,28 +111,31 @@ const filter: NostrFilter = filters[0];
 const subCloser = pool.subscribe(relaysToUse, filter, subParams);
 
 // Use subscribeMany or multiple subscribe calls:
-const subs = filters.map(filter => 
-  pool.subscribe(relaysToUse, filter, subParams)
+const subs = filters.map((filter) =>
+  pool.subscribe(relaysToUse, filter, subParams),
 );
 ```
 
 ### Option 2: Workaround in NIP90ServiceImpl (Quick Fix)
+
 Combine both filters into one:
 
 ```typescript
 const combinedFilter: NostrFilter = {
-  kinds: [...Array.from({length: 1000}, (_, i) => 6000 + i), 7000],
+  kinds: [...Array.from({ length: 1000 }, (_, i) => 6000 + i), 7000],
   "#e": [jobRequestEventId],
   authors: [dvmPubkeyHex],
 };
 ```
 
 ### Option 3: Use SimplePool's subscribeMany (If Available)
+
 Check if SimplePool supports subscribeMany for multiple filters in one subscription.
 
 ## Why Previous Attempts Failed
 
 All our previous fixes were correct but irrelevant:
+
 - ✅ Invoice extraction fix was needed
 - ✅ Telemetry helped identify the issue
 - ❌ But events never reached the handler due to filter bug

@@ -23,8 +23,8 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:status', action: 'chec
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:status', action: 'check_wallet_status_success', label: 'Wallet ready, balance: 0', timestamp: 1748031766532}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:admin', action: 'check_listening_status', value: 'inactive', timestamp: 1748031766532}
 VM1484 renderer_init:2 Electron Security Warning (Insecure Content-Security-Policy) This renderer process has either no Content Security
-  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
-  this app to unnecessary security risks.
+Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+this app to unnecessary security risks.
 
 For more information and help, consult
 https://electronjs.org/docs/tutorial/security.
@@ -112,9 +112,9 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:balance', action: 'get
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:balance', action: 'get_balance_start', label: 'Fetching balance', value: '', timestamp: 1748031835875}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:balance', action: 'get_balance_success', label: 'Balance: 0 sats', value: 'Token count: 0', timestamp: 1748031836155}
 Kind5050DVMServiceImpl.ts:1532 Invoice check error: DVMServiceError: Failed to fetch DVM history from relays
-    at http://localhost:5173/src/services/dvm/Kind5050DVMServiceImpl.ts?t=1748031754319:174:95
-    at http://localhost:5173/node_modules/.vite/deps/chunk-YZAYSWRX.js?v=74cf3d26:8860:31
-    at http://localhost:5173/node_modules/.vite/deps/chunk-NHEPLXU6.js?v=74cf3d26:9242:42
+at http://localhost:5173/src/services/dvm/Kind5050DVMServiceImpl.ts?t=1748031754319:174:95
+at http://localhost:5173/node_modules/.vite/deps/chunk-YZAYSWRX.js?v=74cf3d26:8860:31
+at http://localhost:5173/node_modules/.vite/deps/chunk-NHEPLXU6.js?v=74cf3d26:9242:42
 overrideMethod @ hook.js:608
 (anonymous) @ Kind5050DVMServiceImpl.ts:1532
 (anonymous) @ chunk-NHEPLXU6.js?v=74cf3d26:9275
@@ -256,7 +256,7 @@ dispatchEvent @ chunk-QW7VXTSL.js?v=74cf3d26:14792
 dispatchDiscreteEvent @ chunk-QW7VXTSL.js?v=74cf3d26:14773
 <button>
 exports.jsxDEV @ react_jsx-dev-runtime.js?v=74cf3d26:250
-_c2 @ button.tsx:46
+\_c2 @ button.tsx:46
 react-stack-bottom-frame @ chunk-QW7VXTSL.js?v=74cf3d26:17424
 renderWithHooks @ chunk-QW7VXTSL.js?v=74cf3d26:4206
 updateForwardRef @ chunk-QW7VXTSL.js?v=74cf3d26:6461
@@ -383,7 +383,7 @@ processRootScheduleInMicrotask @ chunk-QW7VXTSL.js?v=74cf3d26:11558
 (anonymous) @ chunk-QW7VXTSL.js?v=74cf3d26:11649
 <OutletImpl>
 exports.jsxDEV @ react_jsx-dev-runtime.js?v=74cf3d26:250
-Root @ __root.tsx:14
+Root @ \_\_root.tsx:14
 react-stack-bottom-frame @ chunk-QW7VXTSL.js?v=74cf3d26:17424
 renderWithHooks @ chunk-QW7VXTSL.js?v=74cf3d26:4206
 updateFunctionComponent @ chunk-QW7VXTSL.js?v=74cf3d26:6619

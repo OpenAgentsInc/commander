@@ -5,6 +5,7 @@
 From the telemetry logs and analysis, I identified the root cause of the payment failure:
 
 1. **Consumer Side** (`1031-telemetry-payfail-consumer.md`):
+
    - Runtime initializes with MOCK SparkService
    - User enters mnemonic ("pyramid go...")
    - Runtime reinitializes with user's SparkService
@@ -12,6 +13,7 @@ From the telemetry logs and analysis, I identified the root cause of the payment
    - BUT: No payment telemetry events (`payment_start`, `payment_success`, `payment_failure`)
 
 2. **Provider Side** (`1031-telemetry-payfail-provider.md`):
+
    - DVM correctly receives job request
    - Creates invoice for 3 sats
    - Sends payment-required event (Kind 7000)
@@ -26,16 +28,19 @@ The fix follows the same pattern used in the wallet display fix (`0845-fix.md`):
 ### Changes to `src/hooks/useNip90ConsumerChat.ts`:
 
 1. **Removed runtime prop and stale references**:
+
    - Removed `runtime` from `UseNip90ConsumerChatParams` interface
    - No longer storing runtime in any refs or variables
    - Each Effect execution gets fresh runtime via `getMainRuntime()`
 
 2. **Updated `handlePayment` function**:
+
    - Gets fresh runtime at execution time
    - Uses `Effect.runPromiseExit` for better error handling
    - Properly handles both success and failure cases
 
 3. **Updated `sendMessage` function**:
+
    - Gets fresh runtime for each operation
    - Resolves services from current runtime context
    - Event handlers also get fresh runtime
@@ -71,6 +76,7 @@ const handleAction = () => {
 ## Expected Results
 
 After this fix:
+
 1. Consumer telemetry will show `payment_start` and `payment_success/failure` events
 2. Provider will see invoice status change from "pending" to "paid"
 3. DVM will process the job and return results

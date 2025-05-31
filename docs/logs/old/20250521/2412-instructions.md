@@ -13,8 +13,9 @@ The local mock of `OpenAiLanguageModel.model` inside `OllamaAgentLanguageModelLi
 
 1.  **Open `src/services/ai/providers/ollama/OllamaAgentLanguageModelLive.ts`.**
 2.  **Modify the local `OpenAiLanguageModel.model` mock:**
-    *   Ensure the methods assigned to `mockProviderInstance` are direct functions returning `Effect.succeed(...)` or `Stream.fromIterable(...)`. Avoid using `vi.fn().mockImplementation(...)` for these internal mock methods within the SUT itself, as `vi` might not be set up correctly or behave as expected when the SUT module is imported and used by the test runner.
-    *   Ensure the mock `AiResponse` and `AiTextChunk` objects are complete and correctly typed.
+
+    - Ensure the methods assigned to `mockProviderInstance` are direct functions returning `Effect.succeed(...)` or `Stream.fromIterable(...)`. Avoid using `vi.fn().mockImplementation(...)` for these internal mock methods within the SUT itself, as `vi` might not be set up correctly or behave as expected when the SUT module is imported and used by the test runner.
+    - Ensure the mock `AiResponse` and `AiTextChunk` objects are complete and correctly typed.
 
     ```typescript
     // src/services/ai/providers/ollama/OllamaAgentLanguageModelLive.ts
@@ -23,35 +24,70 @@ The local mock of `OpenAiLanguageModel.model` inside `OllamaAgentLanguageModelLi
 
     // Local Mock for OpenAiLanguageModel
     const OpenAiLanguageModel = {
-      model: (modelName: string): Effect.Effect<
-        AiModel<EffectAiLanguageModel, OpenAiClient.Service>, ConfigError, OpenAiClient.Service
+      model: (
+        modelName: string,
+      ): Effect.Effect<
+        AiModel<EffectAiLanguageModel, OpenAiClient.Service>,
+        ConfigError,
+        OpenAiClient.Service
       > => {
         const mockProviderInstance: Provider<EffectAiLanguageModel> = {
-          generateText: (params: GenerateTextOptions): Effect.Effect<AiResponse, any> => // Error type 'any' for mock simplicity
+          generateText: (
+            params: GenerateTextOptions,
+          ): Effect.Effect<AiResponse, any> => // Error type 'any' for mock simplicity
             Effect.succeed({
               text: `SUT Mock: generateText for ${modelName} to prompt: "${params.prompt}"`,
-              usage: { total_tokens: 10, prompt_tokens: 5, completion_tokens: 5 },
+              usage: {
+                total_tokens: 10,
+                prompt_tokens: 5,
+                completion_tokens: 5,
+              },
               role: "assistant",
-              parts: [{ _tag: "Text", content: `SUT Mock: generateText for ${modelName}` } as const],
+              parts: [
+                {
+                  _tag: "Text",
+                  content: `SUT Mock: generateText for ${modelName}`,
+                } as const,
+              ],
               imageUrl: null,
               withToolCallsJson: () => Effect.succeed({} as AiResponse), // Ensure methods exist even if mock
               withToolCallsUnknown: () => Effect.succeed({} as AiResponse),
               concat: () => Effect.succeed({} as AiResponse),
             } as AiResponse),
 
-          streamText: (params: StreamTextOptions): Stream.Stream<AiTextChunk, any> => // Error type 'any' for mock simplicity
+          streamText: (
+            params: StreamTextOptions,
+          ): Stream.Stream<AiTextChunk, any> => // Error type 'any' for mock simplicity
             Stream.fromIterable([
-              { text: `SUT Mock: Stream chunk 1 for ${modelName} (${params.prompt?.substring(0,10)}...) `, isComplete: false },
-              { text: `SUT Mock: Stream chunk 2`, isComplete: false }
+              {
+                text: `SUT Mock: Stream chunk 1 for ${modelName} (${params.prompt?.substring(0, 10)}...) `,
+                isComplete: false,
+              },
+              { text: `SUT Mock: Stream chunk 2`, isComplete: false },
             ] as AiTextChunk[]),
 
-          generateStructured: (params: GenerateStructuredOptions): Effect.Effect<AiResponse, any> => // Error type 'any' for mock simplicity
+          generateStructured: (
+            params: GenerateStructuredOptions,
+          ): Effect.Effect<AiResponse, any> => // Error type 'any' for mock simplicity
             Effect.succeed({
               text: `SUT Mock: {"model": "${modelName}", "structure": "mock", "prompt": "${params.prompt}"}`,
-              structured: { model: modelName, structure: "mock", prompt: params.prompt },
-              usage: { total_tokens: 15, prompt_tokens: 7, completion_tokens: 8 },
+              structured: {
+                model: modelName,
+                structure: "mock",
+                prompt: params.prompt,
+              },
+              usage: {
+                total_tokens: 15,
+                prompt_tokens: 7,
+                completion_tokens: 8,
+              },
               role: "assistant",
-              parts: [{ _tag: "Text", content: `SUT Mock: {"model": "${modelName}"}` } as const],
+              parts: [
+                {
+                  _tag: "Text",
+                  content: `SUT Mock: {"model": "${modelName}"}`,
+                } as const,
+              ],
               imageUrl: null,
               withToolCallsJson: () => Effect.succeed({} as AiResponse),
               withToolCallsUnknown: () => Effect.succeed({} as AiResponse),
@@ -59,9 +95,12 @@ The local mock of `OpenAiLanguageModel.model` inside `OllamaAgentLanguageModelLi
             } as AiResponse),
         };
         // Mimic the library's structure: model() returns Effect<AiModel>, and AiModel is Effect<Provider>
-        const aiModelEffect: AiModel<EffectAiLanguageModel, OpenAiClient.Service> = Effect.succeed(mockProviderInstance);
+        const aiModelEffect: AiModel<
+          EffectAiLanguageModel,
+          OpenAiClient.Service
+        > = Effect.succeed(mockProviderInstance);
         return Effect.succeed(aiModelEffect);
-      }
+      },
     };
 
     export const OllamaAgentLanguageModelLive = Layer.effect(
@@ -76,26 +115,30 @@ The local mock of `OpenAiLanguageModel.model` inside `OllamaAgentLanguageModelLi
         const configGetEffect = configService.get("OLLAMA_MODEL_NAME");
         const configResult = yield* _(Effect.either(configGetEffect)); // Use Effect.either to handle potential failure
 
-        if (configResult._tag === 'Right') {
+        if (configResult._tag === "Right") {
           modelName = configResult.right;
         } else {
           // Log failure to get model name, but continue with default
           yield* _(
-            telemetry.trackEvent({
-              category: "ai:config:warn", // Changed to warn as we are using a default
-              action: "ollama_model_name_fetch_failed_using_default",
-              label: "OLLAMA_MODEL_NAME",
-              value: String(configResult.left?.message || configResult.left),
-            }).pipe(Effect.ignoreLogged)
+            telemetry
+              .trackEvent({
+                category: "ai:config:warn", // Changed to warn as we are using a default
+                action: "ollama_model_name_fetch_failed_using_default",
+                label: "OLLAMA_MODEL_NAME",
+                value: String(configResult.left?.message || configResult.left),
+              })
+              .pipe(Effect.ignoreLogged),
           );
         }
 
         yield* _(
-          telemetry.trackEvent({
-            category: "ai:config",
-            action: "ollama_model_name_resolved",
-            value: modelName,
-          }).pipe(Effect.ignoreLogged)
+          telemetry
+            .trackEvent({
+              category: "ai:config",
+              action: "ollama_model_name_resolved",
+              value: modelName,
+            })
+            .pipe(Effect.ignoreLogged),
         );
 
         // Correct two-step resolution for AiModel -> Provider
@@ -103,17 +146,23 @@ The local mock of `OpenAiLanguageModel.model` inside `OllamaAgentLanguageModelLi
         const configuredAiModelEffect = Effect.provideService(
           aiModelEffectDefinition,
           OpenAiClient.OpenAiClient,
-          ollamaAdaptedClient
+          ollamaAdaptedClient,
         );
-        const aiModel_from_effect: AiModel<EffectAiLanguageModel, OpenAiClient.Service> = yield* _(configuredAiModelEffect);
-        const provider: Provider<EffectAiLanguageModel> = yield* _(aiModel_from_effect);
+        const aiModel_from_effect: AiModel<
+          EffectAiLanguageModel,
+          OpenAiClient.Service
+        > = yield* _(configuredAiModelEffect);
+        const provider: Provider<EffectAiLanguageModel> =
+          yield* _(aiModel_from_effect);
 
         yield* _(
-          telemetry.trackEvent({
-            category: "ai:config",
-            action: "ollama_language_model_provider_created",
-            value: modelName,
-          }).pipe(Effect.ignoreLogged)
+          telemetry
+            .trackEvent({
+              category: "ai:config",
+              action: "ollama_language_model_provider_created",
+              value: modelName,
+            })
+            .pipe(Effect.ignoreLogged),
         );
 
         // Ensure the returned object directly implements AgentLanguageModel
@@ -123,62 +172,97 @@ The local mock of `OpenAiLanguageModel.model` inside `OllamaAgentLanguageModelLi
           generateText: (params) => {
             const effectResult = provider.generateText(params);
             // Add a check to ensure effectResult is a valid Effect before piping
-            if (effectResult && typeof effectResult.pipe === 'function') {
+            if (effectResult && typeof effectResult.pipe === "function") {
               return effectResult.pipe(
-                Effect.mapError((err: any) => new AIProviderError({
-                  message: `Ollama generateText error: ${err?.message || String(err) || "Unknown"}`,
-                  cause: err, provider: "Ollama", context: { model: modelName, params }
-                }))
+                Effect.mapError(
+                  (err: any) =>
+                    new AIProviderError({
+                      message: `Ollama generateText error: ${err?.message || String(err) || "Unknown"}`,
+                      cause: err,
+                      provider: "Ollama",
+                      context: { model: modelName, params },
+                    }),
+                ),
               );
             }
             // Fallback or error handling if provider.generateText doesn't return an Effect
-            console.error("[SUT] provider.generateText did not return a valid Effect:", effectResult);
-            return Effect.die(new TypeError("generateText did not produce a valid Effect"));
+            console.error(
+              "[SUT] provider.generateText did not return a valid Effect:",
+              effectResult,
+            );
+            return Effect.die(
+              new TypeError("generateText did not produce a valid Effect"),
+            );
           },
           streamText: (params) => {
             const streamResult = provider.streamText(params);
-             if (streamResult && typeof streamResult.pipe === 'function') {
+            if (streamResult && typeof streamResult.pipe === "function") {
               return streamResult.pipe(
-                Stream.mapError((err: any) => new AIProviderError({
-                  message: `Ollama streamText error: ${err?.message || String(err) || "Unknown"}`,
-                  cause: err, provider: "Ollama", context: { model: modelName, params }
-                }))
+                Stream.mapError(
+                  (err: any) =>
+                    new AIProviderError({
+                      message: `Ollama streamText error: ${err?.message || String(err) || "Unknown"}`,
+                      cause: err,
+                      provider: "Ollama",
+                      context: { model: modelName, params },
+                    }),
+                ),
               );
             }
-            console.error("[SUT] provider.streamText did not return a valid Stream:", streamResult);
-            return Stream.die(new TypeError("streamText did not produce a valid Stream"));
+            console.error(
+              "[SUT] provider.streamText did not return a valid Stream:",
+              streamResult,
+            );
+            return Stream.die(
+              new TypeError("streamText did not produce a valid Stream"),
+            );
           },
           generateStructured: (params) => {
             const effectResult = provider.generateStructured(params);
-            if (effectResult && typeof effectResult.pipe === 'function') {
+            if (effectResult && typeof effectResult.pipe === "function") {
               return effectResult.pipe(
-                Effect.mapError((err: any) => new AIProviderError({
-                  message: `Ollama generateStructured error: ${err?.message || String(err) || "Unknown"}`,
-                  cause: err, provider: "Ollama", context: { model: modelName, params }
-                }))
+                Effect.mapError(
+                  (err: any) =>
+                    new AIProviderError({
+                      message: `Ollama generateStructured error: ${err?.message || String(err) || "Unknown"}`,
+                      cause: err,
+                      provider: "Ollama",
+                      context: { model: modelName, params },
+                    }),
+                ),
               );
             }
-            console.error("[SUT] provider.generateStructured did not return a valid Effect:", effectResult);
-            return Effect.die(new TypeError("generateStructured did not produce a valid Effect"));
+            console.error(
+              "[SUT] provider.generateStructured did not return a valid Effect:",
+              effectResult,
+            );
+            return Effect.die(
+              new TypeError(
+                "generateStructured did not produce a valid Effect",
+              ),
+            );
           },
         };
         return serviceImplementation;
       }),
     );
     ```
+
     **Key Changes in SUT:**
-    *   The methods of `mockProviderInstance` directly return `Effect.succeed` or `Stream.fromIterable`.
-    *   The `Effect.gen` block for the layer now returns a direct implementation of `AgentLanguageModel`, not `AgentLanguageModel.of(...)`.
-    *   Defensive checks added around `provider.method(...).pipe(...)` to log if the method doesn't return a pipeable Effect/Stream (this helps debug if the mock is still problematic at runtime).
-    *   Corrected telemetry for config fetching failure to use `configResult.left?.message`.
-    *   Ensured `AiResponse` mock includes all required fields or methods.
+
+    - The methods of `mockProviderInstance` directly return `Effect.succeed` or `Stream.fromIterable`.
+    - The `Effect.gen` block for the layer now returns a direct implementation of `AgentLanguageModel`, not `AgentLanguageModel.of(...)`.
+    - Defensive checks added around `provider.method(...).pipe(...)` to log if the method doesn't return a pipeable Effect/Stream (this helps debug if the mock is still problematic at runtime).
+    - Corrected telemetry for config fetching failure to use `configResult.left?.message`.
+    - Ensured `AiResponse` mock includes all required fields or methods.
 
 **Step 2: Adjust Test File (`OllamaAgentLanguageModelLive.test.ts`) Mocks for `OllamaOpenAIClientTag`**
 
-*   The mocks for `mockCreateChatCompletion` and `mockStream` (used by `MockOllamaOpenAIClient`) in the test file need to return `Effect`s/`Stream`s whose *error channels* are `HttpClientError.HttpClientError | ParseError` (for `createChatCompletion`) or `HttpClientError.HttpClientError` (for `stream`). This is what the real `@effect/ai-openai` library components would expect from an `OpenAiClient.Service` implementation.
+- The mocks for `mockCreateChatCompletion` and `mockStream` (used by `MockOllamaOpenAIClient`) in the test file need to return `Effect`s/`Stream`s whose _error channels_ are `HttpClientError.HttpClientError | ParseError` (for `createChatCompletion`) or `HttpClientError.HttpClientError` (for `stream`). This is what the real `@effect/ai-openai` library components would expect from an `OpenAiClient.Service` implementation.
 
 1.  **Open `src/tests/unit/services/ai/providers/ollama/OllamaAgentLanguageModelLive.test.ts`.**
 2.  **Update `mockCreateChatCompletion` in `beforeEach` (or its global definition):**
+
     ```typescript
     // In OllamaAgentLanguageModelLive.test.ts
     // ...
@@ -186,18 +270,33 @@ The local mock of `OpenAiLanguageModel.model` inside `OllamaAgentLanguageModelLi
 
     beforeEach(() => {
       vi.resetAllMocks();
-      mockCreateChatCompletion.mockImplementation((params: typeof CreateChatCompletionRequest.Encoded) => {
-        const mockResponseData = { /* ... your valid mock CreateChatCompletionResponse.Type data ... */ };
-        return Effect.succeed(mockResponseData as typeof CreateChatCompletionResponse.Type) as Effect.Effect<
-          typeof CreateChatCompletionResponse.Type,
-          HttpClientError.HttpClientError | ParseError // Ensure this error type
-        >;
-      });
+      mockCreateChatCompletion.mockImplementation(
+        (params: typeof CreateChatCompletionRequest.Encoded) => {
+          const mockResponseData = {
+            /* ... your valid mock CreateChatCompletionResponse.Type data ... */
+          };
+          return Effect.succeed(
+            mockResponseData as typeof CreateChatCompletionResponse.Type,
+          ) as Effect.Effect<
+            typeof CreateChatCompletionResponse.Type,
+            HttpClientError.HttpClientError | ParseError // Ensure this error type
+          >;
+        },
+      );
 
       mockStream.mockImplementation((params: StreamCompletionRequest) => {
         const chunks: StreamChunk[] = [
-          new StreamChunk({ parts: [{ _tag: "Content", content: "Stream chunk 1 " }] }),
-          new StreamChunk({ parts: [{ _tag: "Content", content: `for ${params.model || "unknown model"}` }] })
+          new StreamChunk({
+            parts: [{ _tag: "Content", content: "Stream chunk 1 " }],
+          }),
+          new StreamChunk({
+            parts: [
+              {
+                _tag: "Content",
+                content: `for ${params.model || "unknown model"}`,
+              },
+            ],
+          }),
         ];
         return Stream.fromIterable(chunks) as Stream.Stream<
           StreamChunk,
@@ -206,53 +305,67 @@ The local mock of `OpenAiLanguageModel.model` inside `OllamaAgentLanguageModelLi
       });
     });
     ```
+
 3.  **Update the error simulation in the "should properly map errors..." test:**
     The `mockCreateChatCompletion` should `Effect.fail` with an `HttpClientError.ResponseError`.
+
     ```typescript
     // In the "should properly map errors..." test:
     it("should properly map errors from the client to AIProviderError", async () => {
-      mockCreateChatCompletion.mockImplementation(() => { // This is the mock for OllamaOpenAIClientTag.client.createChatCompletion
+      mockCreateChatCompletion.mockImplementation(() => {
+        // This is the mock for OllamaOpenAIClientTag.client.createChatCompletion
         const request = HttpClientRequest.post("test-model-error");
-        const webResponse = new Response("Mocked Client Error From Test", { status: 500 });
-        return Effect.fail( // Fail with the expected HttpClientError type
+        const webResponse = new Response("Mocked Client Error From Test", {
+          status: 500,
+        });
+        return Effect.fail(
+          // Fail with the expected HttpClientError type
           new HttpClientError.ResponseError({
             request,
             response: HttpClientResponse.fromWeb(request, webResponse),
             reason: "StatusCode",
-            description: "Simulated client error for testing error mapping in SUT",
-          })
+            description:
+              "Simulated client error for testing error mapping in SUT",
+          }),
         );
       });
 
       const program = Effect.gen(function* (_) {
         const agentLM = yield* _(AgentLanguageModel);
-        return yield* _(agentLM.generateText({ prompt: "Test prompt for error" }));
+        return yield* _(
+          agentLM.generateText({ prompt: "Test prompt for error" }),
+        );
       });
 
       // Using the testLayerForOllamaAgentLM that provides OllamaAgentLanguageModelLive
       // with MockOllamaOpenAIClient (which uses the above mockCreateChatCompletion)
       await expect(
-        runTestEffect(program.pipe(Effect.provide(testLayerForOllamaAgentLM)))
+        runTestEffect(program.pipe(Effect.provide(testLayerForOllamaAgentLM))),
       ).rejects.toBeInstanceOf(AIProviderError); // This should now work
     });
     ```
 
 **Step 3: Address `OllamaAsOpenAIClientLive.test.ts` `_op` Error**
 
-*   **File:** `src/tests/unit/services/ai/providers/ollama/OllamaAsOpenAIClientLive.test.ts`
-*   **Error:** `ResponseError: Ollama IPC non-stream request failed: Cannot read properties of undefined (reading '_op')`
-*   **Action:** Ensure the mock for `window.electronAPI.ollama.generateChatCompletion` in this test file *resolves or rejects its Promise with plain objects/errors*, not Effect instances. The previous fix (from agent log `2259-instructions.md`) seemed correct for this.
-    ```typescript
-    // In OllamaAsOpenAIClientLive.test.ts
-    mockGenerateChatCompletion.mockImplementation(async (ipcParams) => {
-      if (ipcParams.model === "ipc-error-model") {
-        return Promise.reject({ __error: true, message: "Simulated IPC failure from mock" }); // REJECT with plain object
-      }
-      const mockResponseData = { /* valid ChatCompletionResponse.Type structure as plain object */ };
-      return Promise.resolve(mockResponseData); // RESOLVE with plain object
-    });
-    ```
-    The SUT's `catch` block for `Effect.tryPromise` should then correctly wrap these plain errors/objects into `HttpClientError.ResponseError` without encountering `_op` issues.
+- **File:** `src/tests/unit/services/ai/providers/ollama/OllamaAsOpenAIClientLive.test.ts`
+- **Error:** `ResponseError: Ollama IPC non-stream request failed: Cannot read properties of undefined (reading '_op')`
+- **Action:** Ensure the mock for `window.electronAPI.ollama.generateChatCompletion` in this test file _resolves or rejects its Promise with plain objects/errors_, not Effect instances. The previous fix (from agent log `2259-instructions.md`) seemed correct for this.
+  ```typescript
+  // In OllamaAsOpenAIClientLive.test.ts
+  mockGenerateChatCompletion.mockImplementation(async (ipcParams) => {
+    if (ipcParams.model === "ipc-error-model") {
+      return Promise.reject({
+        __error: true,
+        message: "Simulated IPC failure from mock",
+      }); // REJECT with plain object
+    }
+    const mockResponseData = {
+      /* valid ChatCompletionResponse.Type structure as plain object */
+    };
+    return Promise.resolve(mockResponseData); // RESOLVE with plain object
+  });
+  ```
+  The SUT's `catch` block for `Effect.tryPromise` should then correctly wrap these plain errors/objects into `HttpClientError.ResponseError` without encountering `_op` issues.
 
 ---
 
@@ -264,7 +377,7 @@ The local mock of `OpenAiLanguageModel.model` inside `OllamaAgentLanguageModelLi
 4.  Run `pnpm tsc --noEmit --pretty false`. Report any TypeScript errors.
 5.  Run `pnpm test`. Report the full test output.
 
-This approach aims to ensure that the SUT uses a more robust internal mock (if not the real library) and that the test files provide correctly-typed mocks for the SUT's *direct* dependencies.
+This approach aims to ensure that the SUT uses a more robust internal mock (if not the real library) and that the test files provide correctly-typed mocks for the SUT's _direct_ dependencies.
 
 The reason the `TypeError: Cannot read properties of undefined (reading 'pipe')` is so persistent is that somewhere in the chain:
 `SUT Test -> MockOllamaOpenAIClient -> SUT (OllamaAgentLanguageModelLive) -> SUT's local mock of OpenAiLanguageModel.model -> SUT's mockProviderInstance.generateText`
@@ -273,6 +386,7 @@ The reason the `TypeError: Cannot read properties of undefined (reading 'pipe')`
 **Test Suite 1: `src/tests/unit/services/ai/providers/ollama/OllamaAgentLanguageModelLive.test.ts` (4 failures)**
 
 All 4 failures here show the same pattern:
+
 1.  `should successfully build the layer...`: `RuntimeException: Not a valid effect: undefined`
 2.  `should use default model name...`: `TypeError: Cannot read properties of undefined (reading 'pipe')`
 3.  `should properly call generateText...`: `RuntimeException: Not a valid effect: undefined`
@@ -283,20 +397,20 @@ All 4 failures here show the same pattern:
 **Test Suite 2: `src/tests/unit/services/ai/providers/ollama/OllamaAsOpenAIClientLive.test.ts` (1 failure)**
 
 1.  `should call IPC generateChatCompletion...`: `FiberFailure` with `cause: { _tag: 'Fail', failure: { description: "Ollama IPC non-stream request failed: Cannot read properties of undefined (reading '_op')" ... }}`
-    *   **Root Cause:** An `Effect` instance is likely being passed as a `cause` to an `HttpClientError.ResponseError` or similar error constructor within `OllamaAsOpenAIClientLive.ts`, or the mock IPC call in the test is incorrectly returning an `Effect` instead of a `Promise` that resolves/rejects with plain data.
+    - **Root Cause:** An `Effect` instance is likely being passed as a `cause` to an `HttpClientError.ResponseError` or similar error constructor within `OllamaAsOpenAIClientLive.ts`, or the mock IPC call in the test is incorrectly returning an `Effect` instead of a `Promise` that resolves/rejects with plain data.
 
 ---
 
 **Strategy:**
 
 1.  **Aggressively fix the SUT (`OllamaAgentLanguageModelLive.ts`):**
-    *   **Crucially, use the REAL `@effect/ai-openai` library's `OpenAiCompletions.OpenAiLanguageModel.model`. Remove the local mock entirely.** This has been the most persistent source of issues. The test file mocks will then need to be perfect for the `OpenAiClient.Service` interface.
-    *   Ensure the two-step `yield*` process for `AiModel` to `Provider` is correctly implemented using the real library components.
+    - **Crucially, use the REAL `@effect/ai-openai` library's `OpenAiCompletions.OpenAiLanguageModel.model`. Remove the local mock entirely.** This has been the most persistent source of issues. The test file mocks will then need to be perfect for the `OpenAiClient.Service` interface.
+    - Ensure the two-step `yield*` process for `AiModel` to `Provider` is correctly implemented using the real library components.
 2.  **Refine Mocks in `OllamaAgentLanguageModelLive.test.ts`:**
-    *   The mock for `OllamaOpenAIClientTag` (which is `OpenAiClient.OpenAiClient`) must precisely implement the `OpenAiClient.Service` interface. Its `client` property's methods must return `Effect<..., HttpClientError | ParseError>` and its `stream` method must return `Stream<..., HttpClientError>`.
-    *   Ensure `MockHttpClient` is robustly provided to the test layer, as the real `@effect/ai-openai` client code will depend on it.
+    - The mock for `OllamaOpenAIClientTag` (which is `OpenAiClient.OpenAiClient`) must precisely implement the `OpenAiClient.Service` interface. Its `client` property's methods must return `Effect<..., HttpClientError | ParseError>` and its `stream` method must return `Stream<..., HttpClientError>`.
+    - Ensure `MockHttpClient` is robustly provided to the test layer, as the real `@effect/ai-openai` client code will depend on it.
 3.  **Fix `OllamaAsOpenAIClientLive.test.ts` IPC mock:**
-    *   Ensure `window.electronAPI.ollama.generateChatCompletion` mock in the test *resolves/rejects its Promise with plain objects/errors*, not Effect instances.
+    - Ensure `window.electronAPI.ollama.generateChatCompletion` mock in the test _resolves/rejects its Promise with plain objects/errors_, not Effect instances.
 
 ---
 
@@ -310,7 +424,13 @@ All 4 failures here show the same pattern:
     ```typescript
     // src/services/ai/providers/ollama/OllamaAgentLanguageModelLive.ts
     import { Layer, Effect, Stream, Context } from "effect";
-    import { AgentLanguageModel, type GenerateTextOptions, type StreamTextOptions, type GenerateStructuredOptions, type AiTextChunk } from "@/services/ai/core";
+    import {
+      AgentLanguageModel,
+      type GenerateTextOptions,
+      type StreamTextOptions,
+      type GenerateStructuredOptions,
+      type AiTextChunk,
+    } from "@/services/ai/core";
     import { OpenAiClient, OpenAiCompletions } from "@effect/ai-openai"; // Use OpenAiCompletions
     import type { ConfigError } from "effect/ConfigError";
     import { ConfigurationService } from "@/services/configuration";
@@ -323,6 +443,7 @@ All 4 failures here show the same pattern:
     import type { AiError as OpenAiLibraryError } from "@effect/ai-openai/AiError"; // For errors from the library
     ```
 4.  **Implement `OllamaAgentLanguageModelLive` using the real library:**
+
     ```typescript
     export const OllamaAgentLanguageModelLive = Layer.effect(
       AgentLanguageModel,
@@ -334,62 +455,102 @@ All 4 failures here show the same pattern:
         let modelName = "gemma3:1b";
         const configGetEffect = configService.get("OLLAMA_MODEL_NAME");
         const configResult = yield* _(Effect.either(configGetEffect));
-        if (configResult._tag === 'Right') modelName = configResult.right;
-        else { /* ... telemetry for config error ... */ }
+        if (configResult._tag === "Right") modelName = configResult.right;
+        else {
+          /* ... telemetry for config error ... */
+        }
         /* ... telemetry for model resolved ... */
 
         // --- USE REAL LIBRARY ---
         // 1. Get the AiModel definition from the library
-        const aiModelEffectDefinition = OpenAiCompletions.OpenAiLanguageModel.model(modelName);
+        const aiModelEffectDefinition =
+          OpenAiCompletions.OpenAiLanguageModel.model(modelName);
         // This ^ is Effect<AiModel<EffectAiLanguageModel, OpenAiClient.Service>, ConfigError, OpenAiClient.Service>
 
         // 2. Provide the client dependency to the AiModel definition Effect
         const configuredAiModelEffect = Effect.provideService(
           aiModelEffectDefinition,
           OpenAiClient.OpenAiClient, // Tag for the client dependency
-          ollamaAdaptedClient         // Your Ollama adapter (implements OpenAiClient.Service)
+          ollamaAdaptedClient, // Your Ollama adapter (implements OpenAiClient.Service)
         );
         // Type: Effect<AiModel<EffectAiLanguageModel, OpenAiClient.Service>, ConfigError, never>
 
         // 3. Execute to get the AiModel instance (AiModel is Effect<Provider<...>>)
-        const aiModel_Instance: AiModel<EffectAiLanguageModel, OpenAiClient.Service> = yield* _(configuredAiModelEffect);
+        const aiModel_Instance: AiModel<
+          EffectAiLanguageModel,
+          OpenAiClient.Service
+        > = yield* _(configuredAiModelEffect);
 
         // 4. Execute the AiModel (which is an Effect) to get the actual Provider
-        const provider: Provider<EffectAiLanguageModel> = yield* _(aiModel_Instance);
+        const provider: Provider<EffectAiLanguageModel> =
+          yield* _(aiModel_Instance);
         // --- END REAL LIBRARY USAGE ---
 
         /* ... telemetry for provider created ... */
 
         // Map errors from OpenAiLibraryError to your AIProviderError
-        const mapErrorToAIProviderError = (err: OpenAiLibraryError, contextAction: string) => {
+        const mapErrorToAIProviderError = (
+          err: OpenAiLibraryError,
+          contextAction: string,
+        ) => {
           const detail = err.error as any; // The underlying error from the library
           return new AIProviderError({
             message: `Ollama ${contextAction} error: ${detail?.message || String(detail) || "Unknown provider error"}`,
             cause: detail?.cause || detail, // Prefer cause if available
             provider: "Ollama",
-            context: { model: modelName, originalErrorTag: detail?._tag, originalErrorMessage: detail?.message }
+            context: {
+              model: modelName,
+              originalErrorTag: detail?._tag,
+              originalErrorMessage: detail?.message,
+            },
           });
         };
 
         return AgentLanguageModel.of({
           _tag: "AgentLanguageModel",
-          generateText: (params) => provider.generateText(params).pipe(
-            Effect.mapError(err => mapErrorToAIProviderError(err as OpenAiLibraryError, "generateText"))
-          ),
-          streamText: (params) => provider.streamText(params).pipe(
-            Stream.mapError(err => mapErrorToAIProviderError(err as OpenAiLibraryError, "streamText"))
-          ),
-          generateStructured: (params) => provider.generateStructured(params).pipe(
-            Effect.mapError(err => mapErrorToAIProviderError(err as OpenAiLibraryError, "generateStructured"))
-          ),
+          generateText: (params) =>
+            provider
+              .generateText(params)
+              .pipe(
+                Effect.mapError((err) =>
+                  mapErrorToAIProviderError(
+                    err as OpenAiLibraryError,
+                    "generateText",
+                  ),
+                ),
+              ),
+          streamText: (params) =>
+            provider
+              .streamText(params)
+              .pipe(
+                Stream.mapError((err) =>
+                  mapErrorToAIProviderError(
+                    err as OpenAiLibraryError,
+                    "streamText",
+                  ),
+                ),
+              ),
+          generateStructured: (params) =>
+            provider
+              .generateStructured(params)
+              .pipe(
+                Effect.mapError((err) =>
+                  mapErrorToAIProviderError(
+                    err as OpenAiLibraryError,
+                    "generateStructured",
+                  ),
+                ),
+              ),
         });
       }),
     );
     ```
+
     **Key SUT Changes:**
-    *   Removed the local mock of `OpenAiLanguageModel`.
-    *   Used `OpenAiCompletions.OpenAiLanguageModel.model` for the `aiModelEffectDefinition`.
-    *   The error mapping now expects `err` to be an `OpenAiLibraryError` (from `@effect/ai-openai/AiError`, assuming it's exported or you create a compatible type).
+
+    - Removed the local mock of `OpenAiLanguageModel`.
+    - Used `OpenAiCompletions.OpenAiLanguageModel.model` for the `aiModelEffectDefinition`.
+    - The error mapping now expects `err` to be an `OpenAiLibraryError` (from `@effect/ai-openai/AiError`, assuming it's exported or you create a compatible type).
 
 **Instruction Set 2: Refine Mocks in `OllamaAgentLanguageModelLive.test.ts`**
 
@@ -406,14 +567,19 @@ All 4 failures here show the same pattern:
     // In the "should properly map errors..." test in OllamaAgentLanguageModelLive.test.ts
     mockCreateChatCompletion.mockImplementation(() => {
       const request = HttpClientRequest.post("test-model-error");
-      const webResponse = new Response("Mocked Client Error From Test For OpenAI Lib", { status: 500 });
-      return Effect.fail( // Fail with HttpClientError.ResponseError
+      const webResponse = new Response(
+        "Mocked Client Error From Test For OpenAI Lib",
+        { status: 500 },
+      );
+      return Effect.fail(
+        // Fail with HttpClientError.ResponseError
         new HttpClientError.ResponseError({
           request,
           response: HttpClientResponse.fromWeb(request, webResponse),
           reason: "StatusCode",
-          description: "Simulated HTTP client error for OpenAiLanguageModel to process",
-        })
+          description:
+            "Simulated HTTP client error for OpenAiLanguageModel to process",
+        }),
       );
     });
     ```
@@ -421,14 +587,14 @@ All 4 failures here show the same pattern:
     The real `@effect/ai-openai` client code (which `OpenAiCompletions.OpenAiLanguageModel.model` uses) needs `HttpClient.Tag`.
     ```typescript
     const testLayerForOllamaAgentLM = OllamaAgentLanguageModelLive.pipe(
-        Layer.provide(
-            Layer.mergeAll(
-                MockOllamaOpenAIClient,     // Provides OllamaOpenAIClientTag (OpenAiClient.Service)
-                MockConfigurationService,   // Provides ConfigurationService
-                MockTelemetryService,       // Provides TelemetryService
-                MockHttpClient              // CRUCIAL: Provides HttpClient.HttpClient
-            )
-        )
+      Layer.provide(
+        Layer.mergeAll(
+          MockOllamaOpenAIClient, // Provides OllamaOpenAIClientTag (OpenAiClient.Service)
+          MockConfigurationService, // Provides ConfigurationService
+          MockTelemetryService, // Provides TelemetryService
+          MockHttpClient, // CRUCIAL: Provides HttpClient.HttpClient
+        ),
+      ),
     );
     // Use program.pipe(Effect.provide(testLayerForOllamaAgentLM)) in tests
     ```
@@ -442,13 +608,16 @@ All 4 failures here show the same pattern:
     ```typescript
     // In OllamaAsOpenAIClientLive.test.ts for the failing test
     mockGenerateChatCompletion.mockImplementation(async (ipcParams) => {
-      if (ipcParams.model === "test-model-ipc-fail") { // Specific model to trigger failure
+      if (ipcParams.model === "test-model-ipc-fail") {
+        // Specific model to trigger failure
         // Simulate an IPC error by REJECTING the promise with a plain error object
         return Promise.reject(new Error("Simulated IPC Promise Rejection"));
         // OR by RESOLVING with an error structure if your IPC handler does that for errors:
         // return Promise.resolve({ __error: true, message: "Simulated IPC failure via resolve" });
       }
-      const mockResponseData = { /* ... valid CreateChatCompletionResponse.Type structure as plain object ... */ };
+      const mockResponseData = {
+        /* ... valid CreateChatCompletionResponse.Type structure as plain object ... */
+      };
       return Promise.resolve(mockResponseData);
     });
     ```
@@ -467,6 +636,7 @@ All 4 failures here show the same pattern:
 The primary goal is to make `OllamaAgentLanguageModelLive.ts` use the actual `@effect/ai-openai` library components and ensure its test mocks are compatible. This should resolve the `TypeError`s and `RuntimeException`s. The `_op` error test depends on the IPC mock behavior.
 
 I have reviewed the user's request and the provided code quality report, focusing on the 5 failing tests. The main issues seem to revolve around:
+
 1.  Incorrect usage or mocking of the `@effect/ai-openai` library, especially `OpenAiLanguageModel.model` and its two-step resolution to a `Provider`.
 2.  Mismatched error types between the SUT, its mocks, and the test assertions.
 3.  Potential issues with IPC mocks returning `Effect` instances instead of `Promise` rejections with plain errors.
@@ -474,14 +644,14 @@ I have reviewed the user's request and the provided code quality report, focusin
 Here's a set of instructions for the coding agent to address these issues.
 
 **Overall Strategy:**
-The primary goal is to make the SUTs (`OllamaAgentLanguageModelLive.ts` and `OllamaAsOpenAIClientLive.ts`) use the *actual* library components where intended and ensure that their direct dependencies are mocked correctly and robustly in the respective test files.
+The primary goal is to make the SUTs (`OllamaAgentLanguageModelLive.ts` and `OllamaAsOpenAIClientLive.ts`) use the _actual_ library components where intended and ensure that their direct dependencies are mocked correctly and robustly in the respective test files.
 
 ---
 
 **Instruction Set 1: Fix `OllamaAgentLanguageModelLive.ts` (System Under Test - SUT)**
 
-*   **File:** `src/services/ai/providers/ollama/OllamaAgentLanguageModelLive.ts`
-*   **Objective:** Ensure this SUT uses the real `@effect/ai-openai` components for `OpenAiLanguageModel.model` and correctly resolves the `Provider`.
+- **File:** `src/services/ai/providers/ollama/OllamaAgentLanguageModelLive.ts`
+- **Objective:** Ensure this SUT uses the real `@effect/ai-openai` components for `OpenAiLanguageModel.model` and correctly resolves the `Provider`.
 
 **Actions:**
 
@@ -497,55 +667,84 @@ The primary goal is to make the SUTs (`OllamaAgentLanguageModelLive.ts` and `Oll
     // ... other necessary imports ...
     ```
 3.  **Implement Correct Resolution in `Effect.gen` block:**
+
     ```typescript
     // Inside export const OllamaAgentLanguageModelLive = Layer.effect(AgentLanguageModel, Effect.gen(function* (_) { ... }));
     // ... (ollamaAdaptedClient, configService, telemetry, modelName logic remains) ...
 
     // --- USE REAL LIBRARY and CORRECT RESOLUTION ---
-    const aiModelEffectDefinition = OpenAiCompletions.OpenAiLanguageModel.model(modelName);
+    const aiModelEffectDefinition =
+      OpenAiCompletions.OpenAiLanguageModel.model(modelName);
     const configuredAiModelEffect = Effect.provideService(
       aiModelEffectDefinition,
       OpenAiClient.OpenAiClient,
-      ollamaAdaptedClient
+      ollamaAdaptedClient,
     );
-    const aiModel_Instance: AiModel<EffectAiLanguageModel, OpenAiClient.Service> = yield* _(configuredAiModelEffect);
-    const provider: Provider<EffectAiLanguageModel> = yield* _(aiModel_Instance);
+    const aiModel_Instance: AiModel<
+      EffectAiLanguageModel,
+      OpenAiClient.Service
+    > = yield * _(configuredAiModelEffect);
+    const provider: Provider<EffectAiLanguageModel> =
+      yield * _(aiModel_Instance);
     // --- END REAL LIBRARY USAGE AND RESOLUTION ---
 
     // ... (telemetry for provider created) ...
 
     // Map errors from OpenAiLibraryError to your AIProviderError
-    const mapErrorToAIProviderError = (err: OpenAiLibraryError | any, contextAction: string) => {
+    const mapErrorToAIProviderError = (
+      err: OpenAiLibraryError | any,
+      contextAction: string,
+    ) => {
       const detail = err.error || err; // Try to get underlying error if OpenAiError has an 'error' field
       return new AIProviderError({
         message: `Ollama ${contextAction} error: ${detail?.message || String(detail) || "Unknown provider error"}`,
         cause: detail?.cause || detail,
         provider: "Ollama",
-        context: { model: modelName, originalErrorTag: detail?._tag, originalErrorMessage: detail?.message }
+        context: {
+          model: modelName,
+          originalErrorTag: detail?._tag,
+          originalErrorMessage: detail?.message,
+        },
       });
     };
 
     return AgentLanguageModel.of({
       _tag: "AgentLanguageModel",
-      generateText: (params) => provider.generateText(params).pipe(
-        Effect.mapError(err => mapErrorToAIProviderError(err, "generateText"))
-      ),
-      streamText: (params) => provider.streamText(params).pipe(
-        Stream.mapError(err => mapErrorToAIProviderError(err, "streamText"))
-      ),
-      generateStructured: (params) => provider.generateStructured(params).pipe(
-        Effect.mapError(err => mapErrorToAIProviderError(err, "generateStructured"))
-      ),
+      generateText: (params) =>
+        provider
+          .generateText(params)
+          .pipe(
+            Effect.mapError((err) =>
+              mapErrorToAIProviderError(err, "generateText"),
+            ),
+          ),
+      streamText: (params) =>
+        provider
+          .streamText(params)
+          .pipe(
+            Stream.mapError((err) =>
+              mapErrorToAIProviderError(err, "streamText"),
+            ),
+          ),
+      generateStructured: (params) =>
+        provider
+          .generateStructured(params)
+          .pipe(
+            Effect.mapError((err) =>
+              mapErrorToAIProviderError(err, "generateStructured"),
+            ),
+          ),
     });
     ```
+
 4.  **Telemetry Calls:** Ensure all `yield* _(telemetry.trackEvent(...))` calls are correctly piped, e.g., with `.pipe(Effect.ignoreLogged)` if their success/error is not part of the main flow.
 
 ---
 
 **Instruction Set 2: Fix Mocks in `OllamaAgentLanguageModelLive.test.ts` (Test File)**
 
-*   **File:** `src/tests/unit/services/ai/providers/ollama/OllamaAgentLanguageModelLive.test.ts`
-*   **Objective:** Provide robust mocks for `OllamaOpenAIClientTag` (which is `OpenAiClient.Service`) and other dependencies, compatible with the real `@effect/ai-openai` library components now used in the SUT.
+- **File:** `src/tests/unit/services/ai/providers/ollama/OllamaAgentLanguageModelLive.test.ts`
+- **Objective:** Provide robust mocks for `OllamaOpenAIClientTag` (which is `OpenAiClient.Service`) and other dependencies, compatible with the real `@effect/ai-openai` library components now used in the SUT.
 
 **Actions:**
 
@@ -555,8 +754,10 @@ The primary goal is to make the SUTs (`OllamaAgentLanguageModelLive.ts` and `Oll
     import type { ParseError } from "effect/ParseResult";
     ```
 2.  **Refine `mockClientService` methods:**
-    *   The `client.createChatCompletion` mock should return `Effect.Effect<..., HttpClientError.HttpClientError | ParseError>`.
-    *   The `stream` mock should return `Stream.Stream<..., HttpClientError.HttpClientError>`.
+
+    - The `client.createChatCompletion` mock should return `Effect.Effect<..., HttpClientError.HttpClientError | ParseError>`.
+    - The `stream` mock should return `Stream.Stream<..., HttpClientError.HttpClientError>`.
+
     ```typescript
     // Inside mockClientService for OllamaOpenAIClientTag
     client: {
@@ -579,3 +780,4 @@ The primary goal is to make the SUTs (`OllamaAgentLanguageModelLive.ts` and `Oll
       const mockResponseData = { /* valid CreateChatCompletionResponse.Type shaped plain object */ };
       return Effect.succeed(mockResponseData) as Effect.Effect<
         typeof
+    ```

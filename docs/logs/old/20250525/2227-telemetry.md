@@ -25,8 +25,8 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:admin', action: 'check_l
 localhost/:1 [Intervention] Slow network is detected. See https://www.chromestatus.com/feature/5636954674692096 for more details. Fallback font will be used while loading: http://localhost:5173/src/assets/fonts/berkeley-mono/BerkeleyMono-Bold.woff2
 localhost/:1 [Intervention] Slow network is detected. See https://www.chromestatus.com/feature/5636954674692096 for more details. Fallback font will be used while loading: http://localhost:5173/src/assets/fonts/berkeley-mono/BerkeleyMono-Regular.woff2
 VM2781 renderer_init:2 Electron Security Warning (Insecure Content-Security-Policy) This renderer process has either no Content Security
-  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
-  this app to unnecessary security risks.
+Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+this app to unnecessary security risks.
 
 For more information and help, consult
 https://electronjs.org/docs/tutorial/security.
@@ -64,7 +64,7 @@ ChatOrchestratorService.ts:393 [ChatOrchestratorService] Successfully created Cl
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'orchestrator', action: 'stream_error', label: 'Claude Code stream error: Utility process exited unexpectedly with code 1', timestamp: 1748204849364}
 useAgentChat.ts:230 [useAgentChat] Stream error state: {isAbort: false, messageId: 'assistant-1748204849243', signalAborted: false, causeType: 'Fail', defectType: 'N/A'}
 useAgentChat.ts:250 [useAgentChat] Stream error: {messageId: 'assistant-1748204849243', error: AiProviderError: Claude Code stream error: Utility process exited unexpectedly with code 1
-    at h…, cause: 'AiProviderError: Claude Code stream error: Utility…i/orchestration/ChatOrchestratorService.ts:220:29'}
+at h…, cause: 'AiProviderError: Claude Code stream error: Utility…i/orchestration/ChatOrchestratorService.ts:220:29'}
 overrideMethod @ hook.js:608
 (anonymous) @ useAgentChat.ts:250
 (anonymous) @ chunk-NHEPLXU6.js?v=a80f3706:9242

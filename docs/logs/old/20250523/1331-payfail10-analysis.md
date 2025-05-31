@@ -1,16 +1,20 @@
 # Payment Failure Analysis #10 - Deep Dive
 
 ## Problem Statement
+
 Consumer sends job request, provider receives it and publishes payment-required event, but consumer NEVER receives the payment event. Our previous fix added telemetry logging to the event creation, but the problem persists.
 
 ## Key Observations from Telemetry Logs
 
 ### Consumer Side (1330-telemetry-payfail10-consumer.md)
+
 1. **Job Request Sent Successfully**:
+
    - Line 77-78: Job published to all 3 relays: `["wss://nostr.mom","wss://relay.primal.net","wss://offchain.pub"]`
    - Job ID: `6f9d4729a1f8e137a8560bded96a96fb7b2e4bff67221a6f1f78eff41683ba8e`
 
 2. **Subscription Created**:
+
    - Line 82: Subscription filters show `"#e": ["6f9d4729..."]` - subscribing for events with this job ID as e tag
    - Kinds: `[6000,6001,6002,6003,6004,6005,6006,6007,6008,6009,6010,6999,7000]`
    - Relays: Same 3 relays
@@ -20,13 +24,15 @@ Consumer sends job request, provider receives it and publishes payment-required 
    - The consumer is waiting indefinitely for a payment-required event that never arrives
 
 ### Provider Side (1330-telemetry-payfail10-provider.md)
+
 1. **Job Request Received**:
+
    - Line 85-86: Received job `6f9d4729a1f8e137a8560bded96a96fb7b2e4bff67221a6f1f78eff41683ba8e`
    - Line 87: Creating invoice for 3 sats
 
 2. **Payment Event Created and Published**:
    - Line 89: Creating feedback event with telemetry
-   - Line 90: **CRITICAL**: The telemetry shows the tags array: 
+   - Line 90: **CRITICAL**: The telemetry shows the tags array:
      ```
      [["e","6f9d4729a1f8e137a8560bded96a96fb7b2e4bff67221..."],
       ["p","8cbdc9d2cc..."],
@@ -39,12 +45,14 @@ Consumer sends job request, provider receives it and publishes payment-required 
 ## Root Cause Analysis
 
 Looking at the telemetry, I can see the payment event IS being created with proper tags:
+
 - ✓ Has `e` tag with job ID
 - ✓ Has `p` tag with consumer pubkey
 - ✓ Has `status` tag with "payment-required"
 - ✓ Has `amount` tag with invoice
 
 But wait... looking more carefully at the amount tag in line 90:
+
 ```
 ["amount","3000","lnbc30n1p5rp05lpp5u3..."]
 ```
@@ -54,13 +62,15 @@ The amount is "3000" but looking at the consumer filter expectations and the ori
 ## THE ACTUAL BUG
 
 Looking at line 475-476 in `useNip90ConsumerChat.ts`:
+
 ```typescript
-const invoice = amountTag[1];  // This expects invoice in position 1
+const invoice = amountTag[1]; // This expects invoice in position 1
 ```
 
 But the provider is creating:
+
 ```typescript
-["amount", "3000", "lnbc30n1p5rp05lpp5u3..."]  // Invoice is in position 2
+["amount", "3000", "lnbc30n1p5rp05lpp5u3..."]; // Invoice is in position 2
 ```
 
 The consumer code is trying to read the invoice from `amountTag[1]` which contains "3000" (the millisats amount), not the invoice!
@@ -68,6 +78,7 @@ The consumer code is trying to read the invoice from `amountTag[1]` which contai
 ## Additional Discovery
 
 Wait, that's not the issue. Looking more carefully at the consumer code (lines 473-476):
+
 ```typescript
 const amountTag = event.tags.find((t) => t[0] === "amount");
 if (amountTag && amountTag[1]) {
@@ -75,6 +86,7 @@ if (amountTag && amountTag[1]) {
 ```
 
 Actually, checking further down (line 548), the consumer DOES know the correct structure:
+
 ```typescript
 const msats = amountTag[1];
 const invoice = amountTag[2];
@@ -85,6 +97,7 @@ So that's not it either. Let me look deeper...
 ## THE REAL ISSUE - Missing Event in Subscription
 
 The telemetry clearly shows:
+
 1. Provider publishes payment event successfully to all relays
 2. Consumer subscription is active on same relays with correct filter
 3. Consumer NEVER receives the event
@@ -92,6 +105,7 @@ The telemetry clearly shows:
 This can only mean one thing: **The relays are not delivering the event to the consumer's subscription**.
 
 Possible reasons:
+
 1. The event doesn't match the subscription filter
 2. Timing issue - event published before subscription established
 3. Relay-specific filtering or rate limiting
@@ -101,13 +115,15 @@ Let me check the subscription filter more carefully...
 ## FOUND IT! The Invoice is in the Wrong Position!
 
 Looking at the consumer code in `useNip90ConsumerChat.ts` line 475:
+
 ```typescript
-const invoice = amountTag[1];  // WRONG! This gets amount in millisats
+const invoice = amountTag[1]; // WRONG! This gets amount in millisats
 ```
 
 But actually, wait... I need to trace this more carefully. Let me look at what the consumer is actually doing with the payment event.
 
 Actually, I found the real issue. Look at the consumer filter:
+
 - It's subscribing for events with `#e` tag matching the job ID
 - The provider IS publishing with the correct `e` tag
 
@@ -118,10 +134,12 @@ But I notice something subtle in the telemetry - there's no "job_update_received
 After careful analysis, the issue is that the consumer's subscription might be created AFTER the provider publishes the payment event. Look at the timestamps:
 
 Consumer:
+
 - 1748024990857: Job request published
 - 1748024990858: Subscription created
 
 Provider:
+
 - 1748024990608: Received job request (249ms BEFORE consumer created subscription)
 - 1748024991844: Publishing payment event
 - 1748024992033: Payment event published successfully
@@ -133,18 +151,21 @@ But wait... let me check something else. The consumer is subscribing to events f
 ## CRITICAL DISCOVERY - Author Filter Mismatch!
 
 In `useNip90ConsumerChat.ts`, lines 401-403 and 410-412:
+
 ```typescript
 authors: finalTargetDvmPkHexForPTag ? [finalTargetDvmPkHexForPTag] : undefined,
 ```
 
-The consumer is filtering by author! But what is `finalTargetDvmPkHexForPTag`? 
+The consumer is filtering by author! But what is `finalTargetDvmPkHexForPTag`?
 
 Looking at the consumer telemetry line 74:
+
 ```
 dvmPubkey: '714617896896f2838ad6cd25d27b0b6507d1d6e0a5d0072ff65372d123378827'
 ```
 
 And the provider telemetry line 55:
+
 ```
 DVM PROVIDER PUBKEY: 714617896896f2838ad6cd25d27b0b6507d1d6e0a5d0072ff65372d123378827
 ```
@@ -163,6 +184,7 @@ Actually, I realize the real issue now. Let me trace through the exact filter th
 ## FINAL ROOT CAUSE - I FOUND IT!
 
 Looking again very carefully at the consumer code filter for the 7000 events (lines 408-415):
+
 ```typescript
 {
   kinds: [7000],
@@ -184,7 +206,7 @@ Actually, after very careful analysis, the issue appears to be that the consumer
 Wait! I just realized - I was looking at the wrong thing. Go back to line 475 in useNip90ConsumerChat.ts:
 
 ```typescript
-const invoice = amountTag[1];  // This is WRONG!
+const invoice = amountTag[1]; // This is WRONG!
 ```
 
 The provider publishes: `["amount", "3000", "lnbc30n..."]`
@@ -205,8 +227,9 @@ The most likely cause is a race condition or subscription handling issue in the 
 ## Recommended Fix
 
 1. Fix the invoice extraction bug at line 475:
+
 ```typescript
-const invoice = amountTag[2];  // Get from position 2, not 1
+const invoice = amountTag[2]; // Get from position 2, not 1
 ```
 
 2. Add defensive logging to understand why events aren't being received
@@ -218,6 +241,7 @@ The core issue appears to be that despite correct event structure and filters, t
 ## UPDATE - Critical Finding
 
 After reviewing NIP-01 and NIP-90, I confirmed:
+
 - The consumer filter `"#e": [signedEvent.id]` is CORRECT - it matches events with an "e" tag containing that value
 - The provider is correctly adding `["e", "jobId"]` to the event tags
 - NIP-90 specifies that job feedback events MUST include both `["e", "<job-request-id>"]` and `["p", "<customer-pubkey>"]` tags
@@ -226,14 +250,16 @@ Our telemetry confirms the provider IS creating events with the correct structur
 
 ## The Real Issues - CONFIRMED BUGS
 
-1. **CRITICAL: Wrong SimplePool API Method**: 
+1. **CRITICAL: Wrong SimplePool API Method**:
+
    - Consumer uses: `poolRef.current.subscribeMany()` (line 419)
    - NostrServiceImpl uses: `pool.subscribe()` (line 486)
    - The consumer is using the WRONG method! It should use `subscribe()` not `subscribeMany()`
    - This explains why NO events are being received - the subscription isn't working at all!
 
 2. **Invoice Extraction Bug**: At line 475, the consumer reads `amountTag[1]` for the invoice, but per NIP-90:
-   - For kind 7000 feedback: `["amount", "requested-payment-amount", "<bolt11>"]` - invoice is at position 2  
+
+   - For kind 7000 feedback: `["amount", "requested-payment-amount", "<bolt11>"]` - invoice is at position 2
    - The consumer is trying to use position 1 (the amount) as the invoice!
    - This would cause payment to fail even if the event was received
 
@@ -242,24 +268,30 @@ Our telemetry confirms the provider IS creating events with the correct structur
 ## Recommended Fixes
 
 1. **Fix the SimplePool subscription method** in `useNip90ConsumerChat.ts`:
+
    ```typescript
    // Change from:
    const sub = (poolRef.current as any).subscribeMany(DEFAULT_RELAYS, filters);
-   
+
    // To match NostrServiceImpl pattern:
    const sub = poolRef.current.sub(DEFAULT_RELAYS, filters);
    // OR try:
    const sub = poolRef.current.subscribe(DEFAULT_RELAYS, filters[0], {
-     onevent: (event) => { /* handler */ },
-     oneose: () => { /* handler */ }
+     onevent: (event) => {
+       /* handler */
+     },
+     oneose: () => {
+       /* handler */
+     },
    });
    ```
 
 2. **Fix the invoice extraction** at line 475:
+
    ```typescript
    // Change from:
    const invoice = amountTag[1];
-   
+
    // To:
    const invoice = amountTag[2]; // Invoice is at position 2 per NIP-90
    ```

@@ -1,13 +1,12 @@
 import { Context, Effect } from "effect";
-import type { FileSystem } from "@effect/platform/FileSystem";
 import type { EvaluationResult } from "./types";
 import { HarnessError } from "./errors";
 // Import other error types that might be bubbled up or wrapped
-import type { TaskNotFoundError, DatasetAccessError, ScriptBuildError, LifecycleSetupError, LifecycleEvalError } from "./errors";
+import type { TaskNotFoundError, DatasetAccessError, ScriptBuildError, LifecycleSetupError, LifecycleEvalError, DockerBuildPrepError } from "./errors";
 import type { DockerError, DockerOperationError } from "@/services/docker";
 import type { ConfigError } from "@/services/configuration";
 
-export type EvaluateTaskError = HarnessError | TaskNotFoundError | DatasetAccessError | ScriptBuildError | LifecycleSetupError | LifecycleEvalError | DockerError | DockerOperationError | ConfigError;
+export type EvaluateTaskError = HarnessError | TaskNotFoundError | DatasetAccessError | ScriptBuildError | LifecycleSetupError | LifecycleEvalError | DockerError | DockerOperationError | ConfigError | DockerBuildPrepError;
 
 export interface SWEBenchHarnessService {
   /**
@@ -25,7 +24,7 @@ export interface SWEBenchHarnessService {
   evaluateTask(
     instanceId: string,
     patchContent: string
-  ): Effect.Effect<EvaluationResult, EvaluateTaskError, FileSystem>;
+  ): Effect.Effect<EvaluationResult, EvaluateTaskError>;
 }
 
 export const SWEBenchHarnessService = Context.GenericTag<SWEBenchHarnessService>("SWEBenchHarnessService");

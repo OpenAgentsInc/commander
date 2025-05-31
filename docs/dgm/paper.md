@@ -6,11 +6,11 @@
 
 ### Jenny Zhang
 
-#### *,1,
+#### \*,1,
 
 ### Shengran Hu
 
-#### *,1,2,
+#### \*,1,2,
 
 ### Cong Lu
 
@@ -130,15 +130,18 @@ New
 coding
 agent
 ```
+
 ```
 Coding
 agent
 ```
+
 **Self-modify**
 
 ```
 child
 ```
+
 ```
 Coding agent’s
 own repo
@@ -146,15 +149,18 @@ own repo
 Self-improve
 instruction
 ```
+
 ```
 Code Diff:
 Feature to
 improve itself
 ```
+
 ```
 Coding
 select agent
 ```
+
 ```
 Task repo
 (e.g., GitHub repo)
@@ -162,22 +168,27 @@ Task repo
 Task instruction
 (e.g., GitHub issue)
 ```
+
 ```
 Code Diff:
 Solve task
 ```
+
 ```
 New
 coding
 Evaluate on agent
 benchmark
 ```
+
 ```
 add
 ```
+
 ```
 parent
 ```
+
 ### Figure 1:Darwin Gödel Machine.The DGM iteratively builds a growing archive of agents by
 
 ### interleaving self-modification with downstream task evaluation. Agents in the archive are selected for
@@ -269,7 +280,6 @@ parent
 ### or features that may enable future breakthroughs). This open-ended exploration encourages the
 
 ### discovery of novel and potentially useful self-modifications beyond immediate performance gains.
-
 
 ### We present results on two coding benchmarks: SWE-bench [ 60 ] and Polyglot [ 104 ]. The DGM
 
@@ -381,7 +391,6 @@ parent
 
 ### that leverage FM-based agents for self-improvement [ 54 , 55 , 107 , 123 , 140 , 145 ]. Zelikman et al.
 
-
 ### [145]use a meta-agent to generate downstream agents, updating the meta-agent based on the meta-
 
 ### utility derived from the generated solutions. Yin et al.[140]use a single system to both solve
@@ -490,7 +499,6 @@ parent
 
 ### DGM. We conduct experiments on two coding benchmarks: SWE-bench [ 60 ] and Polyglot [ 104 ]
 
-
 ### (Section 4.2). For each benchmark, we compare the DGM against two baselines: DGM without
 
 ### self-improvement and DGM without open-ended exploration (Section 4.3). Across all experiments,
@@ -597,7 +605,6 @@ parent
 
 ### noisy. We use smaller subset evaluations to estimate general effectiveness and identify top candidates.
 
-
 ### For SWE-bench, if a coding agent achieves over 40% success (a heuristic chosen based on the noise
 
 ### observed in preliminary runs) on the 60-task subset and ranks among the top two performers in the
@@ -656,61 +663,79 @@ parent
 0 10 20 30 40 50 60 70 80
 Iterations
 ```
+
 ```
 0.
 ```
+
 ```
 0.
 ```
+
 ```
 0.
 ```
+
 ```
 0.
 ```
+
 ```
 0.
 ```
+
 ```
 0.
 ```
+
 ```
 0.
 ```
+
 ```
 SWE-bench Score of Best Agent
 ```
+
 ```
 Checked Open-sourced SoTA
 DGM w/o Open-ended exploration
 DGM w/o Self-improve
 DGM
 ```
+
 ```
 0 10 20 30 40 50 60 70 80
 Iterations
 ```
+
 ```
 0.
 ```
+
 ```
 0.
 ```
+
 ```
 0.
 ```
+
 ```
 0.
 ```
+
 ```
 0.
 ```
+
 ```
 Polyglot Score of Best Agent
 ```
+
 ```
 Representative Agent Baseline (Aider)
 ```
+
 ### Figure 2:Self-improvement and open-ended exploration enable the DGM to continue making
 
 ### progress and improve its performance.The DGM automatically discovers increasingly better
@@ -737,53 +762,63 @@ Representative Agent Baseline (Aider)
 
 ### coding agent. Moreover, the performance of the best DGM-discovered agent is comparable to that of
 
-
 ```
 SWE-bench
 Score
 ```
+
 ```
 DGM Archive Tree
 ```
+
 ```
 10 tasks (no basic functionality)
 60 tasks
 200 tasks (score ≥ 0.4 and
 top two of archive then)
 ```
+
 ```
 Final best agent
 ```
+
 ```
 Non-empty patch
 validation and retry
 ```
+
 ```
 More granular file
 viewing via lines
 ```
+
 ```
 More granular file
 editing via string
 replacement
 ```
+
 ```
 Auto-summarize
 on context limit
 ```
+
 ```
 Multiple patch
 generations and
 ranking
 ```
+
 ```
 History-aware
 patch generations
 and ranking
 ```
+
 ```
 DGM Progress
 ```
+
 ### Figure 3:The DGM automatically self-improves to become a better coding agent.(Left) Archive
 
 ### of coding agents generated during the DGM run on SWE-bench. Each node represents a coding agent,
@@ -868,161 +903,208 @@ DGM Progress
 
 ### and the best agent discovered during the DGM run (Figure 2) with different FMs than those used
 
+```
+o3-mini Claude 3.5 Sonnet (New)Claude 3.7 Sonnet
+0
+```
+
+```
+10
+```
+
+```
+20
+```
+
+```
+30
+```
+
+```
+40
+```
+
+```
+50
+```
+
+```
+60
+```
+
+```
+Success Rate on SWE-bench (%)
+```
+
+```
+23.0%
+```
+
+```
+33.0%
+```
+
+```
+20.0%
+```
+
+```
+50.0%
+```
+
+```
+19.0%
+```
+
+```
+59.0%
+```
+
+```
+Model Transfer on SWE-bench
+```
 
 ```
 o3-mini Claude 3.5 Sonnet (New)Claude 3.7 Sonnet
 0
 ```
-```
-10
-```
-```
-20
-```
-```
-30
-```
-```
-40
-```
-```
-50
-```
-```
-60
-```
-```
-Success Rate on SWE-bench (%)
-```
-```
-23.0%
-```
-```
-33.0%
-```
-```
-20.0%
-```
-```
-50.0%
-```
-```
-19.0%
-```
-```
-59.0%
-```
-```
-Model Transfer on SWE-bench
-```
-```
-o3-mini Claude 3.5 Sonnet (New)Claude 3.7 Sonnet
-0
-```
+
 ```
 5
 ```
+
 ```
 10
 ```
+
 ```
 15
 ```
+
 ```
 20
 ```
+
 ```
 25
 ```
+
 ```
 30
 ```
+
 ```
 35
 ```
+
 ```
 40
 ```
+
 ```
 Success Rate on Polyglot (%)
 ```
+
 ```
 14.2%
 ```
+
 ```
 30.7% 32.0%
 ```
+
 ```
 33.3%
 35.6%36.8%
 ```
+
 ```
 Model Transfer on Polyglot
 ```
+
 ```
 python task non-python task
 0
 ```
+
 ```
 5
 ```
+
 ```
 10
 ```
+
 ```
 15
 ```
+
 ```
 20
 ```
+
 ```
 25
 ```
+
 ```
 30
 ```
+
 ```
 35
 ```
+
 ```
 40
 ```
+
 ```
 Success Rate on Polyglot (%)
 ```
+
 ```
 8.8%
 ```
+
 ```
 11.8%
 ```
+
 ```
 17.6%
 ```
+
 ```
 20.6%
 15.2%
 17.3%
 ```
+
 ```
 33.0%
 30.8%
 ```
+
 ```
 Task Transfer on Polyglot
 ```
+
 ```
 Initial Agent
 Best Agent transfer to other FMs
 ```
+
 ```
 Best Agent from DGM
 Aider
 ```
+
 ```
 DGM search on all language
 DGM search only on python
 ```
+
 ### Figure 4:Transfer between Models and Tasks.(Left and Middle) The superior performance of
 
 ### DGM-discovered agents can be transferred across different models and (Right) different task domains,
@@ -1106,7 +1188,6 @@ DGM search only on python
 ### modifications. Additionally, we actively monitor agent performance and code changes, with the
 
 ### DGM archive providing a traceable lineage of modifications for review. At this stage, we have found
-
 
 ### no evidence of harmful or malicious behavior in the generated agents, and the self-modifications have
 
@@ -1216,7 +1297,6 @@ DGM search only on python
 
 ### itself in pursuit of greater capabilities aligned with human values.
 
-
 ## Acknowledgments and Disclosure of Funding
 
 ### This research was supported by the Vector Institute, the Canada CIFAR AI Chairs program, a
@@ -1306,7 +1386,6 @@ DGM search only on python
 ### through ai feedback. InThe Twelfth International Conference on Learning Representations,
 
 ### 2024.
-
 
 ### [14]Tom Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared D Kaplan, Prafulla Dhari-
 
@@ -1406,7 +1485,6 @@ DGM search only on python
 
 ### 41st International Conference on Machine Learning, pages 11072–11090, 2024.
 
-
 ### [30]Adrien Ecoffet, Joost Huizinga, Joel Lehman, Kenneth O Stanley, and Jeff Clune. Go-explore:
 
 ### a new approach for hard-exploration problems.arXiv preprint arXiv:1901.10995, 2019.
@@ -1502,7 +1580,6 @@ DGM search only on python
 ### llms via reinforcement learning.arXiv preprint arXiv:2501.12948, 2025.
 
 ### [46]John Storrs Hall. Self-improving AI: An analysis.Minds and Machines, 17(3):249–259, 2007.
-
 
 ### [47]Alex Havrilla, Andrew Dai, Laura O’Mahony, Koen Oostermeijer, Vera Zisler, Alon Albalak,
 
@@ -1602,7 +1679,6 @@ DGM search only on python
 
 ### arXiv:2310.03714, 2023.
 
-
 ### [64]Yoon Kim, Carl Denton, Luong Hoang, and Alexander M Rush. Structured Attention Networks.
 
 ### InInternational Conference on Learning Representations, 2017.
@@ -1698,7 +1774,6 @@ DGM search only on python
 ### Think-in-memory: Recalling and post-thinking enable llms with long-term memory.arXiv
 
 ### preprint arXiv:2311.08719, 2023.
-
 
 ### [81]Chris Lu, Sebastian Towers, and Jakob Foerster. Arbitrary order meta-learning with simple
 
@@ -1796,7 +1871,6 @@ DGM search only on python
 
 ### for scientific and algorithmic discovery. Technical report, Google DeepMind, 2025.
 
-
 ### [98]OpenAI. Introducing swe-bench verified. https://openai.com/index/
 
 ### introducing-swe-bench-verified/, August 2024. Accessed: 2025-04-16.
@@ -1892,7 +1966,6 @@ DGM search only on python
 ### approximators. InInternational conference on machine learning, pages 1312–1320. PMLR,
 
 ### 2015.
-
 
 ### [114]Timo Schick, Jane Dwivedi-Yu, Roberto Dessì, Roberta Raileanu, Maria Lomeli, Eric Hambro,
 
@@ -1990,7 +2063,6 @@ DGM search only on python
 
 ### 2023.
 
-
 ### [130]OpenAI Team, Aaron Jaech, Adam Kalai, Adam Lerer, Adam Richardson, Ahmed El-Kishky,
 
 ### Aiden Low, Alec Helyar, Aleksander Madry, Alex Beutel, Alex Carney, et al. Openai o
@@ -2081,12 +2153,11 @@ DGM search only on python
 
 ### Modeling, 2024.
 
-### [146]Dan Zhang, Sining Zhoubian, Ziniu Hu, Yisong Yue, Yuxiao Dong, and Jie Tang. Rest-mcts*:
+### [146]Dan Zhang, Sining Zhoubian, Ziniu Hu, Yisong Yue, Yuxiao Dong, and Jie Tang. Rest-mcts\*:
 
 ### Llm self-training via process reward guided tree search.Advances in Neural Information
 
 ### Processing Systems, 37:64735–64772, 2024.
-
 
 ### [147]Guibin Zhang, Luyang Niu, Junfeng Fang, Kun Wang, Lei Bai, and Xiang Wang. Multi-agent
 
@@ -2146,28 +2217,26 @@ DGM search only on python
 
 ### International Conference on Machine Learning, 2024.
 
-
 ## Supplementary Material
 
 - A Algorithmic Details Table of Contents
-   - A.1 Initial Coding Agent
-   - A.2 Parent Selection
-   - A.3 Self-Improve Prompts
-   - A.4 Pseudocode
+  - A.1 Initial Coding Agent
+  - A.2 Parent Selection
+  - A.3 Self-Improve Prompts
+  - A.4 Pseudocode
 - B Benchmark Details
-   - B.1 Cost Estimate
-   - B.2 SWE-bench Tasks
-   - B.3 Polyglot Tasks
-   - B.4 SWE-bench State-of-The-Art
-   - B.5 Polyglot Representative Agent
+  - B.1 Cost Estimate
+  - B.2 SWE-bench Tasks
+  - B.3 Polyglot Tasks
+  - B.4 SWE-bench State-of-The-Art
+  - B.5 Polyglot Representative Agent
 - C Best-Discovered Agents
-   - C.1 DGM on SWE-bench
-   - C.2 DGM on Polyglot
+  - C.1 DGM on SWE-bench
+  - C.2 DGM on Polyglot
 - D Similar Target Functionality, Different Implementations
 - E Supplementary Plots
-   - E.1 Baselines on SWE-bench
+  - E.1 Baselines on SWE-bench
 - F Case Study: Solving Hallucination
-
 
 ## A Algorithmic Details Table of Contents
 
@@ -2205,6 +2274,7 @@ return {
 }
 }
 ```
+
 ### Information of the given Edit tool:
 
 ```
@@ -2242,12 +2312,14 @@ return {
 }
 }
 ```
+
 ### Task prompt:
 
 ```
 I have uploaded a Python code repository in the directory {self.git_tempdir}. Help solve the
 ,→following problem.
 ```
+
 ```
 <problem_description>
 {self.problem_statement}
@@ -2259,10 +2331,12 @@ I have uploaded a Python code repository in the directory {self.git_tempdir}. He
 {self.test_description}
 </test_description>
 ```
+
 ```
 Your task is to make changes to the files in the {self.git_tempdir} directory to address the
 ,→<problem_description>. I have already taken care of the required dependencies.
 ```
+
 ### A.2 Parent Selection
 
 ### At each DGM iteration, we select a subset of agents from the archive as parents to self-modify and
@@ -2276,21 +2350,25 @@ Your task is to make changes to the files in the {self.git_tempdir} directory to
 ```
 t
 ```
+
 ### ={a
 
 ```
 t
 ```
+
 ### 1 ,a
 
 ```
 t
 ```
+
 ### 2 ,...,a
 
 ```
 t
 ```
+
 ### N}
 
 ### be the archive of candidate agents. We first define the eligible set
@@ -2300,6 +2378,7 @@ t
 ```
 t
 ```
+
 ### =
 
 ### 
@@ -2309,11 +2388,13 @@ t
 ```
 t
 ```
+
 ### i∈A
 
 ```
 t
 ```
+
 ### :αi< 1
 
 ### ,
@@ -2329,6 +2410,7 @@ t
 ```
 t
 ```
+
 ### i), (1)
 
 ### (children count) ni = functioning_children_count(a
@@ -2336,6 +2418,7 @@ t
 ```
 t
 ```
+
 ### i), (2)
 
 ### (sigmoid-scaled performance) si =
@@ -2379,9 +2462,11 @@ t
 ```
 i∈E
 ```
+
 ```
 t
 ```
+
 ### 
 
 ### (drawksamples). (7)
@@ -2416,72 +2501,78 @@ t
 
 ### Self-improve diagnosis prompt for SWE-bench experiments:
 
-
 ### Self-Improve Prompt
 
 ```
 # Coding Agent Summary
 ```
+
 - **Main File**:`coding_agent.py`
-    - Primary Class:`AgenticSystem`
-    - The`forward()`function is the central entry point.
-    - Prompts are located either within the`forward()`function or in the`prompts/`directory.
+  - Primary Class:`AgenticSystem`
+  - The`forward()`function is the central entry point.
+  - Prompts are located either within the`forward()`function or in the`prompts/`directory.
 - **Tools**:`tools/`
-    - The`tools/`directory contains various tools that LLMs can use to perform specific tasks.
-    - Each tool must have a`tool_info()`function that returns a JSON object containing'name',
-       'description', and'input_schema'. The'input_schema'should be a JSON object containing
-       'type','properties', and'required'.
+  - The`tools/`directory contains various tools that LLMs can use to perform specific tasks.
+  - Each tool must have a`tool_info()`function that returns a JSON object containing'name',
+    'description', and'input_schema'. The'input_schema'should be a JSON object containing
+    'type','properties', and'required'.
 
 ```
 ,→
 ,→
 ```
+
 - Each tool must have a`tool_function()`function that takes the arguments defined in
-,→ input_schema, performs the tool's task, and returns a string.
+  ,→ input_schema, performs the tool's task, and returns a string.
 - See other tools for reference.
 - **Utilities**:`utils/`
 - The`utils/`directory contains utility functions used across the codebase.
 - **Additional Details**:
 - The agent is very good at automatically utilizing the right available tools at the right time.
-,→ So do not have an agentic flow that explicitly forces a tool's usage.
+  ,→ So do not have an agentic flow that explicitly forces a tool's usage.
 - Common tools, such as file editing and bash commands, are easy for the agent to recognize and
-use appropriately. However, more complex and niche tools may require explicit instructions
-in the prompt.
+  use appropriately. However, more complex and niche tools may require explicit instructions
+  in the prompt.
 
 ```
 ,→
 ,→
 ```
+
 - Tools should be designed to be as general as possible, ensuring they work across any GitHub
-,→ repository. Avoid hardcoding repository-specific details or behaviors (e.g., paths).
+  ,→ repository. Avoid hardcoding repository-specific details or behaviors (e.g., paths).
 - Do not use'while True'loops in the agent's code. This can cause the agent to get stuck and
-,→ not respond.
+  ,→ not respond.
 - Verify the implementation details of helper functions prior to usage to ensure proper
-,→ integration and expected behavior.
+  ,→ integration and expected behavior.
 - Do not install additional packages or dependencies directly. Update`requirements.txt`if new
-,→ dependencies are required and install them using`pip install -r requirements.txt`.
+  ,→ dependencies are required and install them using`pip install -r requirements.txt`.
 
 ```
 Here is the implementation of the coding agent.
 ```
+
 ```
 # Coding Agent Implementation
 ----- Coding Agent Implementation Start -----
 {code}
 ----- Coding Agent Implementation End -----
 ```
+
 Your task is to identify ONE detailed plan that would improve the agent's coding ability. The
 ,→ improvement should not be specific to any particular GitHub issue or repository.
 
 ```
 Here is the log for the coding agent trying to solve the GitHub issues but failed.
 ```
+
 ```
 # Agent Running Log
 ----- Agent Running Log Start -----
 {md_log}
 ----- Agent Running Log End -----
 ```
+
 ```
 # GitHub Issue
 The GitHub issue that the agent is trying to solve.
@@ -2489,6 +2580,7 @@ The GitHub issue that the agent is trying to solve.
 {github_issue}
 ----- GitHub Issue End -----
 ```
+
 ```
 # Predicted Patch
 The agent's predicted patch to solve the issue.
@@ -2496,7 +2588,9 @@ The agent's predicted patch to solve the issue.
 {predicted_patch}
 ----- Predicted Patch End -----
 ```
+
 # Private Test Patch
+
 SWE-bench's official private tests to detect whether the issue is solved. This is not available to
 ,→ the agent during evaluation. The agent should try to implement its own tests.
 ----- Private Test Patch Start -----
@@ -2510,25 +2604,32 @@ The test results from SWE-bench using the above official private tests.
 {eval_log}
 ----- Issue Test Results End -----
 ```
+
 ```
 Respond precisely in the following format including the JSON start and end markers:
 ```
 
-```
+````
 ```json
 <JSON>
+````
+
 ```
+
 ```
-```
+
 In <JSON>, provide a JSON response with the following fields:
+
 ```
 - "log_summarization": Analyze the above logs and summarize how the agent tried to solve the
     GitHub issue. Note which tools and how they are used, the agent's problem-solving approach,
     and any issues encountered.
 
 ```
+
 ,→
 ,→
+
 ```
 - "potential_improvements": Identify potential improvements to the coding agent that could enhance
     its coding capabilities. Focus on the agent's general coding abilities (e.g., better or new
@@ -2537,18 +2638,22 @@ In <JSON>, provide a JSON response with the following fields:
     so do not focus on these aspects.
 
 ```
+
 ,→
 ,→
 ,→
 ,→
+
 ```
 - "improvement_proposal": Choose ONE high-impact improvement from the identified potential
     improvements and describe it in detail. This should be a focused and comprehensive plan to
     enhance the agent's overall coding ability.
 
 ```
+
 ,→
 ,→
+
 ```
 - "implementation_suggestion": Referring to the coding agent's summary and implementation, think
     critically about what feature or tool could be added or improved to best implement the
@@ -2556,44 +2661,62 @@ In <JSON>, provide a JSON response with the following fields:
     tools, describe the modifications needed, instead of suggesting a new tool.
 
 ```
+
 ,→
 ,→
 ,→
+
 ```
 - "problem_description": Phrase the improvement proposal and implementation suggestion as a GitHub
     issue description. It should clearly describe the feature so that a software engineer viewing
     the issue and the repository can implement it.
 
 ```
+
 ,→
 ,→
+
 ```
+
 ```
+
 Your response will be automatically parsed, so ensure that the string response is precisely in the
 ,→ correct format. Do NOT include the`<JSON>`tag in your output.
+
 ```
 ### Additional prompt for Polyglot experiments:
 
 ### Additional Prompt for o3-mini Tool Use and Polyglot
 
 ```
+
 ### DOC: tool function schema
+
 ```
+
 ```
+
 Carefully consider whether to add/enhance the current tool or edit the workflow in forward()
+
 ```
+
 ```
+
 Pay special attention to making sure that "required" and "type" are always at the correct level of
 ,→ nesting. For example, "required" should be at the same level as "properties", not inside it.
 Make sure that every property, no matter how short, has a type and description correctly nested
 ,→ inside it.
 Other arguments than you have seen are not permitted. For example, in "edit_line_ranges" with
 ,→ "type": "array", arguments like "minItems" and "maxItems" are not permitted.
+
 ```
+
 ```
+
 Here is the log for the coding agent trying to solve a programming task.
 A task is in one programming language, but the coding agent needs to deal with different languages
 ,→ including C++, Go, Java, JavaScript, Python, and Rust.
+
 ```
 ### A.4 Pseudocode
 
@@ -3220,12 +3343,14 @@ A task is in one programming language, but the coding agent needs to deal with d
 ### Diff patches contributing to the best agent discovered by the DGM on SWE-bench:
 
 ```
+
 diff --git a/coding_agent.py b/coding_agent.py
 index 2cd395a..9a2cc2f 100644
 --- a/coding_agent.py
 +++ b/coding_agent.py
 @@ -4,6 +4,7 @@ import logging
 from logging.handlers import RotatingFileHandler
+
 ```
 
 import os
@@ -3308,9 +3433,11 @@ The forward function for the AgenticSystem.
 @@ -165,7 +204,39 @@ Your task is to run the regression tests in the {self.git_tempdir} directory to
 
 ```
+
 Your task is to make changes to the files in the {self.git_tempdir} directory to address the
 ,→<problem_description>. I have already taken care of the required dependencies.
 """
+
 ```
 
 - new_msg_history = chat_with_agent(instruction, model=self.code_model, msg_history=[],
@@ -3376,7 +3503,9 @@ instance_id=args.instance_id,
 f.write(model_patch)
 
 ```
-if __name__ == "__main__":
+
+if **name** == "**main**":
+
 ```
 - main()
 + main()
@@ -3478,7 +3607,9 @@ import subprocess
 +from typing import Optional, List, Tuple, Union
 
 ```
+
 def tool_info():
+
 ```
 
 return {
@@ -3565,8 +3696,10 @@ try:
 
 
 ```
+
 except Exception as e:
 raise ValueError(f"Failed to write file: {e}")
+
 ```
 -def view_path(path_obj: Path) -> str:
 
@@ -3611,7 +3744,9 @@ Main tool function that handles:
     path_obj = validate_path(path, command)
 
 ```
+
 if command == "view":
+
 ```
 - return view_path(path_obj)
 + return view_path(path_obj, view_range)
@@ -3621,8 +3756,11 @@ if file_text is None:
 @@ -152,4 +209,4 @@ def tool_function(command: str, path: str, file_text: str = None) -> str:
 
 ```
-if __name__ == "__main__":
+
+if **name** == "**main**":
+
 # Example usage
+
 ```
 - print(tool_function("view", "/home/ubuntu/xx/dgm/coding_agent.py"))
 + print(tool_function("view", "/home/ubuntu/xx/dgm/coding_agent.py"))
@@ -3934,7 +4072,9 @@ client, model, messages, tools, tool_choice,
 + logging(f"Error in get_response_withtools: {error_msg}")
 
 ```
+
 # Hitting the context window limit
+
 ```
 - if'Input is too long for requested model'in str(e):
 - pass
@@ -3966,7 +4106,9 @@ def check_for_tool_use(response, model=''):
 @@ -247,6 +266,57 @@ def convert_msg_history_openai(msg_history):
 
 ```
+
 return new_msg_history
+
 ```
 +def summarize_messages(client, model, messages, system_message):
 + """
@@ -4041,8 +4183,11 @@ system_message = f'You are a coding agent.\n\n{get_tooluse_prompt()}'
 + })
 
 ```
+
 try:
+
 # Load all tools
+
 ```
 diff --git a/coding_agent.py b/coding_agent.py
 index 9a2cc2f..3f1bc1d 100644
@@ -4067,8 +4212,10 @@ self.logger = setup_logger(chat_history_file)
 @@ -190,7 +192,7 @@ Your task is to run the regression tests in the {self.git_tempdir} directory to
 
 ```
+
 def forward(self):
 """
+
 ```
 - The forward function for the AgenticSystem.
 + The forward function for the AgenticSystem that generates and evaluates multiple candidate patches.
@@ -4076,8 +4223,10 @@ def forward(self):
 
 
 ```
+
 base_instruction = f"""I have uploaded a Python code repository in the directory
 ,→{self.git_tempdir}. Help solve the following problem.
+
 ```
 @@ -205,10 +207,18 @@ Your task is to run the regression tests in the {self.git_tempdir} directory to
 Your task is to make changes to the files in the {self.git_tempdir} directory to address the
@@ -4119,8 +4268,10 @@ new_msg_history = chat_with_agent(instruction, model=self.code_model, msg_histor
 @@ -228,16 +238,45 @@ Please ensure your solution includes changes to the main source code files, not
 
 ```
+
 if is_valid:
 safe_log(f"Valid patch generated: {reason}")
+
 ```
 - break
 + # Run regression tests for this candidate
@@ -4141,7 +4292,9 @@ safe_log(f"Valid patch generated: {reason}")
 - safe_log("Maximum retries reached. Unable to generate a valid patch.")
 
 ```
+
 retry_count += 1
+
 ```
 + if not valid_patches:
 + safe_log("Failed to generate any valid patches.")
@@ -4192,7 +4345,9 @@ max_retries=args.max_retries,
 )
 
 ```
+
 # Run the agentic system to try to solve the problem
+
 ```
 diff --git a/coding_agent.py b/coding_agent.py
 index 3f1bc1d..588938d 100644
@@ -4239,9 +4394,12 @@ safe_log(f"Valid solutions so far: {len(valid_patches)} of {self.num_candidates}
 + safe_log(f"Current best test score: {best_score}")
 
 ```
+
 # Reset to base commit before each attempt
+
 if retry_count > 0:
 reset_to_commit(self.git_tempdir, self.base_commit)
+
 ```
 - # Add retry context to instruction if this is a retry attempt
 - instruction = base_instruction
@@ -4331,9 +4489,12 @@ return
 
 
 ```
+
 # Reset to base and apply the best patch
+
 reset_to_commit(self.git_tempdir, self.base_commit)
 best_patch = valid_patches[best_index]
+
 ```
 - safe_log(f"\n=== Applying Best Solution (Candidate {best_index + 1}) ===")
 + safe_log(f"\n=== Applying Best Solution (Candidate {best_index + 1}) with score
@@ -4341,22 +4502,28 @@ best_patch = valid_patches[best_index]
        apply_patch(self.git_tempdir, best_patch)
 
 ```
+
 # Final validation of the selected patch
+
 final_test_report = self.run_regression_tests(regression_tests_summary)
 final_score = get_report_score(final_test_report)
+
 ```
 - safe_log(f"Final solution test score: {final_score}")
 + safe_log(f"Final validation test score: {final_score}")
 
 ```
+
 def main():
 parser = argparse.ArgumentParser(description='Process repository with an agentic system.')
+
 ```
 ### C.2 DGM on Polyglot
 
 ### Diff patches contributing to the best agent discovered by the DGM on Polyglot:
 
 ```
+
 diff --git a/coding_agent.py b/coding_agent.py
 index 04ffb36..6639abd 100644
 --- a/coding_agent.py
@@ -4368,30 +4535,39 @@ import threading
 +import json
 +from dataclasses import dataclass
 +from typing import List, Optional
+
 ```
+
 ```
+
 from llm_withtools import CLAUDE_MODEL, OPENAI_MODEL, chat_with_agent
 from utils.git_utils import diff_versus_commit, reset_to_commit, apply_patch
 @@ -42,6 +45,14 @@ TEST_COMMANDS = {
+
 # Thread-local storage for logger instances
+
 thread_local = threading.local()
+
 ```
+
 ```
+
 +@dataclass
 +class SolutionAttempt:
-+ """Class to store information about a solution attempt."""
-+ patch: str # The patch content
-+ test_output: str # Raw test output
-+ test_success: bool # Whether tests passed
-+ test_stats: dict # Test statistics (e.g., number of passed/failed tests)
-+
-def get_thread_logger():
-"""
-Get the logger instance specific to the current thread.
-@@ -102,7 +113,8 @@ class AgenticSystem:
-chat_history_file='./chat_history.md',
-test_description=None,
-self_improve=False,
+
+- """Class to store information about a solution attempt."""
+- patch: str # The patch content
+- test_output: str # Raw test output
+- test_success: bool # Whether tests passed
+- test_stats: dict # Test statistics (e.g., number of passed/failed tests)
+- def get_thread_logger():
+  """
+  Get the logger instance specific to the current thread.
+  @@ -102,7 +113,8 @@ class AgenticSystem:
+  chat_history_file='./chat_history.md',
+  test_description=None,
+  self_improve=False,
+
 ```
 - language='python'
 + language='python',
@@ -4406,20 +4582,26 @@ self_improve=False,
 + self.max_attempts = max_attempts
 
 ```
+
 # Set the code model based on whether self-improvement is enabled
+
 self.code_model = OPENAI_MODEL if not self_improve else CLAUDE_MODEL
 @@ -137,11 +150,63 @@ class AgenticSystem:
 ]
 return new_msg_history
+
 ```
+
 ```
-+ def run_tests(self) -> tuple[bool, str, dict]:
-+ """Run tests and return success status, output, and test statistics."""
-+ success = False
-+ output = ""
-+ stats = {"passed": 0, "failed": 0, "errors": 0, "total": 0}
-+
-```
+
+- def run_tests(self) -> tuple[bool, str, dict]:
+- """Run tests and return success status, output, and test statistics."""
+- success = False
+- output = ""
+- stats = {"passed": 0, "failed": 0, "errors": 0, "total": 0}
+-
+
+````
 
 + try:
 + for command in TEST_COMMANDS.get(self.language, []):
@@ -4482,10 +4664,12 @@ def forward(self):
 {self.problem_statement}
 @@ -149,8 +214,52 @@ class AgenticSystem:
 
-```
+````
+
 Your task is to make changes to the files in the {self.git_tempdir} directory to address the
 ,→<problem_description>. I have already taken care of the required dependencies.
 """
+
 ```
 - instruction = f"{task}\n\nPlease analyze the problem description carefully. Then make edits to the
     ,→code files to complete the instruction."
@@ -4567,7 +4751,9 @@ language=args.language,
 f.write(model_patch)
 
 ```
-if __name__ == "__main__":
+
+if **name** == "**main**":
+
 ```
 - main()
 + main()
@@ -4661,7 +4847,9 @@ raise ValueError(f"Cannot create new file; {path} already exists.")
 - raise ValueError(f"Unknown or unsupported command: {command}")
 
 ```
+
 return path_obj
+
 ```
 @@ -89,14 +108,21 @@ def read_file(path: Path) -> str:
 except Exception as e:
@@ -4772,14 +4960,18 @@ try:
 path_obj = validate_path(path, command)
 
 ```
+
 if command == "view":
+
 ```
 - return view_path(path_obj)
 + view_range = kwargs.get('view_range')
 + return view_path(path_obj, view_range)
 
 ```
+
 elif command == "create":
+
 ```
 - if file_text is None:
 + if'file_text'not in kwargs:
@@ -4789,7 +4981,9 @@ elif command == "create":
     return f"File created successfully at: {path}"
 
 ```
+
 elif command == "edit":
+
 ```
 - if file_text is None:
 + if'file_text'not in kwargs:
@@ -4832,7 +5026,9 @@ raise ValueError(f"Failed to write file: {e}")
     return f"File at {path_obj} has been edited: replaced'{old_str}'with'{new_str}'."
 
 ```
+
 def insert_text(path_obj: Path, insert_line: int, new_str: str) -> str:
+
 ```
 - """Insert text at specified line number."""
 + """Insert text at specified line number (1-based)."""
@@ -4866,7 +5062,9 @@ return f"File at {path_obj} has been edited: inserted text at line {insert_line}
 raise ValueError(f"Unknown command: {command}")
 
 ```
+
 except Exception as e:
+
 ```
 - return f"Error: {str(e)}"
 -
@@ -5012,11 +5210,16 @@ success = False
 + }
 
 ```
+
 return success, output, stats
+
 ```
+
 ```
+
 def analyze_test_results(self, attempts: List[SolutionAttempt]) -> str:
-```
+
+````
 - """Analyze test results and create a summary for the agent."""
 
 
@@ -5104,8 +5307,10 @@ def forward(self):
 # Run tests and collect results
 
 
-```
+````
+
 test_success, test_output, test_stats = self.run_tests()
+
 ```
 - # Create and store attempt
 + # Create and store attempt with enhanced information
@@ -5134,18 +5339,22 @@ test_success, test_output, test_stats = self.run_tests()
     best_attempt = attempt
 
 ```
-+ # Log detailed attempt information
-+ safe_log(f"\n=== Attempt {attempt_num + 1} Summary ===")
-+ safe_log(f"Test Success: {test_success}")
-+ safe_log(f"Tests Passed: {test_stats.get('passed', 0)}")
-+ safe_log(f"Tests Failed: {test_stats.get('failed', 0)}")
-+ safe_log(f"Errors: {test_stats.get('errors', 0)}")
-+ safe_log(f"Execution Time: {test_stats.get('execution_time','N/A'):.2f}s")
-+
+
+- # Log detailed attempt information
+- safe_log(f"\n=== Attempt {attempt_num + 1} Summary ===")
+- safe_log(f"Test Success: {test_success}")
+- safe_log(f"Tests Passed: {test_stats.get('passed', 0)}")
+- safe_log(f"Tests Failed: {test_stats.get('failed', 0)}")
+- safe_log(f"Errors: {test_stats.get('errors', 0)}")
+- safe_log(f"Execution Time: {test_stats.get('execution_time','N/A'):.2f}s")
+-
+
 # If tests pass perfectly, we can stop
+
 if test_success and attempt.test_stats["failed"] == 0 and attempt.test_stats["errors"] ==
 ,→0:
 break
+
 ```
 ## D Similar Target Functionality, Different Implementations
 
@@ -5170,43 +5379,56 @@ break
 ### Feature suggestion to obtain node 6:
 
 ```
+
 Within the tools/edit.py file, remove the'edit'command and introduce a'str_replace'command. It
 ,→should accept parameters'old_str'(the unique text to find) and'new_str'(the new text to
 ,→replace it with). After verifying that'old_str'appears exactly once in the file, replace
 ,→the first occurrence with'new_str'. If'old_str'is not unique or is missing, do not write
 ,→any changes.
+
 ```
+
 ```
+
 Replace the'edit'command in the editor tool with a'str_replace'command that locates and replaces
 ,→an exact substring in a file. The'old_str'must match consecutive lines uniquely, and if it
 ,→is not found or occurs multiple times, no write should occur. The'new_str'parameter
 ,→contains the revised lines. This precise substring replacement flow will enable small
 ,→incremental edits with minimal breakage.
+
 ```
 ### Feature suggestion to obtain node 24:
 
 ```
+
 Augment the existing'editor'tool to support line or token-based editing. The agent would specify
 ,→individual lines or tokens to insert, delete, or replace. Internally, the tool would parse
 ,→the file contents, apply changes atomically, and verify that the surrounding context remains
 ,→intact. This prevents entire-file overwrites, reducing the risk of losing unrelated logic.
+
 ```
 
 ```
+
 ,→The tool could also validate that the edited lines match expected code fragments to catch
 ,→unanticipated differences or merge conflicts.
+
 ```
+
 ```
+
 Enhance the agent's file editing process to support fine-grained edits. Specifically, add a
 ,→line-based or token-based editing feature in the'editor'tool. This improvement should let
 ,→the agent insert, replace, or delete small sections of code without overwriting entire files
 ,→or large blocks, preserving unrelated logic. Implement safeguards to confirm that contextual
 ,→code around the edited region remains accurate, so we reduce the risk of creating regressions
 ,→when fixing issues.
+
 ```
 ### Implementation of suggested feature to obtain node 6:
 
 ```
+
 diff --git a/tests/test_edit_tool.py b/tests/test_edit_tool.py
 index f0782c6..d3a4d5c 100644
 --- a/tests/test_edit_tool.py
@@ -5217,33 +5439,40 @@ from pathlib import Path
 import tempfile
 -from tools.edit import tool_function
 +from tools.edit import tool_function, validate_edit_actions, validate_context
+
 ```
+
 ```
+
 @pytest.fixture
 def temp_dir():
 @@ -17,6 +17,18 @@ def sample_file(temp_dir):
 file_path.write_text(content)
 return file_path
+
 ```
+
 ```
+
 +@pytest.fixture
 +def code_file(temp_dir):
-+ """Create a sample Python file for testing token-based edits."""
-+ file_path = temp_dir / "test.py"
-+ content = """def test_function():
-+ x = 42
-+ y = "old_value"
-+ return x + len(y)
-+"""
-+ file_path.write_text(content)
-+ return file_path
-+
-class TestEditorTool:
-def test_view_file(self, sample_file):
-"""Test viewing entire file content."""
-@@ -39,17 +51,182 @@ class TestEditorTool:
-assert "Error" in result
-assert "already exists" in result
+
+- """Create a sample Python file for testing token-based edits."""
+- file_path = temp_dir / "test.py"
+- content = """def test_function():
+- x = 42
+- y = "old_value"
+- return x + len(y)
+  +"""
+- file_path.write_text(content)
+- return file_path
+- class TestEditorTool:
+  def test_view_file(self, sample_file):
+  """Test viewing entire file content."""
+  @@ -39,17 +51,182 @@ class TestEditorTool:
+  assert "Error" in result
+  assert "already exists" in result
+
 ```
 - def test_edit_file(self, sample_file):
 - """Test editing an existing file."""
@@ -5261,23 +5490,25 @@ assert "already exists" in result
     assert sample_file.read_text() == new_content
 
 ```
-+ def test_line_based_edit_insert(self, sample_file):
-+ """Test line-based insert operation."""
-+ actions = [{
-+ "action": "insert",
-+ "line_number": 3,
-+ "content": "inserted line"
-+ }]
-+ result = tool_function(
-+ "edit",
-+ str(sample_file),
-+ edit_type="line",
-+ edit_actions=actions
-+ )
-+ assert "successfully edited" in result
-+ content = sample_file.read_text().splitlines()
-+ assert content[2] == "inserted line"
-+ assert len(content) == 6
+
+- def test_line_based_edit_insert(self, sample_file):
+- """Test line-based insert operation."""
+- actions = [{
+- "action": "insert",
+- "line_number": 3,
+- "content": "inserted line"
+- }]
+- result = tool_function(
+- "edit",
+- str(sample_file),
+- edit_type="line",
+- edit_actions=actions
+- )
+- assert "successfully edited" in result
+- content = sample_file.read_text().splitlines()
+- assert content[2] == "inserted line"
+- assert len(content) == 6
+
 ```
 
 #### +
@@ -5619,20 +5850,21 @@ return {
 
 
 ```
-+ orig_lines[-context_lines:],
-+ mod_lines[-context_lines:]
-+ )
-+
-+ # If either the start or end blocks are too different, consider it invalid
-+ if start_similarity < 0.7 or end_similarity < 0.7:
-+ return False
-+
-+ return True
-+
-+def tool_function(command: str, path: str, file_text: str = None,
-+ edit_type: str = "file", edit_actions: List[Dict[str, Any]] = None) -> str:
-+ """
-+ Enhanced tool function that handles:
+
+- orig_lines[-context_lines:],
+- mod_lines[-context_lines:]
+- )
+-
+- # If either the start or end blocks are too different, consider it invalid
+- if start_similarity < 0.7 or end_similarity < 0.7:
+- return False
+-
+- return True
+- +def tool_function(command: str, path: str, file_text: str = None,
+- edit_type: str = "file", edit_actions: List[Dict[str, Any]] = None) -> str:
+- """
+- Enhanced tool function that handles:
+
 ```
 - 'view': View the entire file or directory listing
 - 'create': Create a new file with the given file_text
@@ -5648,7 +5880,9 @@ path_obj = validate_path(path, command)
 return f"File created successfully at: {path}"
 
 ```
+
 elif command == "edit":
+
 ```
 - if file_text is None:
 - raise ValueError("Missing required`file_text`for'edit'command.")
@@ -5677,23 +5911,32 @@ elif command == "edit":
 + modified_content = apply_token_edits(original_content, edit_actions)
 
 ```
-+ # Validate context before writing
-+ if validate_context(original_content, modified_content):
-+ write_file(path_obj, modified_content)
-+ return f"File at {path} has been successfully edited using {edit_type}-based editing."
-+ else:
-+ raise ValueError("Context validation failed. Edit operation aborted.")
-+ else:
-+ raise ValueError(f"Invalid edit_type: {edit_type}")
-else:
-raise ValueError(f"Unknown command: {command}")
+
+- # Validate context before writing
+- if validate_context(original_content, modified_content):
+- write_file(path_obj, modified_content)
+- return f"File at {path} has been successfully edited using {edit_type}-based editing."
+- else:
+- raise ValueError("Context validation failed. Edit operation aborted.")
+- else:
+- raise ValueError(f"Invalid edit_type: {edit_type}")
+  else:
+  raise ValueError(f"Unknown command: {command}")
+
 ```
+
 ```
+
 @@ -152,4 +314,4 @@ def tool_function(command: str, path: str, file_text: str = None) -> str:
+
 ```
+
 ```
-if __name__ == "__main__":
+
+if **name** == "**main**":
+
 # Example usage
+
 ```
 - print(tool_function("view", "/home/ubuntu/xx/dgm/coding_agent.py"))
 + print(tool_function("view", "/home/ubuntu/xx/dgm/coding_agent.py"))
@@ -5702,11 +5945,13 @@ if __name__ == "__main__":
 ### Implementation of suggested feature to obtain node 24:
 
 ```
+
 diff --git a/tools/edit.py b/tools/edit.py
 index 16ae521..757f5c2 100644
 --- a/tools/edit.py
 +++ b/tools/edit.py
 @@ -11,21 +11,21 @@ def tool_info():
+
 ```
 
 * If`path`is a directory,`view`lists non-hidden files and directories up to 2 levels deep.\n
@@ -5926,21 +6171,29 @@ index 0000000..c7f242f
 ### E.1 Baselines on SWE-bench
 
 ```
+
 DGM w/o Self-improve
 Archive Tree
+
 ```
+
 ```
+
 DGM w/o Self-improve
 Progress
 SWE-bench
 Score
+
 ```
+
 ```
+
 10 tasks (no basic functionality)
 60 tasks
 200 tasks (score ≥ 0.4 and
 top two of archive then)
 Final best agent
+
 ```
 ### Figure 5:DGM without self-improvement.Keeping the meta-agent that is modifying and producing
 
@@ -5963,21 +6216,29 @@ Final best agent
 ### shows the lineage of the final best-discovered agent and its precursor nodes.
 
 ```
+
 DGM w/o Open-ended exploration
 Archive Tree
+
 ```
+
 ```
+
 DGM w/o Open-ended exploration
 Progress
 SWE-bench
 Score
+
 ```
+
 ```
+
 10 tasks (no basic functionality)
 60 tasks
 200 tasks (score ≥ 0.4 and
 top two of archive then)
 Final best agent
+
 ```
 ### Figure 6:DGM without open-ended exploration.Removing the archive, DGM w/o open-ended
 
@@ -6017,15 +6278,23 @@ Final best agent
 ### metric rather than truly fulfilling the spirit of the task and solving the underlying problem.
 
 ```
+
 Solve Halluc
 Score
+
 ```
+
 ```
+
 3 tasks (no basic functionality)
 3 tasks (with basic functionality)
+
 ```
+
 ```
+
 Final best agent
+
 ```
 ### Figure 7:The DGM solving hallucination of tool use in FMs.Archive of coding agents generated
 
@@ -6050,9 +6319,10 @@ Final best agent
 ### tool results were entirely hallucinated in plain text:
 
 ```
+
 I'll run the tests as specified in the <test_description>. The test description indicates that we
-,→should use:\n\n```bash\n./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1
-,→dbshell.test_postgresql\n```\n\nLet me run this test command:\n\nTool Used: bash\nTool Input:
+,→should use:\n\n`bash\n./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1
+,→dbshell.test_postgresql\n`\n\nLet me run this test command:\n\nTool Used: bash\nTool Input:
 ,→{'command':'cd /testbed && ./tests/runtests.py --verbosity 2 --settings=test_sqlite
 ,→--parallel 1 dbshell.test_postgresql'}\nTool Result: Testing against Django installed in
 ,→'/testbed/django'\nImporting application dbshell\nSkipping setup of unused database(s):
@@ -6081,12 +6351,15 @@ I'll run the tests as specified in the <test_description>. The test description 
 ,→Successfully handles all types of passwords and special characters\n2. Properly manages
 ,→environment variables\n3. Maintains correct signal handling\n4. Works correctly with or
 ,→without passwords\n5. Preserves all required functionality\n\nThe tests pass with high speed
+
 ```
 
 ```
+
 ,→(0.001s) which is expected since they're mocking the actual psql execution. The problem
 ,→described in <problem_description> has been successfully fixed and verified through the test
 ,→suite.
+
 ```
 ### DGM setup.We run this experiment on SWE-bench. Other than the number of SWE-bench tasks we
 
@@ -6147,6 +6420,7 @@ I'll run the tests as specified in the <test_description>. The test description 
 ### effectively bypassing our hallucination detection function.
 
 ```
+
 diff --git a/coding_agent.py b/coding_agent.py
 index 620da2f..800b06e 100644
 --- a/coding_agent.py
@@ -6154,6 +6428,7 @@ index 620da2f..800b06e 100644
 @@ -196,13 +196,16 @@ def chat_with_claude(task, chat_history, user_instr):
 "input": tool_input
 })
+
 ```
 - # Process the tool call
 + # Process the tool call and record in structured format
@@ -6173,29 +6448,37 @@ index 620da2f..800b06e 100644
 + })
 
 ```
+
 # Continue with tool results
+
 messages.extend([
 @@ -224,7 +227,13 @@ def chat_with_claude(task, chat_history, user_instr):
 tools=tools,
 )
 tool_response_text = next((block.text for block in tool_response.content if hasattr(block,
 ,→"text")), None)
+
 ```
 - output_ls.append({TOOL_RESPONSE_MARKER: tool_response_text})
 + # Record tool response in structured format
 
 
 ```
-+ if tool_response_text:
-+ output_ls.append({
-+ "tool_response": {
-+ "content": tool_response_text
-+ }
-+ })
-response = tool_response
+
+- if tool_response_text:
+- output_ls.append({
+- "tool_response": {
+- "content": tool_response_text
+- }
+- })
+  response = tool_response
+
 ```
+
 ```
+
 # Validate tool response
+
 ```
 ### In conclusion, the DGM can be applied beyond the coding domain, and we highlighted a case of
 
@@ -6210,3 +6493,4 @@ response = tool_response
 ### pathological outcomes, and aligns with Goodhart’s law [ 127 ] – "When a measure becomes a target, it
 
 ### ceases to be a good measure."
+```

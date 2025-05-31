@@ -11,22 +11,25 @@ The payment failure persists because the relay configuration changes from the pr
 The codebase has relay configurations hardcoded in multiple locations:
 
 - **NostrService** (`src/services/nostr/NostrService.ts:69-78`):
+
   ```typescript
   relays: [
     "wss://nos.lol/",
-    "wss://relay.damus.io/",     // Requires 28-bit PoW
-    "wss://relay.snort.social/",  // Likely requires PoW
-  ]
+    "wss://relay.damus.io/", // Requires 28-bit PoW
+    "wss://relay.snort.social/", // Likely requires PoW
+  ];
   ```
 
 - **NostrServiceConfig** (`src/services/nostr/NostrServiceConfig.ts:17`):
+
   ```typescript
-  relays: ["wss://relay.damus.io", "wss://relay.snort.social"]
+  relays: ["wss://relay.damus.io", "wss://relay.snort.social"];
   ```
 
 - **DVMService** (`src/services/dvm/Kind5050DVMService.ts:78`):
+
   ```typescript
-  relays: ["wss://relay.damus.io", "wss://relay.nostr.band", "wss://nos.lol"]
+  relays: ["wss://relay.damus.io", "wss://relay.nostr.band", "wss://nos.lol"];
   ```
 
 - **useNip90ConsumerChat** (`src/hooks/useNip90ConsumerChat.ts:42-46`):
@@ -41,8 +44,15 @@ The codebase has relay configurations hardcoded in multiple locations:
 ### 2. Configuration Service Change Was Too Narrow
 
 The previous fix modified `ConfigurationServiceImpl` to set:
+
 ```typescript
-yield* _(configService.set("AI_PROVIDER_DEVSTRAL_RELAYS", JSON.stringify(["wss://nos.lol"])));
+yield *
+  _(
+    configService.set(
+      "AI_PROVIDER_DEVSTRAL_RELAYS",
+      JSON.stringify(["wss://nos.lol"]),
+    ),
+  );
 ```
 
 However, this configuration is only used by `ChatOrchestratorService` when using the `nip90_devstral` provider. The actual Nostr operations are using the hardcoded relays from `NostrService`.
@@ -50,6 +60,7 @@ However, this configuration is only used by `ChatOrchestratorService` when using
 ### 3. Telemetry Evidence
 
 From the provider logs:
+
 ```
 [Nostr] Pool initialized with relays: ["wss://nos.lol/","wss://relay.damus.io/","wss://relay.snort.social/"]
 [Nostr] Publishing event 4a70904d80ee3378...
@@ -57,6 +68,7 @@ Partially published event: 1 succeeded, 2 failed. Failures: Error: pow: 28 bits 
 ```
 
 This confirms that:
+
 - The NostrService is being used with its hardcoded relays
 - Payment events fail to publish on 2 out of 3 relays due to PoW requirements
 - Only `wss://nos.lol` accepts the events
@@ -83,8 +95,9 @@ Alternatively, refactor all services to read from a central configuration source
 ## Immediate Action Required
 
 Update the hardcoded relay arrays to use only non-PoW relays:
+
 ```typescript
-relays: ["wss://nos.lol"]
+relays: ["wss://nos.lol"];
 ```
 
 This will ensure all Nostr operations use relays that don't require Proof of Work, allowing events to be published successfully.

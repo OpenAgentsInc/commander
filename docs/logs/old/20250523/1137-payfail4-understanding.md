@@ -3,6 +3,7 @@
 ## The Real Problem
 
 After analyzing the telemetry logs and NIP-90 specification, the payment failure is NOT due to:
+
 - ❌ Stale runtime references (already fixed correctly)
 - ❌ Missing auto-payment logic (already implemented)
 - ❌ Payment button not being clicked (auto-payment handles this)
@@ -23,12 +24,14 @@ The real problem is: **The consumer and DVM are talking past each other on diffe
 
 ### Specific Relay Mismatch:
 
-**Consumer subscribes on:** 
+**Consumer subscribes on:**
+
 - `wss://relay.damus.io`
 - `wss://relay.snort.social` ⚠️
 - `wss://nos.lol`
 
 **DVM publishes to:**
+
 - `wss://relay.damus.io`
 - `wss://relay.nostr.band` ⚠️
 - `wss://nos.lol`
@@ -52,7 +55,9 @@ The consumer should subscribe to the **DVM's specific relays** when waiting for 
 ## What Must Change
 
 ### 1. **NIP90Service Interface**
+
 Add optional `relays` parameter to `subscribeToJobUpdates`:
+
 ```typescript
 subscribeToJobUpdates(
   jobRequestEventId: string,
@@ -64,29 +69,41 @@ subscribeToJobUpdates(
 ```
 
 ### 2. **NIP90ServiceImpl**
+
 Pass the custom relays through to NostrService:
+
 ```typescript
-const subscription = yield* _(
-  nostr.subscribeToEvents(
-    [resultFilter, feedbackFilter],
-    (event) => { /* ... */ },
-    customRelays, // Pass DVM-specific relays here
-  ),
-);
+const subscription =
+  yield *
+  _(
+    nostr.subscribeToEvents(
+      [resultFilter, feedbackFilter],
+      (event) => {
+        /* ... */
+      },
+      customRelays, // Pass DVM-specific relays here
+    ),
+  );
 ```
 
 ### 3. **NIP90AgentLanguageModelLive**
+
 When subscribing, use the DVM's configured relays:
+
 ```typescript
-const sub = yield* _(
-  nip90Service.subscribeToJobUpdates(
-    signedEvent.id,
-    targetDvmPubkey,
-    requesterSk,
-    (eventData) => { /* ... */ },
-    dvmConfig.dvmRelays, // Use DVM's specific relays!
-  ),
-);
+const sub =
+  yield *
+  _(
+    nip90Service.subscribeToJobUpdates(
+      signedEvent.id,
+      targetDvmPubkey,
+      requesterSk,
+      (eventData) => {
+        /* ... */
+      },
+      dvmConfig.dvmRelays, // Use DVM's specific relays!
+    ),
+  );
 ```
 
 ## Why This Will Fix It
@@ -113,6 +130,7 @@ const sub = yield* _(
 ## Critical Insight
 
 The telemetry clearly shows:
+
 - Consumer: Successfully publishes job request, sets up subscription, then... silence
 - Provider: Receives job, creates invoice, publishes payment-required, then... waits forever
 
@@ -123,6 +141,7 @@ The gap is in the middle - the events are being published to different relay set
 This is a **single point of failure** that blocks the entire payment flow. No amount of payment handling improvements will help if the consumer never receives the payment request in the first place.
 
 The fix is surgical and specific:
+
 1. Update interface to accept relay parameter
 2. Thread it through the implementation
 3. Pass DVM relays when subscribing

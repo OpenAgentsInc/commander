@@ -49,3 +49,9 @@ export class HarnessError extends Data.TaggedError("HarnessError")<{
   readonly instanceId?: string; // Optional: helps identify which task failed at harness level
   readonly context?: Record<string, any>;
 }> {}
+
+export class DockerBuildPrepError extends Data.TaggedError("DockerBuildPrepError")<{
+  readonly message: string;
+  readonly cause?: unknown;
+  readonly context?: Record<string, any>;
+}> {}

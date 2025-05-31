@@ -2,7 +2,7 @@
 
 ## Overview
 
-This log tracks my work on fixing issues with the Effect AI integration upgrade from `@effect/ai@0.2.0` to the latest version. 
+This log tracks my work on fixing issues with the Effect AI integration upgrade from `@effect/ai@0.2.0` to the latest version.
 
 ## Current Focus Areas
 
@@ -18,6 +18,7 @@ This log tracks my work on fixing issues with the Effect AI integration upgrade 
 ### 2025-05-22 11:42 - Started Work
 
 Initial issues identified:
+
 - File casing conflict between AiError.ts and AIError.ts
 - Duplicate identifier issues with AiProviderError
 - AIContextWindowError references need to be fixed to AiContextWindowError
@@ -31,18 +32,21 @@ Working on resolving these issues in order of priority.
 ### 2025-05-22 11:45 - Fixed File Casing Conflict
 
 Resolved the casing conflict between AiError.ts and AIError.ts:
+
 - Updated index.ts to use "./AiError" instead of "./AIError"
 - Made sure AiError.ts has the proper content
 
 ### 2025-05-22 11:48 - Fixed AIContextWindowError References
 
 Updated references in AgentChatSession.ts:
+
 - Changed AIContextWindowError to AiContextWindowError in method signatures
 - This ensures consistent casing throughout the codebase
 
 ### 2025-05-22 11:52 - Updated AiResponse Class
 
 Updated AiResponse class to match @effect/ai requirements:
+
 - Added TypeId symbol for type checking
 - Added finishReason property with appropriate typing
 - Added getProviderMetadata method for provider-specific data
@@ -56,13 +60,15 @@ Updated AiResponse class to match @effect/ai requirements:
 ### 2025-05-22 11:56 - Fixed Duplicate Identifier Issue
 
 Fixed duplicate identifier issue with AiProviderError:
+
 - Removed redundant import of AiProviderError from AiError.ts
 - Kept only the necessary import to avoid conflicts
 
 ### 2025-05-22 12:00 - Updated AgentLanguageModel Interface
 
 Simplified and updated the AgentLanguageModel interface:
-- Removed dependency on AiLanguageModel.Service since the API changed significantly 
+
+- Removed dependency on AiLanguageModel.Service since the API changed significantly
 - Created a more direct interface with clear method signatures
 - Changed the Context tag to be part of a namespace object
 - Simplified the makeAgentLanguageModel helper function
@@ -71,6 +77,7 @@ Simplified and updated the AgentLanguageModel interface:
 ### 2025-05-22 12:05 - Updated Provider Implementations
 
 Updated all provider implementations to use the new AgentLanguageModel interface:
+
 - Fixed OpenAIAgentLanguageModelLive to use AgentLanguageModel.Tag
 - Updated NIP90AgentLanguageModelLive to use AgentLanguageModel.Tag
 - Updated Layer creation in all provider implementations
@@ -79,6 +86,7 @@ Updated all provider implementations to use the new AgentLanguageModel interface
 ### 2025-05-22 12:10 - Updated Unit Tests
 
 Updated unit tests to use the new interfaces and types:
+
 - Fixed AIError.test.ts to import mapErrorToAiError
 - Updated AIContextWindowError to AiContextWindowError in test descriptions
 - Modified OpenAIAgentLanguageModelLive.test.ts to use AgentLanguageModel.Tag
@@ -89,27 +97,32 @@ Updated unit tests to use the new interfaces and types:
 We have successfully upgraded the Effect AI integration from @effect/ai@0.2.0 to the latest version. Here's a summary of all the changes made:
 
 ### Core Types
+
 - Fixed file casing issues between AiError.ts and AIError.ts
 - Updated AiResponse class to match the @effect/ai package requirements
 - Implemented necessary methods for compatibility (withToolCallsJson, etc.)
 - Added TypeId symbols and getter methods required by the new version
 
 ### Error Types
+
 - Fixed duplicate identifier issue with AiProviderError
 - Ensured consistent casing (AiContextWindowError instead of AIContextWindowError)
 - Enhanced error mapping functions for better compatibility
 
 ### Interface Design
+
 - Simplified AgentLanguageModel interface for better maintainability
 - Changed Context tag structure to follow current Effect patterns
 - Updated makeAgentLanguageModel helper function to be more straightforward
 
 ### Provider Implementations
+
 - Updated all provider implementations to use the new interfaces
 - Fixed Layer creation and service access patterns in all providers
 - Ensured proper error handling with the new types
 
 ### Unit Tests
+
 - Updated all tests to use the new interfaces and APIs
 - Fixed context access patterns in tests
 - Ensured proper error type usage throughout test suite

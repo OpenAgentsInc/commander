@@ -271,17 +271,15 @@ The implementations of the service methods in `NIP90ServiceImpl.ts` need to ensu
 
             // Publish event using nostr from closure
             yield* methodEffectGen(
-              nostr
-                .publishEvent(jobEvent)
-                .pipe(
-                  Effect.mapError(
-                    (cause) =>
-                      new NostrPublishError({
-                        message: "Nostr publish failed for job request",
-                        cause,
-                      }),
-                  ),
+              nostr.publishEvent(jobEvent).pipe(
+                Effect.mapError(
+                  (cause) =>
+                    new NostrPublishError({
+                      message: "Nostr publish failed for job request",
+                      cause,
+                    }),
                 ),
+              ),
             );
 
             yield* methodEffectGen(

@@ -82,7 +82,6 @@ Refactor the existing `OllamaService` to:
 - **Background:** Currently, the `requestBody` is used directly. We need to parse/decode it first.
 - **Task:**
 
-
       1.  In `generateChatCompletion`, before making the HTTP request, use `S.decodeUnknown(OllamaChatCompletionRequestSchema)(requestBody)` (or the equivalent API for decoding an `unknown` input).
       2.  This decoding will return an `Effect`. If it fails, it should yield an `OllamaParseError`. You'll need to `Effect.mapError` the schema parsing error into your `OllamaParseError`.
       3.  The successfully decoded request (let's call it `decodedRequest`) should then be used to construct `finalRequestBody`. The logic for `model: decodedRequest.model || config.defaultModel` should now use the potentially decoded and defaulted values from the schema if applicable, or remain explicit.
@@ -98,7 +97,6 @@ Refactor the existing `OllamaService` to:
 - **Background:** Currently, response parsing involves `response.json()` followed by manual type checks.
 - **Task:**
 
-
       1.  After `const json = yield* _(Effect.tryPromise(() => response.json())...);`, replace the manual validation checks with `S.decodeUnknown(OllamaChatCompletionResponseSchema)(json)`.
       2.  This will return an `Effect`. Map its error to `OllamaParseError`.
       3.  The success value of this effect will be the strongly-typed `OllamaChatCompletionResponse`.
@@ -113,7 +111,6 @@ Refactor the existing `OllamaService` to:
 - **File:** `src/services/ollama/OllamaService.ts`
 - **Background:** You currently have custom error classes. `effect/Schema` might offer `S.TaggedError` or a similar constructor for creating schema-backed error classes.
 - **Task:**
-
 
       1.  Investigate if `S.TaggedError` (or its equivalent in the current Schema API) is suitable.
       2.  If so, redefine `OllamaError`, `OllamaHttpError`, and `OllamaParseError` using it. This provides schema validation for your error objects themselves.
@@ -235,7 +232,6 @@ The current tests in `OllamaService.test.ts` use `createOllamaService(testConfig
 
 - **File:** `src/tests/unit/services/ollama/OllamaService.test.ts`
 - **Task (for each test case):**
-
 
       1.  **Remove Direct Instantiation:** Delete `const ollamaService = createOllamaService(testConfig);`.
       2.  **Set Mock Response:** Before running the Effect that uses the service, use `Effect.runSync(setMockClientResponse(...))` to configure the `TestHttpClientLive`'s behavior for the specific request that test will make.

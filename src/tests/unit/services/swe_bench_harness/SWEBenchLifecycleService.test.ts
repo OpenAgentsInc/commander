@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Effect, Exit, Layer } from 'effect';
+import { Effect, Exit, Layer, Cause } from 'effect';
 import { FileSystem } from '@effect/platform/FileSystem';
 import { DockerUtilsService, DockerError, DockerOperationError } from '@/services/docker';
 import { ConfigurationService, ConfigError } from '@/services/configuration';
 import { TelemetryService } from '@/services/telemetry';
 import { SWEBenchLifecycleService } from '@/services/swe_bench_harness/SWEBenchLifecycleService';
 import { SWEBenchLifecycleServiceLive } from '@/services/swe_bench_harness/SWEBenchLifecycleServiceImpl';
+import { DockerBuildManagerService } from '@/services/swe_bench_harness/DockerBuildManagerService';
 import { LifecycleSetupError, LifecycleEvalError } from '@/services/swe_bench_harness/errors';
 import type { SWEBenchTask, ContainerContext } from '@/services/swe_bench_harness/types';
 
@@ -79,6 +80,8 @@ const mockStopContainer = vi.fn();
 const mockRemoveContainer = vi.fn(() => Effect.void);
 const mockExecInContainer = vi.fn();
 const mockCopyFromContainer = vi.fn();
+const mockBuildImage = vi.fn();
+const mockRemoveImage = vi.fn(() => Effect.void);
 
 const mockDockerService = DockerUtilsService.of({
   listContainers: vi.fn(),
@@ -90,6 +93,17 @@ const mockDockerService = DockerUtilsService.of({
   copyToContainer: vi.fn(() => Effect.void),
   copyFromContainer: mockCopyFromContainer,
   execInContainer: mockExecInContainer,
+  buildImage: mockBuildImage,
+  removeImage: mockRemoveImage,
+});
+
+const mockDockerBuildManagerService = DockerBuildManagerService.of({
+  prepareBuildContext: vi.fn(() => Effect.succeed({
+    contextPath: "/tmp/swe-bench-build-test",
+    dockerfileName: "Dockerfile",
+    imageName: "swe-bench-task/test:latest",
+    containerRepoPath: "/opt/swe-bench/repo"
+  }))
 });
 
 describe('SWEBenchLifecycleService', () => {
@@ -116,7 +130,8 @@ describe('SWEBenchLifecycleService', () => {
       Layer.provide(Layer.succeed(FileSystem, mockFileSystem)),
       Layer.provide(Layer.succeed(ConfigurationService, mockConfigService)),
       Layer.provide(Layer.succeed(TelemetryService, mockTelemetryService)),
-      Layer.provide(Layer.succeed(DockerUtilsService, mockDockerService))
+      Layer.provide(Layer.succeed(DockerUtilsService, mockDockerService)),
+      Layer.provide(Layer.succeed(DockerBuildManagerService, mockDockerBuildManagerService))
     );
   });
 
@@ -125,29 +140,50 @@ describe('SWEBenchLifecycleService', () => {
       const tempDir = "/tmp/swe-bench/swe-bench-test-task-1-xyz";
       mockMakeTempDirectory.mockReturnValue(Effect.succeed(tempDir));
       mockCreateContainer.mockReturnValue(Effect.succeed("container-123"));
+      
+      // Mock buildImage to return a mock stream that completes
+      const mockStream = {
+        on: vi.fn((event, handler) => {
+          if (event === 'end') {
+            // Immediately call the end handler
+            setTimeout(() => handler(), 0);
+          }
+          return mockStream;
+        }),
+        pipe: vi.fn(() => mockStream),
+        read: vi.fn(),
+        readable: true
+      };
+      mockBuildImage.mockReturnValue(Effect.succeed(mockStream));
 
       const program = Effect.gen(function* () {
         const service = yield* SWEBenchLifecycleService;
         return yield* service.setupContainerForTask(sampleTask);
       }).pipe(
-        Effect.provide(testLayer),
-        Effect.provide(Layer.succeed(FileSystem, createMockFileSystem()))
+        Effect.provide(testLayer)
       );
 
       const result = await Effect.runPromiseExit(program);
 
+      if (Exit.isFailure(result)) {
+        console.error("Test failed with error:", JSON.stringify(result.cause, null, 2));
+        const prettyError = Cause.pretty(result.cause);
+        console.error("Pretty error:", prettyError);
+      }
       expect(Exit.isSuccess(result)).toBe(true);
       if (Exit.isSuccess(result)) {
         const context = result.value;
         expect(context.containerId).toBe("container-123");
         expect(context.hostEvalDir).toBe(tempDir);
-        expect(context.containerEvalDir).toBe("/swe_bench_workdir/test-task-1");
-        expect(context.containerRepoPath).toBe("/swe_bench_workdir/test-task-1/test-repo");
+        expect(context.containerEvalDir).toBe("/swe_bench_workdir");
+        expect(context.containerRepoPath).toBe("/opt/swe-bench/repo");
+        expect(context.imageName).toBe("swe-bench-task/test:latest");
+        expect(context.hostBuildCtxDir).toBe("/tmp/swe-bench-build-test");
       }
 
       expect(mockMakeTempDirectory).toHaveBeenCalledWith({
         directory: "/tmp/swe-bench",
-        prefix: "swe-bench-test-task-1-"
+        prefix: "swe-bench-eval-test-task-1-"
       });
       expect(mockCreateContainer).toHaveBeenCalled();
       expect(mockStartContainer).toHaveBeenCalledWith("container-123");
@@ -160,8 +196,7 @@ describe('SWEBenchLifecycleService', () => {
         const service = yield* SWEBenchLifecycleService;
         return yield* service.setupContainerForTask(sampleTask);
       }).pipe(
-        Effect.provide(testLayer),
-        Effect.provide(Layer.succeed(FileSystem, createMockFileSystem()))
+        Effect.provide(testLayer)
       );
 
       const result = await Effect.runPromiseExit(program);
@@ -179,6 +214,8 @@ describe('SWEBenchLifecycleService', () => {
       hostEvalDir: "/tmp/swe-bench/task-xyz",
       containerEvalDir: "/swe_bench_workdir/test-task-1",
       containerRepoPath: "/swe_bench_workdir/test-task-1/test-repo",
+      imageName: "swe-bench-task/test:latest",
+      hostBuildCtxDir: "/tmp/swe-bench-build-test"
     };
 
     it('should run evaluation successfully', async () => {
@@ -214,8 +251,7 @@ describe('SWEBenchLifecycleService', () => {
           "patch content"
         );
       }).pipe(
-        Effect.provide(testLayer),
-        Effect.provide(Layer.succeed(FileSystem, createMockFileSystem()))
+        Effect.provide(testLayer)
       );
 
       const result = await Effect.runPromiseExit(program);
@@ -259,8 +295,7 @@ describe('SWEBenchLifecycleService', () => {
           "patch content"
         );
       }).pipe(
-        Effect.provide(testLayer),
-        Effect.provide(Layer.succeed(FileSystem, createMockFileSystem()))
+        Effect.provide(testLayer)
       );
 
       const result = await Effect.runPromiseExit(program);
@@ -278,6 +313,8 @@ describe('SWEBenchLifecycleService', () => {
       hostEvalDir: "/tmp/swe-bench/task-xyz",
       containerEvalDir: "/swe_bench_workdir/test-task-1",
       containerRepoPath: "/swe_bench_workdir/test-task-1/test-repo",
+      imageName: "swe-bench-task/test:latest",
+      hostBuildCtxDir: "/tmp/swe-bench-build-test"
     };
 
     it('should cleanup resources successfully', async () => {
@@ -285,8 +322,7 @@ describe('SWEBenchLifecycleService', () => {
         const service = yield* SWEBenchLifecycleService;
         return yield* service.cleanupContainerResources(mockContext);
       }).pipe(
-        Effect.provide(testLayer),
-        Effect.provide(Layer.succeed(FileSystem, createMockFileSystem()))
+        Effect.provide(testLayer)
       );
 
       const result = await Effect.runPromiseExit(program);
@@ -294,6 +330,8 @@ describe('SWEBenchLifecycleService', () => {
       expect(Exit.isSuccess(result)).toBe(true);
       expect(mockStopContainer).toHaveBeenCalledWith("container-123", { t: 10 });
       expect(mockRemoveContainer).toHaveBeenCalledWith("container-123", { force: true });
+      expect(mockRemoveImage).toHaveBeenCalledWith("swe-bench-task/test:latest", { force: true });
+      expect(mockRemove).toHaveBeenCalledWith("/tmp/swe-bench-build-test", { recursive: true });
       expect(mockRemove).toHaveBeenCalledWith("/tmp/swe-bench/task-xyz", { recursive: true });
     });
 
@@ -311,8 +349,7 @@ describe('SWEBenchLifecycleService', () => {
         const service = yield* SWEBenchLifecycleService;
         return yield* service.cleanupContainerResources(mockContext);
       }).pipe(
-        Effect.provide(testLayer),
-        Effect.provide(Layer.succeed(FileSystem, createMockFileSystem()))
+        Effect.provide(testLayer)
       );
 
       const result = await Effect.runPromiseExit(program);

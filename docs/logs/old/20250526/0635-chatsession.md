@@ -1,6 +1,6 @@
 (Console dump; truncated; most recent messages)
 
-```
+````
 String(error);
     306:                             (error.message || JSON.stringify(error, Object.getOwnPropertyNames(error))) :
     317:                       const errorMessage = error && typeof error === 'object' && error.message ? error.message : String(error);
@@ -5098,4 +5098,4 @@ String(error);
 │ >                                                                                                                                         │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
   ? for shortcuts                                                                                                     Bypassing Permissions
-```
+````

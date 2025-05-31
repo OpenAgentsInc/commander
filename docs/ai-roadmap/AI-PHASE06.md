@@ -188,17 +188,15 @@ Okay, Agent, here are the specific instructions for implementing **Phase 6 (Exec
                 ) as any; // Cast for now
                 // Build the OpenAIClientLive layer which itself depends on ConfigService and HttpClient
                 const apiKey = yield* _(
-                  configService
-                    .getSecret("OPENAI_API_KEY")
-                    .pipe(
-                      Effect.mapError(
-                        (e) =>
-                          new AIConfigurationError({
-                            message: "OpenAI API Key failed",
-                            cause: e,
-                          }),
-                      ),
+                  configService.getSecret("OPENAI_API_KEY").pipe(
+                    Effect.mapError(
+                      (e) =>
+                        new AIConfigurationError({
+                          message: "OpenAI API Key failed",
+                          cause: e,
+                        }),
                     ),
+                  ),
                 );
                 const baseUrlOpt = yield* _(
                   Effect.optional(configService.get("OPENAI_BASE_URL")),
@@ -229,17 +227,15 @@ Okay, Agent, here are the specific instructions for implementing **Phase 6 (Exec
                   modelName,
                 ) as any;
                 const apiKey = yield* _(
-                  configService
-                    .getSecret("ANTHROPIC_API_KEY")
-                    .pipe(
-                      Effect.mapError(
-                        (e) =>
-                          new AIConfigurationError({
-                            message: "Anthropic API Key failed",
-                            cause: e,
-                          }),
-                      ),
+                  configService.getSecret("ANTHROPIC_API_KEY").pipe(
+                    Effect.mapError(
+                      (e) =>
+                        new AIConfigurationError({
+                          message: "Anthropic API Key failed",
+                          cause: e,
+                        }),
                     ),
+                  ),
                 );
                 const clientConfig = { apiKey: Config.succeed(apiKey) };
                 clientContext = Layer.provide(
@@ -395,19 +391,17 @@ Okay, Agent, here are the specific instructions for implementing **Phase 6 (Exec
                   category: "orchestrator",
                   action: "ai_plan_built_successfully",
                 });
-                return builtPlan
-                  .streamText(streamOptions)
-                  .pipe(
-                    Stream.tapErrorCause((cause) =>
-                      Effect.sync(() =>
-                        runTelemetry({
-                          category: "orchestrator",
-                          action: "stream_conversation_error_final",
-                          label: Cause.pretty(cause),
-                        }),
-                      ),
+                return builtPlan.streamText(streamOptions).pipe(
+                  Stream.tapErrorCause((cause) =>
+                    Effect.sync(() =>
+                      runTelemetry({
+                        category: "orchestrator",
+                        action: "stream_conversation_error_final",
+                        label: Cause.pretty(cause),
+                      }),
                     ),
-                  );
+                  ),
+                );
               }),
             ).pipe(
               Stream.tapErrorCause((cause) =>

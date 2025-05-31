@@ -8,8 +8,8 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'ai:config', action: 'ollama_
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'ai:config', action: 'ollama_model_from_provided_config_service', value: 'gemma3:1b', timestamp: 1747973636546}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'ai:config', action: 'ollama_language_model_provider_ready', value: 'gemma3:1b', timestamp: 1747973636546}
 VM555 renderer_init:2 Electron Security Warning (Insecure Content-Security-Policy) This renderer process has either no Content Security
-  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
-  this app to unnecessary security risks.
+Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+this app to unnecessary security risks.
 
 For more information and help, consult
 https://electronjs.org/docs/tutorial/security.
@@ -260,7 +260,7 @@ processRootScheduleInMicrotask @ chunk-QW7VXTSL.js?v=85a3d508:11558
 (anonymous) @ chunk-QW7VXTSL.js?v=85a3d508:11649
 <OutletImpl>
 exports.jsxDEV @ react_jsx-dev-runtime.js?v=85a3d508:250
-Root @ __root.tsx:14
+Root @ \_\_root.tsx:14
 react-stack-bottom-frame @ chunk-QW7VXTSL.js?v=85a3d508:17424
 renderWithHooks @ chunk-QW7VXTSL.js?v=85a3d508:4206
 updateFunctionComponent @ chunk-QW7VXTSL.js?v=85a3d508:6619

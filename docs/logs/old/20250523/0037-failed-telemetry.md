@@ -6,8 +6,8 @@ runtime.ts:183 Creating a production-ready Effect runtime for renderer...
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:init', action: 'wallet_initialize_start', label: 'Network: REGTEST', value: '2', timestamp: 1747978598954}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'ai:config', action: 'ollama_model_from_config_service', value: 'gemma3:1b', timestamp: 1747978598996}
 VM28019 renderer_init:2 Electron Security Warning (Insecure Content-Security-Policy) This renderer process has either no Content Security
-  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
-  this app to unnecessary security risks.
+Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+this app to unnecessary security risks.
 
 For more information and help, consult
 https://electronjs.org/docs/tutorial/security.
@@ -250,7 +250,7 @@ processRootScheduleInMicrotask @ chunk-QW7VXTSL.js?v=9ee002f0:11558
 (anonymous) @ chunk-QW7VXTSL.js?v=9ee002f0:11649
 <OutletImpl>
 exports.jsxDEV @ react_jsx-dev-runtime.js?v=9ee002f0:250
-Root @ __root.tsx:14
+Root @ \_\_root.tsx:14
 react-stack-bottom-frame @ chunk-QW7VXTSL.js?v=9ee002f0:17424
 renderWithHooks @ chunk-QW7VXTSL.js?v=9ee002f0:4206
 updateFunctionComponent @ chunk-QW7VXTSL.js?v=9ee002f0:6619
@@ -372,79 +372,79 @@ startApp @ renderer.ts:33
 await in startApp
 (anonymous) @ renderer.ts:87
 OllamaAsOpenAIClientLive.ts:424 [OllamaAsOpenAIClientLive] Starting stream for gemma3:1b with params: {
-  "model": "gemma3:1b",
-  "messages": [
-    {
-      "role": "system",
-      "content": "You are Commander's AI Agent. Be helpful and concise.",
-      "timestamp": 1747978604521
-    },
-    {
-      "role": "user",
-      "content": "test"
-    }
-  ],
-  "temperature": 0.7,
-  "max_tokens": 2048,
-  "stream": true
+"model": "gemma3:1b",
+"messages": [
+{
+"role": "system",
+"content": "You are Commander's AI Agent. Be helpful and concise.",
+"timestamp": 1747978604521
+},
+{
+"role": "user",
+"content": "test"
+}
+],
+"temperature": 0.7,
+"max_tokens": 2048,
+"stream": true
 }
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'ollama_adapter:stream', action: 'create_start', label: 'gemma3:1b', timestamp: 1747978604542}
 OllamaAsOpenAIClientLive.ts:439 [OllamaAsOpenAIClientLive] Setting up IPC stream for gemma3:1b
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-255","object":"chat.completion.chunk","created":1747978604,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"Okay","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"Okay","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"Okay","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"Okay","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978604521 Chunk length: 4
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-255","object":"chat.completion.chunk","created":1747978604,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":",","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":",","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":",","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":",","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978604521 Chunk length: 1
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-255","object":"chat.completion.chunk","created":1747978604,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" I","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" I","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" I","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" I","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978604521 Chunk length: 2
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-255","object":"chat.completion.chunk","created":1747978605,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"'","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"'","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"'","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"'","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978604521 Chunk length: 1
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-255","object":"chat.completion.chunk","created":1747978605,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"m","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"m","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"m","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"m","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978604521 Chunk length: 1
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-255","object":"chat.completion.chunk","created":1747978605,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" here","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" here","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" here","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" here","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978604521 Chunk length: 5
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-255","object":"chat.completion.chunk","created":1747978605,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":".","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":".","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":".","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":".","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978604521 Chunk length: 1
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-255","object":"chat.completion.chunk","created":1747978605,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" How","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" How","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" How","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" How","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978604521 Chunk length: 4
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-255","object":"chat.completion.chunk","created":1747978605,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" can","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" can","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" can","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" can","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978604521 Chunk length: 4
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-255","object":"chat.completion.chunk","created":1747978605,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" I","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" I","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" I","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" I","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978604521 Chunk length: 2
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-255","object":"chat.completion.chunk","created":1747978605,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" help","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" help","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" help","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" help","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978604521 Chunk length: 5
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-255","object":"chat.completion.chunk","created":1747978605,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" you","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" you","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" you","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" you","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978604521 Chunk length: 4
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-255","object":"chat.completion.chunk","created":1747978605,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" today","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" today","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" today","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" today","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978604521 Chunk length: 6
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-255","object":"chat.completion.chunk","created":1747978605,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"?","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"?","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"?","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"?","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978604521 Chunk length: 1
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-255","object":"chat.completion.chunk","created":1747978605,"model":"gemma3:1b","choi
 OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[]}
@@ -466,112 +466,112 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'orchestrator', action: 'stre
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'orchestrator', action: 'get_provider_model_start', label: 'ollama_gemma3_1b', value: 'gemma3:1b', timestamp: 1747978611754}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'orchestrator', action: 'get_provider_model_success_ollama', label: 'ollama_gemma3_1b', timestamp: 1747978611754}
 OllamaAsOpenAIClientLive.ts:424 [OllamaAsOpenAIClientLive] Starting stream for gemma3:1b with params: {
-  "model": "gemma3:1b",
-  "messages": [
-    {
-      "role": "system",
-      "content": "You are Commander's AI Agent. Be helpful and concise.",
-      "timestamp": 1747978611743
-    },
-    {
-      "role": "user",
-      "content": "test"
-    },
-    {
-      "role": "assistant",
-      "content": "Okay, I'm here. How can I help you today?",
-      "providerInfo": {
-        "name": "Devstral (NIP-90)",
-        "type": "nip90",
-        "model": "devstral"
-      }
-    },
-    {
-      "role": "user",
-      "content": "test"
-    }
-  ],
-  "temperature": 0.7,
-  "max_tokens": 2048,
-  "stream": true
+"model": "gemma3:1b",
+"messages": [
+{
+"role": "system",
+"content": "You are Commander's AI Agent. Be helpful and concise.",
+"timestamp": 1747978611743
+},
+{
+"role": "user",
+"content": "test"
+},
+{
+"role": "assistant",
+"content": "Okay, I'm here. How can I help you today?",
+"providerInfo": {
+"name": "Devstral (NIP-90)",
+"type": "nip90",
+"model": "devstral"
+}
+},
+{
+"role": "user",
+"content": "test"
+}
+],
+"temperature": 0.7,
+"max_tokens": 2048,
+"stream": true
 }
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'ollama_adapter:stream', action: 'create_start', label: 'gemma3:1b', timestamp: 1747978611755}
 OllamaAsOpenAIClientLive.ts:439 [OllamaAsOpenAIClientLive] Setting up IPC stream for gemma3:1b
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-662","object":"chat.completion.chunk","created":1747978611,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"Okay","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"Okay","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"Okay","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"Okay","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978611743 Chunk length: 4
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-662","object":"chat.completion.chunk","created":1747978611,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":".","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":".","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":".","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":".","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978611743 Chunk length: 1
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-662","object":"chat.completion.chunk","created":1747978611,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"  ","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"  ","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" ","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" ","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978611743 Chunk length: 2
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-662","object":"chat.completion.chunk","created":1747978611,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"Let","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"Let","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"Let","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"Let","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978611743 Chunk length: 3
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-662","object":"chat.completion.chunk","created":1747978611,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"’","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"’","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"’","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"’","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978611743 Chunk length: 1
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-662","object":"chat.completion.chunk","created":1747978611,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"s","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"s","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"s","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"s","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978611743 Chunk length: 1
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-662","object":"chat.completion.chunk","created":1747978611,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" start","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" start","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" start","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" start","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978611743 Chunk length: 6
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-662","object":"chat.completion.chunk","created":1747978611,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" with","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" with","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" with","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" with","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978611743 Chunk length: 5
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-662","object":"chat.completion.chunk","created":1747978611,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" a","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" a","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" a","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" a","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978611743 Chunk length: 2
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-662","object":"chat.completion.chunk","created":1747978611,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" simple","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" simple","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" simple","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" simple","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978611743 Chunk length: 7
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-662","object":"chat.completion.chunk","created":1747978612,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" question","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" question","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" question","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" question","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978611743 Chunk length: 9
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-662","object":"chat.completion.chunk","created":1747978612,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":":","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":":","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":":","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":":","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978611743 Chunk length: 1
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-662","object":"chat.completion.chunk","created":1747978612,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" **","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" **","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" **","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" **","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978611743 Chunk length: 3
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-662","object":"chat.completion.chunk","created":1747978612,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"What","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"What","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"What","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"What","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978611743 Chunk length: 4
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-662","object":"chat.completion.chunk","created":1747978612,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" is","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" is","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" is","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" is","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978611743 Chunk length: 3
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-662","object":"chat.completion.chunk","created":1747978612,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" your","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" your","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" your","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" your","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978611743 Chunk length: 5
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-662","object":"chat.completion.chunk","created":1747978612,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" name","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" name","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" name","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" name","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978611743 Chunk length: 5
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-662","object":"chat.completion.chunk","created":1747978612,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"?","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"?","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"?","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"?","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978611743 Chunk length: 1
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-662","object":"chat.completion.chunk","created":1747978612,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"**","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"**","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"**","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"**","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978611743 Chunk length: 2
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-662","object":"chat.completion.chunk","created":1747978612,"model":"gemma3:1b","choi
 OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[]}
@@ -638,73 +638,73 @@ dispatchEventForPluginEventSystem @ chunk-QW7VXTSL.js?v=9ee002f0:11877
 dispatchEvent @ chunk-QW7VXTSL.js?v=9ee002f0:14792
 dispatchDiscreteEvent @ chunk-QW7VXTSL.js?v=9ee002f0:14773
 OllamaAsOpenAIClientLive.ts:424 [OllamaAsOpenAIClientLive] Starting stream for gemma3:1b with params: {
-  "model": "gemma3:1b",
-  "messages": [
-    {
-      "role": "system",
-      "content": "You are Commander's AI Agent. Be helpful and concise.",
-      "timestamp": 1747978615617
-    },
-    {
-      "role": "user",
-      "content": "test"
-    },
-    {
-      "role": "assistant",
-      "content": "Okay, I'm here. How can I help you today?",
-      "providerInfo": {
-        "name": "Devstral (NIP-90)",
-        "type": "nip90",
-        "model": "devstral"
-      }
-    },
-    {
-      "role": "user",
-      "content": "test"
-    },
-    {
-      "role": "assistant",
-      "content": "Okay.  Let’s start with a simple question: **What is your name?**",
-      "providerInfo": {
-        "name": "Ollama (Local)",
-        "type": "ollama",
-        "model": "gemma3:1b"
-      }
-    },
-    {
-      "role": "user",
-      "content": "test"
-    }
-  ],
-  "temperature": 0.7,
-  "max_tokens": 2048,
-  "stream": true
+"model": "gemma3:1b",
+"messages": [
+{
+"role": "system",
+"content": "You are Commander's AI Agent. Be helpful and concise.",
+"timestamp": 1747978615617
+},
+{
+"role": "user",
+"content": "test"
+},
+{
+"role": "assistant",
+"content": "Okay, I'm here. How can I help you today?",
+"providerInfo": {
+"name": "Devstral (NIP-90)",
+"type": "nip90",
+"model": "devstral"
+}
+},
+{
+"role": "user",
+"content": "test"
+},
+{
+"role": "assistant",
+"content": "Okay. Let’s start with a simple question: **What is your name?**",
+"providerInfo": {
+"name": "Ollama (Local)",
+"type": "ollama",
+"model": "gemma3:1b"
+}
+},
+{
+"role": "user",
+"content": "test"
+}
+],
+"temperature": 0.7,
+"max_tokens": 2048,
+"stream": true
 }
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'ollama_adapter:stream', action: 'create_start', label: 'gemma3:1b', timestamp: 1747978615628}
 OllamaAsOpenAIClientLive.ts:439 [OllamaAsOpenAIClientLive] Setting up IPC stream for gemma3:1b
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-768","object":"chat.completion.chunk","created":1747978615,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"My","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"My","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":"My","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"My","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978615617 Chunk length: 2
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-768","object":"chat.completion.chunk","created":1747978615,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" name","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" name","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" name","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" name","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978615617 Chunk length: 5
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-768","object":"chat.completion.chunk","created":1747978615,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" is","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" is","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" is","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" is","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978615617 Chunk length: 3
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-768","object":"chat.completion.chunk","created":1747978615,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" Commander","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" Commander","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" Commander","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" Commander","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978615617 Chunk length: 10
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-768","object":"chat.completion.chunk","created":1747978615,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" AI","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" AI","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":" AI","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":" AI","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978615617 Chunk length: 3
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-768","object":"chat.completion.chunk","created":1747978615,"model":"gemma3:1b","choi
-OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":".","annotations":[],"_tag":"TextPart"}]}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":".","annotations":[],"_tag":"TextPart"}]} Abort signal status: false
+OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[{"text":".","annotations":[],"\_tag":"TextPart"}]}
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":".","annotations":[],"\_tag":"TextPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747978615617 Chunk length: 1
 OllamaAsOpenAIClientLive.ts:444 [OllamaAsOpenAIClientLive] IPC onChunk received for gemma3:1b: {"id":"chatcmpl-768","object":"chat.completion.chunk","created":1747978615,"model":"gemma3:1b","choi
 OllamaAsOpenAIClientLive.ts:464 [OllamaAsOpenAIClientLive] Emitting AiResponse to effect stream for gemma3:1b: {"parts":[]}

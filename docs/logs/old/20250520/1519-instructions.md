@@ -931,17 +931,15 @@ export const Kind5050DVMServiceLive = Layer.scoped(
         );
 
         const ollamaResult = yield* _(
-          ollama
-            .generateChatCompletion(ollamaRequest)
-            .pipe(
-              Effect.mapError(
-                (e) =>
-                  new DVMJobProcessingError({
-                    message: "Ollama inference failed",
-                    cause: e,
-                  }),
-              ),
+          ollama.generateChatCompletion(ollamaRequest).pipe(
+            Effect.mapError(
+              (e) =>
+                new DVMJobProcessingError({
+                  message: "Ollama inference failed",
+                  cause: e,
+                }),
             ),
+          ),
         );
         const ollamaOutput = ollamaResult.choices[0]?.message.content || "";
         const usage = ollamaResult.usage || {
@@ -1017,17 +1015,15 @@ export const Kind5050DVMServiceLive = Layer.scoped(
           isRequestEncrypted,
         );
         yield* _(
-          nostr
-            .publishEvent(jobResultEvent)
-            .pipe(
-              Effect.mapError(
-                (e) =>
-                  new DVMJobProcessingError({
-                    message: "Failed to publish job result event",
-                    cause: e,
-                  }),
-              ),
+          nostr.publishEvent(jobResultEvent).pipe(
+            Effect.mapError(
+              (e) =>
+                new DVMJobProcessingError({
+                  message: "Failed to publish job result event",
+                  cause: e,
+                }),
             ),
+          ),
         );
 
         const successFeedback = createNip90FeedbackEvent(

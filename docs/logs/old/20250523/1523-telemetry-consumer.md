@@ -23,8 +23,8 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:status', action: 'chec
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:status', action: 'check_wallet_status_success', label: 'Wallet ready, balance: 0', timestamp: 1748031789420}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:admin', action: 'check_listening_status', value: 'inactive', timestamp: 1748031789421}
 VM6974 renderer_init:2 Electron Security Warning (Insecure Content-Security-Policy) This renderer process has either no Content Security
-  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
-  this app to unnecessary security risks.
+Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+this app to unnecessary security risks.
 
 For more information and help, consult
 https://electronjs.org/docs/tutorial/security.
@@ -88,7 +88,7 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:balance', action: 'get
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:balance', action: 'get_balance_success', label: 'Balance: 496 sats', value: 'Token count: 0', timestamp: 1748031806662}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:lightning', action: 'pay_invoice_success', label: 'Payment status: FAILED', value: 'Amount: 0, Fee: 0', timestamp: 1748031809164}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'nip90:consumer', action: 'payment_success', label: '270b1381c6ed6ffbdf89462dd3299d8696e681b6e7d4c96b06704d90602260bd', value: 'unknown-hash', timestamp: 1748031809165}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"Auto-paid 3 sats. Payment hash: unknown-hash... Waiting for DVM to process...","annotations":[],"_tag":"TextPart"},{"usage":{"inputTokens":0,"outputTokens":77,"totalTokens":77,"reasoningTokens":0,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"reason":"unknown","providerMetadata":{},"_tag":"FinishPart"}]} Abort signal status: false
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"Auto-paid 3 sats. Payment hash: unknown-hash... Waiting for DVM to process...","annotations":[],"\_tag":"TextPart"},{"usage":{"inputTokens":0,"outputTokens":77,"totalTokens":77,"reasoningTokens":0,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"reason":"unknown","providerMetadata":{},"\_tag":"FinishPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1748031795663 Chunk length: 77
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:balance', action: 'get_balance_start', label: 'Fetching balance', value: '', timestamp: 1748031811664}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:balance', action: 'get_balance_success', label: 'Balance: 497 sats', value: 'Token count: 0', timestamp: 1748031812229}

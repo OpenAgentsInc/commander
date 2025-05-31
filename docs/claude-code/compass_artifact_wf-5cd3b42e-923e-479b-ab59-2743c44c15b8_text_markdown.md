@@ -23,17 +23,21 @@ Research indicates these restrictions manifest as specific error patterns: `SELF
 Electron's `utilityProcess` API, introduced as a modern alternative to `child_process`, addresses these network limitations through better integration with Chromium's process model:
 
 ```javascript
-const { utilityProcess } = require('electron');
+const { utilityProcess } = require("electron");
 
-const child = utilityProcess.fork(path.join(__dirname, 'claude-wrapper.js'), [], {
-  serviceName: 'claude-cli-service',
-  respondToAuthRequestsFromMainProcess: true, // Critical for HTTPS APIs
-  stdio: 'pipe',
-  env: {
-    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-    // Preserve necessary environment variables
-  }
-});
+const child = utilityProcess.fork(
+  path.join(__dirname, "claude-wrapper.js"),
+  [],
+  {
+    serviceName: "claude-cli-service",
+    respondToAuthRequestsFromMainProcess: true, // Critical for HTTPS APIs
+    stdio: "pipe",
+    env: {
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+      // Preserve necessary environment variables
+    },
+  },
+);
 ```
 
 The **respondToAuthRequestsFromMainProcess** option enables HTTP 401/407 authentication handling through the main process, essential for API authentication. This approach uses Chromium's Services API instead of Node.js child_process, providing **built-in MessagePort support** for secure IPC, **proper signal handling** through Chromium's lifecycle management, and **network context inheritance** that preserves TLS certificate access.
@@ -43,26 +47,27 @@ The **respondToAuthRequestsFromMainProcess** option enables HTTP 401/407 authent
 For cases where utilityProcess doesn't fully resolve the issue, external service bridge patterns provide complete network isolation:
 
 **WebSocket Bridge Pattern:**
+
 ```javascript
 // Separate Node.js process (not child of Electron)
-const WebSocket = require('ws');
-const { spawn } = require('child_process');
+const WebSocket = require("ws");
+const { spawn } = require("child_process");
 const wss = new WebSocket.Server({ port: 8080 });
 
-wss.on('connection', (ws) => {
-  ws.on('message', (data) => {
+wss.on("connection", (ws) => {
+  ws.on("message", (data) => {
     const { command, args } = JSON.parse(data);
     const child = spawn(command, args);
-    
-    child.stdout.on('data', (output) => {
-      ws.send(JSON.stringify({ type: 'output', data: output.toString() }));
+
+    child.stdout.on("data", (output) => {
+      ws.send(JSON.stringify({ type: "output", data: output.toString() }));
     });
   });
 });
 
 // In Electron main process
-const ws = new WebSocket('ws://localhost:8080');
-ws.send(JSON.stringify({ command: 'claude', args: ['chat', '-m', 'Hello'] }));
+const ws = new WebSocket("ws://localhost:8080");
+ws.send(JSON.stringify({ command: "claude", args: ["chat", "-m", "Hello"] }));
 ```
 
 This pattern completely bypasses Electron's security restrictions by running CLI tools in a separate Node.js process with full network access. The external process maintains its own network context, unaffected by Electron's sandboxing.
@@ -72,6 +77,7 @@ This pattern completely bypasses Electron's security restrictions by running CLI
 On macOS, additional security features compound subprocess issues:
 
 **Code signing and entitlements** affect subprocess behavior, requiring specific entitlements for network access:
+
 ```xml
 <key>com.apple.security.network.client</key>
 <true/>
@@ -80,6 +86,7 @@ On macOS, additional security features compound subprocess issues:
 ```
 
 **Debugging techniques** for macOS include using `dtruss` to trace system calls during network failures:
+
 ```bash
 sudo dtruss -t socket,connect,sendto,recvfrom -p $(pgrep -f "Electron Helper")
 ```
@@ -93,14 +100,16 @@ Based on extensive research and real-world implementations, follow these practic
 1. **Prefer utilityProcess over child_process** for Electron v22+ applications, always enabling `respondToAuthRequestsFromMainProcess` for API-dependent tools.
 
 2. **Implement timeout and cleanup mechanisms** to handle hung processes:
+
 ```javascript
 const timeout = setTimeout(() => {
-  child.kill('SIGTERM');
-  reject(new Error('CLI timeout'));
+  child.kill("SIGTERM");
+  reject(new Error("CLI timeout"));
 }, 30000);
 ```
 
 3. **Use environment variable fixes** for immediate workarounds:
+
 ```javascript
 env: {
   NODE_TLS_REJECT_UNAUTHORIZED: '0', // For development only

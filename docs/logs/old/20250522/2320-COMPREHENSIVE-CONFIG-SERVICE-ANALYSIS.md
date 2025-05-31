@@ -12,18 +12,18 @@ The persistent "Service not found: @effect/ai-openai/OpenAiLanguageModel/Config"
 // INCORRECT PATTERN - Treating AiModel as an Effect
 const aiModelEffectDefinition = OpenAiLanguageModel.model(modelName, {
   temperature: 0.7,
-  max_tokens: 2048
+  max_tokens: 2048,
 });
 
 // Trying to provide services to it as if it's an Effect
 const configuredAiModelEffect = Effect.provideService(
   aiModelEffectDefinition,
-  OpenAiClient.OpenAiClient, 
-  ollamaClient
+  OpenAiClient.OpenAiClient,
+  ollamaClient,
 );
 
 // Yielding it as if it returns a provider
-const provider = yield* _(configuredAiModelEffect);
+const provider = yield * _(configuredAiModelEffect);
 ```
 
 ### Why This Is Wrong
@@ -46,6 +46,7 @@ export interface AiModel<Provides, Requires> {
 ```
 
 An `AiModel` is:
+
 - A configuration object that describes how to build a language model
 - Has a `buildContext` method that creates the necessary services (including Config)
 - NOT an Effect that can be yielded directly
@@ -56,16 +57,16 @@ From the official Effect AI documentation:
 
 ```typescript
 // 1. Create an AiModel (this is just a configuration)
-const Gpt4o = OpenAiLanguageModel.model("gpt-4o")
+const Gpt4o = OpenAiLanguageModel.model("gpt-4o");
 
 // 2. Build it in an Effect context to get a Provider
-const main = Effect.gen(function*() {
+const main = Effect.gen(function* () {
   // This yields a Provider<AiLanguageModel>
-  const gpt4o = yield* Gpt4o
-  
+  const gpt4o = yield* Gpt4o;
+
   // 3. Use the provider to run programs that need AiLanguageModel
-  const response = yield* gpt4o.use(generateDadJoke)
-})
+  const response = yield* gpt4o.use(generateDadJoke);
+});
 ```
 
 ### How Config Service Is Created
@@ -73,20 +74,30 @@ const main = Effect.gen(function*() {
 Looking at the OpenAiLanguageModel source:
 
 ```typescript
-export const model = (model, config) => AiModel.make({
-  cacheKey,
-  cachedContext: Effect.map(make, model => Context.make(AiLanguageModel.AiLanguageModel, model)),
-  updateRequestContext: Effect.fnUntraced(function* (context) {
-    const perRequestConfig = yield* Config.getOrUndefined;
-    return Context.mergeAll(context, Context.make(Config, {
-      model,
-      ...config,
-      ...perRequestConfig
-    }), Context.make(Tokenizer.Tokenizer, OpenAiTokenizer.make({
-      model: perRequestConfig?.model ?? model
-    })));
-  })
-});
+export const model = (model, config) =>
+  AiModel.make({
+    cacheKey,
+    cachedContext: Effect.map(make, (model) =>
+      Context.make(AiLanguageModel.AiLanguageModel, model),
+    ),
+    updateRequestContext: Effect.fnUntraced(function* (context) {
+      const perRequestConfig = yield* Config.getOrUndefined;
+      return Context.mergeAll(
+        context,
+        Context.make(Config, {
+          model,
+          ...config,
+          ...perRequestConfig,
+        }),
+        Context.make(
+          Tokenizer.Tokenizer,
+          OpenAiTokenizer.make({
+            model: perRequestConfig?.model ?? model,
+          }),
+        ),
+      );
+    }),
+  });
 ```
 
 The `updateRequestContext` function is responsible for creating the Config service when the AiModel is built. This happens automatically when you yield the AiModel.
@@ -94,12 +105,15 @@ The `updateRequestContext` function is responsible for creating the Config servi
 ## Why All Our Fixes Failed
 
 ### Fix Attempt 1: Runtime Context
+
 We tried to provide the runtime with the Config service, but the Config service is created internally by the AiModel, not provided externally.
 
 ### Fix Attempt 2: Layer-Level Service Provision
+
 We created elaborate Layers to provide the Config service, but this was unnecessary because the AiModel creates its own Config service.
 
 ### Fix Attempt 3: Direct Service Provision
+
 We tried to provide the Config service to various Effects and Streams, but the real issue was that we weren't using the AiModel API correctly.
 
 ## The Real Solution
@@ -110,31 +124,30 @@ We tried to provide the Config service to various Effects and Streams, but the r
 export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
   const ollamaClient = yield* _(OllamaAsOpenAIClientTag);
   const config = yield* _(ConfigurationService);
-  const modelName = yield* _(config.get("OLLAMA_MODEL_NAME").pipe(
-    Effect.orElseSucceed(() => "gemma3:1b")
-  ));
+  const modelName = yield* _(
+    config
+      .get("OLLAMA_MODEL_NAME")
+      .pipe(Effect.orElseSucceed(() => "gemma3:1b")),
+  );
 
   // Create the AiModel
   const ollamaModel = OpenAiLanguageModel.model(modelName, {
     temperature: 0.7,
-    max_tokens: 2048
+    max_tokens: 2048,
   });
 
   // Build it with the OpenAI client
   const provider = yield* _(
     ollamaModel.pipe(
-      Effect.provide(Layer.succeed(OpenAiClient.OpenAiClient, ollamaClient))
-    )
+      Effect.provide(Layer.succeed(OpenAiClient.OpenAiClient, ollamaClient)),
+    ),
   );
 
   // Use the provider to implement our AgentLanguageModel
   return makeAgentLanguageModel({
-    generateText: (options) => provider.use(
-      AiLanguageModel.generateText(options)
-    ),
-    streamText: (options) => provider.use(
-      AiLanguageModel.streamText(options)
-    )
+    generateText: (options) =>
+      provider.use(AiLanguageModel.generateText(options)),
+    streamText: (options) => provider.use(AiLanguageModel.streamText(options)),
   });
 });
 ```
@@ -150,28 +163,31 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
   const modelName = yield* _(config.get("OLLAMA_MODEL_NAME"));
 
   return makeAgentLanguageModel({
-    generateText: (options) => Effect.gen(function* (_) {
-      const response = yield* _(client.client.createChatCompletion({
-        model: modelName,
-        messages: formatMessages(options.prompt),
-        temperature: options.temperature,
-        max_tokens: options.maxTokens
-      }));
-      return mapResponseToAiResponse(response);
-    }),
-    
-    streamText: (options) => 
+    generateText: (options) =>
+      Effect.gen(function* (_) {
+        const response = yield* _(
+          client.client.createChatCompletion({
+            model: modelName,
+            messages: formatMessages(options.prompt),
+            temperature: options.temperature,
+            max_tokens: options.maxTokens,
+          }),
+        );
+        return mapResponseToAiResponse(response);
+      }),
+
+    streamText: (options) =>
       Stream.unwrap(
         Effect.map(
           client.stream({
             model: modelName,
             messages: formatMessages(options.prompt),
             temperature: options.temperature,
-            max_tokens: options.maxTokens
+            max_tokens: options.maxTokens,
           }),
-          stream => Stream.map(stream, mapChunkToAiResponse)
-        )
-      )
+          (stream) => Stream.map(stream, mapChunkToAiResponse),
+        ),
+      ),
   });
 });
 ```
@@ -181,6 +197,7 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
 1. **Read the Library Design**: The @effect/ai library has a specific design pattern using AiModel as a configuration object, not an Effect.
 
 2. **Provider Pattern**: The library uses a Provider pattern where:
+
    - AiModel is a configuration
    - Building an AiModel gives you a Provider
    - A Provider has a `.use()` method to run programs
@@ -204,6 +221,7 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
 The persistent Config service error was not a bug in service resolution or context propagation. It was a fundamental misuse of the @effect/ai library's API. The library expects users to work with AiModel objects through their proper API (yielding them to get Providers), not treating them as Effects that can be manipulated with Effect combinators.
 
 The solution is to either:
+
 1. Use the AiModel API correctly as shown in the documentation
 2. Bypass the AiModel abstraction and use the OpenAI client directly
 

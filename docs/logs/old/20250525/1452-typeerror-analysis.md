@@ -13,12 +13,13 @@ The Claude Code provider implementation exhibits fundamental architectural misal
 ### Category 1: Service Access Pattern Violations
 
 **Symptoms:**
+
 ```typescript
 // Error: Property 'get' does not exist on type 'unknown'
-const apiKey = yield* _(configService.get("ANTHROPIC_API_KEY"));
+const apiKey = yield * _(configService.get("ANTHROPIC_API_KEY"));
 
-// Error: Property 'trackEvent' does not exist on type 'unknown'  
-yield* _(telemetry.trackEvent(event));
+// Error: Property 'trackEvent' does not exist on type 'unknown'
+yield * _(telemetry.trackEvent(event));
 ```
 
 **Root Cause Analysis:**
@@ -30,13 +31,15 @@ The implementation assumes direct service access rather than using Effect's depe
 ### Category 2: Effect Type Inference Collapse
 
 **Symptoms:**
+
 ```typescript
-// Error: Type 'Effect<unknown, unknown, unknown>' is not assignable to 
+// Error: Type 'Effect<unknown, unknown, unknown>' is not assignable to
 // type 'Effect<string, AiProviderError, never>'
 return someEffect; // TypeScript can't infer the proper Effect types
 ```
 
 **Root Cause Analysis:**
+
 1. **Service Access Pattern**: Using `configService.get()` directly instead of `yield* _(ConfigurationService)` then `service.get()`
 2. **Error Mapping Missing**: No explicit error channel mapping from service errors to domain errors
 3. **Effect Composition**: Improper chaining of Effects leading to type erasure
@@ -47,12 +50,13 @@ When Effect.gen blocks don't follow proper patterns, TypeScript falls back to `u
 ### Category 3: Layer Architecture Violations
 
 **Symptoms:**
+
 ```typescript
 // Error: Cannot find module '@/services/ai/providers/claude_code'
-import("@/services/ai/providers/claude_code")
+import("@/services/ai/providers/claude_code");
 
 // Error: Type 'unknown' is not assignable to type 'never'
-Layer.build(claudeCodeAgentLMLayer)
+Layer.build(claudeCodeAgentLMLayer);
 ```
 
 **Root Cause Analysis:**
@@ -65,6 +69,7 @@ The Layer construction doesn't follow the established patterns in the codebase:
 ### Category 4: CLI Integration Architecture Issues
 
 **Symptoms:**
+
 ```typescript
 // Error: Property 'substring' does not exist on type 'unknown'
 const cleanApiKey = apiKey.substring(8);
@@ -77,6 +82,7 @@ for await (const chunk of streamEffect) { ... }
 The CLI integration attempts to bridge imperative CLI operations with Effect's functional composition model without proper adaptation patterns.
 
 **Specific Issues:**
+
 1. **Process Management**: Child process spawning doesn't integrate with Effect's cancellation system
 2. **Stream Handling**: Mixing Node.js streams with Effect streams
 3. **Error Propagation**: CLI errors not properly mapped to Effect error channels
@@ -114,21 +120,29 @@ The Claude Code provider attempts to inject services via `Layer.provide(Layer.su
 ```typescript
 // Layer construction - CORRECT
 const layer = ClaudeCodeServiceLive.pipe(
-  Layer.provide(Layer.succeed(ConfigurationService, configService))
+  Layer.provide(Layer.succeed(ConfigurationService, configService)),
 );
 
-// Service access - INCORRECT  
-const apiKey = yield* _(configService.get("API_KEY")); // Should be yield* _(ConfigurationService)
+// Service access - INCORRECT
+const apiKey = yield * _(configService.get("API_KEY")); // Should be yield* _(ConfigurationService)
 ```
 
 ### Expected Pattern
 
 ```typescript
 // Service access - CORRECT
-const config = yield* _(ConfigurationService);
-const apiKey = yield* _(config.get("API_KEY").pipe(
-  Effect.mapError(error => new AiConfigurationError({ message: "Missing API key" }))
-));
+const config = yield * _(ConfigurationService);
+const apiKey =
+  yield *
+  _(
+    config
+      .get("API_KEY")
+      .pipe(
+        Effect.mapError(
+          (error) => new AiConfigurationError({ message: "Missing API key" }),
+        ),
+      ),
+  );
 ```
 
 ## Error Channel Management Analysis
@@ -178,6 +192,7 @@ const effectStream = Stream.fromAsyncIterable(nodeStream); // Type issues
 ### Required Stream Adaptation
 
 The implementation needs proper stream adapters that:
+
 1. Handle backpressure between Node.js and Effect streams
 2. Propagate cancellation signals
 3. Map stream errors to Effect error channels
@@ -186,21 +201,25 @@ The implementation needs proper stream adapters that:
 ## Recommendations for Resolution
 
 ### 1. Service Access Standardization
+
 - Replace direct service access with proper Effect service resolution
 - Implement consistent error mapping from service errors to domain errors
 - Follow established Layer composition patterns
 
 ### 2. Type System Recovery
+
 - Explicit type annotations on Effect.gen return types
 - Proper error channel mapping at every Effect boundary
 - Service tag definitions following codebase conventions
 
 ### 3. CLI Integration Refactoring
+
 - Implement proper Effect-based process management
 - Create stream adapters for Node.js/Effect integration
 - Add cancellation support throughout the CLI pipeline
 
 ### 4. Testing Strategy
+
 - Unit tests for each Effect-based service operation
 - Integration tests for the complete Layer composition
 - Error propagation tests for all failure modes
@@ -208,17 +227,20 @@ The implementation needs proper stream adapters that:
 ## Impact Assessment
 
 ### Current State
+
 - 50+ TypeScript compilation errors
 - Complete type safety breakdown in Claude Code provider
 - Potential runtime errors due to improper Effect usage
 
 ### Risk Analysis
+
 - Service lifecycle management failures
 - Memory leaks from improper stream handling
 - Unpredictable error propagation
 - Difficult debugging due to type erasure
 
 ### Recovery Effort
+
 - **High**: Requires significant refactoring of service patterns
 - **Medium**: Error mapping and type annotations
 - **Low**: Import path resolution and module structure
@@ -228,7 +250,7 @@ The implementation needs proper stream adapters that:
 The Claude Code provider implementation represents a fundamental architectural mismatch with the Effect-ts patterns established throughout the codebase. The errors are not superficial TypeScript issues but indicate deep structural problems in:
 
 1. Service dependency management
-2. Effect composition patterns  
+2. Effect composition patterns
 3. Error channel handling
 4. Stream integration architecture
 

@@ -14,9 +14,10 @@ Let's provide instructions to fix `OllamaAgentLanguageModelLive.ts` by ensuring 
 
 **Underlying Principle:**
 The `@effect/ai-openai` library provides `OpenAiLanguageModel.model(modelName)` which returns an `Effect`.
+
 1.  This first `Effect` (let's call it `aiModelEffectDefinition`) needs its `OpenAiClient.Service` dependency provided. Your `OllamaAsOpenAIClientLive` layer provides an adapter that implements `OpenAiClient.Service`.
 2.  After providing the client, running `aiModelEffectDefinition` yields an `AiModel` instance.
-3.  This `AiModel` instance is *also* an `Effect`. Running this second `Effect` yields the actual `Provider<Service>` (e.g., `Provider<AiLanguageModel>`).
+3.  This `AiModel` instance is _also_ an `Effect`. Running this second `Effect` yields the actual `Provider<Service>` (e.g., `Provider<AiLanguageModel>`).
 4.  This `Provider` has the `generateText`, `streamText`, etc., methods that your `AgentLanguageModel` implementation will use.
 
 **Instructions for the Coding Agent:**
@@ -24,11 +25,13 @@ The `@effect/ai-openai` library provides `OpenAiLanguageModel.model(modelName)` 
 1.  **Open `src/services/ai/providers/ollama/OllamaAgentLanguageModelLive.ts`.**
 
 2.  **Remove Local Mock of `OpenAiLanguageModel`:**
-    *   Search for and **delete any local constant or variable named `OpenAiLanguageModel`** that defines a mock implementation (e.g., `const OpenAiLanguageModel = { model: (...) => ... };`). We must use the library's version.
-    *   Your log `2422-log.md` indicates you created such a mock. This needs to be removed.
+
+    - Search for and **delete any local constant or variable named `OpenAiLanguageModel`** that defines a mock implementation (e.g., `const OpenAiLanguageModel = { model: (...) => ... };`). We must use the library's version.
+    - Your log `2422-log.md` indicates you created such a mock. This needs to be removed.
 
 3.  **Ensure Correct Imports from `@effect/ai` and `@effect/ai-openai`:**
     Update your import section to look like this:
+
     ```typescript
     // src/services/ai/providers/ollama/OllamaAgentLanguageModelLive.ts
     import { Layer, Effect, Stream, Context } from "effect";
@@ -50,10 +53,11 @@ The `@effect/ai-openai` library provides `OpenAiLanguageModel.model(modelName)` 
     import type { Provider, AiModel } from "@effect/ai"; // For Provider & AiModel types
     import type { AiError as OpenAiLibraryError } from "@effect/ai-openai/AiError"; // For errors from the library
     ```
-    *   **Crucial:** `OpenAiLanguageModel` is imported directly from `@effect/ai-openai`.
-    *   Types like `AiLanguageModel` (as `EffectAiLanguageModel`), `AiModel`, `Provider`, `AiResponse` are imported from `@effect/ai`.
-    *   `AiError` (as `OpenAiLibraryError`) is imported from `@effect/ai-openai/AiError` for error mapping.
-    *   `AiTextChunk` should come from your local core definition (`@/services/ai/core/AgentLanguageModel.ts`).
+
+    - **Crucial:** `OpenAiLanguageModel` is imported directly from `@effect/ai-openai`.
+    - Types like `AiLanguageModel` (as `EffectAiLanguageModel`), `AiModel`, `Provider`, `AiResponse` are imported from `@effect/ai`.
+    - `AiError` (as `OpenAiLibraryError`) is imported from `@effect/ai-openai/AiError` for error mapping.
+    - `AiTextChunk` should come from your local core definition (`@/services/ai/core/AgentLanguageModel.ts`).
 
 4.  **Implement `OllamaAgentLanguageModelLive` using the Real Library Components:**
     Modify the `Effect.gen` block for `OllamaAgentLanguageModelLive` as follows:
@@ -70,24 +74,28 @@ The `@effect/ai-openai` library provides `OpenAiLanguageModel.model(modelName)` 
         const configGetEffect = configService.get("OLLAMA_MODEL_NAME");
         const configResult = yield* _(Effect.either(configGetEffect));
 
-        if (configResult._tag === 'Right') {
+        if (configResult._tag === "Right") {
           modelName = configResult.right;
         } else {
           yield* _(
-            telemetry.trackEvent({
-              category: "ai:config:warn",
-              action: "ollama_model_name_fetch_failed_using_default",
-              label: "OLLAMA_MODEL_NAME",
-              value: String(configResult.left?.message || configResult.left),
-            }).pipe(Effect.ignoreLogged)
+            telemetry
+              .trackEvent({
+                category: "ai:config:warn",
+                action: "ollama_model_name_fetch_failed_using_default",
+                label: "OLLAMA_MODEL_NAME",
+                value: String(configResult.left?.message || configResult.left),
+              })
+              .pipe(Effect.ignoreLogged),
           );
         }
         yield* _(
-          telemetry.trackEvent({
-            category: "ai:config",
-            action: "ollama_model_name_resolved",
-            value: modelName,
-          }).pipe(Effect.ignoreLogged)
+          telemetry
+            .trackEvent({
+              category: "ai:config",
+              action: "ollama_model_name_resolved",
+              value: modelName,
+            })
+            .pipe(Effect.ignoreLogged),
         );
 
         // --- CORRECTED USAGE OF @effect/ai-openai ---
@@ -99,63 +107,107 @@ The `@effect/ai-openai` library provides `OpenAiLanguageModel.model(modelName)` 
         const configuredAiModelEffect = Effect.provideService(
           aiModelEffectDefinition,
           OpenAiClient.OpenAiClient, // Tag for the client dependency
-          ollamaAdaptedClient         // Your Ollama adapter that implements OpenAiClient.Service
+          ollamaAdaptedClient, // Your Ollama adapter that implements OpenAiClient.Service
         );
         // Type: Effect<AiModel<EffectAiLanguageModel, OpenAiClient.Service>, ConfigError, never>
 
         // 3. Execute to get the AiModel instance (AiModel is Effect<Provider<...>>)
-        const aiModel_Instance: AiModel<EffectAiLanguageModel, OpenAiClient.Service> = yield* _(configuredAiModelEffect);
+        const aiModel_Instance: AiModel<
+          EffectAiLanguageModel,
+          OpenAiClient.Service
+        > = yield* _(configuredAiModelEffect);
 
         // 4. Execute the AiModel (which is an Effect) to get the actual Provider
-        const provider: Provider<EffectAiLanguageModel> = yield* _(aiModel_Instance);
+        const provider: Provider<EffectAiLanguageModel> =
+          yield* _(aiModel_Instance);
         // --- END OF CORRECTED USAGE ---
 
         yield* _(
-          telemetry.trackEvent({
-            category: "ai:config",
-            action: "ollama_language_model_provider_created",
-            value: modelName,
-          }).pipe(Effect.ignoreLogged)
+          telemetry
+            .trackEvent({
+              category: "ai:config",
+              action: "ollama_language_model_provider_created",
+              value: modelName,
+            })
+            .pipe(Effect.ignoreLogged),
         );
 
         // Map errors from OpenAiLibraryError to your AIProviderError
-        const mapErrorToAIProviderError = (err: OpenAiLibraryError | any, contextAction: string, params: any) => {
+        const mapErrorToAIProviderError = (
+          err: OpenAiLibraryError | any,
+          contextAction: string,
+          params: any,
+        ) => {
           const detail = err.error || err; // OpenAiError often has an 'error' field for the underlying cause
           return new AIProviderError({
             message: `Ollama ${contextAction} error for model ${modelName}: ${detail?.message || String(detail) || "Unknown provider error"}`,
             cause: detail?.cause || detail,
             provider: "Ollama",
-            context: { model: modelName, params, originalErrorTag: detail?._tag, originalErrorMessage: detail?.message }
+            context: {
+              model: modelName,
+              params,
+              originalErrorTag: detail?._tag,
+              originalErrorMessage: detail?.message,
+            },
           });
         };
 
         const serviceImplementation: AgentLanguageModel = {
           _tag: "AgentLanguageModel",
-          generateText: (params) => provider.generateText(params).pipe(
-            Effect.mapError(err => mapErrorToAIProviderError(err as OpenAiLibraryError, "generateText", params))
-          ),
-          streamText: (params) => provider.streamText(params).pipe(
-            Stream.mapError(err => mapErrorToAIProviderError(err as OpenAiLibraryError, "streamText", params))
-          ),
-          generateStructured: (params) => provider.generateStructured(params).pipe(
-            Effect.mapError(err => mapErrorToAIProviderError(err as OpenAiLibraryError, "generateStructured", params))
-          ),
+          generateText: (params) =>
+            provider
+              .generateText(params)
+              .pipe(
+                Effect.mapError((err) =>
+                  mapErrorToAIProviderError(
+                    err as OpenAiLibraryError,
+                    "generateText",
+                    params,
+                  ),
+                ),
+              ),
+          streamText: (params) =>
+            provider
+              .streamText(params)
+              .pipe(
+                Stream.mapError((err) =>
+                  mapErrorToAIProviderError(
+                    err as OpenAiLibraryError,
+                    "streamText",
+                    params,
+                  ),
+                ),
+              ),
+          generateStructured: (params) =>
+            provider
+              .generateStructured(params)
+              .pipe(
+                Effect.mapError((err) =>
+                  mapErrorToAIProviderError(
+                    err as OpenAiLibraryError,
+                    "generateStructured",
+                    params,
+                  ),
+                ),
+              ),
         };
         return serviceImplementation;
       }),
     );
     ```
+
     **Key Changes in SUT:**
-    *   Removed any local mock for `OpenAiLanguageModel`.
-    *   Used `OpenAiLanguageModel.model(modelName)` from the imported `@effect/ai-openai`.
-    *   Implemented the correct two-step `yield*` process to resolve the `Provider`.
-    *   Updated the error mapping to expect `OpenAiLibraryError` (or `any` for safety) from the provider methods.
+
+    - Removed any local mock for `OpenAiLanguageModel`.
+    - Used `OpenAiLanguageModel.model(modelName)` from the imported `@effect/ai-openai`.
+    - Implemented the correct two-step `yield*` process to resolve the `Provider`.
+    - Updated the error mapping to expect `OpenAiLibraryError` (or `any` for safety) from the provider methods.
 
 5.  **Save the file `src/services/ai/providers/ollama/OllamaAgentLanguageModelLive.ts`.**
 
 6.  **Verify `src/services/runtime.ts`:**
-    *   Ensure `FullAppLayer` provides `BrowserHttpClient.layerXMLHttpRequest` (or `NodeHttpClient.layer` if appropriate for the environment where Ollama calls are made via the adapter). This `HttpClient.Tag` is a dependency of the real `@effect/ai-openai` client logic used by `OpenAiLanguageModel.model`.
-    *   The existing `FullAppLayer` in `src/services/runtime.ts` includes `BrowserHttpClient.layerXMLHttpRequest`, and `ollamaLanguageModelLayer` correctly provides `ollamaAdapterLayer` (which is `OllamaOpenAIClientTag`), `devConfigLayer` (for `ConfigurationService`), and `telemetryLayer`. This part looks okay.
+    - Ensure `FullAppLayer` provides `BrowserHttpClient.layerXMLHttpRequest` (or `NodeHttpClient.layer` if appropriate for the environment where Ollama calls are made via the adapter). This `HttpClient.Tag` is a dependency of the real `@effect/ai-openai` client logic used by `OpenAiLanguageModel.model`.
+    - The existing `FullAppLayer` in `src/services/runtime.ts` includes `BrowserHttpClient.layerXMLHttpRequest`, and `ollamaLanguageModelLayer` correctly provides `ollamaAdapterLayer` (which is `OllamaOpenAIClientTag`), `devConfigLayer` (for `ConfigurationService`), and `telemetryLayer`. This part looks okay.
 
 **Rationale:**
 The "Service not found" error means `OllamaAgentLanguageModelLive` (the default `AgentLanguageModel` provider in your `runtime.ts`) is not being successfully constructed and added to the application's Effect context. The most likely reason is an internal error during its `Layer.effect` execution.

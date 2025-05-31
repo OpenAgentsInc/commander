@@ -2,13 +2,14 @@
 
 ## Problem
 
-TypeScript compilation may pass while runtime errors occur in Effect generators, particularly the "yield* not iterable" error:
+TypeScript compilation may pass while runtime errors occur in Effect generators, particularly the "yield\* not iterable" error:
 
 ```
 TypeError: yield* (intermediate value)(intermediate value)(intermediate value) is not iterable
 ```
 
 ### Error Message
+
 ```
 Application Startup Failed
 A critical error occurred while initializing essential services, and the application cannot continue.
@@ -43,7 +44,7 @@ describe("Effect Generator Runtime Error Detection", () => {
     });
 
     const exit = await Effect.runPromise(
-      Effect.exit(testEffect.pipe(Effect.provide(mockLayer)))
+      Effect.exit(testEffect.pipe(Effect.provide(mockLayer))),
     );
 
     if (Exit.isFailure(exit)) {
@@ -78,11 +79,11 @@ describe("Effect Generator Pattern Runtime Error Detection", () => {
     getValue: () => Effect.Effect<string, never, never>;
   }
   const TestService = Context.GenericTag<TestService>("TestService");
-  
+
   const mockService: TestService = {
-    getValue: () => Effect.succeed("test-value")
+    getValue: () => Effect.succeed("test-value"),
   };
-  
+
   const testLayer = Layer.succeed(TestService, mockService);
 
   it("should detect incorrect service access patterns", async () => {
@@ -94,7 +95,7 @@ describe("Effect Generator Pattern Runtime Error Detection", () => {
     });
 
     const exit = await Effect.runPromise(
-      Effect.exit(serviceAccess.pipe(Effect.provide(testLayer)))
+      Effect.exit(serviceAccess.pipe(Effect.provide(testLayer))),
     );
 
     if (Exit.isFailure(exit)) {
@@ -110,19 +111,23 @@ describe("Effect Generator Pattern Runtime Error Detection", () => {
   it("should catch nested Effect.gen composition errors", async () => {
     const nestedComposition = Effect.gen(function* (_) {
       // Test complex nested patterns
-      const outerResult = yield* _(Effect.gen(function* (_) {
-        const service = yield* _(TestService);
-        const innerResult = yield* _(Effect.gen(function* (_) {
-          const value = yield* _(service.getValue());
-          return `nested-${value}`;
-        }));
-        return innerResult;
-      }));
+      const outerResult = yield* _(
+        Effect.gen(function* (_) {
+          const service = yield* _(TestService);
+          const innerResult = yield* _(
+            Effect.gen(function* (_) {
+              const value = yield* _(service.getValue());
+              return `nested-${value}`;
+            }),
+          );
+          return innerResult;
+        }),
+      );
       return outerResult;
     });
 
     const exit = await Effect.runPromise(
-      Effect.exit(nestedComposition.pipe(Effect.provide(testLayer)))
+      Effect.exit(nestedComposition.pipe(Effect.provide(testLayer))),
     );
 
     if (Exit.isFailure(exit)) {
@@ -138,11 +143,11 @@ describe("Effect Generator Pattern Runtime Error Detection", () => {
   it("should validate Provider.use() patterns", async () => {
     // Mock provider pattern
     const mockProvider = {
-      use: <A, E, R>(effect: Effect.Effect<A, E, R>) => 
+      use: <A, E, R>(effect: Effect.Effect<A, E, R>) =>
         Effect.gen(function* (_) {
           const result = yield* _(effect);
           return result;
-        })
+        }),
     };
 
     const providerTest = Effect.gen(function* (_) {
@@ -152,14 +157,14 @@ describe("Effect Generator Pattern Runtime Error Detection", () => {
             const service = yield* _(TestService);
             const value = yield* _(service.getValue());
             return `provider-${value}`;
-          })
-        )
+          }),
+        ),
       );
       return result;
     });
 
     const exit = await Effect.runPromise(
-      Effect.exit(providerTest.pipe(Effect.provide(testLayer)))
+      Effect.exit(providerTest.pipe(Effect.provide(testLayer))),
     );
 
     if (Exit.isFailure(exit)) {
@@ -187,7 +192,9 @@ Apply this testing pattern when:
 ## Testing Strategy
 
 ### 1. Specific Provider Tests
+
 Create runtime tests for each provider implementation:
+
 ```typescript
 // File: ProviderName.runtime.test.ts
 describe("ProviderName - Runtime Error Detection", () => {
@@ -198,7 +205,9 @@ describe("ProviderName - Runtime Error Detection", () => {
 ```
 
 ### 2. General Pattern Tests
+
 Create comprehensive pattern tests:
+
 ```typescript
 // File: effect-generator-patterns.test.ts
 describe("Effect Generator Pattern Runtime Error Detection", () => {
@@ -207,7 +216,9 @@ describe("Effect Generator Pattern Runtime Error Detection", () => {
 ```
 
 ### 3. Integration Tests
+
 Include runtime error detection in integration tests:
+
 ```typescript
 describe("Service Integration Runtime Tests", () => {
   it("should initialize all services without generator errors", async () => {
@@ -226,8 +237,9 @@ describe("Service Integration Runtime Tests", () => {
 ## High-Impact Prevention
 
 This pattern prevents:
+
 1. **Application Startup Failures**: Catches errors before they reach production
-2. **Runtime Generator Errors**: Detects "yield* not iterable" and similar issues
+2. **Runtime Generator Errors**: Detects "yield\* not iterable" and similar issues
 3. **Service Integration Issues**: Validates complex service access patterns
 4. **Provider Pattern Failures**: Ensures provider.use() patterns work correctly
 

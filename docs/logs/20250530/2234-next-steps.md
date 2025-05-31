@@ -1,11 +1,13 @@
 # Next Steps: End-to-End Testing with Real SWE-Bench Data
 
 ## Overview
+
 To test the SWE-Bench harness implementation end-to-end with real data, we need to set up the actual Docker environment, obtain real task data, and progressively test from simple to complex evaluations.
 
 ## 1. Get SWE-Bench Docker Image & Data
 
 ### Docker Image
+
 - Pull/build the official SWE-bench Docker image that contains:
   - Pre-configured conda environments for Python projects
   - Required system dependencies
@@ -13,6 +15,7 @@ To test the SWE-Bench harness implementation end-to-end with real data, we need 
 - Alternative: Build from their Dockerfile if customization needed
 
 ### Task Data
+
 - Download actual SWE-bench task JSON files from their dataset
 - Configure `SWE_BENCH_TASKS_PATH` in ConfigurationService to point to the data directory
 - Start with the "SWE-bench Lite" subset (300 tasks) for easier testing
@@ -28,39 +31,42 @@ import { SWEBenchHarnessService } from "@/services/swe_bench_harness";
 
 const program = Effect.gen(function* () {
   const harness = yield* SWEBenchHarnessService;
-  
+
   // Start with an easy task (e.g., django__django-11099)
   const result = yield* harness.evaluateTask(
     "django__django-11099",
-    "--- a/django/core/cache/backends/memcached.py\n+++ b/django/core/cache/backends/memcached.py\n@@ -1,5 +1,5 @@\n-\"Memcached cache backend\"\n+\"Memcached cache backend.\"\n"
+    '--- a/django/core/cache/backends/memcached.py\n+++ b/django/core/cache/backends/memcached.py\n@@ -1,5 +1,5 @@\n-"Memcached cache backend"\n+"Memcached cache backend."\n',
   );
-  
+
   console.log("Evaluation Result:", result);
 });
 
 // Run with full layer
-Effect.runPromise(program.pipe(
-  Effect.provide(FullSWEBenchHarnessLayer)
-));
+Effect.runPromise(program.pipe(Effect.provide(FullSWEBenchHarnessLayer)));
 ```
 
 ## 3. Add IPC Endpoint (Optional Phase 4.4)
 
 ### Main Process Handler
+
 ```typescript
 // In main.ts
-ipcMain.handle('swebench:evaluate-task', async (event, instanceId: string, patchContent: string) => {
-  return Runtime.runPromise(
-    sweBenchRuntime,
-    Effect.gen(function* () {
-      const harness = yield* SWEBenchHarnessService;
-      return yield* harness.evaluateTask(instanceId, patchContent);
-    })
-  );
-});
+ipcMain.handle(
+  "swebench:evaluate-task",
+  async (event, instanceId: string, patchContent: string) => {
+    return Runtime.runPromise(
+      sweBenchRuntime,
+      Effect.gen(function* () {
+        const harness = yield* SWEBenchHarnessService;
+        return yield* harness.evaluateTask(instanceId, patchContent);
+      }),
+    );
+  },
+);
 ```
 
 ### Renderer API
+
 - Expose via context bridge
 - Create simple test UI or CLI command
 - View results in console/logs initially
@@ -68,17 +74,20 @@ ipcMain.handle('swebench:evaluate-task', async (event, instanceId: string, patch
 ## 4. Test with Progressive Complexity
 
 ### Stage 1: Trivial Patches
+
 - Documentation fixes
 - Typo corrections
 - Comment updates
 - Verify: Container starts, patch applies, no tests break
 
 ### Stage 2: Simple Bug Fixes
+
 - Single-line code changes
 - Clear test failures that patch should fix
 - Verify: Tests transition from FAIL to PASS
 
 ### Stage 3: Complex Tasks
+
 - Multi-file changes
 - Multiple test failures
 - Dependency interactions
@@ -87,6 +96,7 @@ ipcMain.handle('swebench:evaluate-task', async (event, instanceId: string, patch
 ## 5. Monitor & Debug
 
 ### Container Monitoring
+
 ```bash
 # Watch container logs in real-time
 docker logs -f <container-id>
@@ -96,6 +106,7 @@ docker exec <container-id> ls -la /swe_bench_workdir/
 ```
 
 ### Debug Checkpoints
+
 1. **Task Loading**: Verify task JSON parsed correctly
 2. **Container Setup**: Check repo cloned at correct commit
 3. **Script Generation**: Review generated eval.sh for correctness
@@ -105,7 +116,9 @@ docker exec <container-id> ls -la /swe_bench_workdir/
 7. **Resource Cleanup**: Verify container and temp files removed
 
 ### Telemetry Events
+
 Enable telemetry to track:
+
 - Task start/completion times
 - Container lifecycle events
 - Evaluation success/failure rates
@@ -121,6 +134,7 @@ Enable telemetry to track:
 ## 7. Error Recovery
 
 Test error scenarios:
+
 - Network failures during clone
 - Invalid patches
 - Container crashes

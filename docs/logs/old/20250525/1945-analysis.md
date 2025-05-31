@@ -8,6 +8,7 @@
 ## Executive Summary
 
 We have definitively proven that the Claude CLI subprocess execution failure is **specific to Electron's main process environment**. The CLI works perfectly when:
+
 - Executed manually in terminal
 - Executed via `node-pty` in standalone Node.js script
 
@@ -18,18 +19,20 @@ But fails consistently when executed from Electron's main process using any subp
 ### ✅ Successful: Standalone Node.js with node-pty
 
 **Test Script**: `scripts/test-claude-pty-standalone.js`
+
 ```javascript
-const pty = require('node-pty');
+const pty = require("node-pty");
 const ptyProcess = pty.spawn(claudePath, args, {
-    name: 'xterm-256color',
-    cols: 120,
-    rows: 30,
-    cwd: process.env.HOME,
-    env: env
+  name: "xterm-256color",
+  cols: 120,
+  rows: 30,
+  cwd: process.env.HOME,
+  env: env,
 });
 ```
 
 **Results**:
+
 - **Execution time**: 6.4 seconds total
 - **First response**: 1072ms (system init)
 - **Full response**: 6395ms (assistant message)
@@ -37,6 +40,7 @@ const ptyProcess = pty.spawn(claudePath, args, {
 - **Output**: Clean JSON stream as expected
 
 **Successful Output Format**:
+
 ```json
 // System initialization
 {
@@ -79,37 +83,50 @@ const ptyProcess = pty.spawn(claudePath, args, {
 **Location**: `src/main.ts` - IPC handler for `claude-code:chat-stream`
 
 #### Attempt 1: Direct spawn
+
 ```javascript
-const { spawn } = require('child_process');
+const { spawn } = require("child_process");
 const claudeProcess = spawn(claudePath, args, {
-    stdio: ["pipe", "pipe", "pipe"],
-    env: { ...process.env }
+  stdio: ["pipe", "pipe", "pipe"],
+  env: { ...process.env },
 });
 // Result: Timeout after 10 seconds, process killed with SIGTERM
 ```
 
 #### Attempt 2: execFile
+
 ```javascript
-const { execFile } = require('child_process');
-execFile(claudePath, args, {
+const { execFile } = require("child_process");
+execFile(
+  claudePath,
+  args,
+  {
     env: { ...process.env },
     timeout: 15000,
-    maxBuffer: 1024 * 1024 * 10
-}, callback);
+    maxBuffer: 1024 * 1024 * 10,
+  },
+  callback,
+);
 // Result: Command failed with code 143 (SIGTERM)
 ```
 
 #### Attempt 3: Shell execution
+
 ```javascript
-const { exec } = require('child_process');
-exec(fullCommand, {
+const { exec } = require("child_process");
+exec(
+  fullCommand,
+  {
     env: { ...process.env },
-    shell: '/bin/zsh'
-}, callback);
+    shell: "/bin/zsh",
+  },
+  callback,
+);
 // Result: Command failed with code 143 (SIGTERM)
 ```
 
 #### Attempt 4: Temporary shell script
+
 ```javascript
 // Write command to .sh file and execute
 fs.writeFileSync(tempScriptPath, scriptContent, { mode: 0o755 });
@@ -118,6 +135,7 @@ exec(`/bin/zsh "${tempScriptPath}"`, options, callback);
 ```
 
 #### Attempt 5: node-pty in Electron (hypothetical)
+
 ```javascript
 // Same code as standalone script but in Electron main process
 const pty = require('node-pty');
@@ -128,6 +146,7 @@ const ptyProcess = pty.spawn(claudePath, args, { ... });
 ## Key Observations
 
 ### 1. Consistent Failure Pattern in Electron
+
 - **All methods timeout**: 10-30 seconds with no output
 - **Process killed**: SIGTERM (code 143) or timeout
 - **No stdout/stderr**: Process hangs before producing any output
@@ -136,6 +155,7 @@ const ptyProcess = pty.spawn(claudePath, args, { ... });
 ### 2. Environment Comparison
 
 **Working (Terminal/Standalone Node.js)**:
+
 ```bash
 Command: /Users/christopherdavid/.npm-global/bin/claude -p "hi" --output-format stream-json --verbose
 Environment: Standard shell environment
@@ -144,6 +164,7 @@ Result: Success in 3-6 seconds
 ```
 
 **Not Working (Electron Main Process)**:
+
 ```javascript
 Command: Identical
 Environment: Identical (verified PATH, HOME, etc.)
@@ -154,15 +175,18 @@ Result: Timeout/SIGTERM after 10-30 seconds
 ### 3. Critical Evidence
 
 1. **Authentication is NOT the issue**:
+
    - `claude --version` works in Electron subprocess
-   - CLI uses stored auth from `claude auth` 
+   - CLI uses stored auth from `claude auth`
    - No API key needed in environment
 
 2. **Command construction is correct**:
+
    - Exact same command works in terminal
    - Non-interactive flags properly set: `-p`, `--output-format stream-json`, `--verbose`
 
 3. **TTY is NOT the sole issue**:
+
    - node-pty provides full PTY emulation
    - Works in standalone Node.js with same PTY setup
 
@@ -185,6 +209,7 @@ Electron's main process runs with additional security restrictions that affect s
 ### Why node-pty Works Standalone but Not in Electron
 
 The successful standalone test proves:
+
 - The CLI can work programmatically with proper PTY emulation
 - The issue is NOT with the CLI itself or node-pty
 - The issue IS with Electron's subprocess environment
@@ -192,29 +217,35 @@ The successful standalone test proves:
 ## Recommendations for Further Investigation
 
 ### 1. Test Electron's utilityProcess API
+
 ```javascript
-const { utilityProcess } = require('electron');
-const child = utilityProcess.fork('claude-pty-wrapper.js');
+const { utilityProcess } = require("electron");
+const child = utilityProcess.fork("claude-pty-wrapper.js");
 // More isolated than main process subprocess
 ```
 
 ### 2. Research Specific Electron Limitations
+
 Areas to investigate:
+
 - Subprocess network access restrictions
-- Certificate/TLS handling differences  
+- Certificate/TLS handling differences
 - DNS resolution in subprocesses
 - Resource limits (ulimit equivalents)
 - Signal propagation and handling
 
 ### 3. Network Debugging
+
 ```javascript
 // In Electron main process before spawning
-const { net } = require('electron');
+const { net } = require("electron");
 // Check if Electron's network stack affects subprocesses
 ```
 
 ### 4. Process Monitoring
+
 Use system tools while Claude CLI hangs:
+
 - `lsof -p [PID]` - Check open files/sockets
 - `dtruss -p [PID]` (macOS) - System call tracing
 - Network monitoring for connection attempts
@@ -224,6 +255,7 @@ Use system tools while Claude CLI hangs:
 Given the Electron-specific restrictions, consider:
 
 ### 1. External Service Bridge
+
 ```javascript
 // Separate Node.js service
 const express = require('express');
@@ -238,34 +270,38 @@ const response = await fetch('http://localhost:3001/claude', { ... });
 ```
 
 ### 2. Electron utilityProcess
+
 ```javascript
 // More isolated subprocess environment
-const { utilityProcess } = require('electron');
-const claude = utilityProcess.fork('claude-wrapper.js', [], {
-    serviceName: 'claude-cli-service',
-    stdio: 'pipe'
+const { utilityProcess } = require("electron");
+const claude = utilityProcess.fork("claude-wrapper.js", [], {
+  serviceName: "claude-cli-service",
+  stdio: "pipe",
 });
 ```
 
 ### 3. Direct API Integration
+
 ```javascript
 // Skip CLI entirely, use Anthropic API directly
-const response = await fetch('https://api.anthropic.com/v1/messages', {
-    headers: { 'x-api-key': apiKey },
-    body: JSON.stringify({ messages, model: 'claude-3-opus-20240229' })
+const response = await fetch("https://api.anthropic.com/v1/messages", {
+  headers: { "x-api-key": apiKey },
+  body: JSON.stringify({ messages, model: "claude-3-opus-20240229" }),
 });
 ```
 
 ## Conclusion
 
 The Claude CLI subprocess execution issue is definitively caused by **Electron's main process security restrictions**, not by:
+
 - ❌ CLI authentication issues
-- ❌ Command argument problems  
+- ❌ Command argument problems
 - ❌ TTY requirements
 - ❌ Environment variable issues
 - ❌ node-pty compatibility
 
 The fact that identical code works in standalone Node.js but fails in Electron proves this is an Electron-specific limitation that requires either:
+
 1. Using Electron's `utilityProcess` for better isolation
 2. Running Claude CLI in an external Node.js service
 3. Abandoning CLI approach for direct API integration

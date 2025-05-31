@@ -1,10 +1,12 @@
 # Wallet Display Fixes Log - 0410
 
 ## Issues to Fix
+
 1. Top-right balance display doesn't clear when user logs out
 2. Wallet pane is showing automatically - should only open when user clicks hotbar or top-right display
 
 ## Implementation Plan
+
 1. Make BitcoinBalanceDisplay check wallet initialization state
 2. Find where wallet pane is being opened automatically and remove it
 3. Ensure wallet pane only opens via explicit user action
@@ -18,6 +20,7 @@ Found that BitcoinBalanceDisplay doesn't check wallet initialization state befor
 ### Step 2: Fixed BitcoinBalanceDisplay
 
 Added:
+
 1. Import useWalletStore
 2. Check walletIsInitialized state
 3. Show "No wallet" when not initialized
@@ -26,6 +29,7 @@ Added:
 ### Step 3: Investigating Wallet Pane Auto-Show Issue
 
 Checked:
+
 - pane.ts initial state - only shows Sell Compute pane ✓
 - merge function - ignores persisted state and forces clean start ✓
 - PaneManager - only renders panes in store ✓

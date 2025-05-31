@@ -205,8 +205,9 @@ Streamline how pane activation is handled on mouse down and during drag initiati
 
 **3. Regarding the `touch-action` warning:**
 The agent has already added `style={{ touchAction: 'none' }}` to the draggable title bar and resize handles in `src/panes/Pane.tsx`. This is the correct way to address the warning from `@use-gesture`. If the warning persists:
-* Ensure it's applied to *all* elements that have `useDrag` or other gestures bound to them.
-* The warning might be a one-time development mode message that doesn't reflect an ongoing issue if the style is indeed correctly applied. \* Clear browser/Electron cache or restart the dev server if it's a stale warning.
+
+- Ensure it's applied to _all_ elements that have `useDrag` or other gestures bound to them.
+- The warning might be a one-time development mode message that doesn't reflect an ongoing issue if the style is indeed correctly applied. \* Clear browser/Electron cache or restart the dev server if it's a stale warning.
 
 The provided code for `Pane.tsx` already includes `touchAction: 'none'` on the title bar and resize handles.
 

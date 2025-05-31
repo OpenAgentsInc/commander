@@ -23,8 +23,8 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:status', action: 'chec
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:status', action: 'check_wallet_status_success', label: 'Wallet ready, balance: 0', timestamp: 1748107212579}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:admin', action: 'check_listening_status', value: 'inactive', timestamp: 1748107212580}
 VM1286 renderer_init:2 Electron Security Warning (Insecure Content-Security-Policy) This renderer process has either no Content Security
-  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
-  this app to unnecessary security risks.
+Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+this app to unnecessary security risks.
 
 For more information and help, consult
 https://electronjs.org/docs/tutorial/security.
@@ -93,8 +93,8 @@ overrideMethod @ hook.js:608
 onevent @ NostrServiceImpl.ts:478
 handleNext @ nostr-tools.js?v=ad354b67:2248
 runQueue @ nostr-tools.js?v=ad354b67:2215
-_onmessage @ nostr-tools.js?v=ad354b67:2378
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"I was trained by Google DeepMind.","annotations":[],"_tag":"TextPart"},{"usage":{"inputTokens":0,"outputTokens":33,"totalTokens":33,"reasoningTokens":0,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"reason":"unknown","providerMetadata":{},"_tag":"FinishPart"}]} Abort signal status: false
+\_onmessage @ nostr-tools.js?v=ad354b67:2378
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"I was trained by Google DeepMind.","annotations":[],"\_tag":"TextPart"},{"usage":{"inputTokens":0,"outputTokens":33,"totalTokens":33,"reasoningTokens":0,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"reason":"unknown","providerMetadata":{},"\_tag":"FinishPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1748107217016 Chunk length: 33
 useAgentChat.ts:265 [useAgentChat] Ensuring block entered. {messageId: 'assistant-1748107217016', abortController: 'present', signalAborted: false, isLoading: false}
 useAgentChat.ts:281 [useAgentChat] Clearing abort controller for message: assistant-1748107217016

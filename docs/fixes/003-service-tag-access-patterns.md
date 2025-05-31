@@ -6,10 +6,11 @@ When accessing services in Effect generators, using the service class directly i
 
 ```typescript
 // This doesn't work:
-const model = yield* _(AgentLanguageModel); // Type error
+const model = yield * _(AgentLanguageModel); // Type error
 ```
 
 ### Error Message
+
 ```
 Argument of type '{ Tag: Context.Tag<AgentLanguageModel, AgentLanguageModel>; }' is not assignable to parameter of type 'Effect<unknown, unknown, unknown>'.
 Type '{ Tag: Tag<AgentLanguageModel, AgentLanguageModel>; }' is missing the following properties from type 'Effect<unknown, unknown, unknown>': [Symbol.iterator], [EffectTypeId], pipe, [SinkTypeId], and 2 more.
@@ -20,6 +21,7 @@ Type '{ Tag: Tag<AgentLanguageModel, AgentLanguageModel>; }' is missing the foll
 In Effect, service classes are not directly usable in `yield* _()` expressions. Service classes have a `.Tag` property that contains the actual `Context.Tag` needed for dependency injection.
 
 The confusion arises because:
+
 1. Service classes look like they should be directly yieldable
 2. The `.Tag` property is not immediately obvious
 3. TypeScript shows complex error messages about missing symbols
@@ -30,9 +32,9 @@ Always use the `.Tag` property when accessing services in Effect generators:
 
 ```typescript
 // Correct pattern:
-const model = yield* _(AgentLanguageModel.Tag);
-const config = yield* _(ConfigurationService.Tag);  
-const telemetry = yield* _(TelemetryService.Tag);
+const model = yield * _(AgentLanguageModel.Tag);
+const config = yield * _(ConfigurationService.Tag);
+const telemetry = yield * _(TelemetryService.Tag);
 ```
 
 ### Why This Pattern is Required
@@ -46,19 +48,22 @@ const telemetry = yield* _(TelemetryService.Tag);
 
 ```typescript
 // Service definition
-export class MyService extends Context.Tag("MyService")<MyService, {
-  doSomething: (input: string) => Effect.Effect<string, never, never>;
-}> {}
+export class MyService extends Context.Tag("MyService")<
+  MyService,
+  {
+    doSomething: (input: string) => Effect.Effect<string, never, never>;
+  }
+> {}
 
 // Correct usage in Effect generators
 export const myProgram = Effect.gen(function* (_) {
   // ✅ Correct - use .Tag
   const myService = yield* _(MyService.Tag);
   const result = yield* _(myService.doSomething("input"));
-  
+
   // ❌ Wrong - don't use service class directly
   // const myService = yield* _(MyService); // Type error!
-  
+
   return result;
 });
 
@@ -66,37 +71,40 @@ export const myProgram = Effect.gen(function* (_) {
 export const MyServiceLive = Layer.succeed(
   MyService.Tag, // ✅ Use .Tag here too
   {
-    doSomething: (input: string) => Effect.succeed(`processed: ${input}`)
-  }
+    doSomething: (input: string) => Effect.succeed(`processed: ${input}`),
+  },
 );
 ```
 
 ## Common Service Patterns
 
 ### Built-in Effect Services
+
 ```typescript
 // These services follow the same pattern:
-const logger = yield* _(Logger.Tag);
-const console = yield* _(Console.Tag);
-const clock = yield* _(Clock.Tag);
+const logger = yield * _(Logger.Tag);
+const console = yield * _(Console.Tag);
+const clock = yield * _(Clock.Tag);
 ```
 
-### Custom Application Services  
+### Custom Application Services
+
 ```typescript
 // Your application services:
-const agentLM = yield* _(AgentLanguageModel.Tag);
-const config = yield* _(ConfigurationService.Tag);
-const telemetry = yield* _(TelemetryService.Tag);
-const nostr = yield* _(NostrService.Tag);
+const agentLM = yield * _(AgentLanguageModel.Tag);
+const config = yield * _(ConfigurationService.Tag);
+const telemetry = yield * _(TelemetryService.Tag);
+const nostr = yield * _(NostrService.Tag);
 ```
 
 ### Layer Composition
+
 ```typescript
 // When providing services to layers:
 export const AppLive = Layer.mergeAll(
   AgentLanguageModel.Tag.pipe(Layer.provide(OllamaAgentLanguageModelLive)),
   ConfigurationService.Tag.pipe(Layer.provide(ConfigurationServiceLive)),
-  TelemetryService.Tag.pipe(Layer.provide(TelemetryServiceLive))
+  TelemetryService.Tag.pipe(Layer.provide(TelemetryServiceLive)),
 );
 ```
 
@@ -113,21 +121,23 @@ grep -r "yield\* _(.*Service)" src/ | grep -v "\.Tag"
 ```
 
 In TypeScript files:
+
 ```typescript
 // Before (incorrect):
-const agentLM = yield* _(AgentLanguageModel);
-const config = yield* _(ConfigurationService);
-const telemetry = yield* _(TelemetryService);
+const agentLM = yield * _(AgentLanguageModel);
+const config = yield * _(ConfigurationService);
+const telemetry = yield * _(TelemetryService);
 
-// After (correct):  
-const agentLM = yield* _(AgentLanguageModel.Tag);
-const config = yield* _(ConfigurationService.Tag);
-const telemetry = yield* _(TelemetryService.Tag);
+// After (correct):
+const agentLM = yield * _(AgentLanguageModel.Tag);
+const config = yield * _(ConfigurationService.Tag);
+const telemetry = yield * _(TelemetryService.Tag);
 ```
 
 ## When to Apply This Fix
 
 Apply this fix when you see:
+
 1. Type errors mentioning missing `[EffectTypeId]` or `[Symbol.iterator]`
 2. Errors about service classes not being assignable to Effect types
 3. `Context.Tag` mentioned in error messages

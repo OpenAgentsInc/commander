@@ -204,6 +204,55 @@ export const DockerUtilsServiceLive = Layer.effect(
 
           return result;
         }),
+
+      buildImage: (contextPath: string, options: Dockerode.ImageBuildOptions) =>
+        Effect.async<NodeJS.ReadableStream, DockerOperationError>((resume) => {
+          try {
+            const tarStream = tar.pack(contextPath);
+
+            docker.buildImage(tarStream, options, (err, stream) => {
+              if (err) {
+                resume(Effect.fail(new DockerOperationError({
+                  message: `Failed to start image build for context ${contextPath}`,
+                  operation: "buildImage.start",
+                  imageName: options.t as string,
+                  cause: err
+                })));
+                return;
+              }
+              if (!stream) {
+                resume(Effect.fail(new DockerOperationError({
+                  message: `No stream returned for image build from context ${contextPath}`,
+                  operation: "buildImage.nostream",
+                  imageName: options.t as string
+                })));
+                return;
+              }
+
+              // Return the stream immediately for the caller to handle
+              // The caller will need to use docker.modem.followProgress to track completion
+              resume(Effect.succeed(stream));
+            });
+          } catch (e) {
+            resume(Effect.fail(new DockerOperationError({
+              message: "Error creating TAR stream for Docker build context",
+              operation: "buildImage.tar",
+              imageName: options.t as string,
+              cause: e
+            })));
+          }
+        }),
+
+      removeImage: (imageNameOrId, options) =>
+        Effect.tryPromise({
+          try: () => docker.getImage(imageNameOrId).remove(options),
+          catch: (cause) => new DockerOperationError({
+            message: `Failed to remove image ${imageNameOrId}`,
+            operation: "removeImage",
+            imageName: imageNameOrId,
+            cause
+          })
+        }).pipe(Effect.asVoid),
     });
   })
 );

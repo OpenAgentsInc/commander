@@ -9,6 +9,7 @@ This guide helps future coding agents understand and fix the recurring TypeScrip
 ### 1. TelemetryService Type Errors in Tests
 
 **Error Pattern:**
+
 ```typescript
 error TS2345: Argument of type 'Effect<void, never, TelemetryService>' is not assignable to parameter of type 'Effect<void, never, never>'.
   Type 'TelemetryService' is not assignable to type 'never'.
@@ -28,16 +29,13 @@ const testLayer = Layer.mergeAll(
 );
 
 // Option 2: Provide when running Effect
-await Effect.runPromise(
-  someEffect.pipe(
-    Effect.provide(TelemetryServiceLive)
-  )
-);
+await Effect.runPromise(someEffect.pipe(Effect.provide(TelemetryServiceLive)));
 ```
 
 ### 2. SparkServiceConfig Dependency Errors
 
 **Error Pattern:**
+
 ```typescript
 Type 'TelemetryService | SparkServiceConfig' is not assignable to type 'never'.
 ```
@@ -50,22 +48,20 @@ Provide SparkServiceConfig or use the mock implementation:
 
 ```typescript
 // For tests that don't need real Spark functionality
-const testLayer = Layer.mergeAll(
-  SparkServiceMockLive,
-  TelemetryServiceLive
-);
+const testLayer = Layer.mergeAll(SparkServiceMockLive, TelemetryServiceLive);
 
 // For tests that need real Spark
 const testLayer = Layer.mergeAll(
   SparkServiceLive,
   SparkServiceConfigLive,
-  TelemetryServiceLive
+  TelemetryServiceLive,
 );
 ```
 
 ### 3. ECC Library Errors
 
 **Error Pattern:**
+
 ```typescript
 Error: ecc library invalid
 ```
@@ -78,8 +74,8 @@ Initialize the ECC library in test setup:
 
 ```typescript
 // In test setup or beforeAll
-import * as ecc from 'tiny-secp256k1';
-import { initEccLib } from 'bitcoinjs-lib';
+import * as ecc from "tiny-secp256k1";
+import { initEccLib } from "bitcoinjs-lib";
 
 beforeAll(() => {
   initEccLib(ecc);
@@ -105,13 +101,13 @@ When creating test layers, dependencies must be provided in the correct order:
 ```typescript
 // Correct order (dependencies first)
 const testLayer = Layer.mergeAll(
-  ConfigurationServiceLive,     // No dependencies
-  TelemetryServiceLive,         // Depends on ConfigurationService
-  NIP13ServiceLive,             // Depends on TelemetryService
-  NostrServiceConfigLive,       // Configuration layer
-  NostrServiceLive,             // Depends on all above
-  NIP04ServiceLive,             // Depends on TelemetryService
-  NIP90ServiceLive              // Depends on Nostr, NIP04, Telemetry
+  ConfigurationServiceLive, // No dependencies
+  TelemetryServiceLive, // Depends on ConfigurationService
+  NIP13ServiceLive, // Depends on TelemetryService
+  NostrServiceConfigLive, // Configuration layer
+  NostrServiceLive, // Depends on all above
+  NIP04ServiceLive, // Depends on TelemetryService
+  NIP90ServiceLive, // Depends on Nostr, NIP04, Telemetry
 );
 ```
 
@@ -130,8 +126,8 @@ For integration tests, use live services but provide test configurations.
 ### Unit Test Pattern
 
 ```typescript
-describe('MyService', () => {
-  it('should do something', async () => {
+describe("MyService", () => {
+  it("should do something", async () => {
     const program = Effect.gen(function* () {
       const service = yield* MyService;
       return yield* service.someMethod();
@@ -141,11 +137,11 @@ describe('MyService', () => {
       // Add all required service dependencies
       TelemetryServiceLive,
       ConfigurationServiceLive,
-      MyServiceLive
+      MyServiceLive,
     );
 
     const result = await Effect.runPromise(
-      program.pipe(Effect.provide(testLayer))
+      program.pipe(Effect.provide(testLayer)),
     );
 
     expect(result).toBe(expected);
@@ -156,7 +152,7 @@ describe('MyService', () => {
 ### Integration Test Pattern
 
 ```typescript
-describe('Integration Test', () => {
+describe("Integration Test", () => {
   let runtime: Runtime.Runtime<MyService | TelemetryService>;
 
   beforeAll(async () => {
@@ -164,25 +160,21 @@ describe('Integration Test', () => {
       ConfigurationServiceLive,
       TelemetryServiceLive,
       // ... other dependencies
-      MyServiceLive
+      MyServiceLive,
     );
 
-    runtime = await Effect.runPromise(
-      Layer.toRuntime(layer)
-    );
+    runtime = await Effect.runPromise(Layer.toRuntime(layer));
   });
 
   afterAll(async () => {
-    await Effect.runPromise(
-      Runtime.dispose(runtime)
-    );
+    await Effect.runPromise(Runtime.dispose(runtime));
   });
 
-  it('should integrate correctly', async () => {
+  it("should integrate correctly", async () => {
     const result = await Effect.runPromise(
-      myEffect.pipe(Effect.provide(runtime))
+      myEffect.pipe(Effect.provide(runtime)),
     );
-    
+
     expect(result).toBeDefined();
   });
 });
@@ -211,8 +203,8 @@ describe('Integration Test', () => {
 import { Effect, Layer, Runtime } from "effect";
 import { TelemetryServiceLive } from "@/services/telemetry";
 import { ConfigurationServiceLive } from "@/services/configuration";
-import * as ecc from 'tiny-secp256k1';
-import { initEccLib } from 'bitcoinjs-lib';
+import * as ecc from "tiny-secp256k1";
+import { initEccLib } from "bitcoinjs-lib";
 ```
 
 ### Minimal Test Layer
@@ -220,7 +212,7 @@ import { initEccLib } from 'bitcoinjs-lib';
 ```typescript
 const minimalTestLayer = Layer.mergeAll(
   ConfigurationServiceLive,
-  TelemetryServiceLive
+  TelemetryServiceLive,
 );
 ```
 
@@ -239,7 +231,7 @@ const fullTestLayer = Layer.mergeAll(
   NostrServiceLive,
   NIP28ServiceLive,
   NIP90ServiceLive,
-  SparkServiceMockLive
+  SparkServiceMockLive,
 );
 ```
 

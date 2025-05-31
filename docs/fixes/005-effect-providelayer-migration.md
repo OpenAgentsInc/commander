@@ -6,12 +6,11 @@ When upgrading Effect to newer versions, `Effect.provideLayer` is deprecated and
 
 ```typescript
 // Old pattern that no longer works:
-Effect.runPromise(
-  program.pipe(Effect.provideLayer(TestLayers))
-);
+Effect.runPromise(program.pipe(Effect.provideLayer(TestLayers)));
 ```
 
 ### Error Message
+
 ```
 Property 'provideLayer' does not exist on type 'typeof import("effect/Effect")'
 ```
@@ -19,7 +18,8 @@ Property 'provideLayer' does not exist on type 'typeof import("effect/Effect")'
 ## Root Cause
 
 In newer versions of Effect, the layer providing API was simplified:
-- **Old API**: `Effect.provideLayer(layer)` 
+
+- **Old API**: `Effect.provideLayer(layer)`
 - **New API**: `Effect.provide(layer)`
 
 The `provideLayer` method was removed to reduce API surface area and improve consistency, as `provide` can handle both individual services and layers.
@@ -30,9 +30,7 @@ Replace all `Effect.provideLayer` calls with `Effect.provide`:
 
 ```typescript
 // ✅ New pattern:
-Effect.runPromise(
-  program.pipe(Effect.provide(TestLayers))
-);
+Effect.runPromise(program.pipe(Effect.provide(TestLayers)));
 ```
 
 ### Batch Migration Pattern
@@ -41,15 +39,16 @@ This is typically a mechanical find-and-replace operation:
 
 ```typescript
 // Before:
-Effect.provideLayer(layer)
+Effect.provideLayer(layer);
 
-// After:  
-Effect.provide(layer)
+// After:
+Effect.provide(layer);
 ```
 
 ## Complete Examples
 
 ### Test Files
+
 ```typescript
 // Before:
 describe("AI Provider Tests", () => {
@@ -60,9 +59,9 @@ describe("AI Provider Tests", () => {
     });
 
     const result = await Effect.runPromise(
-      program.pipe(Effect.provideLayer(TestLayers)) // ❌ Old
+      program.pipe(Effect.provideLayer(TestLayers)), // ❌ Old
     );
-    
+
     expect(result.text).toBe("Generated text");
   });
 });
@@ -76,48 +75,54 @@ describe("AI Provider Tests", () => {
     });
 
     const result = await Effect.runPromise(
-      program.pipe(Effect.provide(TestLayers)) // ✅ New
+      program.pipe(Effect.provide(TestLayers)), // ✅ New
     );
-    
+
     expect(result.text).toBe("Generated text");
   });
 });
 ```
 
 ### Integration Tests
+
 ```typescript
 // Before:
 const testProgram = Effect.gen(function* (_) {
   const nip90Service = yield* _(NIP90Service.Tag);
-  const result = yield* _(nip90Service.createJobRequest({
-    kind: 5050,
-    content: "test",
-    // ...
-  }));
+  const result = yield* _(
+    nip90Service.createJobRequest({
+      kind: 5050,
+      content: "test",
+      // ...
+    }),
+  );
   return result;
 });
 
 await Effect.runPromise(
-  testProgram.pipe(Effect.provideLayer(testLayer)) // ❌ Old
+  testProgram.pipe(Effect.provideLayer(testLayer)), // ❌ Old
 );
 
 // After:
 const testProgram = Effect.gen(function* (_) {
   const nip90Service = yield* _(NIP90Service.Tag);
-  const result = yield* _(nip90Service.createJobRequest({
-    kind: 5050,
-    content: "test",
-    // ...
-  }));
+  const result = yield* _(
+    nip90Service.createJobRequest({
+      kind: 5050,
+      content: "test",
+      // ...
+    }),
+  );
   return result;
 });
 
 await Effect.runPromise(
-  testProgram.pipe(Effect.provide(testLayer)) // ✅ New
+  testProgram.pipe(Effect.provide(testLayer)), // ✅ New
 );
 ```
 
 ### Application Bootstrap
+
 ```typescript
 // Before:
 const main = Effect.gen(function* (_) {
@@ -126,7 +131,7 @@ const main = Effect.gen(function* (_) {
 });
 
 Effect.runPromise(
-  main.pipe(Effect.provideLayer(AppLive)) // ❌ Old
+  main.pipe(Effect.provideLayer(AppLive)), // ❌ Old
 );
 
 // After:
@@ -136,7 +141,7 @@ const main = Effect.gen(function* (_) {
 });
 
 Effect.runPromise(
-  main.pipe(Effect.provide(AppLive)) // ✅ New
+  main.pipe(Effect.provide(AppLive)), // ✅ New
 );
 ```
 
@@ -149,18 +154,19 @@ The migration only affects the final `provide` call. Layer composition patterns 
 const AppLive = Layer.mergeAll(
   ConfigurationServiceLive,
   TelemetryServiceLive,
-  AgentLanguageModelLive
+  AgentLanguageModelLive,
 );
 
 // Only the final provide call changes:
 Effect.runPromise(
-  program.pipe(Effect.provide(AppLive)) // ✅ Use provide, not provideLayer
+  program.pipe(Effect.provide(AppLive)), // ✅ Use provide, not provideLayer
 );
 ```
 
 ## Automated Migration
 
 ### Using sed/grep
+
 ```bash
 # Find all files with the old pattern:
 grep -r "Effect.provideLayer" src/
@@ -170,6 +176,7 @@ sed -i 's/Effect\.provideLayer/Effect.provide/g' src/**/*.ts
 ```
 
 ### Using IDE Find/Replace
+
 1. **Find**: `Effect.provideLayer`
 2. **Replace**: `Effect.provide`
 3. **Scope**: All project files
@@ -188,7 +195,7 @@ import { Effect, Layer } from "effect";
  */
 export const runTest = <A, E>(
   effect: Effect.Effect<A, E, any>,
-  layer: Layer.Layer<any, any, any>
+  layer: Layer.Layer<any, any, any>,
 ) => Effect.runPromise(effect.pipe(Effect.provide(layer)));
 
 // Usage in tests:
@@ -198,7 +205,7 @@ it("should work", async () => {
   const program = Effect.gen(function* (_) {
     // ... test logic
   });
-  
+
   const result = await runTest(program, TestLayers);
   expect(result).toBe(expected);
 });
@@ -207,6 +214,7 @@ it("should work", async () => {
 ## When to Apply This Fix
 
 Apply this migration when:
+
 1. Upgrading Effect to newer versions (v3.0+)
 2. Seeing `provideLayer does not exist` errors
 3. Modernizing test suites that use old Effect APIs
@@ -215,6 +223,7 @@ Apply this migration when:
 ## Verification Steps
 
 After migration:
+
 1. **Type Check**: `pnpm tsc --noEmit` should pass
 2. **Test Suite**: All tests should still pass
 3. **Runtime**: Application should start and function normally

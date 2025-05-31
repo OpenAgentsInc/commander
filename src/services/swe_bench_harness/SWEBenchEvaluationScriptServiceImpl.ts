@@ -11,8 +11,7 @@ export const SWEBenchEvaluationScriptServiceLive = Layer.effect(
 
     return SWEBenchEvaluationScriptService.of({
       buildEvalScript: (task, patchFileNameInContainer, containerEvalDir, containerRepoPath) => 
-        Effect.try({
-          try: () => {
+        Effect.gen(function* () {
             // Basic environment setup
             const envName = `swe-bench`; // Could be derived from task.version in the future
             const condaActivate = `source /opt/miniconda/etc/profile.d/conda.sh && conda activate ${envName}`;
@@ -95,24 +94,24 @@ exit 0
 `;
             
             // Track telemetry event
-            Effect.runFork(
-              telemetry.trackEvent({ 
-                category: "swe_bench", 
-                action: "eval_script_built", 
-                label: task.instance_id 
-              }).pipe(
-                Effect.catchAll(() => Effect.void)
-              )
+            yield* telemetry.trackEvent({ 
+              category: "swe_bench", 
+              action: "eval_script_built", 
+              label: task.instance_id 
+            }).pipe(
+              Effect.catchAll(() => Effect.void)
             );
             
             return scriptContent;
-          },
-          catch: (cause) => new ScriptBuildError({ 
-            message: "Failed to build evaluation script", 
-            cause,
-            context: { task: task.instance_id }
-          })
-        }),
+        }).pipe(
+          Effect.catchAll((cause) => 
+            Effect.fail(new ScriptBuildError({ 
+              message: "Failed to build evaluation script", 
+              cause,
+              context: { task: task.instance_id }
+            }))
+          )
+        ),
     });
   })
 );

@@ -1,19 +1,23 @@
 # Escape Key Close Pane Implementation Log
 
 ## Date: 2025-05-26
+
 ## Time: 18:03
 
 ## Task Overview
+
 Implemented functionality to close the active pane when the Escape key is pressed, with appropriate handling for focused inputs and dialogs.
 
 ## Implementation Details
 
 ### 1. File Modified
+
 - `/src/pages/HomePage.tsx`
 
 ### 2. Changes Made
 
 #### Added Imports
+
 ```typescript
 import { Effect } from "effect";
 import { getMainRuntime } from "@/services/runtime";
@@ -21,13 +25,14 @@ import { TelemetryService } from "@/services/telemetry";
 ```
 
 #### Implemented Escape Key Handler
+
 Added Escape key handling at the beginning of the `handleGlobalKeyDown` function in the global keydown event listener:
 
 ```typescript
 // Handle Escape key for closing active pane
 if (event.key === "Escape") {
   const activeElement = document.activeElement as HTMLElement;
-  
+
   // Check if an input, textarea, or dialog element has focus
   if (
     activeElement &&
@@ -44,7 +49,7 @@ if (event.key === "Escape") {
 
   if (activePaneId) {
     const activePane = panes.find((p) => p.id === activePaneId);
-    
+
     // Ensure the pane exists and is dismissable (default true if undefined)
     if (activePane && activePane.dismissable !== false) {
       event.preventDefault(); // We are handling this Escape press
@@ -74,6 +79,7 @@ if (event.key === "Escape") {
 2. **Dismissable Pane Check**: The implementation respects the `dismissable` property of panes. If a pane has `dismissable: false`, it won't be closed by the Escape key. Panes with `dismissable: undefined` are treated as dismissable (true by default).
 
 3. **Telemetry Logging**: When a pane is closed via Escape key, a telemetry event is logged with:
+
    - Category: "ui:pane"
    - Action: "close_active_pane_escape"
    - Label: The pane's title or ID

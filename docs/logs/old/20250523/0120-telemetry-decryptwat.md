@@ -6,8 +6,8 @@ runtime.ts:183 Creating a production-ready Effect runtime for renderer...
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:init', action: 'wallet_initialize_start', label: 'Network: REGTEST', value: '2', timestamp: 1747981030871}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'ai:config', action: 'ollama_model_from_config_service', value: 'gemma3:1b', timestamp: 1747981030916}
 VM2159 renderer_init:2 Electron Security Warning (Insecure Content-Security-Policy) This renderer process has either no Content Security
-  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
-  this app to unnecessary security risks.
+Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+this app to unnecessary security risks.
 
 For more information and help, consult
 https://electronjs.org/docs/tutorial/security.
@@ -63,7 +63,7 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'log:warn', action: 'nostr_pu
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'feature', action: 'nip90_job_request_published', label: 'Published job request with ID: 7997c8085b5eb93e85f19a8096fa1f487460ecabbec67e95c3e2355a5c02a534', value: 'Kind: 5050', timestamp: 1747981170990}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'feature', action: 'nip90_subscribe_job_updates', label: 'Subscribing to updates for job request: 7997c8085b…e85f19a8096fa1f487460ecabbec67e95c3e2355a5c02a534', timestamp: 1747981170990}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'log:info', action: 'nostr_sub_created', label: '[Nostr] Created subscription', value: '{"filters":[{"kinds":[6000,6001,6002,6003,6004,600…://relay.damus.io/","wss://relay.snort.social/"]}', timestamp: 1747981170991}
-useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"I can't decrypt this message without the correct private key. Please provide the decrypted text.","annotations":[],"_tag":"TextPart"},{"usage":{"inputTokens":0,"outputTokens":96,"totalTokens":96,"reasoningTokens":0,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"reason":"unknown","providerMetadata":{},"_tag":"FinishPart"}]} Abort signal status: false
+useAgentChat.ts:182 [useAgentChat runForEach] Processing chunk: {"parts":[{"text":"I can't decrypt this message without the correct private key. Please provide the decrypted text.","annotations":[],"\_tag":"TextPart"},{"usage":{"inputTokens":0,"outputTokens":96,"totalTokens":96,"reasoningTokens":0,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"reason":"unknown","providerMetadata":{},"\_tag":"FinishPart"}]} Abort signal status: false
 useAgentChat.ts:211 [useAgentChat] Updated message content for: assistant-1747981170259 Chunk length: 96
 useAgentChat.ts:265 [useAgentChat] Ensuring block entered. {messageId: 'assistant-1747981170259', abortController: 'present', signalAborted: false, isLoading: false}
 useAgentChat.ts:281 [useAgentChat] Clearing abort controller for message: assistant-1747981170259

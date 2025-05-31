@@ -30,22 +30,28 @@ This approach is safer than trying to modify the actual Effect chain, as it's lo
 ## Key Changes
 
 1. For the first test:
+
    ```typescript
    // Before
-   await expect(Effect.runPromise(Effect.asVoid(program))).resolves.toBeDefined();
-   
+   await expect(
+     Effect.runPromise(Effect.asVoid(program)),
+   ).resolves.toBeDefined();
+
    // After
    type SafeEffect = Effect.Effect<unknown, unknown, never>;
-   await expect(Effect.runPromise(program as SafeEffect)).resolves.toBeDefined();
+   await expect(
+     Effect.runPromise(program as SafeEffect),
+   ).resolves.toBeDefined();
    ```
 
 2. For the second test:
+
    ```typescript
    // Before
    const result = await Effect.runPromise(
      Effect.asVoid(Effect.provide(program, FullAppLayer)),
    );
-   
+
    // After
    type SafeEffect = Effect.Effect<unknown, unknown, never>;
    await Effect.runPromise(Effect.provide(program, FullAppLayer) as SafeEffect);

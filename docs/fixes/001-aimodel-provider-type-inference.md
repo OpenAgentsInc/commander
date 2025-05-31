@@ -5,15 +5,17 @@
 When using `@effect/ai-openai` with Effect's generator syntax, you might think you need to yield the provider instance again after getting it from the configured effect. This leads to runtime errors.
 
 ### Error Message
+
 ```
 TypeError: yield* (intermediate value)(intermediate value)(intermediate value) is not iterable
 ```
 
 ### Common Anti-Pattern (DO NOT USE)
+
 ```typescript
 // WRONG - This causes runtime errors:
-const aiModel = yield* _(configuredAiModelEffect);      // Gets provider
-const provider = yield* _(aiModel as Effect);           // ERROR: Double yield!
+const aiModel = yield * _(configuredAiModelEffect); // Gets provider
+const provider = yield * _(aiModel as Effect); // ERROR: Double yield!
 ```
 
 ## Root Cause
@@ -21,6 +23,7 @@ const provider = yield* _(aiModel as Effect);           // ERROR: Double yield!
 The `configuredAiModelEffect` already returns the provider directly. Attempting to yield it again treats a provider instance as if it were an Effect, causing runtime errors.
 
 The confusion arises because:
+
 1. `OpenAiLanguageModel.model()` returns an Effect that produces a Provider
 2. After providing dependencies with `Effect.provideService()`, the result is still an Effect
 3. Yielding this configured Effect gives you the **provider directly** - no further yielding needed
@@ -36,17 +39,17 @@ import { AiLanguageModel } from "@effect/ai/AiLanguageModel";
 // Step 1: Create the configured Effect
 const aiModelEffectDefinition = OpenAiLanguageModel.model(modelName, {
   temperature: 0.7,
-  max_tokens: 2048
+  max_tokens: 2048,
 });
 
 const configuredAiModelEffect = Effect.provideService(
   aiModelEffectDefinition,
   OpenAiClient.OpenAiClient,
-  client
+  client,
 );
 
 // Step 2: Get the provider directly (CORRECT)
-const provider = yield* _(configuredAiModelEffect);
+const provider = yield * _(configuredAiModelEffect);
 ```
 
 ### Why This Pattern is Correct
@@ -65,22 +68,22 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
   const telemetry = yield* _(TelemetryService);
 
   const modelName = yield* _(
-    configService.get("OLLAMA_MODEL_NAME").pipe(
-      Effect.orElseSucceed(() => "gemma3:1b")
-    )
+    configService
+      .get("OLLAMA_MODEL_NAME")
+      .pipe(Effect.orElseSucceed(() => "gemma3:1b")),
   );
 
   // Step 1: Create the AiModel definition with options
   const aiModelEffectDefinition = OpenAiLanguageModel.model(modelName, {
     temperature: 0.7,
-    max_tokens: 2048
+    max_tokens: 2048,
   });
 
   // Step 2: Provide dependencies
   const configuredAiModelEffect = Effect.provideService(
     aiModelEffectDefinition,
     OpenAiClient.OpenAiClient,
-    ollamaClient
+    ollamaClient,
   );
 
   // Step 3: Get the provider directly (CORRECTED)
@@ -89,31 +92,36 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
   // Now use the provider to implement AgentLanguageModel
   return makeAgentLanguageModel({
     generateText: (options: GenerateTextOptions) =>
-      provider.use(
-        Effect.gen(function* (_) {
-          const languageModel = yield* _(AiLanguageModel);
-          const effectAiResponse = yield* _(languageModel.generateText({
-            prompt: options.prompt,
-            model: options.model,
-            temperature: options.temperature,
-            maxTokens: options.maxTokens,
-            stopSequences: options.stopSequences
-          }));
-          // Map to application AiResponse type
-          return new AiResponse({
-            parts: effectAiResponse.parts
-          });
-        })
-      ).pipe(
-        Effect.mapError((error) =>
-          new AiProviderError({
-            message: `Ollama generateText error: ${error instanceof Error ? error.message : String(error)}`,
-            provider: "Ollama",
-            isRetryable: true,
-            cause: error
-          })
+      provider
+        .use(
+          Effect.gen(function* (_) {
+            const languageModel = yield* _(AiLanguageModel);
+            const effectAiResponse = yield* _(
+              languageModel.generateText({
+                prompt: options.prompt,
+                model: options.model,
+                temperature: options.temperature,
+                maxTokens: options.maxTokens,
+                stopSequences: options.stopSequences,
+              }),
+            );
+            // Map to application AiResponse type
+            return new AiResponse({
+              parts: effectAiResponse.parts,
+            });
+          }),
         )
-      ),
+        .pipe(
+          Effect.mapError(
+            (error) =>
+              new AiProviderError({
+                message: `Ollama generateText error: ${error instanceof Error ? error.message : String(error)}`,
+                provider: "Ollama",
+                isRetryable: true,
+                cause: error,
+              }),
+          ),
+        ),
     // ... other methods using provider.use() pattern
   });
 });
@@ -123,7 +131,7 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
 
 ✅ **Tested in**: `src/tests/unit/services/ai/providers/ollama/OllamaAgentLanguageModelLive.runtime.test.ts`  
 ✅ **Integration**: Validated in actual application startup  
-✅ **Negative test**: Confirmed double yield pattern fails with "yield* not iterable" error
+✅ **Negative test**: Confirmed double yield pattern fails with "yield\* not iterable" error
 
 ## Anti-Pattern Examples (DO NOT USE)
 
@@ -132,7 +140,7 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
 const aiModel = yield* _(configuredAiModelEffect);
 const provider = yield* _(aiModel as Effect);  // ERROR!
 
-// WRONG - Complex type casting that's unnecessary  
+// WRONG - Complex type casting that's unnecessary
 const provider = yield* _(
   (aiModel as unknown) as Effect.Effect<Provider<...>, never, never>
 );
@@ -141,8 +149,9 @@ const provider = yield* _(
 ## When to Apply This Fix
 
 Apply this pattern when:
+
 1. Working with `@effect/ai-openai` or similar provider libraries
-2. You get runtime errors like "yield* not iterable" 
+2. You get runtime errors like "yield\* not iterable"
 3. You're tempted to yield a provider instance as an Effect
 4. TypeScript compilation passes but runtime fails
 

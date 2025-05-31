@@ -23,8 +23,8 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:status', action: 'chec
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:status', action: 'check_wallet_status_success', label: 'Wallet ready, balance: 0', timestamp: 1748033377752}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'dvm:admin', action: 'check_listening_status', value: 'inactive', timestamp: 1748033377752}
 VM2862 renderer_init:2 Electron Security Warning (Insecure Content-Security-Policy) This renderer process has either no Content Security
-  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
-  this app to unnecessary security risks.
+Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+this app to unnecessary security risks.
 
 For more information and help, consult
 https://electronjs.org/docs/tutorial/security.
@@ -91,8 +91,8 @@ TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:balance', action: 'get
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:balance', action: 'get_balance_success', label: 'Balance: 0 sats (no wallet)', value: 'Token count: 0', timestamp: 1748033437802}
 SparkServiceImpl.ts:70
 
-
            POST https://2.spark.flashnet.xyz/spark_authn.SparkAuthnService/get_challenge 504 (Gateway Timeout)
+
 fetchTransport @ lib-6GUHA7WW.js?v=74cf3d26:394
 await in fetchTransport
 handleTransportErrors @ lib-6GUHA7WW.js?v=74cf3d26:815
@@ -210,7 +210,7 @@ start @ chunk-NHEPLXU6.js?v=74cf3d26:9108
 (anonymous) @ chunk-4PXXWCXP.js?v=74cf3d26:109
 buildRuntimeAsync @ runtime.ts:225
 reinitializeRuntime @ runtime.ts:275
-_initializeServices @ walletStore.ts:176
+\_initializeServices @ walletStore.ts:176
 (anonymous) @ walletStore.ts:204
 (anonymous) @ chunk-FDM57WKT.js?v=74cf3d26:388
 (anonymous) @ chunk-FDM57WKT.js?v=74cf3d26:274
@@ -222,6 +222,7 @@ createStore @ chunk-THUVLC43.js?v=74cf3d26:23
 createImpl @ chunk-F5CQ472C.js?v=74cf3d26:24
 (anonymous) @ walletStore.ts:35
 SparkServiceImpl.ts:70 Authentication error: ClientError: /spark_authn.SparkAuthnService/get_challenge UNKNOWN: Transport error: /spark_authn.SparkAuthnService/get_challenge UNAVAILABLE: Received HTTP 504 response: <html>
+
 <head><title>504 Gateway Time-out</title></head>
 <body>
 <center><h1>504 Gateway Time-out</h1></center>

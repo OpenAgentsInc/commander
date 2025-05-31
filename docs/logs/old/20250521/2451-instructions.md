@@ -32,11 +32,16 @@ If the `Effect.gen` block inside `OllamaAgentLanguageModelLive` (which is respon
     // If OpenAiClient is just a tag, that's fine. OpenAiLanguageModel.model is the factory.
 
     import { ConfigurationService } from "@/services/configuration";
-    import { AIProviderError, AIConfigurationError } from "@/services/ai/core/AIError";
+    import {
+      AIProviderError,
+      AIConfigurationError,
+    } from "@/services/ai/core/AIError";
     import { OllamaOpenAIClientTag } from "./OllamaAsOpenAIClientLive"; // This provides OpenAiClient.OpenAiClient
     import { TelemetryService } from "@/services/telemetry";
 
-    console.log("Loading OllamaAgentLanguageModelLive module (Refactored Version)");
+    console.log(
+      "Loading OllamaAgentLanguageModelLive module (Refactored Version)",
+    );
 
     export const OllamaAgentLanguageModelLive = Layer.effect(
       AgentLanguageModel, // The Tag we are providing
@@ -49,24 +54,28 @@ If the `Effect.gen` block inside `OllamaAgentLanguageModelLive` (which is respon
         const configGetEffect = configService.get("OLLAMA_MODEL_NAME");
         const configResult = yield* _(Effect.either(configGetEffect));
 
-        if (configResult._tag === 'Right') {
+        if (configResult._tag === "Right") {
           modelName = configResult.right;
         } else {
           yield* _(
-            telemetry.trackEvent({
-              category: "ai:config:warn",
-              action: "ollama_model_name_fetch_failed_using_default",
-              label: "OLLAMA_MODEL_NAME",
-              value: String(configResult.left?.message || configResult.left),
-            }).pipe(Effect.ignoreLogged)
+            telemetry
+              .trackEvent({
+                category: "ai:config:warn",
+                action: "ollama_model_name_fetch_failed_using_default",
+                label: "OLLAMA_MODEL_NAME",
+                value: String(configResult.left?.message || configResult.left),
+              })
+              .pipe(Effect.ignoreLogged),
           );
         }
         yield* _(
-          telemetry.trackEvent({
-            category: "ai:config",
-            action: "ollama_model_name_resolved",
-            value: modelName,
-          }).pipe(Effect.ignoreLogged)
+          telemetry
+            .trackEvent({
+              category: "ai:config",
+              action: "ollama_model_name_resolved",
+              value: modelName,
+            })
+            .pipe(Effect.ignoreLogged),
         );
 
         // Use the OpenAiLanguageModel.model factory from @effect/ai-openai
@@ -79,7 +88,7 @@ If the `Effect.gen` block inside `OllamaAgentLanguageModelLive` (which is respon
         const configuredAiModelEffect = Effect.provideService(
           aiModelEffectDefinition,
           OpenAiClient.OpenAiClient, // The Tag for the dependency
-          ollamaAdaptedClient         // The service instance fulfilling the dependency
+          ollamaAdaptedClient, // The service instance fulfilling the dependency
         );
 
         // Yielding this effect gives us the Provider<AgentLanguageModel>
@@ -87,11 +96,13 @@ If the `Effect.gen` block inside `OllamaAgentLanguageModelLive` (which is respon
         const provider = yield* _(configuredAiModelEffect);
 
         yield* _(
-          telemetry.trackEvent({
-            category: "ai:config",
-            action: "ollama_language_model_provider_created",
-            value: modelName,
-          }).pipe(Effect.ignoreLogged)
+          telemetry
+            .trackEvent({
+              category: "ai:config",
+              action: "ollama_language_model_provider_created",
+              value: modelName,
+            })
+            .pipe(Effect.ignoreLogged),
         );
 
         // Adapt the provider methods to our AgentLanguageModel interface, mapping errors.
@@ -101,49 +112,67 @@ If the `Effect.gen` block inside `OllamaAgentLanguageModelLive` (which is respon
           generateText: (params: GenerateTextOptions) =>
             provider.generateText(params).pipe(
               Effect.mapError(
-                (err) => // err is likely AiError from @effect/ai
+                (
+                  err, // err is likely AiError from @effect/ai
+                ) =>
                   new AIProviderError({
                     message: `Ollama generateText error for model ${modelName}: ${(err as Error).message || "Unknown provider error"}`,
                     cause: err,
                     provider: "Ollama",
-                    context: { model: modelName, params, originalErrorTag: (err as any)._tag },
-                  })
-              )
+                    context: {
+                      model: modelName,
+                      params,
+                      originalErrorTag: (err as any)._tag,
+                    },
+                  }),
+              ),
             ),
           streamText: (params: StreamTextOptions) =>
             provider.streamText(params).pipe(
               Stream.mapError(
-                (err) => // err is likely AiError from @effect/ai
+                (
+                  err, // err is likely AiError from @effect/ai
+                ) =>
                   new AIProviderError({
                     message: `Ollama streamText error for model ${modelName}: ${(err as Error).message || "Unknown provider error"}`,
                     cause: err,
                     provider: "Ollama",
-                    context: { model: modelName, params, originalErrorTag: (err as any)._tag },
-                  })
-              )
+                    context: {
+                      model: modelName,
+                      params,
+                      originalErrorTag: (err as any)._tag,
+                    },
+                  }),
+              ),
             ),
           generateStructured: (params: GenerateStructuredOptions) =>
             provider.generateStructured(params).pipe(
               Effect.mapError(
-                (err) => // err is likely AiError from @effect/ai
+                (
+                  err, // err is likely AiError from @effect/ai
+                ) =>
                   new AIProviderError({
                     message: `Ollama generateStructured error for model ${modelName}: ${(err as Error).message || "Unknown provider error"}`,
                     cause: err,
                     provider: "Ollama",
-                    context: { model: modelName, params, originalErrorTag: (err as any)._tag },
-                  })
-              )
+                    context: {
+                      model: modelName,
+                      params,
+                      originalErrorTag: (err as any)._tag,
+                    },
+                  }),
+              ),
             ),
         });
-      })
+      }),
     );
     ```
 
 2.  **Verify `AgentLanguageModel.ts` Types:**
     Ensure your core types in `src/services/ai/core/AgentLanguageModel.ts` (`AiResponse`, `AiTextChunk`, etc.) are compatible with what `@effect/ai-openai`'s `OpenAiLanguageModel` provider expects and returns. If you've defined your own `AiResponse` that differs from `@effect/ai/AiResponse`, you might need to map the responses from the `provider` methods. For simplicity, it's best if your core types align closely with `@effect/ai`'s types. The above refactor assumes your `AiResponse` and `AiTextChunk` are compatible.
 
-    *   Specifically, the `AgentLanguageModel` interface in `src/services/ai/core/AgentLanguageModel.ts` should define its methods to return `Effect.Effect<AiResponse, AIProviderError>` and `Stream.Stream<AiTextChunk, AIProviderError>`. Ensure the `AiResponse` and `AiTextChunk` types used here are the ones expected by the `OpenAiLanguageModel` provider or that you map them correctly.
-    *   The `provider.generateText(params)` call from `@effect/ai-openai` will return an `Effect.Effect<OpenAiResponse, OpenAiError, never>` (where `OpenAiResponse` is an alias for `AiResponse.AiResponse` from `@effect/ai`). You need to ensure your `AIProviderError` can correctly wrap `OpenAiError` (which is `AiError.AiError`). Your current `AIProviderError` extends `AIGenericError` (which extends `Error`), this should be fine.
+    - Specifically, the `AgentLanguageModel` interface in `src/services/ai/core/AgentLanguageModel.ts` should define its methods to return `Effect.Effect<AiResponse, AIProviderError>` and `Stream.Stream<AiTextChunk, AIProviderError>`. Ensure the `AiResponse` and `AiTextChunk` types used here are the ones expected by the `OpenAiLanguageModel` provider or that you map them correctly.
+    - The `provider.generateText(params)` call from `@effect/ai-openai` will return an `Effect.Effect<OpenAiResponse, OpenAiError, never>` (where `OpenAiResponse` is an alias for `AiResponse.AiResponse` from `@effect/ai`). You need to ensure your `AIProviderError` can correctly wrap `OpenAiError` (which is `AiError.AiError`). Your current `AIProviderError` extends `AIGenericError` (which extends `Error`), this should be fine.
 
 3.  **Confirm `OllamaAsOpenAIClientLive.ts`:**
     Ensure that `OllamaAsOpenAIClientLive.ts` correctly provides the `OpenAiClient.OpenAiClient` service tag and that its methods map IPC calls to return structures compatible with what `OpenAiLanguageModel.model(...)` expects (i.e., it should behave like an OpenAI client). The key is that `ollamaAdaptedClient` in the refactored `OllamaAgentLanguageModelLive.ts` must be a fully functional `OpenAiClient.Service`. The provided code for `OllamaAsOpenAIClientLive.ts` seems to aim for this by implementing the `client` property and `stream` methods. The `client` property should itself implement all methods of `Generated.Client` from `@effect/ai-openai/Generated`. The provided stub implementations in `OllamaAsOpenAIClientLive.ts` for many `client` methods (like `createEmbedding`, `listModels`, etc.) return `Effect.die`. This is acceptable if those methods are not used by `OpenAiLanguageModel.model()` for `generateText`, `streamText`, and `generateStructured`. The critical part is that `client.createChatCompletion` and the top-level `stream` method in the `OllamaAsOpenAIClientLive` implementation are correct.
@@ -181,11 +210,16 @@ The core task is to refactor `src/services/ai/providers/ollama/OllamaAgentLangua
     import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
 
     import { ConfigurationService } from "@/services/configuration";
-    import { AIProviderError, AIConfigurationError } from "@/services/ai/core/AIError";
+    import {
+      AIProviderError,
+      AIConfigurationError,
+    } from "@/services/ai/core/AIError";
     import { OllamaOpenAIClientTag } from "./OllamaAsOpenAIClientLive"; // This provides OpenAiClient.OpenAiClient
     import { TelemetryService } from "@/services/telemetry";
 
-    console.log("Loading OllamaAgentLanguageModelLive module (Refactored Version)");
+    console.log(
+      "Loading OllamaAgentLanguageModelLive module (Refactored Version)",
+    );
 
     export const OllamaAgentLanguageModelLive = Layer.effect(
       AgentLanguageModel, // The Tag we are providing
@@ -198,24 +232,28 @@ The core task is to refactor `src/services/ai/providers/ollama/OllamaAgentLangua
         const configGetEffect = configService.get("OLLAMA_MODEL_NAME");
         const configResult = yield* _(Effect.either(configGetEffect));
 
-        if (configResult._tag === 'Right') {
+        if (configResult._tag === "Right") {
           modelName = configResult.right;
         } else {
           yield* _(
-            telemetry.trackEvent({
-              category: "ai:config:warn",
-              action: "ollama_model_name_fetch_failed_using_default",
-              label: "OLLAMA_MODEL_NAME",
-              value: String(configResult.left?.message || configResult.left),
-            }).pipe(Effect.ignoreLogged)
+            telemetry
+              .trackEvent({
+                category: "ai:config:warn",
+                action: "ollama_model_name_fetch_failed_using_default",
+                label: "OLLAMA_MODEL_NAME",
+                value: String(configResult.left?.message || configResult.left),
+              })
+              .pipe(Effect.ignoreLogged),
           );
         }
         yield* _(
-          telemetry.trackEvent({
-            category: "ai:config",
-            action: "ollama_model_name_resolved",
-            value: modelName,
-          }).pipe(Effect.ignoreLogged)
+          telemetry
+            .trackEvent({
+              category: "ai:config",
+              action: "ollama_model_name_resolved",
+              value: modelName,
+            })
+            .pipe(Effect.ignoreLogged),
         );
 
         // Use the OpenAiLanguageModel.model factory from @effect/ai-openai
@@ -229,7 +267,7 @@ The core task is to refactor `src/services/ai/providers/ollama/OllamaAgentLangua
         const configuredAiModelEffect = Effect.provideService(
           aiModelEffectDefinition,
           OpenAiClient.OpenAiClient, // The Tag for the dependency
-          ollamaAdaptedClient         // The service instance fulfilling the dependency
+          ollamaAdaptedClient, // The service instance fulfilling the dependency
         );
 
         // Yielding this effect gives us Provider<BaseAiLanguageModel>
@@ -240,68 +278,95 @@ The core task is to refactor `src/services/ai/providers/ollama/OllamaAgentLangua
         const provider = yield* _(aiModel); // provider is Provider<BaseAiLanguageModel>
 
         yield* _(
-          telemetry.trackEvent({
-            category: "ai:config",
-            action: "ollama_language_model_provider_created",
-            value: modelName,
-          }).pipe(Effect.ignoreLogged)
+          telemetry
+            .trackEvent({
+              category: "ai:config",
+              action: "ollama_language_model_provider_created",
+              value: modelName,
+            })
+            .pipe(Effect.ignoreLogged),
         );
 
         // Adapt the provider methods to our AgentLanguageModel interface, mapping errors.
         return AgentLanguageModel.of({
           _tag: "AgentLanguageModel",
-          generateText: (params: GenerateTextOptions): Effect.Effect<AiResponse, AIProviderError> =>
+          generateText: (
+            params: GenerateTextOptions,
+          ): Effect.Effect<AiResponse, AIProviderError> =>
             provider.generateText(params).pipe(
               Effect.mapError(
-                (err) => // err is AiError from @effect/ai
+                (
+                  err, // err is AiError from @effect/ai
+                ) =>
                   new AIProviderError({
                     message: `Ollama generateText error for model ${modelName}: ${(err as Error).message || "Unknown provider error"}`,
                     cause: err,
                     provider: "Ollama",
-                    context: { model: modelName, params, originalErrorTag: (err as any)._tag },
-                  })
-              )
+                    context: {
+                      model: modelName,
+                      params,
+                      originalErrorTag: (err as any)._tag,
+                    },
+                  }),
+              ),
             ),
-          streamText: (params: StreamTextOptions): Stream.Stream<AiTextChunk, AIProviderError> =>
+          streamText: (
+            params: StreamTextOptions,
+          ): Stream.Stream<AiTextChunk, AIProviderError> =>
             provider.streamText(params).pipe(
               Stream.mapError(
-                (err) => // err is AiError from @effect/ai
+                (
+                  err, // err is AiError from @effect/ai
+                ) =>
                   new AIProviderError({
                     message: `Ollama streamText error for model ${modelName}: ${(err as Error).message || "Unknown provider error"}`,
                     cause: err,
                     provider: "Ollama",
-                    context: { model: modelName, params, originalErrorTag: (err as any)._tag },
-                  })
-              )
+                    context: {
+                      model: modelName,
+                      params,
+                      originalErrorTag: (err as any)._tag,
+                    },
+                  }),
+              ),
             ),
-          generateStructured: (params: GenerateStructuredOptions): Effect.Effect<AiResponse, AIProviderError> =>
+          generateStructured: (
+            params: GenerateStructuredOptions,
+          ): Effect.Effect<AiResponse, AIProviderError> =>
             provider.generateStructured(params).pipe(
               Effect.mapError(
-                (err) => // err is AiError from @effect/ai
+                (
+                  err, // err is AiError from @effect/ai
+                ) =>
                   new AIProviderError({
                     message: `Ollama generateStructured error for model ${modelName}: ${(err as Error).message || "Unknown provider error"}`,
                     cause: err,
                     provider: "Ollama",
-                    context: { model: modelName, params, originalErrorTag: (err as any)._tag },
-                  })
-              )
+                    context: {
+                      model: modelName,
+                      params,
+                      originalErrorTag: (err as any)._tag,
+                    },
+                  }),
+              ),
             ),
         });
-      })
+      }),
     );
     ```
 
 2.  **Ensure Type Compatibility for `AiResponse` and `AiTextChunk`:**
     The types `AiResponse` and `AiTextChunk` used in your `AgentLanguageModel` interface (defined in `src/services/ai/core/AgentLanguageModel.ts`) must be compatible with those returned by the `@effect/ai-openai` provider's methods.
+
     - `provider.generateText` returns `Effect.Effect<AiResponse.AiResponse, AiError.AiError>`.
     - `provider.streamText` returns `Stream.Stream<AiResponse.AiTextChunk, AiError.AiError>`.
-    Your custom `AIProviderError` should correctly wrap `AiError.AiError`.
-    If your defined `AiResponse` and `AiTextChunk` in `src/services/ai/core/AgentLanguageModel.ts` are identical in structure to those from `@effect/ai/AiResponse`, the direct assignment will work. If they differ, you'll need to map the success values as well. The provided refactor assumes they are compatible or that your existing definitions in `src/services/ai/core/AgentLanguageModel.ts` match the `@effect/ai` structures.
+      Your custom `AIProviderError` should correctly wrap `AiError.AiError`.
+      If your defined `AiResponse` and `AiTextChunk` in `src/services/ai/core/AgentLanguageModel.ts` are identical in structure to those from `@effect/ai/AiResponse`, the direct assignment will work. If they differ, you'll need to map the success values as well. The provided refactor assumes they are compatible or that your existing definitions in `src/services/ai/core/AgentLanguageModel.ts` match the `@effect/ai` structures.
 
 3.  **Verify `OllamaAsOpenAIClientLive.ts` Implementation:**
     Double-check that `src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts` correctly implements the `OpenAiClient.Service` interface. The crucial parts are:
     - The `client` property, which should implement all methods of `Generated.Client` (from `@effect/ai-openai/Generated`). The most important method for basic chat is `createChatCompletion`.
     - The top-level `stream` method, used for streaming chat completions.
-    The stubs for unused methods in `OllamaAsOpenAIClientLive` are fine as long as `OpenAiLanguageModel.model(...)` doesn't rely on them for the functionalities you are using (`generateText`, `streamText`, `generateStructured`).
+      The stubs for unused methods in `OllamaAsOpenAIClientLive` are fine as long as `OpenAiLanguageModel.model(...)` doesn't rely on them for the functionalities you are using (`generateText`, `streamText`, `generateStructured`).
 
 By applying this refactoring, `OllamaAgentLanguageModelLive` will properly use the `@effect/ai` infrastructure, ensuring that `AgentLanguageModel.Tag` is correctly provided to the application context, which should resolve the "Service not found" error.

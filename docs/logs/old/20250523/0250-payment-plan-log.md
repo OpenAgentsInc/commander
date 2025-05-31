@@ -5,10 +5,12 @@
 ### Current Task: Fix invoice amount to 3 sats
 
 1. **Found invoice amount calculation locations**:
+
    - Line 767 in `Kind5050DVMServiceImpl.ts`: `const invoiceAmountMillisats = priceSats * 1000;`
    - Line 1275 in `Kind5050DVMServiceImpl.ts`: Same calculation for local test job
 
 2. **Found `priceSats` calculation**:
+
    ```typescript
    const priceSats = Math.max(
      textGenConfig.minPriceSats,
@@ -23,18 +25,21 @@
 ### Next Task: Implement Payment-First Flow
 
 Currently, the provider sends the result immediately after generating the invoice. Need to change this to:
+
 1. Generate invoice
 2. Send payment-required feedback
 3. Wait for payment
 4. Only then send result
 
 **Current problematic flow discovered**:
+
 1. Line 743: AI processes request immediately
 2. Line 773: Creates invoice AFTER processing
 3. Line 830: Publishes result immediately
 4. Line 833-844: Sends payment-required feedback (too late!)
 
 **Need to restructure to**:
+
 1. Generate invoice FIRST (before AI processing)
 2. Send payment-required feedback
 3. Store job in pending state
@@ -53,6 +58,7 @@ Currently, the provider sends the result immediately after generating the invoic
 ## Progress Update - 02:55
 
 1. **Added pending jobs structure**:
+
    ```typescript
    interface PendingJob {
      requestEvent: NostrEvent;
@@ -66,6 +72,7 @@ Currently, the provider sends the result immediately after generating the invoic
    ```
 
 2. **Found existing payment monitoring**:
+
    - `checkAndUpdateInvoiceStatuses` method already exists
    - Need to integrate it with our new pending jobs map
 
@@ -80,12 +87,14 @@ Currently, the provider sends the result immediately after generating the invoic
 ### Payment-First Implementation Done:
 
 1. **Created new `processJobRequestInternal`** that:
+
    - Generates invoice BEFORE AI processing
    - Stores job in `pendingJobs` map
    - Sends `payment-required` feedback immediately
    - Does NOT process AI until payment confirmed
 
 2. **Created `processPaidJob`** method that:
+
    - Is called only after payment confirmation
    - Sends `processing` feedback
    - Processes with AI
@@ -102,6 +111,7 @@ Currently, the provider sends the result immediately after generating the invoic
 ### Remaining Tasks:
 
 1. **Consumer Side Updates**:
+
    - Update NIP90ServiceImpl to handle payment-required feedback
    - Add UI for payment flow
    - Integrate SparkService for payments
@@ -117,12 +127,14 @@ Currently, the provider sends the result immediately after generating the invoic
 Created comprehensive test suite in `Kind5050DVMPaymentFlow.test.ts`:
 
 1. **Payment-First Flow Tests**:
+
    - Verifies invoice is generated BEFORE AI processing
    - Tests payment-required feedback is sent with invoice
    - Ensures AI is NOT called until payment confirmed
    - Tests job processing after payment confirmation
 
 2. **Edge Case Tests**:
+
    - Expired invoice handling
    - Minimum 3 sats enforcement
    - Payment error handling
@@ -136,6 +148,7 @@ Created comprehensive test suite in `Kind5050DVMPaymentFlow.test.ts`:
 ## Summary of Changes
 
 ### Provider Side (Complete):
+
 1. ✓ Changed minimum price from 10 to 3 sats
 2. ✓ Implemented payment-first flow
 3. ✓ Added pending jobs tracking
@@ -143,6 +156,7 @@ Created comprehensive test suite in `Kind5050DVMPaymentFlow.test.ts`:
 5. ✓ Created comprehensive tests (all passing!)
 
 ### Consumer Side (TODO):
+
 1. Handle kind:7000 payment-required feedback
 2. Extract bolt11 invoice from feedback
 3. Show payment UI with invoice
@@ -152,7 +166,9 @@ Created comprehensive test suite in `Kind5050DVMPaymentFlow.test.ts`:
 ## Final Implementation Details - 03:06
 
 ### Test Results
+
 All 8 tests passing:
+
 - ✓ should generate invoice before processing AI request
 - ✓ should enforce minimum price of 3 sats
 - ✓ should calculate price based on token estimate for longer prompts
@@ -163,6 +179,7 @@ All 8 tests passing:
 - ✓ should handle pending invoices
 
 ### Key Changes Made:
+
 1. **Kind5050DVMService.ts**: Changed `minPriceSats` from 10 to 3
 2. **Kind5050DVMServiceImpl.ts**:
    - Added `PendingJob` interface and `pendingJobs` Map
@@ -173,4 +190,5 @@ All 8 tests passing:
 3. **Tests**: Created mock-based tests following ECC library workaround pattern
 
 ### Next Steps for Consumer Implementation:
+
 The provider now properly requires payment before processing. The consumer needs to be updated to handle this flow.

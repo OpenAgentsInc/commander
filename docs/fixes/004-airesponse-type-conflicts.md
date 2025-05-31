@@ -10,6 +10,7 @@ return Stream.async<AiResponse, HttpClientError>(...); // Type error
 ```
 
 ### Error Message
+
 ```
 Property '[TypeId]' is missing in type 'import(".../src/services/ai/core/AiResponse").AiResponse' but required in type 'import(".../node_modules/@effect/ai/dist/dts/AiResponse").AiResponse'
 ```
@@ -19,6 +20,7 @@ Property '[TypeId]' is missing in type 'import(".../src/services/ai/core/AiRespo
 There are two different `AiResponse` types in the codebase:
 
 1. **Our Custom AiResponse** (`src/services/ai/core/AiResponse.ts`):
+
    ```typescript
    export class AiResponse extends Data.TaggedClass("AiResponse")<{
      text: string;
@@ -42,6 +44,7 @@ These types have different properties and different `TypeId` symbols, making the
 Use the appropriate AiResponse type for each context:
 
 ### For @effect/ai Integration (Clients/Adapters)
+
 ```typescript
 // Import @effect/ai's AiResponse
 import * as AiResponse from "@effect/ai/AiResponse";
@@ -51,10 +54,14 @@ export const streamClient = (params: StreamCompletionRequest) => {
   return Stream.async<AiResponse.AiResponse, HttpClientError>((emit) => {
     // ...
     const aiResponse = new AiResponse.AiResponse({
-      parts: content ? [{
-        _tag: "TextPart" as const,
-        text: content
-      }] : []
+      parts: content
+        ? [
+            {
+              _tag: "TextPart" as const,
+              text: content,
+            },
+          ]
+        : [],
     });
     emit.single(aiResponse);
   });
@@ -62,6 +69,7 @@ export const streamClient = (params: StreamCompletionRequest) => {
 ```
 
 ### For Application Logic (Services/Components)
+
 ```typescript
 // Import our custom AiResponse
 import { AiResponse, AiTextChunk } from "@/services/ai/core/AiResponse";
@@ -72,25 +80,30 @@ export const generateText = (options: GenerateTextOptions) => {
     // ... call provider ...
     return new AiResponse({
       text: "Generated text",
-      metadata: { usage: { totalTokens: 100 } }
+      metadata: { usage: { totalTokens: 100 } },
     });
   });
 };
 ```
 
 ### Type Conversion When Needed
+
 ```typescript
 // Convert between types when crossing boundaries
-const convertToOurAiResponse = (effectAiResponse: AiResponse.AiResponse): AiResponse => {
+const convertToOurAiResponse = (
+  effectAiResponse: AiResponse.AiResponse,
+): AiResponse => {
   return new AiResponse({
     text: effectAiResponse.text,
     // Map other properties as needed
   });
 };
 
-const convertToAiTextChunk = (effectAiResponse: AiResponse.AiResponse): AiTextChunk => {
+const convertToAiTextChunk = (
+  effectAiResponse: AiResponse.AiResponse,
+): AiTextChunk => {
   return new AiTextChunk({
-    text: effectAiResponse.text
+    text: effectAiResponse.text,
   });
 };
 ```
@@ -127,22 +140,26 @@ export const OllamaAsOpenAIClientLive = Layer.succeed(
         // Process chunks and emit @effect/ai compatible responses
         const content = chunk.choices?.[0]?.delta?.content || "";
         const aiResponse = new AiResponse.AiResponse({
-          parts: content ? [{
-            _tag: "TextPart" as const,
-            text: content
-          }] : []
+          parts: content
+            ? [
+                {
+                  _tag: "TextPart" as const,
+                  text: content,
+                },
+              ]
+            : [],
         });
         emit.single(aiResponse);
       });
-    }
-  }
+    },
+  },
 );
 ```
 
 ## Complete Example: Application Service
 
 ```typescript
-// File: AgentLanguageModelLive.ts  
+// File: AgentLanguageModelLive.ts
 // This file implements our application's AI service interface
 import { AiResponse, AiTextChunk } from "@/services/ai/core/AiResponse"; // Use our types
 
@@ -154,12 +171,14 @@ export const AgentLanguageModelLive = Effect.gen(function* (_) {
         Effect.gen(function* (_) {
           const languageModel = yield* _(AiLanguageModel);
           // @effect/ai returns its AiResponse, we convert to ours
-          const effectAiResponse = yield* _(languageModel.generateText(options));
+          const effectAiResponse = yield* _(
+            languageModel.generateText(options),
+          );
           return new AiResponse({
             text: effectAiResponse.text,
             // Map additional properties from effectAiResponse if needed
           });
-        })
+        }),
       ),
 
     streamText: (options) =>
@@ -169,13 +188,16 @@ export const AgentLanguageModelLive = Effect.gen(function* (_) {
             const languageModel = yield* _(AiLanguageModel);
             return languageModel.streamText(options).pipe(
               // Convert @effect/ai's AiResponse to our AiTextChunk
-              Stream.map((effectAiResponse) => new AiTextChunk({ 
-                text: effectAiResponse.text 
-              }))
+              Stream.map(
+                (effectAiResponse) =>
+                  new AiTextChunk({
+                    text: effectAiResponse.text,
+                  }),
+              ),
             );
-          })
-        )
-      )
+          }),
+        ),
+      ),
   });
 });
 ```
@@ -183,6 +205,7 @@ export const AgentLanguageModelLive = Effect.gen(function* (_) {
 ## Import Guidelines
 
 ### Client/Adapter Layer (talks to @effect/ai)
+
 ```typescript
 import * as AiResponse from "@effect/ai/AiResponse";
 import { AiLanguageModel } from "@effect/ai/AiLanguageModel";
@@ -190,12 +213,14 @@ import { OpenAiClient } from "@effect/ai-openai";
 ```
 
 ### Application/Service Layer (uses our domain types)
+
 ```typescript
 import { AiResponse, AiTextChunk } from "@/services/ai/core/AiResponse";
 import { AgentLanguageModel } from "@/services/ai/core";
 ```
 
 ### UI/Component Layer (uses our domain types)
+
 ```typescript
 import { AiResponse, AiTextChunk } from "@/services/ai/core/AiResponse";
 // UI components work with our simplified types
@@ -204,9 +229,10 @@ import { AiResponse, AiTextChunk } from "@/services/ai/core/AiResponse";
 ## When to Apply This Fix
 
 Apply this pattern when:
+
 1. You see `[TypeId]` missing errors between AiResponse types
 2. Working on client adapters that interface with @effect/ai
-3. Implementing application services that wrap @effect/ai providers  
+3. Implementing application services that wrap @effect/ai providers
 4. Converting between streaming and non-streaming AI responses
 5. Building UI components that consume AI responses
 

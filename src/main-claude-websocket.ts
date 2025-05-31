@@ -282,7 +282,7 @@ export function setupClaudeWebSocketHandler() {
       );
       if (relevantMessages.length === 0) return "";
       
-      let promptParts: string[] = [];
+      const promptParts: string[] = [];
       
       for (const message of relevantMessages) {
         const rolePrefix = message.role === "user" ? "Human: " : "Assistant: ";

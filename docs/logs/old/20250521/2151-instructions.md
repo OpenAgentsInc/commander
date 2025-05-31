@@ -12,16 +12,17 @@ src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts(99,9): error TS2322
 
 **File and Line Number:**
 
-*   **File:** `src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts`
-*   **Line in Error:** The error points to line 99, which is where your `createChatCompletion` method (previously `create`) is defined within the `client` object.
+- **File:** `src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts`
+- **Line in Error:** The error points to line 99, which is where your `createChatCompletion` method (previously `create`) is defined within the `client` object.
 
 **Understanding the Problem:**
 
 The `OpenAiClient.Service` interface from `@effect/ai-openai` (which `OllamaOpenAIClientTag` represents) has a `client` property. This `client` property must be an object that implements the `Generated.Client` interface (from `node_modules/@effect/ai-openai/dist/dts/Generated.d.ts`).
 
-The `Generated.Client` interface has a method named `createChatCompletion`. The TypeScript error is telling you that the signature of *your* `createChatCompletion` method does not match the signature expected by `Generated.Client["createChatCompletion"]`.
+The `Generated.Client` interface has a method named `createChatCompletion`. The TypeScript error is telling you that the signature of _your_ `createChatCompletion` method does not match the signature expected by `Generated.Client["createChatCompletion"]`.
 
 Specifically:
+
 1.  The parameter type is different. Your code uses a local `ChatCompletionCreateParams`. The library expects a parameter (let's call it `options` or `requestBody`) whose type is `typeof Generated.CreateChatCompletionRequest.Encoded`. This library type has `readonly` properties, especially for `messages`.
 2.  The error channel of the returned `Effect` is different. Your code returns `Effect<..., HttpClientError.ResponseError, ...>`. The library (and consequently `OpenAiLanguageModel.model` which uses this client) expects the client methods to fail with `OpenAiError` (or `HttpClientError.HttpClientError | ParseError` as per `Generated.Client`, but `OpenAiLanguageModel` often wraps this into `OpenAiError`). For consistency, we'll aim for `OpenAiError`.
 
@@ -43,11 +44,11 @@ Specifically:
 
     // These are the types from the library that Generated.Client expects
     import type {
-        CreateChatCompletionRequest, // The Encoded type is often the base type itself or a specific export
-        CreateChatCompletionResponse,
-        // For the stream method later:
-        StreamCompletionRequest,      // This is Omit<CreateChatCompletionRequest, "stream">
-        StreamChunk as OpenAiStreamChunk // The chunk type for OpenAI streams
+      CreateChatCompletionRequest, // The Encoded type is often the base type itself or a specific export
+      CreateChatCompletionResponse,
+      // For the stream method later:
+      StreamCompletionRequest, // This is Omit<CreateChatCompletionRequest, "stream">
+      StreamChunk as OpenAiStreamChunk, // The chunk type for OpenAI streams
     } from "@effect/ai-openai/Generated"; // Types from Generated.d.ts
 
     import * as HttpClientError from "@effect/platform/HttpClientError";
@@ -56,16 +57,17 @@ Specifically:
     import { AIProviderError } from "@/services/ai/core/AIError";
     import { TelemetryService } from "@/services/telemetry";
     ```
-    *Self-correction during thought: `CreateChatCompletionRequest` and `CreateChatCompletionResponse` are indeed the class types from `Generated.d.ts` whose `Encoded` static property gives the parameter/response body types. The `OpenAiClient.Service`'s `client` property is of type `Generated.Client`. The methods on `Generated.Client` like `createChatCompletion` take `options: typeof CreateChatCompletionRequest.Encoded`.*
+
+    _Self-correction during thought: `CreateChatCompletionRequest` and `CreateChatCompletionResponse` are indeed the class types from `Generated.d.ts` whose `Encoded` static property gives the parameter/response body types. The `OpenAiClient.Service`'s `client` property is of type `Generated.Client`. The methods on `Generated.Client` like `createChatCompletion` take `options: typeof CreateChatCompletionRequest.Encoded`._
 
 4.  **Modify the `createChatCompletion` Method:**
     Locate the `createChatCompletion` method within the `client` object (this was previously `client.chat.completions.create` but you correctly flattened it based on your log).
 
-    *   **Change Parameter Type:** Update the parameter to `params: typeof CreateChatCompletionRequest.Encoded`.
-    *   **Change Return Error Type:** Update the error channel of the returned `Effect` to `OpenAiError`.
-    *   **Adapt Input Parameters:** Map the library's `params` (which is `typeof CreateChatCompletionRequest.Encoded`) to the simpler structure your `ollamaIPC.generateChatCompletion` expects.
-    *   **Adapt Return Value:** Ensure the successful response from `ollamaIPC` is cast or mapped to `typeof CreateChatCompletionResponse.Type`.
-    *   **Map Errors:** Ensure all caught errors are wrapped in `new OpenAiError({ error: yourAIProviderError as any })`.
+    - **Change Parameter Type:** Update the parameter to `params: typeof CreateChatCompletionRequest.Encoded`.
+    - **Change Return Error Type:** Update the error channel of the returned `Effect` to `OpenAiError`.
+    - **Adapt Input Parameters:** Map the library's `params` (which is `typeof CreateChatCompletionRequest.Encoded`) to the simpler structure your `ollamaIPC.generateChatCompletion` expects.
+    - **Adapt Return Value:** Ensure the successful response from `ollamaIPC` is cast or mapped to `typeof CreateChatCompletionResponse.Type`.
+    - **Map Errors:** Ensure all caught errors are wrapped in `new OpenAiError({ error: yourAIProviderError as any })`.
 
     ```typescript
     // src/services/ai/providers/ollama/OllamaAsOpenAIClientLive.ts
@@ -239,5 +241,7 @@ Specifically:
 4.  Provide the **new full list of TypeScript errors** in your log file.
 
 This detailed fix addresses the primary type incompatibility for the non-streaming chat completion method. The same principles (matching library types for parameters and return values, and mapping errors to `OpenAiError`) will apply to the `stream` method and any other methods of `Generated.Client` you implement or stub.
+
+```
 
 ```

@@ -13,6 +13,7 @@ The issue was occurring in the test that verifies the `generateChatCompletion` m
 ## Solution
 
 1. **Added defensive coding in the implementation** to handle potential errors better:
+
    - Added checks for the IPC function existence and proper error handling
    - Improved error detection for Effect objects being passed incorrectly
    - Better null/undefined checking for responses

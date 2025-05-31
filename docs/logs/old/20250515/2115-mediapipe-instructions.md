@@ -66,7 +66,7 @@ Okay, here are the instructions for a coding agent to add a MediaPipe hand track
     - For easy access during development, open `src/pages/HomePage.tsx`.
     - Import `Link` from `@tanstack/react-router`: `import { Link } from "@tanstack/react-router";`
     - Add a temporary button/link to navigate to the demo page within the JSX of `HomePage`:
-      `tsx
+    `tsx
     // In HomePage.tsx, within the main div
     <div className="mt-4">
       <Link to="/hand-tracking-demo">

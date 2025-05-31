@@ -10,6 +10,8 @@ import { WIN_MINIMIZE_CHANNEL, WIN_MAXIMIZE_CHANNEL, WIN_CLOSE_CHANNEL } from ".
 import { OLLAMA_CHAT_COMPLETION_CHANNEL, OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL, OLLAMA_STATUS_CHECK } from "./ollama/ollama-channels";
 import { dbChannels } from "./db/db-channels";
 import type { DBSession, DBMessage, DBToolExecution } from "@/services/db";
+import { SWE_BENCH_EVALUATE_TASK_CHANNEL } from "./swe_bench/swe-bench-channels";
+import type { EvaluationResult } from "@/services/swe_bench_harness/types";
 // import { claudeCodeChannels } from "./claude_code/claude-code-channels";
 
 // Define Claude Code channels inline to avoid import issues
@@ -131,6 +133,12 @@ export default function exposeContexts() {
       saveToolCall: (toolCall: DBToolExecution) => ipcRenderer.invoke(dbChannels.saveToolCall, toolCall),
       updateToolCallResult: (toolCallId: string, resultJson: string, status: "executed_success" | "executed_error") => ipcRenderer.invoke(dbChannels.updateToolCallResult, toolCallId, resultJson, status),
       getToolCallsForMessage: (messageId: string) => ipcRenderer.invoke(dbChannels.getToolCallsForMessage, messageId),
+    },
+
+    // SWE-Bench API
+    sweBench: {
+      evaluateTask: (instanceId: string, patchContent: string) =>
+        ipcRenderer.invoke(SWE_BENCH_EVALUATE_TASK_CHANNEL, instanceId, patchContent),
     },
   };
 

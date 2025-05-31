@@ -5,11 +5,13 @@
 When using complex library abstractions like @effect/ai's AiModel → Provider pattern, you may encounter persistent internal service errors that cannot be resolved through normal means. Even after correctly using the library's API, errors like "Service not found" may persist due to execution context isolation or internal service management issues.
 
 ### Error Message
+
 ```
 Error: Service not found: @effect/ai-openai/OpenAiLanguageModel/Config (defined at ...)
 ```
 
 This error persisted even when:
+
 - Using the AiModel API correctly
 - Providing all required services
 - Following the library's documentation
@@ -17,12 +19,14 @@ This error persisted even when:
 ## Root Cause
 
 Some library abstractions create isolated execution contexts that:
+
 1. Don't inherit services from parent contexts
 2. Manage their own internal services in ways that conflict with your application
 3. Create complex service dependency chains that are difficult to satisfy
 4. Use patterns like `provider.use()` that create new execution scopes
 
 In the case of @effect/ai:
+
 - The AiModel creates its own Config service internally
 - The `provider.use()` method creates an isolated execution context
 - This context doesn't have access to the Config service the library expects
@@ -33,10 +37,11 @@ In the case of @effect/ai:
 When a library's abstraction becomes an obstacle rather than a help, consider bypassing it entirely and using lower-level APIs directly.
 
 ### Before (Using the Abstraction)
+
 ```typescript
 // This creates internal service dependency issues
 const model = OpenAiLanguageModel.model(modelName, config);
-const provider = yield* _(model);
+const provider = yield * _(model);
 
 return makeAgentLanguageModel({
   generateText: (options) =>
@@ -45,15 +50,16 @@ return makeAgentLanguageModel({
         const languageModel = yield* _(AiLanguageModel);
         // This fails with "Service not found: Config"
         return yield* _(languageModel.generateText(options));
-      })
-    )
+      }),
+    ),
 });
 ```
 
 ### After (Direct Client Usage)
+
 ```typescript
 // Bypass the abstraction entirely
-const client = yield* _(OpenAiClient.OpenAiClient);
+const client = yield * _(OpenAiClient.OpenAiClient);
 
 return makeAgentLanguageModel({
   generateText: (options) =>
@@ -64,14 +70,16 @@ return makeAgentLanguageModel({
           model: modelName,
           messages: parseMessages(options.prompt),
           temperature: options.temperature,
-          max_tokens: options.maxTokens
-        })
+          max_tokens: options.maxTokens,
+        }),
       );
-      
+
       return new AiResponse({
-        parts: [new TextPart({ text: response.choices[0]?.message?.content || "" })]
+        parts: [
+          new TextPart({ text: response.choices[0]?.message?.content || "" }),
+        ],
       });
-    })
+    }),
 });
 ```
 
@@ -88,11 +96,11 @@ return makeAgentLanguageModel({
 export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
   const client = yield* _(OpenAiClient.OpenAiClient);
   const configService = yield* _(ConfigurationService);
-  
+
   const modelName = yield* _(
-    configService.get("OLLAMA_MODEL_NAME").pipe(
-      Effect.orElseSucceed(() => "llama2")
-    )
+    configService
+      .get("OLLAMA_MODEL_NAME")
+      .pipe(Effect.orElseSucceed(() => "llama2")),
   );
 
   // Helper to parse messages from prompt
@@ -113,28 +121,35 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
             model: modelName,
             messages: parseMessages(options.prompt),
             temperature: options.temperature ?? 0.7,
-            max_tokens: options.maxTokens ?? 2048
-          })
+            max_tokens: options.maxTokens ?? 2048,
+          }),
         );
-        
+
         return new AiResponse({
-          parts: [new TextPart({ text: response.choices[0]?.message?.content || "" })]
+          parts: [
+            new TextPart({ text: response.choices[0]?.message?.content || "" }),
+          ],
         });
       }),
 
     streamText: (options) => {
       const messages = parseMessages(options.prompt);
-      return client.stream({
-        model: modelName,
-        messages,
-        temperature: options.temperature ?? 0.7,
-        max_tokens: options.maxTokens ?? 2048
-      }).pipe(
-        Stream.map((chunk) => new AiResponse({
-          parts: chunk.parts
-        }))
-      );
-    }
+      return client
+        .stream({
+          model: modelName,
+          messages,
+          temperature: options.temperature ?? 0.7,
+          max_tokens: options.maxTokens ?? 2048,
+        })
+        .pipe(
+          Stream.map(
+            (chunk) =>
+              new AiResponse({
+                parts: chunk.parts,
+              }),
+          ),
+        );
+    },
   });
 });
 ```
@@ -153,12 +168,14 @@ Consider bypassing a library abstraction when:
 ## Trade-offs
 
 ### Pros
+
 - Eliminates complex service dependency issues
 - Simpler, more maintainable code
 - Better error messages and debugging
 - Full control over execution context
 
 ### Cons
+
 - May lose some features the abstraction provides
 - Need to implement more functionality yourself
 - May need updates if the lower-level API changes

@@ -145,12 +145,18 @@ export const DefaultDevConfigLayer = Layer.effect(
     yield* _(configService.set("FEATURE_FLAGS_ENABLED_LIST", "CLAUDE_CODE_PROVIDER,CODER_PANE,HAND_TRACKING"));
 
     // SWE-Bench Docker configuration
-    yield* _(configService.set("SWE_BENCH_DOCKER_IMAGE_NAME", "swebench/swe-eval:latest"));
+    // Note: SWE-bench builds images dynamically, not using a pre-built image
+    yield* _(configService.set("SWE_BENCH_DOCKER_IMAGE_NAME", "sweb.eval.django__django-11099"));
 
     // SWE-Bench dataset and paths configuration
     yield* _(configService.set("SWE_BENCH_DATASET_PATH", "./assets/swe_bench_data")); // Dataset directory
     yield* _(configService.set("SWE_BENCH_HOST_TEMP_DIR", "/tmp/swe_bench_runs")); // Temp directory for runs
     yield* _(configService.set("SWE_BENCH_CONTAINER_WORKDIR", "/swe_bench_workdir")); // Default workdir inside container
+    
+    // SWE-Bench dynamic Docker image building configuration
+    yield* _(configService.set("SWE_BENCH_DOCKERFILE_TEMPLATE_PATH", "./assets/dockerfiles/swe_bench_task.Dockerfile")); // Path to Dockerfile template
+    yield* _(configService.set("SWE_BENCH_CONTAINER_REPO_PATH", "/opt/swe-bench/repo")); // Path where repo is cloned inside container
+    yield* _(configService.set("SWE_BENCH_BASE_IMAGE", "swebench/swe-eval:latest")); // Base image for dynamic builds (optional)
 
     return configService;
   })

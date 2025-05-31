@@ -1,11 +1,13 @@
 # Next Coding Agent Instructions - Effect AI Refactor Completion
 
 ## Context
+
 The Effect AI upgrade from v0.2.0 to v0.16.5 has made significant progress. The core architectural issues have been resolved, and we've identified the root causes of remaining TypeScript errors. This document provides step-by-step instructions for completing the refactor.
 
 ## Current Status
+
 - ✅ File casing conflicts resolved
-- ✅ Core exports fixed  
+- ✅ Core exports fixed
 - ✅ Service access patterns updated
 - ✅ Provider implementations modernized
 - ✅ Runtime layer composition fixed
@@ -20,12 +22,14 @@ The Effect AI upgrade from v0.2.0 to v0.16.5 has made significant progress. The 
 **Location**: `src/services/ai/providers/ollama/OllamaAgentLanguageModelLive.ts`
 
 **Problem**: A previous coding agent changed the Ollama provider to use `AiLanguageModel.make()` directly, which broke the established @effect/ai patterns and introduced multiple type errors:
+
 - Using wrong API (`createChatCompletion` doesn't exist on the client)
-- AiResponse type mismatch (our AiResponse vs @effect/ai AiResponse)  
+- AiResponse type mismatch (our AiResponse vs @effect/ai AiResponse)
 - Wrong options interface (`AiLanguageModelOptions` vs our options)
 - Increased TypeScript errors from 152 to 167
 
 **Current Errors**:
+
 ```
 Property 'createChatCompletion' does not exist on type 'Service'
 Property '[TypeId]' is missing in type 'AiResponse' but required in type 'AiResponse'
@@ -37,7 +41,9 @@ Property 'model' does not exist on type 'AiLanguageModelOptions'
 **Critical Note**: The OpenAI provider uses the correct @effect/ai pattern. We need to use the same pattern for Ollama, not bypass it with direct `AiLanguageModel.make()` calls.
 
 **Steps**:
+
 1. Replace the entire `OllamaAgentLanguageModelLive` implementation with the proven pattern:
+
    ```typescript
    export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
      const ollamaClient = yield* _(OllamaOpenAIClientTag);
@@ -52,9 +58,9 @@ Property 'model' does not exist on type 'AiLanguageModelOptions'
              category: "ai:config",
              action: "ollama_model_name_resolved",
              value: name,
-           })
-         )
-       )
+           }),
+         ),
+       ),
      );
 
      // Step 1: Get the AiModel definition Effect
@@ -64,7 +70,7 @@ Property 'model' does not exist on type 'AiLanguageModelOptions'
      const configuredAiModelEffect = Effect.provideService(
        aiModelEffectDefinition,
        OpenAiClient.OpenAiClient,
-       ollamaClient
+       ollamaClient,
      );
 
      // Step 3: Get the AiModel instance
@@ -76,7 +82,7 @@ Property 'model' does not exist on type 'AiLanguageModelOptions'
          Provider<AiLanguageModel.AiLanguageModel>,
          never,
          never
-       >
+       >,
      );
 
      yield* _(
@@ -84,56 +90,63 @@ Property 'model' does not exist on type 'AiLanguageModelOptions'
          category: "ai:config",
          action: "ollama_language_model_created",
          value: modelName,
-       })
+       }),
      );
 
      return makeAgentLanguageModel({
        generateText: (options: GenerateTextOptions) =>
-         provider.generateText({
-           prompt: options.prompt,
-           model: options.model,
-           temperature: options.temperature,
-           maxTokens: options.maxTokens,
-           stopSequences: options.stopSequences
-         }).pipe(
-           Effect.mapError((error) =>
-             new AiProviderError({
-               message: `Ollama generateText error: ${error instanceof Error ? error.message : String(error)}`,
-               isRetryable: true,
-               cause: error
-             })
-           )
-         ),
+         provider
+           .generateText({
+             prompt: options.prompt,
+             model: options.model,
+             temperature: options.temperature,
+             maxTokens: options.maxTokens,
+             stopSequences: options.stopSequences,
+           })
+           .pipe(
+             Effect.mapError(
+               (error) =>
+                 new AiProviderError({
+                   message: `Ollama generateText error: ${error instanceof Error ? error.message : String(error)}`,
+                   isRetryable: true,
+                   cause: error,
+                 }),
+             ),
+           ),
 
        streamText: (options: StreamTextOptions) =>
-         provider.streamText({
-           prompt: options.prompt,
-           model: options.model,
-           temperature: options.temperature,
-           maxTokens: options.maxTokens,
-           signal: options.signal
-         }).pipe(
-           Stream.mapError((error) =>
-             new AiProviderError({
-               message: `Ollama streamText error: ${error instanceof Error ? error.message : String(error)}`,
-               isRetryable: true,
-               cause: error
-             })
-           )
-         ),
+         provider
+           .streamText({
+             prompt: options.prompt,
+             model: options.model,
+             temperature: options.temperature,
+             maxTokens: options.maxTokens,
+             signal: options.signal,
+           })
+           .pipe(
+             Stream.mapError(
+               (error) =>
+                 new AiProviderError({
+                   message: `Ollama streamText error: ${error instanceof Error ? error.message : String(error)}`,
+                   isRetryable: true,
+                   cause: error,
+                 }),
+             ),
+           ),
 
        generateStructured: (options: GenerateStructuredOptions) =>
          Effect.fail(
            new AiProviderError({
              message: "generateStructured not supported by Ollama provider",
-             isRetryable: false
-           })
-         )
+             isRetryable: false,
+           }),
+         ),
      });
    });
    ```
 
 2. Add necessary imports:
+
    ```typescript
    import { OpenAiLanguageModel } from "@effect/ai-openai";
    import type { Provider } from "@effect/ai/AiPlan";
@@ -149,23 +162,26 @@ Property 'model' does not exist on type 'AiLanguageModelOptions'
 **Location**: `src/services/ai/orchestration/ChatOrchestratorService.ts:56-57`
 
 **Problem**: Using `Effect.retry` on a Stream instead of an Effect
+
 ```typescript
 return Stream.unwrap(
   Effect.retry(
     activeAgentLM.streamText(streamOptions), // Returns Stream, not Effect
-    retrySchedule
-  )
-)
+    retrySchedule,
+  ),
+);
 ```
 
-**Solution**: 
+**Solution**:
+
 1. Replace the problematic `streamConversation` implementation with:
+
    ```typescript
    streamConversation: ({ messages, preferredProvider, options }) => {
-     runTelemetry({ 
-       category: "orchestrator", 
-       action: "stream_conversation_start", 
-       label: preferredProvider.key 
+     runTelemetry({
+       category: "orchestrator",
+       action: "stream_conversation_start",
+       label: preferredProvider.key,
      });
 
      const streamOptions: StreamTextOptions = {
@@ -179,20 +195,23 @@ return Stream.unwrap(
        Stream.retry(
          Schedule.intersect(
            Schedule.recurs(preferredProvider.key === "ollama" ? 2 : 0),
-           Schedule.exponential("100 millis")
+           Schedule.exponential("100 millis"),
          ).pipe(
-           Schedule.whileInput((err: AiProviderError | AiConfigurationError) =>
-             err._tag === "AiProviderError" && err.isRetryable === true
-           )
-         )
+           Schedule.whileInput(
+             (err: AiProviderError | AiConfigurationError) =>
+               err._tag === "AiProviderError" && err.isRetryable === true,
+           ),
+         ),
        ),
-       Stream.tapError((err) => runTelemetry({
-         category: "orchestrator",
-         action: "stream_error", 
-         label: (err as Error).message
-       }))
+       Stream.tapError((err) =>
+         runTelemetry({
+           category: "orchestrator",
+           action: "stream_error",
+           label: (err as Error).message,
+         }),
+       ),
      );
-   }
+   };
    ```
 
 2. Verify by checking: `pnpm run t 2>&1 | grep -B2 -A2 "ChatOrchestratorService"`
@@ -204,7 +223,9 @@ return Stream.unwrap(
 **Problem**: Layer export has same name as the Effect, causing confusion
 
 **Steps**:
+
 1. Rename the Effect (keep it internal):
+
    ```typescript
    const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
      // ... existing implementation
@@ -212,7 +233,7 @@ return Stream.unwrap(
 
    export const NIP90AgentLanguageModelLive = Layer.effect(
      AgentLanguageModel.Tag,
-     nip90AgentLanguageModelEffect
+     nip90AgentLanguageModelEffect,
    );
    ```
 
@@ -221,6 +242,7 @@ return Stream.unwrap(
 ### Task 4: Create Test Utilities and Fix Test Files (MEDIUM PRIORITY)
 
 **Create Test Helper**: `src/tests/helpers/effect-test-utils.ts`
+
 ```typescript
 import { Effect, Layer, Context } from "effect";
 
@@ -229,7 +251,7 @@ import { Effect, Layer, Context } from "effect";
  */
 export const runTest = <A, E>(
   effect: Effect.Effect<A, E, any>,
-  layer: Layer.Layer<any, any, any>
+  layer: Layer.Layer<any, any, any>,
 ) => Effect.runPromise(effect.pipe(Effect.provide(layer)));
 
 /**
@@ -237,29 +259,29 @@ export const runTest = <A, E>(
  */
 export const mockService = <I, S>(
   tag: Context.Tag<I, S>,
-  implementation: S
-): Layer.Layer<I, never, never> => 
-  Layer.succeed(tag, implementation);
+  implementation: S,
+): Layer.Layer<I, never, never> => Layer.succeed(tag, implementation);
 
 /**
  * Helper for service access in tests
  */
-export const getService = <I, S>(tag: Context.Tag<I, S>) =>
-  Effect.service(tag);
+export const getService = <I, S>(tag: Context.Tag<I, S>) => Effect.service(tag);
 ```
 
 **Update Test Pattern**: For each test file with `Effect.provideLayer` errors:
 
 1. **Find and Replace Pattern**:
+
    ```bash
    # Find files with the old pattern
    find src/tests -name "*.ts" -exec grep -l "Effect.provideLayer" {} \;
-   
+
    # Replace pattern
    Effect.provideLayer(layer) → Effect.provide(layer)
    ```
 
 2. **Service Access Pattern**:
+
    ```typescript
    // Old: yield* _(ServiceTag)
    // New: yield* _(ServiceTag.Tag)
@@ -284,7 +306,7 @@ export const getService = <I, S>(tag: Context.Tag<I, S>) =>
 After each task, run these checks:
 
 1. **Type Check**: `pnpm run t 2>&1 | wc -l` (should decrease)
-2. **Specific File**: `pnpm run t 2>&1 | grep "filename"` 
+2. **Specific File**: `pnpm run t 2>&1 | grep "filename"`
 3. **Build Check**: `pnpm run lint`
 4. **Test Run**: `pnpm test` (once major errors are fixed)
 

@@ -5,6 +5,7 @@
 When adding required properties to existing `Data.TaggedError` classes, all constructor calls throughout the codebase must be updated, or compilation fails immediately. Missing even one constructor call causes TypeScript errors.
 
 ### Error Message
+
 ```
 Property 'provider' is missing in type '{ message: string; isRetryable: true; }' but required in type '{ readonly message: string; readonly cause?: unknown; readonly isRetryable: boolean; readonly provider: string; readonly context?: Record<string, any> | undefined; }'.
 ```
@@ -18,14 +19,14 @@ When you modify a `Data.TaggedError` class to add required properties:
 export class AiProviderError extends Data.TaggedError("AiProviderError")<{
   message: string;
   isRetryable: boolean;
-}> { }
+}> {}
 
 // After
 export class AiProviderError extends Data.TaggedError("AiProviderError")<{
   message: string;
   isRetryable: boolean;
   provider: string; // New required property
-}> { }
+}> {}
 ```
 
 All existing constructor calls become invalid:
@@ -34,7 +35,7 @@ All existing constructor calls become invalid:
 // This now fails compilation
 new AiProviderError({
   message: "Some error",
-  isRetryable: true
+  isRetryable: true,
   // Missing: provider
 });
 ```
@@ -42,9 +43,11 @@ new AiProviderError({
 ## Solution
 
 ### Step 1: Update the Error Class Definition
+
 Add the new required property to the type definition.
 
 ### Step 2: Find ALL Constructor Calls
+
 Use systematic search to find every constructor call:
 
 ```bash
@@ -54,6 +57,7 @@ grep -r "AiProviderError\.of" src/  # For static factory methods
 ```
 
 ### Step 3: Update Constructor Calls Systematically
+
 Update each call to include the new required property:
 
 ```typescript
@@ -61,19 +65,20 @@ Update each call to include the new required property:
 new AiProviderError({
   message: "Ollama generateText error",
   isRetryable: true,
-  cause: err
-})
+  cause: err,
+});
 
-// After  
+// After
 new AiProviderError({
   message: "Ollama generateText error",
   provider: "Ollama", // Add required property
   isRetryable: true,
-  cause: err
-})
+  cause: err,
+});
 ```
 
 ### Step 4: Update Helper Functions
+
 If you have error mapping functions, update their signatures:
 
 ```typescript
@@ -82,12 +87,12 @@ export const mapToAiProviderError = (
   error: unknown,
   contextAction: string,
   modelName: string,
-  isRetryable = false
+  isRetryable = false,
 ): AiProviderError => {
   return new AiProviderError({
     message: `Provider ${contextAction} error for model ${modelName}`,
     cause: error,
-    isRetryable
+    isRetryable,
   });
 };
 
@@ -96,14 +101,14 @@ export const mapToAiProviderError = (
   error: unknown,
   providerName: string, // Changed parameter
   modelName: string,
-  isRetryable = false
+  isRetryable = false,
 ): AiProviderError => {
   return new AiProviderError({
     message: `Provider error for model ${modelName} (${providerName})`,
     provider: providerName, // Add required property
     cause: error,
     isRetryable,
-    context: { model: modelName, originalError: String(error) }
+    context: { model: modelName, originalError: String(error) },
   });
 };
 ```
@@ -111,6 +116,7 @@ export const mapToAiProviderError = (
 ## Complete Example
 
 ### Error Class Update
+
 ```typescript
 export class AiProviderError extends Data.TaggedError("AiProviderError")<{
   message: string;
@@ -118,10 +124,11 @@ export class AiProviderError extends Data.TaggedError("AiProviderError")<{
   isRetryable: boolean;
   provider: string; // New required property
   context?: Record<string, any>; // Optional additional property
-}> { }
+}> {}
 ```
 
 ### Search and Replace Pattern
+
 ```bash
 # 1. Find all constructor calls
 grep -r "new AiProviderError" src/ > error_calls.txt
@@ -131,22 +138,29 @@ grep -r "new AiProviderError" src/ > error_calls.txt
 ```
 
 ### Systematic Update Example
+
 ```typescript
 // File: OllamaProvider.ts
 // Before:
-Effect.mapError(err => new AiProviderError({
-  message: `Ollama error: ${err.message}`,
-  isRetryable: true,
-  cause: err
-}))
+Effect.mapError(
+  (err) =>
+    new AiProviderError({
+      message: `Ollama error: ${err.message}`,
+      isRetryable: true,
+      cause: err,
+    }),
+);
 
 // After:
-Effect.mapError(err => new AiProviderError({
-  message: `Ollama error: ${err.message}`,
-  provider: "Ollama", // Added
-  isRetryable: true,
-  cause: err
-}))
+Effect.mapError(
+  (err) =>
+    new AiProviderError({
+      message: `Ollama error: ${err.message}`,
+      provider: "Ollama", // Added
+      isRetryable: true,
+      cause: err,
+    }),
+);
 ```
 
 ## Why This Pattern is Critical
@@ -159,6 +173,7 @@ Effect.mapError(err => new AiProviderError({
 ## When to Apply This Pattern
 
 Apply this pattern when:
+
 1. Adding required properties to existing `Data.TaggedError` classes
 2. Seeing "Property 'X' is missing" errors after error class changes
 3. Refactoring error handling to include more context

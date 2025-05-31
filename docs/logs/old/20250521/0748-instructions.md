@@ -389,17 +389,15 @@ import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 vi.mock("@buildonspark/spark-sdk", () => {
   // console.log('[Mock] @buildonspark/spark-sdk is being mocked.');
   const mockWalletInstance = {
-    createLightningInvoice: vi
-      .fn()
-      .mockResolvedValue({
-        invoice: {
-          encodedInvoice: "mockInvoiceFromSdk",
-          paymentHash: "mockHashFromSdk",
-          amountSats: 100,
-          createdAt: "2023-01-01T00:00:00Z",
-          expiresAt: "2023-01-01T01:00:00Z",
-        },
-      }),
+    createLightningInvoice: vi.fn().mockResolvedValue({
+      invoice: {
+        encodedInvoice: "mockInvoiceFromSdk",
+        paymentHash: "mockHashFromSdk",
+        amountSats: 100,
+        createdAt: "2023-01-01T00:00:00Z",
+        expiresAt: "2023-01-01T01:00:00Z",
+      },
+    }),
     payLightningInvoice: vi
       .fn()
       .mockResolvedValue({ id: "mockPaymentIdFromSdk" }),

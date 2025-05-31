@@ -7,101 +7,135 @@ Here are the instructions for the coding agent:
 **File:** `src/components/nip90/Nip90RequestForm.tsx`
 
 1.  **Remove Hardcoded DVM Pubkey:**
-    *   Delete the constant: `const OUR_DVM_PUBKEY_HEX = "..."`.
+
+    - Delete the constant: `const OUR_DVM_PUBKEY_HEX = "..."`.
 
 2.  **Add Input Field for Target DVM Pubkey:**
-    *   Add a new `useState` hook for the target DVM public key:
-        ```typescript
-        const [targetDvmPk, setTargetDvmPk] = useState<string>("");
-        ```
-    *   In the JSX, add a new `div` for this input, similar to other inputs:
-        ```html
-        <div className="space-y-1.5">
-          <Label htmlFor="targetDvmPk">Target DVM Public Key (npub or hex, optional)</Label>
-          <Input
-            id="targetDvmPk"
-            value={targetDvmPk}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => setTargetDvmPk(e.target.value)}
-            placeholder="npub1... or hex (if encrypted or specific DVM)"
-            disabled={isPublishing}
-          />
-        </div>
-        ```
-        (Place this input field logically, e.g., after "Bid Amount").
+
+    - Add a new `useState` hook for the target DVM public key:
+      ```typescript
+      const [targetDvmPk, setTargetDvmPk] = useState<string>("");
+      ```
+    - In the JSX, add a new `div` for this input, similar to other inputs:
+      ```html
+      <div className="space-y-1.5">
+        <Label htmlFor="targetDvmPk">Target DVM Public Key (npub or hex, optional)</Label>
+        <Input
+          id="targetDvmPk"
+          value={targetDvmPk}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => setTargetDvmPk(e.target.value)}
+          placeholder="npub1... or hex (if encrypted or specific DVM)"
+          disabled={isPublishing}
+        />
+      </div>
+      ```
+      (Place this input field logically, e.g., after "Bid Amount").
 
 3.  **Use Dynamic Target DVM Pubkey in `handlePublishRequest`:**
-    *   Inside `handlePublishRequest`, before creating `jobParams`:
-        ```typescript
-        let finalTargetDvmPkHexForEncryption: string | undefined = undefined;
-        let finalTargetDvmPkHexForPTag: string | undefined = undefined;
 
-        if (targetDvmPk.trim()) {
-          // Attempt to decode if it's an npub
-          if (targetDvmPk.startsWith("npub1")) {
-            try {
-              const decoded = nip19.decode(targetDvmPk.trim()); // Assuming nip19 is available or import it
-              if (decoded.type === 'npub') {
-                finalTargetDvmPkHexForEncryption = decoded.data;
-                finalTargetDvmPkHexForPTag = decoded.data;
-              } else {
-                setPublishError("Invalid npub format for Target DVM.");
-                setIsPublishing(false);
-                return;
-              }
-            } catch (e) {
-              setPublishError("Failed to decode npub for Target DVM.");
+    - Inside `handlePublishRequest`, before creating `jobParams`:
+
+      ```typescript
+      let finalTargetDvmPkHexForEncryption: string | undefined = undefined;
+      let finalTargetDvmPkHexForPTag: string | undefined = undefined;
+
+      if (targetDvmPk.trim()) {
+        // Attempt to decode if it's an npub
+        if (targetDvmPk.startsWith("npub1")) {
+          try {
+            const decoded = nip19.decode(targetDvmPk.trim()); // Assuming nip19 is available or import it
+            if (decoded.type === "npub") {
+              finalTargetDvmPkHexForEncryption = decoded.data;
+              finalTargetDvmPkHexForPTag = decoded.data;
+            } else {
+              setPublishError("Invalid npub format for Target DVM.");
               setIsPublishing(false);
               return;
             }
-          } else if (targetDvmPk.trim().length === 64 && /^[0-9a-fA-F]{64}$/.test(targetDvmPk.trim())) {
-            // Assume it's a hex pubkey
-            finalTargetDvmPkHexForEncryption = targetDvmPk.trim();
-            finalTargetDvmPkHexForPTag = targetDvmPk.trim();
-          } else {
-            setPublishError("Invalid format for Target DVM Public Key. Must be npub or 64-char hex.");
+          } catch (e) {
+            setPublishError("Failed to decode npub for Target DVM.");
             setIsPublishing(false);
             return;
           }
+        } else if (
+          targetDvmPk.trim().length === 64 &&
+          /^[0-9a-fA-F]{64}$/.test(targetDvmPk.trim())
+        ) {
+          // Assume it's a hex pubkey
+          finalTargetDvmPkHexForEncryption = targetDvmPk.trim();
+          finalTargetDvmPkHexForPTag = targetDvmPk.trim();
+        } else {
+          setPublishError(
+            "Invalid format for Target DVM Public Key. Must be npub or 64-char hex.",
+          );
+          setIsPublishing(false);
+          return;
         }
-        // If targetDvmPk is empty, both finalTargetDvmPkHexForEncryption and finalTargetDvmPkHexForPTag will remain undefined.
-        // This is correct for a broadcast request if not encrypting, or if createNip90JobRequest handles it for encryption.
-        ```
-    *   Modify the `jobParams` in `handlePublishRequest`:
-        Replace `targetDvmPubkeyHex: OUR_DVM_PUBKEY_HEX` with:
-        ```typescript
-        targetDvmPubkeyHex: finalTargetDvmPkHexForEncryption, // This is for encryption
-        ```
-    *   Modify the call to `createNip90JobRequest` to pass both encryption target and p-tag target:
-        ```typescript
-        const jobRequestEffect = createNip90JobRequest(
-          requesterSkUint8Array,
-          finalTargetDvmPkHexForEncryption, // For encryption
-          mutableInputs,
-          validatedParams.outputMimeType || "text/plain",
-          validatedParams.bidMillisats,
-          validatedParams.kind,
-          finalTargetDvmPkHexForPTag, // For p-tag in the event
-          mutableAdditionalParams as Array<[string, string, string]> | undefined,
-        );
-        ```
-    *   Ensure `nip19` is imported if you use `nip19.decode`: `import * as nip19 from "nostr-tools/nip19";` (or from your NIP19Service if preferred).
+      }
+      // If targetDvmPk is empty, both finalTargetDvmPkHexForEncryption and finalTargetDvmPkHexForPTag will remain undefined.
+      // This is correct for a broadcast request if not encrypting, or if createNip90JobRequest handles it for encryption.
+      ```
+
+    - Modify the `jobParams` in `handlePublishRequest`:
+      Replace `targetDvmPubkeyHex: OUR_DVM_PUBKEY_HEX` with:
+      ```typescript
+      targetDvmPubkeyHex: finalTargetDvmPkHexForEncryption, // This is for encryption
+      ```
+    - Modify the call to `createNip90JobRequest` to pass both encryption target and p-tag target:
+      ```typescript
+      const jobRequestEffect = createNip90JobRequest(
+        requesterSkUint8Array,
+        finalTargetDvmPkHexForEncryption, // For encryption
+        mutableInputs,
+        validatedParams.outputMimeType || "text/plain",
+        validatedParams.bidMillisats,
+        validatedParams.kind,
+        finalTargetDvmPkHexForPTag, // For p-tag in the event
+        mutableAdditionalParams as Array<[string, string, string]> | undefined,
+      );
+      ```
+    - Ensure `nip19` is imported if you use `nip19.decode`: `import * as nip19 from "nostr-tools/nip19";` (or from your NIP19Service if preferred).
 
 **II. Modify AI Backend for Dynamic NIP-90 DVM Configuration:**
 
 **File:** `src/stores/ai/agentChatStore.ts`
 
 1.  **Update `loadAvailableProviders` to include a custom NIP-90 option:**
-    *   After loading "nip90_devstral", add logic to check for user-defined NIP-90 DVM configuration.
-    *   Add a new provider entry if custom NIP-90 DVM keys are found in `ConfigurationService`.
+
+    - After loading "nip90_devstral", add logic to check for user-defined NIP-90 DVM configuration.
+    - Add a new provider entry if custom NIP-90 DVM keys are found in `ConfigurationService`.
 
     ```typescript
     // Inside loadAvailableProviders, after processing nip90_devstral:
-    const userNip90DvmPk = yield* _(Effect.optional(configService.get("USER_NIP90_DVM_PUBKEY")));
-    const userNip90EnabledStr = yield* _(configService.get("USER_NIP90_ENABLED").pipe(Effect.orElseSucceed(() => "false")));
+    const userNip90DvmPk =
+      yield * _(Effect.optional(configService.get("USER_NIP90_DVM_PUBKEY")));
+    const userNip90EnabledStr =
+      yield *
+      _(
+        configService
+          .get("USER_NIP90_ENABLED")
+          .pipe(Effect.orElseSucceed(() => "false")),
+      );
 
-    if (Option.isSome(userNip90DvmPk) && userNip90DvmPk.value.trim() !== "" && userNip90EnabledStr === "true") {
-      const userNip90Name = yield* _(configService.get("USER_NIP90_NAME").pipe(Effect.orElseSucceed(() => "Custom NIP-90 DVM")));
-      const userNip90ModelIdentifier = yield* _(configService.get("USER_NIP90_MODEL_IDENTIFIER").pipe(Effect.orElseSucceed(() => "custom_model")));
+    if (
+      Option.isSome(userNip90DvmPk) &&
+      userNip90DvmPk.value.trim() !== "" &&
+      userNip90EnabledStr === "true"
+    ) {
+      const userNip90Name =
+        yield *
+        _(
+          configService
+            .get("USER_NIP90_NAME")
+            .pipe(Effect.orElseSucceed(() => "Custom NIP-90 DVM")),
+        );
+      const userNip90ModelIdentifier =
+        yield *
+        _(
+          configService
+            .get("USER_NIP90_MODEL_IDENTIFIER")
+            .pipe(Effect.orElseSucceed(() => "custom_model")),
+        );
 
       providers.push({
         key: "nip90_custom",
@@ -116,10 +150,11 @@ Here are the instructions for the coding agent:
 **File:** `src/services/ai/orchestration/ChatOrchestratorService.ts`
 
 1.  **Update `getProviderLanguageModel` to handle the custom NIP-90 provider key:**
-    *   Add a new `case` for `"nip90_custom"` (or your chosen key from `agentChatStore`).
-    *   Inside this case, fetch configuration keys like `USER_NIP90_DVM_PUBKEY`, `USER_NIP90_RELAYS`, `USER_NIP90_REQUEST_KIND`, `USER_NIP90_REQUIRES_ENCRYPTION`, `USER_NIP90_MODEL_IDENTIFIER` from `configService`.
-    *   Use these fetched values to construct `NIP90ProviderConfig`.
-    *   Build and return the `NIP90AgentLanguageModelLive` layer using this custom config, similar to how "nip90_devstral" is handled.
+
+    - Add a new `case` for `"nip90_custom"` (or your chosen key from `agentChatStore`).
+    - Inside this case, fetch configuration keys like `USER_NIP90_DVM_PUBKEY`, `USER_NIP90_RELAYS`, `USER_NIP90_REQUEST_KIND`, `USER_NIP90_REQUIRES_ENCRYPTION`, `USER_NIP90_MODEL_IDENTIFIER` from `configService`.
+    - Use these fetched values to construct `NIP90ProviderConfig`.
+    - Build and return the `NIP90AgentLanguageModelLive` layer using this custom config, similar to how "nip90_devstral" is handled.
 
     ```typescript
     // Inside getProviderLanguageModel, add a new case:
@@ -172,52 +207,64 @@ Here are the instructions for the coding agent:
 **File:** `src/services/configuration/ConfigurationServiceImpl.ts` (`DefaultDevConfigLayer`)
 
 1.  **Add Default Placeholders for Custom NIP-90 DVM (Optional, for easier testing):**
-    *   You can add placeholder default values for the new `USER_NIP90_...` keys. This isn't strictly necessary for removing hardcoding but can help developers test the custom DVM flow if they don't have a UI to set these yet.
-    *   **Example (add within `DefaultDevConfigLayer`):**
-        ```typescript
-        yield* _(configService.set("USER_NIP90_DVM_PUBKEY", "")); // Empty, user must fill
-        yield* _(configService.set("USER_NIP90_RELAYS", JSON.stringify(["wss://relay.example.com"])));
-        yield* _(configService.set("USER_NIP90_REQUEST_KIND", "5050"));
-        yield* _(configService.set("USER_NIP90_REQUIRES_ENCRYPTION", "false"));
-        yield* _(configService.set("USER_NIP90_USE_EPHEMERAL_REQUESTS", "true"));
-        yield* _(configService.set("USER_NIP90_MODEL_IDENTIFIER", "default_custom_model"));
-        yield* _(configService.set("USER_NIP90_NAME", "My Custom DVM"));
-        yield* _(configService.set("USER_NIP90_ENABLED", "false")); // Default to disabled
-        ```
+    - You can add placeholder default values for the new `USER_NIP90_...` keys. This isn't strictly necessary for removing hardcoding but can help developers test the custom DVM flow if they don't have a UI to set these yet.
+    - **Example (add within `DefaultDevConfigLayer`):**
+      ```typescript
+      yield * _(configService.set("USER_NIP90_DVM_PUBKEY", "")); // Empty, user must fill
+      yield *
+        _(
+          configService.set(
+            "USER_NIP90_RELAYS",
+            JSON.stringify(["wss://relay.example.com"]),
+          ),
+        );
+      yield * _(configService.set("USER_NIP90_REQUEST_KIND", "5050"));
+      yield * _(configService.set("USER_NIP90_REQUIRES_ENCRYPTION", "false"));
+      yield * _(configService.set("USER_NIP90_USE_EPHEMERAL_REQUESTS", "true"));
+      yield *
+        _(
+          configService.set(
+            "USER_NIP90_MODEL_IDENTIFIER",
+            "default_custom_model",
+          ),
+        );
+      yield * _(configService.set("USER_NIP90_NAME", "My Custom DVM"));
+      yield * _(configService.set("USER_NIP90_ENABLED", "false")); // Default to disabled
+      ```
 
 **III. Update NIP-90 Helper for Clarity (Optional but Recommended):**
 
 **File:** `src/helpers/nip90/event_creation.ts`
 
 1.  **Clarity in `createNip90JobRequest` comments:**
-    *   The current comments for `targetDvmPkHexForEncryption` and `targetDvmPkHexForPTag` are good. Ensure they clearly state that if `targetDvmPkHexForEncryption` is undefined, the request is unencrypted, and if `targetDvmPkHexForPTag` is undefined (and not encrypting to a specific DVM), it's a broadcast to any DVM.
+    - The current comments for `targetDvmPkHexForEncryption` and `targetDvmPkHexForPTag` are good. Ensure they clearly state that if `targetDvmPkHexForEncryption` is undefined, the request is unencrypted, and if `targetDvmPkHexForPTag` is undefined (and not encrypting to a specific DVM), it's a broadcast to any DVM.
 
 **IV. Verify UI for NIP-90 Consumer Chat:**
 
 **File:** `src/components/nip90_consumer_chat/Nip90ConsumerChatPane.tsx`
 
 1.  **Target DVM Input:**
-    *   The `targetDvmInput` state, which is passed as `targetDvmPubkeyHex` prop to `useNip90ConsumerChat`, is already user-editable. This is correct.
-    *   Ensure the placeholder text for this input field clearly indicates it can be an npub or hex, and that leaving it blank results in an unencrypted broadcast (if the hook/service logic supports that for finding DVMs).
-    *   Current placeholder: `"npub1... or hex pubkey (leave blank for unencrypted broadcast)"` - This is good.
+    - The `targetDvmInput` state, which is passed as `targetDvmPubkeyHex` prop to `useNip90ConsumerChat`, is already user-editable. This is correct.
+    - Ensure the placeholder text for this input field clearly indicates it can be an npub or hex, and that leaving it blank results in an unencrypted broadcast (if the hook/service logic supports that for finding DVMs).
+    - Current placeholder: `"npub1... or hex pubkey (leave blank for unencrypted broadcast)"` - This is good.
 
 **V. Provider-Side DVM Identity (Verification):**
 
 **File:** `src/services/dvm/Kind5050DVMServiceImpl.ts` and `src/stores/dvmSettingsStore.ts`
 
-1.  **No changes required.** The current setup where the DVM's own identity defaults to `defaultKind5050DVMServiceConfig` but is overridable by user settings (via `DVMSettingsDialog.tsx` and `dvmSettingsStore.ts`) is correct for the DVM provider side. This allows the user to define *their own DVM's identity*.
+1.  **No changes required.** The current setup where the DVM's own identity defaults to `defaultKind5050DVMServiceConfig` but is overridable by user settings (via `DVMSettingsDialog.tsx` and `dvmSettingsStore.ts`) is correct for the DVM provider side. This allows the user to define _their own DVM's identity_.
 
 **Summary of Impact:**
 
-*   The NIP-90 manual request form will allow users to target any DVM.
-*   The AI chat system (`AgentChatPane` via `ChatOrchestratorService`) will be able to use a user-configured NIP-90 DVM in addition to any pre-defined ones like "devstral".
-*   The system moves significantly closer to being able to "work with the entire network" of DVMs on the consumer side.
-*   A future step would be to implement a UI for managing these custom NIP-90 DVM configurations in `ConfigurationService`.
-*   Another future step could be DVM discovery mechanisms rather than manual pubkey entry.
+- The NIP-90 manual request form will allow users to target any DVM.
+- The AI chat system (`AgentChatPane` via `ChatOrchestratorService`) will be able to use a user-configured NIP-90 DVM in addition to any pre-defined ones like "devstral".
+- The system moves significantly closer to being able to "work with the entire network" of DVMs on the consumer side.
+- A future step would be to implement a UI for managing these custom NIP-90 DVM configurations in `ConfigurationService`.
+- Another future step could be DVM discovery mechanisms rather than manual pubkey entry.
 
 After these changes, the most prominent hardcoded DVM pubkey (in `Nip90RequestForm.tsx`) will be removed, and the AI backend will be more flexible in targeting NIP-90 DVMs.
 
-```
+````
 
 1.  **Does the Spark effect service we wrote support generating a spark wallet?**
     - Yes, the `SparkService` (specifically `SparkServiceImpl.ts`) initializes an instance of `SparkWallet` from the `@buildonspark/spark-sdk`.
@@ -836,3 +883,4 @@ Here are the instructions:
 
 This ensures that the consumer components (`Nip90RequestForm`, `AgentChatPane`) can specify any DVM, and the AI backend can be configured to use user-defined NIP-90 DVMs. The DVM provider component itself will continue to use its own (default or user-configured) identity.
 A UI for managing the `USER_NIP90_*` configuration keys in `ConfigurationService` would be a necessary follow-up for a complete user experience.
+````

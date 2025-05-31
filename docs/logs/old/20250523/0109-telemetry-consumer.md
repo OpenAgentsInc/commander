@@ -6,8 +6,8 @@ runtime.ts:183 Creating a production-ready Effect runtime for renderer...
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'spark:init', action: 'wallet_initialize_start', label: 'Network: REGTEST', value: '2', timestamp: 1747980327239}
 TelemetryServiceImpl.ts:111 [Telemetry] {category: 'ai:config', action: 'ollama_model_from_config_service', value: 'gemma3:1b', timestamp: 1747980327282}
 VM1249 renderer_init:2 Electron Security Warning (Insecure Content-Security-Policy) This renderer process has either no Content Security
-  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
-  this app to unnecessary security risks.
+Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+this app to unnecessary security risks.
 
 For more information and help, consult
 https://electronjs.org/docs/tutorial/security.
@@ -278,7 +278,7 @@ processRootScheduleInMicrotask @ chunk-QW7VXTSL.js?v=9ee002f0:11558
 (anonymous) @ chunk-QW7VXTSL.js?v=9ee002f0:11649
 <OutletImpl>
 exports.jsxDEV @ react_jsx-dev-runtime.js?v=9ee002f0:250
-Root @ __root.tsx:14
+Root @ \_\_root.tsx:14
 react-stack-bottom-frame @ chunk-QW7VXTSL.js?v=9ee002f0:17424
 renderWithHooks @ chunk-QW7VXTSL.js?v=9ee002f0:4206
 updateFunctionComponent @ chunk-QW7VXTSL.js?v=9ee002f0:6619
