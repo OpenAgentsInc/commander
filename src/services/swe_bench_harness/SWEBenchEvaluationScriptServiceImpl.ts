@@ -42,7 +42,7 @@ export const SWEBenchEvaluationScriptServiceLive = Layer.effect(
             const reportFile = "/tmp/report.json";
 
             const scriptContent = `#!/bin/bash
-set -eo pipefail # Exit on error, treat pipe failures as errors
+# Don't use set -e because we need to continue even if tests fail
 
 # Virtual environment is already activated via PATH in Docker ENV
 echo "=== Verifying Python Environment ==="
@@ -118,6 +118,11 @@ cat > ${reportFile} << EOF
 EOF
 
 echo "=== Evaluation Complete. Report at ${reportFile} ==="
+echo "Report contents:"
+cat ${reportFile}
+echo ""
+echo "Checking if report exists:"
+ls -la ${reportFile}
 exit 0
 `;
             

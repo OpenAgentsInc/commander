@@ -1,0 +1,30 @@
+{
+  "timestamp": "2025-05-31T22:29:32.100Z",
+  "tasks_attempted": 1,
+  "tasks_succeeded": 0,
+  "tasks_failed": 1,
+  "tasks_skipped": 0,
+  "options": {
+    "tasks_dir": "assets/swe_bench_data",
+    "use_gold_patch": true,
+    "skip_if_no_patch": false,
+    "stop_on_failure": false,
+    "instance_ids": "astropy__astropy-6938",
+    "max_tasks": 1
+  },
+  "results": [
+    {
+      "instanceId": "astropy__astropy-6938",
+      "result": {
+        "instance_id": "astropy__astropy-6938",
+        "report": {
+          "instance_id": "astropy__astropy-6938",
+          "patch_applied_successfully": true,
+          "tests_passed": false,
+          "resolved": false
+        },
+        "duration_ms": 106392
+      }
+    }
+  ]
+}
