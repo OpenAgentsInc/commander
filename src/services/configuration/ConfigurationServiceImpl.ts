@@ -144,6 +144,9 @@ export const DefaultDevConfigLayer = Layer.effect(
     // Only enable Claude Code provider, Coder Pane, and Hand Tracking
     yield* _(configService.set("FEATURE_FLAGS_ENABLED_LIST", "CLAUDE_CODE_PROVIDER,CODER_PANE,HAND_TRACKING"));
 
+    // SWE-Bench Docker configuration
+    yield* _(configService.set("SWE_BENCH_DOCKER_IMAGE_NAME", "swebench/swe-eval:latest"));
+
     return configService;
   })
 );

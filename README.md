@@ -45,6 +45,20 @@ The bridge service is automatically started when you run `pnpm start`. Additiona
 - `pnpm bridge:stop` - Stop bridge service
 - `pnpm start:app-only` - Start app without bridge service
 
+## SWE-Bench Harness Prerequisites (Optional)
+
+If you plan to use or develop the SWE-Bench evaluation harness:
+
+1.  **Ensure Docker is installed and running:**
+    Docker Desktop (for Mac/Windows) or Docker Engine (for Linux) must be installed and the Docker daemon must be running.
+
+2.  **Pull the SWE-Bench evaluation image:**
+    Open your terminal and run the following command to download the necessary Docker image:
+    ```bash
+    docker pull swebench/swe-eval:latest
+    ```
+    This image is required for running SWE-Bench task evaluations in an isolated environment.
+
 ## Tech Stack
 
 *   **Application Framework:** [Electron](https://www.electronjs.org) (~v35)
