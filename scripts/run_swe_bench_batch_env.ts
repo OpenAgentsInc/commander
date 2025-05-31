@@ -37,8 +37,9 @@ program
 program.parse(process.argv);
 const options = program.opts() as BatchOptions;
 
-// Set environment variable for the harness
+// Set environment variables for the harness
 process.env.SWE_BENCH_DATASET_PATH = path.resolve(options.tasks_dir);
+process.env.SWE_BENCH_USE_ENHANCED_DOCKERFILE = 'true';
 
 async function ensureOutputDir(): Promise<string> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');

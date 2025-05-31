@@ -84,6 +84,11 @@ export const DockerBuildManagerServiceLive = Layer.effect(
             )
           );
 
+          // Store condaEnvName early since we need it for setup script
+          const repoSanitized = task.repo.replace(/[\\/]/g, "__").replace(/[^a-zA-Z0-9_-]/g, "_");
+          const versionSanitized = (task.version || "default").replace(/[^a-zA-Z0-9_-]/g, "_");
+          const condaEnvName = `${repoSanitized}-${versionSanitized}`;
+
           // 5. Generate and write the setup script if using enhanced Dockerfile
           if (useEnhanced === "true") {
             const containerRepoPath = yield* _(
@@ -92,7 +97,8 @@ export const DockerBuildManagerServiceLive = Layer.effect(
               )
             );
 
-            const virtualEnvPath = `/opt/venv/${envConfig.pythonVersion.replace(/\./g, "_")}_env`;
+            // Use the same virtualEnvPath as in the Dockerfile
+            const virtualEnvPath = `/opt/venv/${condaEnvName}`;
             const setupScript = yield* _(envSetup.generateSetupScript(
               envConfig,
               containerRepoPath,
@@ -124,10 +130,7 @@ export const DockerBuildManagerServiceLive = Layer.effect(
           // 8. Use Python version from environment config
           const pythonVersion = envConfig.pythonVersion;
 
-          // 9. Derive conda/venv environment name from task repo and version
-          const repoSanitized = task.repo.replace(/[\/]/g, "__").replace(/[^a-zA-Z0-9_-]/g, "_");
-          const versionSanitized = (task.version || "default").replace(/[^a-zA-Z0-9_-]/g, "_");
-          const condaEnvName = `${repoSanitized}-${versionSanitized}`;
+          // 9. condaEnvName was already calculated above for setup script
 
           // 10. Get base image name from config
           const baseImageName = yield* _(
