@@ -54,8 +54,8 @@ describe('SWEBenchEvaluationScriptService', () => {
         const script = result.value;
         expect(script).toContain('#!/bin/bash');
         expect(script).toContain('set -eo pipefail');
-        expect(script).toContain('CONDA_ENV_NAME_FROM_DOCKER_ENV="${CONDA_ENV_NAME}"');
-        expect(script).toContain('conda activate "${CONDA_ENV_NAME_FROM_DOCKER_ENV}"');
+        expect(script).toContain('Virtual environment: ${VIRTUAL_ENV}');
+        expect(script).toContain('if [[ "$(which python)" != "${VIRTUAL_ENV}/bin/python" ]]');
         expect(script).toContain('cd "/container/eval/repo"');
         expect(script).toContain('git apply');
         expect(script).toContain('patch.diff');

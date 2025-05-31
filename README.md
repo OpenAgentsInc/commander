@@ -52,12 +52,27 @@ If you plan to use or develop the SWE-Bench evaluation harness:
 1.  **Ensure Docker is installed and running:**
     Docker Desktop (for Mac/Windows) or Docker Engine (for Linux) must be installed and the Docker daemon must be running.
 
-2.  **Pull the SWE-Bench evaluation image:**
-    Open your terminal and run the following command to download the necessary Docker image:
-    ```bash
-    docker pull swebench/swe-eval:latest
-    ```
-    This image is required for running SWE-Bench task evaluations in an isolated environment.
+2.  **Prepare the SWE-Bench Base Docker Image:**
+    Commander's SWE-Bench harness dynamically builds a custom Docker image for each task instance. This process requires a base image that provides the core Python environment and tools. By default, Commander expects this base image to be named `swebench/swe-eval:latest`.
+
+    **To build this base image locally:**
+    1. Clone the official SWE-Bench repository:
+       ```bash
+       git clone https://github.com/princeton-nlp/SWE-bench.git
+       cd SWE-bench
+       ```
+    2. Build their base Docker image (often referred to as `sweb.base`):
+       ```bash
+       docker build -f dockerfiles/Dockerfile.base -t sweb.base .
+       ```
+    3. Tag this image so Commander can find it by the default name:
+       ```bash
+       docker tag sweb.base swebench/swe-eval:latest
+       ```
+
+    **Alternatively**, if you use a different name for your locally built base image (e.g., `my-sweb-base:custom`), you must update Commander's configuration by setting the `SWE_BENCH_BASE_IMAGE_NAME` in the configuration service or relevant environment variable to match your custom image name.
+
+    Having this base image prepared locally will speed up the dynamic per-task image builds performed by the Commander harness.
 
 ## Running SWE-Bench Evaluations
 
@@ -70,6 +85,9 @@ The project includes tools for running SWE-Bench task evaluations using official
    ```bash
    pip install datasets huggingface_hub
    ```
+   **Note:** Some Hugging Face datasets may require authentication. If you encounter issues, you may need to log in using the Hugging Face CLI: `huggingface-cli login`.
+
+   As a dependency-light alternative for downloading tasks, you can use the `scripts/fetch_swebench_tasks.sh` shell script (requires `curl` and `jq`). However, the Python script is recommended for full compatibility with all dataset features.
 3. **Docker** - Must be installed and running
 4. **SWE-Bench base image** - Pull with:
    ```bash

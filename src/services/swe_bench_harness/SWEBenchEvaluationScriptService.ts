@@ -9,13 +9,15 @@ export interface SWEBenchEvaluationScriptService {
    * @param patchFileNameInContainer The name of the patch file inside the container's evalDir.
    * @param containerEvalDir Absolute path to the evaluation directory inside the container.
    * @param containerRepoPath Absolute path to the cloned repository root inside the container.
+   * @param testPatchFileNameInContainer Optional name of the test patch file inside the container's evalDir.
    * @returns Effect<string, ScriptBuildError> - The script content.
    */
   buildEvalScript(
     task: SWEBenchTask,
     patchFileNameInContainer: string,
     containerEvalDir: string,
-    containerRepoPath: string
+    containerRepoPath: string,
+    testPatchFileNameInContainer?: string
   ): Effect.Effect<string, ScriptBuildError>;
 }
 

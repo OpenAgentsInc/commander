@@ -10,7 +10,7 @@ export const SWEBenchEvaluationScriptServiceLive = Layer.effect(
     const telemetry = yield* TelemetryService;
 
     return SWEBenchEvaluationScriptService.of({
-      buildEvalScript: (task, patchFileNameInContainer, containerEvalDir, containerRepoPath) => 
+      buildEvalScript: (task, patchFileNameInContainer, containerEvalDir, containerRepoPath, testPatchFileNameInContainer) => 
         Effect.gen(function* () {
             // Patch application command
             // Try reverse apply first in case patch was already partially applied
@@ -49,8 +49,22 @@ if [ $? -ne 0 ]; then
   echo '{"error": "Failed to cd to repo"}' > ${reportFile}
   exit 1
 fi
-
-echo "=== Applying Patch: ${patchFileNameInContainer} ==="
+${testPatchFileNameInContainer ? `
+echo "=== Applying Test Patch: ${testPatchFileNameInContainer} ==="
+TEST_PATCH_PATH="${containerEvalDir}/${testPatchFileNameInContainer}"
+if [ -f "$TEST_PATCH_PATH" ]; then
+  git apply -v "$TEST_PATCH_PATH"
+  if [ $? -ne 0 ]; then
+    echo "Warning: Test patch application failed. This might affect test execution."
+    # Continue anyway as some test patches might be already applied
+  else
+    echo "Test patch applied successfully."
+  fi
+else
+  echo "No test patch file found at $TEST_PATCH_PATH"
+fi
+` : ''}
+echo "=== Applying Solution Patch: ${patchFileNameInContainer} ==="
 PATCH_APPLIED_SUCCESSFULLY=false
 (${patchApplyCmd})
 if [ $? -eq 0 ]; then

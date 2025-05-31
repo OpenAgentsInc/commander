@@ -26,7 +26,8 @@ export interface SWEBenchLifecycleService {
     containerContext: ContainerContext,
     evalScriptContent: string,
     patchContent: string,
-    patchFileNameInContainer?: string // Default: "patch.diff"
+    patchFileNameInContainer?: string, // Default: "patch.diff"
+    testPatchContent?: string // Optional test patch content
   ): Effect.Effect<EvaluationReport, LifecycleEvalError | DockerOperationError | DockerError>;
 
   /**
