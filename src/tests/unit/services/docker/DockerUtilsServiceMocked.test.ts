@@ -70,7 +70,7 @@ describe('DockerUtilsService with Test Layer', () => {
 
       const result = await Effect.runPromise(service.pullImage('test-image:latest'));
       expect(result).toBeUndefined();
-      expect(service.pullImage).toHaveBeenCalledWith('test-image:latest', undefined);
+      expect(service.pullImage).toHaveBeenCalledWith('test-image:latest');
     });
 
     it('should return DockerOperationError on failure', async () => {
@@ -130,7 +130,7 @@ describe('DockerUtilsService with Test Layer', () => {
       const containerId = 'container-123';
       const result = await Effect.runPromise(service.stopContainer(containerId));
       expect(result).toBeUndefined();
-      expect(service.stopContainer).toHaveBeenCalledWith(containerId, undefined);
+      expect(service.stopContainer).toHaveBeenCalledWith(containerId);
     });
   });
 
@@ -143,7 +143,7 @@ describe('DockerUtilsService with Test Layer', () => {
       const containerId = 'container-123';
       const result = await Effect.runPromise(service.removeContainer(containerId));
       expect(result).toBeUndefined();
-      expect(service.removeContainer).toHaveBeenCalledWith(containerId, undefined);
+      expect(service.removeContainer).toHaveBeenCalledWith(containerId);
     });
   });
 });
