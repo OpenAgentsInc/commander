@@ -8,21 +8,31 @@ import {
   SWEBenchTaskServiceLive,
   SWEBenchEvaluationScriptServiceLive,
   SWEBenchLifecycleServiceLive,
-  SWEBenchHarnessServiceLive
+  SWEBenchHarnessServiceLive,
+  DockerBuildManagerServiceLive
 } from "@/services/swe_bench_harness";
 
-const ConfigAndTelemetryBaseLayer = Layer.mergeAll(
-  DefaultDevConfigLayer, // Provides ConfigurationService
-  DefaultTelemetryConfigLayer // Provides TelemetryServiceConfigTag
-).pipe(
-  Layer.provide(TelemetryServiceLive) // Provides TelemetryService
+// First provide the base ConfigurationService implementation
+const ConfigLayer = DefaultDevConfigLayer.pipe(
+  Layer.provide(ConfigurationServiceLive)
+);
+
+// Then provide TelemetryService with its config
+const TelemetryLayer = TelemetryServiceLive.pipe(
+  Layer.provide(DefaultTelemetryConfigLayer)
+);
+
+const BaseServicesLayer = Layer.mergeAll(
+  ConfigLayer,
+  TelemetryLayer,
+  NodeFileSystem.layer,
+  DockerUtilsServiceLive
 );
 
 export const FullSWEBenchHarnessLayer = SWEBenchHarnessServiceLive.pipe(
   Layer.provide(SWEBenchLifecycleServiceLive),
   Layer.provide(SWEBenchEvaluationScriptServiceLive),
   Layer.provide(SWEBenchTaskServiceLive),
-  Layer.provide(DockerUtilsServiceLive),
-  Layer.provide(NodeFileSystem.layer), // FileSystem needed by SWEBenchTaskServiceImpl and SWEBenchLifecycleServiceImpl
-  Layer.provide(ConfigAndTelemetryBaseLayer) // Provides ConfigurationService and TelemetryService
+  Layer.provide(DockerBuildManagerServiceLive),
+  Layer.provide(BaseServicesLayer)
 );

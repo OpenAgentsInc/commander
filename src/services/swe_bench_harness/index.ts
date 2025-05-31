@@ -8,3 +8,5 @@ export * from "./SWEBenchLifecycleService";
 export * from "./SWEBenchLifecycleServiceImpl";
 export * from "./SWEBenchHarnessService";
 export * from "./SWEBenchHarnessServiceImpl";
+export * from "./DockerBuildManagerService";
+export * from "./DockerBuildManagerServiceImpl";

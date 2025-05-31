@@ -34,6 +34,8 @@ const mockContainerContext: ContainerContext = {
   hostEvalDir: "/tmp/swe-bench/task-xyz",
   containerEvalDir: "/swe_bench_workdir/test-instance-1",
   containerRepoPath: "/swe_bench_workdir/test-instance-1/test-repo",
+  imageName: "swe-bench-task/test-instance-1:latest",
+  hostBuildCtxDir: "/tmp/swe-bench-build-test-instance-1"
 };
 
 const mockReport: EvaluationReport = {

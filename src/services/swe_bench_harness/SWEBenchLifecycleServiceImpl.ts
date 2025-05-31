@@ -1,14 +1,14 @@
 import { Effect, Layer, Schema } from "effect";
 import path from "path";
-import simpleGit from "simple-git";
 import { extract } from "tar-stream";
 import { pipeline } from "stream/promises";
 import { createWriteStream } from "fs";
 import { FileSystem } from "@effect/platform/FileSystem";
 import { SWEBenchLifecycleService } from "./SWEBenchLifecycleService";
-import { DockerUtilsService, DockerError } from "@/services/docker";
+import { DockerUtilsService, DockerError, DockerOperationError } from "@/services/docker";
 import { ConfigurationService } from "@/services/configuration";
 import { TelemetryService } from "@/services/telemetry";
+import { DockerBuildManagerService } from "./DockerBuildManagerService";
 import type { SWEBenchTask, EvaluationReport, ContainerContext } from "./types";
 import { EvaluationReportSchema } from "./types";
 import { LifecycleSetupError, LifecycleEvalError } from "./errors";
@@ -21,82 +21,121 @@ export const SWEBenchLifecycleServiceLive = Layer.effect(
     const config = yield* ConfigurationService;
     const telemetry = yield* TelemetryService;
     const fs = yield* FileSystem;
-
-    const git = simpleGit();
+    const dockerBuildManager = yield* DockerBuildManagerService;
 
     return SWEBenchLifecycleService.of({
       setupContainerForTask: (task) => 
         Effect.gen(function* () {
           // Get configuration values
-            const hostTempDir = yield* config.get("SWE_BENCH_HOST_TEMP_DIR");
-            const containerWorkdir = yield* config.get("SWE_BENCH_CONTAINER_WORKDIR");
-            const dockerImage = yield* config.get("SWE_BENCH_DOCKER_IMAGE_NAME");
+          const hostTempDir = yield* config.get("SWE_BENCH_HOST_TEMP_DIR");
+          const containerWorkdir = yield* config.get("SWE_BENCH_CONTAINER_WORKDIR");
 
-            // Create unique temp directory for this task
-            const taskTempDir = yield* fs.makeTempDirectory({
-              directory: hostTempDir,
-              prefix: `swe-bench-${task.instance_id}-`
-            }).pipe(
-              Effect.mapError(error => new LifecycleSetupError({
-                message: "Failed to create temp directory",
-                cause: error,
-                context: { hostTempDir, task: task.instance_id }
-              }))
-            );
+          // Step 1: Prepare Docker build context
+          const buildContext = yield* dockerBuildManager.prepareBuildContext(task, hostTempDir);
 
-            // Clone repository
-            const repoName = task.repo.split('/').pop() || 'repo';
-            const repoPath = path.join(taskTempDir, repoName);
-            
-            yield* Effect.tryPromise({
-              try: async () => {
-                await git.clone(`https://github.com/${task.repo}.git`, repoPath);
-                await git.cwd(repoPath).checkout(task.base_commit);
-              },
-              catch: (error) => new LifecycleSetupError({
-                message: `Failed to clone repository ${task.repo}`,
-                cause: error,
-                context: { repo: task.repo, commit: task.base_commit }
-              })
+          // Step 2: Build the Docker image
+          const buildStream = yield* docker.buildImage(buildContext.contextPath, {
+            t: buildContext.imageName,
+            dockerfile: buildContext.dockerfileName,
+            buildargs: {
+              REPO_URL_ARG: `https://github.com/${task.repo}.git`,
+              BASE_COMMIT_ARG: task.base_commit,
+              CONTAINER_REPO_PATH_ARG: buildContext.containerRepoPath
+            }
+          });
+
+          // Handle the build stream
+          yield* Effect.async<void, DockerOperationError>((resume) => {
+            // Note: We need to follow the build progress manually since the DockerUtilsService
+            // doesn't expose the modem. For now, we'll just check if the stream completes.
+            buildStream.on('end', () => {
+              resume(Effect.succeed(undefined));
             });
+            
+            buildStream.on('error', (err) => {
+              resume(Effect.fail(new DockerOperationError({
+                message: `Image build failed for ${buildContext.imageName}`,
+                operation: "buildImage.stream",
+                imageName: buildContext.imageName,
+                cause: err
+              })));
+            });
+            
+            // Log build output
+            buildStream.on('data', (chunk) => {
+              const lines = chunk.toString().split('\n');
+              lines.forEach((line: string) => {
+                if (line.trim()) {
+                  try {
+                    const event = JSON.parse(line);
+                    if (event.stream) {
+                      console.log(`[Docker Build] ${event.stream.trim()}`);
+                    } else if (event.error) {
+                      console.error(`[Docker Build Error] ${event.error}`);
+                    }
+                  } catch {
+                    // Not JSON, just log as is
+                    console.log(`[Docker Build] ${line}`);
+                  }
+                }
+              });
+            });
+          }).pipe(
+            Effect.mapError(error => new LifecycleSetupError({
+              message: "Failed to build Docker image",
+              cause: error,
+              context: { task: task.instance_id, imageName: buildContext.imageName }
+            }))
+          );
 
-            // Set up container paths
-            const containerEvalDir = path.join(containerWorkdir, task.instance_id);
-            const containerRepoPath = path.join(containerEvalDir, repoName);
+          // Step 3: Create temp directory for evaluation scripts
+          const hostEvalDir = yield* fs.makeTempDirectory({
+            directory: hostTempDir,
+            prefix: `swe-bench-eval-${task.instance_id}-`
+          }).pipe(
+            Effect.mapError(error => new LifecycleSetupError({
+              message: "Failed to create evaluation temp directory",
+              cause: error,
+              context: { hostTempDir, task: task.instance_id }
+            }))
+          );
 
-            // Create container with bind mount
-            const containerOptions: Dockerode.ContainerCreateOptions = {
-              Image: dockerImage,
-              Tty: false,
-              AttachStdin: false,
-              AttachStdout: false,
-              AttachStderr: false,
-              OpenStdin: false,
-              WorkingDir: containerRepoPath,
-              HostConfig: {
-                AutoRemove: false,
-                Mounts: [{
-                  Type: 'bind',
-                  Source: taskTempDir,
-                  Target: containerEvalDir,
-                  ReadOnly: false
-                }]
-              },
-              // Keep container running
-              Cmd: ["tail", "-f", "/dev/null"]
-            };
+          // Step 4: Create and start container
+          const containerEvalDir = containerWorkdir; // /swe_bench_workdir
+          const containerOptions: Dockerode.ContainerCreateOptions = {
+            Image: buildContext.imageName,
+            Tty: false,
+            AttachStdin: false,
+            AttachStdout: false,
+            AttachStderr: false,
+            OpenStdin: false,
+            WorkingDir: containerEvalDir,
+            HostConfig: {
+              AutoRemove: false,
+              Mounts: [{
+                Type: 'bind',
+                Source: hostEvalDir,
+                Target: containerEvalDir,
+                ReadOnly: false
+              }]
+            },
+            // Keep container running
+            Cmd: ["tail", "-f", "/dev/null"]
+          };
 
-            const containerId = yield* docker.createContainer(containerOptions);
-            yield* docker.startContainer(containerId);
+          const containerId = yield* docker.createContainer(containerOptions);
+          yield* docker.startContainer(containerId);
 
-            const context: ContainerContext = {
-              containerId,
-              hostEvalDir: taskTempDir,
-              containerEvalDir,
-              containerRepoPath
-            };
+          const context: ContainerContext = {
+            containerId,
+            hostEvalDir,
+            containerEvalDir,
+            containerRepoPath: buildContext.containerRepoPath,
+            imageName: buildContext.imageName,
+            hostBuildCtxDir: buildContext.contextPath
+          };
 
-            yield* telemetry.trackEvent({
+          yield* telemetry.trackEvent({
               category: "swe_bench",
               action: "container_setup_complete",
               label: task.instance_id,
@@ -266,18 +305,39 @@ export const SWEBenchLifecycleServiceLive = Layer.effect(
           // Remove container
           yield* docker.removeContainer(containerContext.containerId, { force: true });
 
-          // Remove temp directory
+          // Remove Docker image
+          yield* docker.removeImage(containerContext.imageName, { force: true }).pipe(
+            Effect.mapError(error => new DockerError({
+              message: `Failed to remove Docker image ${containerContext.imageName}`,
+              cause: error
+            }))
+          );
+
+          // Remove build context directory
+          yield* fs.remove(containerContext.hostBuildCtxDir, { recursive: true }).pipe(
+            Effect.mapError(error => new DockerError({ 
+              message: "Failed to remove build context directory",
+              cause: { path: containerContext.hostBuildCtxDir, error }
+            }))
+          );
+
+          // Remove evaluation temp directory
           yield* fs.remove(containerContext.hostEvalDir, { recursive: true }).pipe(
-            Effect.mapError(() => new DockerError({ 
-              message: "Failed to remove temp directory",
-              cause: { path: containerContext.hostEvalDir }
+            Effect.mapError(error => new DockerError({ 
+              message: "Failed to remove evaluation temp directory",
+              cause: { path: containerContext.hostEvalDir, error }
             }))
           );
 
           yield* telemetry.trackEvent({
             category: "swe_bench",
             action: "container_cleanup_complete",
-            value: containerContext.containerId
+            label: containerContext.containerId,
+            context: {
+              imageName: containerContext.imageName,
+              hostBuildCtxDir: containerContext.hostBuildCtxDir,
+              hostEvalDir: containerContext.hostEvalDir
+            }
           }).pipe(Effect.catchAll(() => Effect.void));
         })
     });

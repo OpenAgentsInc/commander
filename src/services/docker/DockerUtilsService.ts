@@ -25,6 +25,17 @@ export interface DockerUtilsService {
       User?: string;
     }
   ) => Effect.Effect<{ stdout: string; stderr: string; exitCode: number }, DockerOperationError>;
+  
+  // Phase 1 additions for dynamic image building
+  readonly buildImage: (
+    contextPath: string, // Path to the directory containing the Dockerfile and build context
+    options: Dockerode.ImageBuildOptions // e.g., { t: "image-name:tag", dockerfile: "Dockerfile.name" }
+  ) => Effect.Effect<NodeJS.ReadableStream, DockerOperationError>; // Stream of build output
+
+  readonly removeImage: (
+    imageNameOrId: string,
+    options?: Dockerode.ImageRemoveOptions
+  ) => Effect.Effect<void, DockerOperationError>;
 }
 
 export const DockerUtilsService = Context.GenericTag<DockerUtilsService>("DockerUtilsService");

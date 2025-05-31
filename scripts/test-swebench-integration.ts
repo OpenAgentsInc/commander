@@ -24,7 +24,9 @@ const testProgram = Effect.gen(function* (_) {
 
   yield* _(Console.log(`Evaluating task: ${instanceId}`));
 
-  const result = yield* _(harness.evaluateTask(instanceId, patchContent));
+  const result = yield* _(harness.evaluateTask(instanceId, patchContent).pipe(
+    Effect.tapError((error) => Console.log(`Error during evaluation: ${JSON.stringify(error)}`))
+  ));
 
   yield* _(Console.log("\n✅ Evaluation Result:"));
   // Using Node's console.log for potentially large/nested objects

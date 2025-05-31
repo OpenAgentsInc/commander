@@ -1,18 +1,22 @@
 import { Context, Effect } from "effect";
 import type { SWEBenchTask, EvaluationReport, ContainerContext } from "./types";
-import type { LifecycleSetupError, LifecycleEvalError } from "./errors";
+import type { LifecycleSetupError, LifecycleEvalError, DockerBuildPrepError } from "./errors";
 import type { DockerError, DockerOperationError } from "@/services/docker";
 import type { ConfigError } from "@/services/configuration";
 import type { FileSystem } from "@effect/platform/FileSystem";
+import type { DockerBuildManagerService } from "./DockerBuildManagerService";
 
 export interface SWEBenchLifecycleService {
   /**
    * Set up a Docker container for running a SWE-Bench task.
-   * Creates temp directory, clones repo, creates and starts container.
+   * Builds custom Docker image, creates temp directory, creates and starts container.
    */
   setupContainerForTask(
     task: SWEBenchTask
-  ): Effect.Effect<ContainerContext, LifecycleSetupError | DockerError | DockerOperationError | ConfigError, FileSystem>;
+  ): Effect.Effect<
+    ContainerContext, 
+    LifecycleSetupError | DockerError | DockerOperationError | ConfigError | DockerBuildPrepError
+  >;
 
   /**
    * Run the evaluation script inside the container.
@@ -23,7 +27,7 @@ export interface SWEBenchLifecycleService {
     evalScriptContent: string,
     patchContent: string,
     patchFileNameInContainer?: string // Default: "patch.diff"
-  ): Effect.Effect<EvaluationReport, LifecycleEvalError | DockerOperationError | DockerError, FileSystem>;
+  ): Effect.Effect<EvaluationReport, LifecycleEvalError | DockerOperationError | DockerError>;
 
   /**
    * Clean up container and temporary files.
@@ -31,7 +35,7 @@ export interface SWEBenchLifecycleService {
    */
   cleanupContainerResources(
     containerContext: ContainerContext
-  ): Effect.Effect<void, DockerError | DockerOperationError, FileSystem>;
+  ): Effect.Effect<void, DockerError | DockerOperationError>;
 }
 
 export const SWEBenchLifecycleService = Context.GenericTag<SWEBenchLifecycleService>("SWEBenchLifecycleService");

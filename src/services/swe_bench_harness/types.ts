@@ -29,9 +29,11 @@ export type EvaluationReport = Schema.Schema.Type<typeof EvaluationReportSchema>
 
 export interface ContainerContext {
   readonly containerId: string;
-  readonly hostEvalDir: string;          // Absolute path on host for this task's eval files
-  readonly containerEvalDir: string;     // Absolute path inside container (mount point of hostEvalDir)
-  readonly containerRepoPath: string;    // Absolute path to repo root inside container
+  readonly hostEvalDir: string;          // Temp dir on HOST where patch/eval.sh are placed
+  readonly containerEvalDir: string;     // Mount point of hostEvalDir INSIDE container
+  readonly containerRepoPath: string;    // Path of repo cloned INSIDE container (by Dockerfile)
+  readonly imageName: string;            // Name of the dynamically built image
+  readonly hostBuildCtxDir: string;      // Path to the Docker build context on HOST (temp dir)
 }
 
 export const EvaluationResultSchema = Schema.Struct({

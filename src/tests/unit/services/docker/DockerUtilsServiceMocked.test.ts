@@ -17,6 +17,8 @@ const DockerUtilsServiceTest = Layer.succeed(
     copyToContainer: vi.fn(),
     copyFromContainer: vi.fn(),
     execInContainer: vi.fn(),
+    buildImage: vi.fn(),
+    removeImage: vi.fn(),
   })
 );
 
@@ -302,6 +304,94 @@ describe('DockerUtilsService with Test Layer', () => {
       );
       expect(result.exitCode).toBe(127);
       expect(result.stderr).toBe('Command not found');
+    });
+  });
+
+  describe('buildImage', () => {
+    it('should build an image successfully', async () => {
+      const mockStream = { on: vi.fn(), pipe: vi.fn() } as unknown as NodeJS.ReadableStream;
+      vi.mocked(service.buildImage).mockImplementation(() =>
+        Effect.succeed(mockStream)
+      );
+
+      const contextPath = '/path/to/build/context';
+      const options: Dockerode.ImageBuildOptions = { 
+        t: 'my-image:latest',
+        dockerfile: 'Dockerfile'
+      };
+      
+      const result = await Effect.runPromise(service.buildImage(contextPath, options));
+      expect(result).toBe(mockStream);
+      expect(service.buildImage).toHaveBeenCalledWith(contextPath, options);
+    });
+
+    it('should return DockerOperationError on failure', async () => {
+      vi.mocked(service.buildImage).mockImplementation(() =>
+        Effect.fail(new DockerOperationError({
+          message: "Failed to build image",
+          operation: "buildImage.start",
+          imageName: "my-image:latest"
+        }))
+      );
+
+      const result = await Effect.runPromiseExit(
+        service.buildImage('/context', { t: 'my-image:latest' })
+      );
+      expect(Exit.isFailure(result)).toBe(true);
+      
+      if (Exit.isFailure(result) && result.cause._tag === 'Fail') {
+        const error = result.cause.error as DockerOperationError;
+        expect(error._tag).toBe('DockerOperationError');
+        expect(error.operation).toBe('buildImage.start');
+        expect(error.imageName).toBe('my-image:latest');
+      }
+    });
+  });
+
+  describe('removeImage', () => {
+    it('should remove an image successfully', async () => {
+      vi.mocked(service.removeImage).mockImplementation(() =>
+        Effect.succeed(undefined)
+      );
+
+      const imageName = 'my-image:latest';
+      
+      await Effect.runPromise(service.removeImage(imageName));
+      expect(service.removeImage).toHaveBeenCalledWith(imageName);
+    });
+
+    it('should remove an image with options', async () => {
+      vi.mocked(service.removeImage).mockImplementation(() =>
+        Effect.succeed(undefined)
+      );
+
+      const imageName = 'my-image:latest';
+      const options: Dockerode.ImageRemoveOptions = { force: true };
+      
+      await Effect.runPromise(service.removeImage(imageName, options));
+      expect(service.removeImage).toHaveBeenCalledWith(imageName, options);
+    });
+
+    it('should return DockerOperationError on failure', async () => {
+      vi.mocked(service.removeImage).mockImplementation(() =>
+        Effect.fail(new DockerOperationError({
+          message: "Failed to remove image",
+          operation: "removeImage",
+          imageName: "my-image:latest"
+        }))
+      );
+
+      const result = await Effect.runPromiseExit(
+        service.removeImage('my-image:latest')
+      );
+      expect(Exit.isFailure(result)).toBe(true);
+      
+      if (Exit.isFailure(result) && result.cause._tag === 'Fail') {
+        const error = result.cause.error as DockerOperationError;
+        expect(error._tag).toBe('DockerOperationError');
+        expect(error.operation).toBe('removeImage');
+        expect(error.imageName).toBe('my-image:latest');
+      }
     });
   });
 });
