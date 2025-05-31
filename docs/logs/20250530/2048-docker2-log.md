@@ -69,3 +69,31 @@ Implementing comprehensive tests...
 ## Phase 2 Complete!
 
 The SWEBenchTaskService is now ready to load and manage SWE-bench task definitions.
+
+### Running the Tests
+
+To verify the implementation:
+
+```bash
+# Run integration test with real files
+pnpm tsx src/services/swe_bench_harness/test-swebench-integration.ts
+```
+
+✅ Integration test results:
+- Successfully listed 2 available tasks
+- Loaded django__django-10973 task with all fields
+- Verified caching works (same object returned)
+- Error handling works for non-existent tasks
+
+## Summary
+
+Phase 2 of the SWE-Bench implementation is complete. The SWEBenchTaskService provides:
+
+1. **Task Loading**: Load task definitions from JSON files with schema validation
+2. **Task Listing**: List all available task IDs in the dataset
+3. **Caching**: In-memory caching to avoid repeated file reads
+4. **Error Handling**: Custom error types for missing tasks and access errors
+5. **Telemetry**: Full telemetry integration for tracking operations
+6. **Type Safety**: Full TypeScript type safety with Effect Schema
+
+The service is ready to be used by the execution harness in subsequent phases.
