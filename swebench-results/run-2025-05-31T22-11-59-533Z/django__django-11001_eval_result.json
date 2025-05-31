@@ -1,0 +1,6 @@
+{
+  "instanceId": "django__django-11001",
+  "result": {
+    "error": "yield* (intermediate value)(intermediate value)(intermediate value)(intermediate value)(intermediate value) is not iterable"
+  }
+}

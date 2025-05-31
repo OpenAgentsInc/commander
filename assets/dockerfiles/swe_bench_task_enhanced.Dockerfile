@@ -19,11 +19,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a virtual environment with the specified Python version
-# Note: The base image might not have the exact Python version, so we use pyenv if needed
+# Note: The base image might not have the exact Python version, so we fall back to default python
 ENV VIRTUAL_ENV=/opt/venv/${CONDA_ENV_NAME_ARG}
-RUN if command -v python${PYTHON_VERSION_ARG} &> /dev/null; then \
+RUN echo "Requested Python version: ${PYTHON_VERSION_ARG}" && \
+    if command -v python${PYTHON_VERSION_ARG} >/dev/null 2>&1; then \
+        echo "Using python${PYTHON_VERSION_ARG}"; \
         python${PYTHON_VERSION_ARG} -m venv ${VIRTUAL_ENV}; \
     else \
+        echo "python${PYTHON_VERSION_ARG} not found, using default python"; \
+        python --version; \
         python -m venv ${VIRTUAL_ENV}; \
     fi && \
     echo "Virtual env ${CONDA_ENV_NAME_ARG} created at ${VIRTUAL_ENV}."

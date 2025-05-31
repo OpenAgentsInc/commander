@@ -84,6 +84,7 @@ export const SWEBenchHarnessServiceLive = Layer.effect(
                   return err;
                 }
                 // Wrap other known errors or create a generic HarnessError
+                console.error(`[SWEBenchHarness] Detailed error for ${instanceId}:`, err);
                 return new HarnessError({ message: `Evaluation failed for ${instanceId}`, cause: err, instanceId });
              })
           );
