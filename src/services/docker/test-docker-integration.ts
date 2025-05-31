@@ -13,14 +13,14 @@
 import { Effect, Exit, Layer, Console } from "effect";
 import { DockerUtilsService } from "./DockerUtilsService";
 import { DockerUtilsServiceLive } from "./DockerUtilsServiceImpl";
-import { ConfigurationService, ConfigurationServiceLive } from "@/services/configuration";
+import { ConfigurationService, ConfigurationServiceLive, ConfigError, SecretNotFoundError } from "@/services/configuration";
 
 // Create a minimal config layer for testing
 const TestConfigLayer = Layer.succeed(
   ConfigurationService,
   ConfigurationService.of({
-    get: () => Effect.fail({ _tag: "ConfigError" as const, message: "Not implemented" }),
-    getSecret: () => Effect.fail({ _tag: "SecretNotFoundError" as const, message: "Not implemented", keyName: "" }),
+    get: () => Effect.fail(new ConfigError({ message: "Not implemented" })),
+    getSecret: () => Effect.fail(new SecretNotFoundError({ message: "Not implemented", keyName: "" })),
     set: () => Effect.succeed(undefined),
     delete: () => Effect.succeed(undefined),
   })

@@ -16,20 +16,28 @@ export const SWEBenchTaskServiceLive = Layer.effect(
     const taskCache = yield* Ref.make(new Map<string, SWEBenchTask>());
 
     const getDatasetPath = () => configService.get("SWE_BENCH_DATASET_PATH").pipe(
-      Effect.tapError((e) => telemetry.trackEvent({ category: "swe_bench", action: "get_dataset_path_error", value: e.message }))
+      Effect.tapError((e) => 
+        telemetry.trackEvent({ category: "swe_bench", action: "get_dataset_path_error", value: e.message }).pipe(
+          Effect.catchAll(() => Effect.void)
+        )
+      )
     );
 
     return SWEBenchTaskService.of({
       getTask: (instanceId: string) => Effect.gen(function* () {
         const cache = yield* Ref.get(taskCache);
         if (cache.has(instanceId)) {
-          yield* telemetry.trackEvent({ category: "swe_bench", action: "get_task_cache_hit", label: instanceId });
+          yield* telemetry.trackEvent({ category: "swe_bench", action: "get_task_cache_hit", label: instanceId }).pipe(
+            Effect.catchAll(() => Effect.void)
+          );
           return cache.get(instanceId)!;
         }
 
         const datasetPath = yield* getDatasetPath();
         const filePath = path.join(datasetPath, `${instanceId}.json`);
-        yield* telemetry.trackEvent({ category: "swe_bench", action: "get_task_read_file", label: instanceId, value: filePath });
+        yield* telemetry.trackEvent({ category: "swe_bench", action: "get_task_read_file", label: instanceId, value: filePath }).pipe(
+          Effect.catchAll(() => Effect.void)
+        );
 
         const content = yield* fs.readFileString(filePath, "utf-8").pipe(
           Effect.mapError((e) => new TaskNotFoundError({ instanceId, pathSearched: filePath, cause: e }))
@@ -45,14 +53,18 @@ export const SWEBenchTaskServiceLive = Layer.effect(
         );
 
         yield* Ref.update(taskCache, (map) => map.set(instanceId, task));
-        yield* telemetry.trackEvent({ category: "swe_bench", action: "get_task_success", label: instanceId });
+        yield* telemetry.trackEvent({ category: "swe_bench", action: "get_task_success", label: instanceId }).pipe(
+          Effect.catchAll(() => Effect.void)
+        );
         return task;
       }),
 
       listAvailableTaskIds: (subset?: string) => // `subset` is for future use
         Effect.gen(function* () {
           const datasetPath = yield* getDatasetPath();
-          yield* telemetry.trackEvent({ category: "swe_bench", action: "list_tasks_start", value: datasetPath });
+          yield* telemetry.trackEvent({ category: "swe_bench", action: "list_tasks_start", value: datasetPath }).pipe(
+            Effect.catchAll(() => Effect.void)
+          );
 
           const files = yield* fs.readDirectory(datasetPath).pipe(
             Effect.mapError((e) => new DatasetAccessError({ message: `Failed to read dataset directory: ${datasetPath}`, path: datasetPath, cause: e }))
@@ -62,7 +74,9 @@ export const SWEBenchTaskServiceLive = Layer.effect(
             .filter(file => file.endsWith(".json"))
             .map(file => file.replace(".json", ""));
 
-          yield* telemetry.trackEvent({ category: "swe_bench", action: "list_tasks_success", value: `${taskIds.length} tasks found` });
+          yield* telemetry.trackEvent({ category: "swe_bench", action: "list_tasks_success", value: `${taskIds.length} tasks found` }).pipe(
+            Effect.catchAll(() => Effect.void)
+          );
           return taskIds;
         }),
     });

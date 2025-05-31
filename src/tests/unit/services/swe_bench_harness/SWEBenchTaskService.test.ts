@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Effect, Exit, Layer, Ref } from 'effect';
-import { FileSystem } from '@effect/platform-node';
-import { ConfigurationService } from '@/services/configuration';
+import { FileSystem } from '@effect/platform/FileSystem';
+import { ConfigurationService, ConfigError, SecretNotFoundError } from '@/services/configuration';
 import { TelemetryService } from '@/services/telemetry';
 import { SWEBenchTaskService } from '@/services/swe_bench_harness/SWEBenchTaskService';
 import { SWEBenchTaskServiceLive } from '@/services/swe_bench_harness/SWEBenchTaskServiceImpl';
@@ -45,9 +45,9 @@ const createMockFileSystem = () => ({
 const mockConfigService = (datasetPath: string) => ConfigurationService.of({
     get: vi.fn((key: string) => {
         if (key === "SWE_BENCH_DATASET_PATH") return Effect.succeed(datasetPath);
-        return Effect.fail({ _tag: "ConfigError" as const, message: `Unknown key: ${key}` });
+        return Effect.fail(new ConfigError({ message: `Unknown key: ${key}` }));
     }),
-    getSecret: vi.fn(() => Effect.fail({ _tag: "SecretNotFoundError" as const, message: "Not found", keyName: "" })),
+    getSecret: vi.fn(() => Effect.fail(new SecretNotFoundError({ message: "Not found", keyName: "" }))),
     set: vi.fn(() => Effect.void),
     delete: vi.fn(() => Effect.void),
 });
