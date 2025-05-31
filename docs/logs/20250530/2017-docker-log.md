@@ -148,3 +148,32 @@ The service is ready to be used as the foundation for the SWE-Bench harness impl
 - All 8 unit tests now pass successfully
 
 The Docker utilities are fully tested and ready for use.
+
+## Integration Testing Support Added (20:36)
+
+Created tools for testing with real Docker:
+
+1. **Integration Test Script**: `src/services/docker/test-docker-integration.ts`
+   - Tests all 6 Docker operations with real Docker daemon
+   - Provides detailed error messages and troubleshooting tips
+   - Uses hello-world image for minimal resource usage
+
+2. **Test Runner**: `scripts/test-docker.js`
+   - Checks Docker installation and daemon status
+   - Runs the integration tests with proper error handling
+
+3. **Package Script**: Added `pnpm test:docker` command
+
+4. **Documentation**: Created `src/services/docker/README.md` with:
+   - Testing instructions
+   - Troubleshooting guide
+   - Usage examples
+
+### How to Test with Real Docker
+
+```bash
+# Make sure Docker is running, then:
+pnpm test:docker
+```
+
+This will verify that the DockerUtilsService works correctly with your local Docker installation.
