@@ -10,3 +10,5 @@ export * from "./SWEBenchHarnessService";
 export * from "./SWEBenchHarnessServiceImpl";
 export * from "./DockerBuildManagerService";
 export * from "./DockerBuildManagerServiceImpl";
+export * from "./SWEBenchEnvironmentSetupService";
+export * from "./SWEBenchEnvironmentSetupServiceImpl";

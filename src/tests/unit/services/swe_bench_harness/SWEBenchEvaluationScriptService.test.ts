@@ -3,6 +3,7 @@ import { Effect, Exit, Layer } from 'effect';
 import { TelemetryService } from '@/services/telemetry';
 import { SWEBenchEvaluationScriptService } from '@/services/swe_bench_harness/SWEBenchEvaluationScriptService';
 import { SWEBenchEvaluationScriptServiceLive } from '@/services/swe_bench_harness/SWEBenchEvaluationScriptServiceImpl';
+import { SWEBenchEnvironmentSetupServiceTestImpl } from '@/services/swe_bench_harness/SWEBenchEnvironmentSetupServiceTestImpl';
 import { ScriptBuildError } from '@/services/swe_bench_harness/errors';
 import type { SWEBenchTask } from '@/services/swe_bench_harness/types';
 
@@ -20,7 +21,8 @@ describe('SWEBenchEvaluationScriptService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     testLayer = SWEBenchEvaluationScriptServiceLive.pipe(
-      Layer.provide(Layer.succeed(TelemetryService, mockTelemetryService))
+      Layer.provide(Layer.succeed(TelemetryService, mockTelemetryService)),
+      Layer.provide(SWEBenchEnvironmentSetupServiceTestImpl)
     );
   });
 
@@ -59,7 +61,7 @@ describe('SWEBenchEvaluationScriptService', () => {
         expect(script).toContain('cd "/container/eval/repo"');
         expect(script).toContain('git apply');
         expect(script).toContain('patch.diff');
-        expect(script).toContain('python -m pytest test_case1 test_case2');
+        expect(script).toContain('python -m pytest -xvs test_case1 test_case2');
         expect(script).toContain('report.json');
         expect(script).toContain('test-task-1');
       }
@@ -83,9 +85,9 @@ describe('SWEBenchEvaluationScriptService', () => {
       expect(Exit.isSuccess(result)).toBe(true);
       if (Exit.isSuccess(result)) {
         const script = result.value;
-        expect(script).toContain('Test execution placeholder for test-task-1');
-        expect(script).toContain('python -m pytest');
-        expect(script).not.toContain('python -m pytest test_case1');
+        expect(script).toContain('No specific tests identified for test-task-1');
+        expect(script).toContain('python -m pytest -xvs');
+        expect(script).not.toContain('python -m pytest -xvs test_case1');
       }
     });
 
