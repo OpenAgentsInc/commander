@@ -150,6 +150,7 @@ export const DefaultDevConfigLayer = Layer.effect(
     // SWE-Bench dataset and paths configuration
     yield* _(configService.set("SWE_BENCH_DATASET_PATH", "./assets/swe_bench_data")); // Dataset directory
     yield* _(configService.set("SWE_BENCH_HOST_TEMP_DIR", "/tmp/swe_bench_runs")); // Temp directory for runs
+    yield* _(configService.set("SWE_BENCH_CONTAINER_WORKDIR", "/swe_bench_workdir")); // Default workdir inside container
 
     return configService;
   })

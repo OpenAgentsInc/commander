@@ -21,3 +21,24 @@ export class DatasetAccessError extends Data.TaggedError("DatasetAccessError")<{
   readonly path?: string;
   readonly cause?: unknown;
 }> {}
+
+export class ScriptBuildError extends Data.TaggedError("ScriptBuildError")<{
+  readonly message: string;
+  readonly cause?: unknown;
+  readonly context?: Record<string, any>;
+}> {}
+
+export class LifecycleSetupError extends Data.TaggedError("LifecycleSetupError")<{
+  readonly message: string;
+  readonly cause?: unknown;
+  readonly context?: Record<string, any>;
+}> {}
+
+export class LifecycleEvalError extends Data.TaggedError("LifecycleEvalError")<{
+  readonly message: string;
+  readonly cause?: unknown;
+  readonly exitCode?: number;
+  readonly stdout?: string;
+  readonly stderr?: string;
+  readonly context?: Record<string, any>;
+}> {}

@@ -1,5 +1,8 @@
 import { Effect, Layer } from "effect";
 import Dockerode from 'dockerode';
+import tar from 'tar-fs';
+import path from 'path';
+import { PassThrough } from 'stream';
 import { DockerUtilsService } from "./DockerUtilsService";
 import { DockerError, DockerConnectionError, DockerOperationError } from "./errors";
 // ConfigurationService is not strictly needed if Dockerode uses environment variables or defaults
@@ -78,6 +81,129 @@ export const DockerUtilsServiceLive = Layer.effect(
           try: () => docker.getContainer(containerId).remove(options),
           catch: (cause) => new DockerOperationError({ message: `Failed to remove container ${containerId}`, operation: "removeContainer", containerId, cause }),
         }).pipe(Effect.asVoid),
+
+      copyToContainer: (containerId: string, srcPathOnHost: string, destPathInContainer: string) =>
+        Effect.gen(function* () {
+          const container = docker.getContainer(containerId);
+          
+          // Create a TAR stream from the source path
+          const tarStream = tar.pack(path.dirname(srcPathOnHost), {
+            entries: [path.basename(srcPathOnHost)]
+          });
+
+          // putArchive expects the parent directory path where contents will be extracted
+          const destDir = path.dirname(destPathInContainer);
+          
+          yield* Effect.tryPromise({
+            try: () => container.putArchive(tarStream, { path: destDir }),
+            catch: (cause) => new DockerOperationError({ 
+              message: `Failed to copy ${srcPathOnHost} to container ${containerId}:${destPathInContainer}`, 
+              operation: "copyToContainer", 
+              containerId, 
+              cause 
+            }),
+          });
+        }),
+
+      copyFromContainer: (containerId: string, srcPathInContainer: string) =>
+        Effect.tryPromise({
+          try: async () => {
+            const container = docker.getContainer(containerId);
+            const result = await container.getArchive({ path: srcPathInContainer });
+            // dockerode returns the stream directly
+            return result as NodeJS.ReadableStream;
+          },
+          catch: (cause) => new DockerOperationError({ 
+            message: `Failed to copy from container ${containerId}:${srcPathInContainer}`, 
+            operation: "copyFromContainer", 
+            containerId, 
+            cause 
+          }),
+        }),
+
+      execInContainer: (containerId: string, cmd: string[], options) =>
+        Effect.gen(function* () {
+          const container = docker.getContainer(containerId);
+          
+          const execInstance = yield* Effect.tryPromise({
+            try: () => container.exec({
+              Cmd: cmd,
+              AttachStdout: true,
+              AttachStderr: true,
+              Tty: options?.Tty || false,
+              WorkingDir: options?.WorkingDir,
+              Env: options?.Env,
+              User: options?.User,
+            }),
+            catch: (cause) => new DockerOperationError({
+              message: `Failed to create exec instance in container ${containerId}`,
+              operation: "execInContainer.create",
+              containerId,
+              cause
+            }),
+          });
+
+          const result = yield* Effect.async<{ stdout: string; stderr: string; exitCode: number }, DockerOperationError>((resume) => {
+            execInstance.start({ hijack: true, stdin: false }, (err, stream) => {
+              if (err) {
+                return resume(Effect.fail(new DockerOperationError({
+                  message: "Failed to start exec",
+                  operation: "execInContainer.start",
+                  containerId,
+                  cause: err
+                })));
+              }
+              if (!stream) {
+                return resume(Effect.fail(new DockerOperationError({
+                  message: "No stream returned from exec start",
+                  operation: "execInContainer.start",
+                  containerId
+                })));
+              }
+
+              let stdout = "";
+              let stderr = "";
+
+              const stdoutStream = new PassThrough();
+              const stderrStream = new PassThrough();
+
+              stdoutStream.on('data', chunk => { stdout += chunk.toString(); });
+              stderrStream.on('data', chunk => { stderr += chunk.toString(); });
+
+              docker.modem.demuxStream(stream, stdoutStream, stderrStream);
+
+              stream.on('end', () => {
+                execInstance.inspect()
+                  .then(data => {
+                    resume(Effect.succeed({ 
+                      stdout, 
+                      stderr, 
+                      exitCode: data.ExitCode ?? -1 
+                    }));
+                  })
+                  .catch(inspectErr => {
+                    resume(Effect.fail(new DockerOperationError({
+                      message: "Failed to inspect exec after completion",
+                      operation: "execInContainer.inspect",
+                      containerId,
+                      cause: inspectErr
+                    })));
+                  });
+              });
+
+              stream.on('error', (streamErr) => {
+                resume(Effect.fail(new DockerOperationError({
+                  message: "Exec stream error",
+                  operation: "execInContainer.stream",
+                  containerId,
+                  cause: streamErr
+                })));
+              });
+            });
+          });
+
+          return result;
+        }),
     });
   })
 );
