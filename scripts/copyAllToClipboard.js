@@ -18,7 +18,7 @@ const { execSync } = require("child_process");
 // In CommonJS, __dirname is available globally
 
 // Directories to recursively scan
-const dirsToScan = ["docs", "src",
+const dirsToScan = ["docs", "src", "scripts"
   // "node_modules/@effect/ai-openai/dist/dts/"
 ];
 
@@ -37,7 +37,7 @@ const dirsToExclude = [
   "docs/strategy",
   "docs/transcripts",
   "src/assets/fonts",
-  // "src/components",
+  "src/components",
   "src/components/ui",
   "src/kneen-claude-code-sdk",
   "src/localization/",
