@@ -38,6 +38,9 @@ export const SWEBenchLifecycleServiceLive = Layer.effect(
             t: buildContext.imageName,
             dockerfile: buildContext.dockerfileName,
             buildargs: {
+              SWE_BENCH_BASE_IMAGE_ARG: buildContext.baseImageName,
+              PYTHON_VERSION_ARG: buildContext.pythonVersion,
+              CONDA_ENV_NAME_ARG: buildContext.condaEnvName,
               REPO_URL_ARG: `https://github.com/${task.repo}.git`,
               BASE_COMMIT_ARG: task.base_commit,
               CONTAINER_REPO_PATH_ARG: buildContext.containerRepoPath

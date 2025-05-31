@@ -12,10 +12,6 @@ export const SWEBenchEvaluationScriptServiceLive = Layer.effect(
     return SWEBenchEvaluationScriptService.of({
       buildEvalScript: (task, patchFileNameInContainer, containerEvalDir, containerRepoPath) => 
         Effect.gen(function* () {
-            // Basic environment setup
-            const envName = `swe-bench`; // Could be derived from task.version in the future
-            const condaActivate = `source /opt/miniconda/etc/profile.d/conda.sh && conda activate ${envName}`;
-
             // Patch application command
             // Try reverse apply first in case patch was already partially applied
             const patchPath = `${containerEvalDir}/${patchFileNameInContainer}`;
@@ -35,12 +31,19 @@ export const SWEBenchEvaluationScriptServiceLive = Layer.effect(
             const scriptContent = `#!/bin/bash
 set -eo pipefail # Exit on error, treat pipe failures as errors
 
-echo "=== Activating Conda Environment: ${envName} ==="
-${condaActivate}
+# Get conda environment name from Docker environment variable
+CONDA_ENV_NAME_FROM_DOCKER_ENV="\${CONDA_ENV_NAME}"
+echo "=== Activating Conda Environment from Docker ENV: \${CONDA_ENV_NAME_FROM_DOCKER_ENV} ==="
+
+# Ensure conda is initialized for bash
+source /opt/miniconda/etc/profile.d/conda.sh
+conda activate "\${CONDA_ENV_NAME_FROM_DOCKER_ENV}"
 if [ $? -ne 0 ]; then
-  echo '{"error": "Conda activation failed"}' > ${reportFile}
+  echo '{"error": "Conda activation failed in eval.sh"}' > ${reportFile}
   exit 1
 fi
+echo "Current Python: \$(which python) - \$(python --version)"
+echo "Conda environment: \$CONDA_PREFIX"
 
 echo "=== Navigating to Repository: ${containerRepoPath} ==="
 cd "${containerRepoPath}"

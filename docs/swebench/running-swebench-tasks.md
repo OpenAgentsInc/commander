@@ -2,13 +2,21 @@
 
 ## Overview
 
-SWE-bench is a benchmark for evaluating language models on real-world software engineering tasks. This guide explains how to run SWE-bench tasks using the Commander's built-in harness service.
+SWE-bench is a benchmark for evaluating language models on real-world software engineering tasks. This guide explains how to download official task data from Hugging Face and run evaluations using Commander's built-in harness service.
 
 ## Prerequisites
 
 1. **Docker**: Ensure Docker is installed and running
-2. **Node.js**: Required for running the task runner script
-3. **Task Data**: Valid SWE-bench task JSON files
+2. **Node.js and pnpm**: Required for running TypeScript scripts
+3. **Python 3**: Required for downloading task data
+4. **Python dependencies**: Install with:
+   ```bash
+   pip install datasets huggingface_hub
+   ```
+5. **SWE-Bench Docker image**: Pull the base image:
+   ```bash
+   docker pull swebench/swe-eval:latest
+   ```
 
 ## Understanding SWE-Bench Task Structure
 
@@ -25,163 +33,229 @@ A SWE-bench task contains:
   "version": "3.0",
   "FAIL_TO_PASS": ["tests/migrations/test_questioner.py::test_ask_not_null_alteration"],
   "PASS_TO_PASS": ["tests/migrations/test_questioner.py::test_ask_not_null_addition"],
-  "patch": "Optional gold patch for reference"
+  "patch": "Optional gold patch (the actual fix)"
 }
 ```
 
-## Getting SWE-Bench Task Data
+## Setting up Task Data
 
-### Option 1: Use Example Tasks
-Example tasks are provided in `assets/swebench-tasks/`:
-- `simple-python-fix.json` - Basic Python bug fix
-- `django-framework.json` - Django framework issue
-- `numpy-computation.json` - NumPy computational bug
+### Downloading Official SWE-Bench Tasks
 
-### Option 2: Download from HuggingFace
-```bash
-# Download the full dataset
-wget https://huggingface.co/datasets/princeton-nlp/SWE-bench/resolve/main/swebench.json
-
-# Extract specific tasks
-jq '.[] | select(.instance_id == "django__django-11099")' swebench.json > task.json
-```
-
-### Option 3: Create Custom Tasks
-You can create your own tasks following the schema defined in `src/services/swe_bench_harness/types.ts`.
-
-## Running Tasks
-
-### Available Runners
-
-1. **Full Runner** (`scripts/run-swebench-task.ts`) - Uses the complete SWEBenchHarnessService
-2. **Simple Runner** (`scripts/run-swebench-task-simple.ts`) - Demonstrates the workflow with manual steps
-
-### Basic Usage
+Use `scripts/download_swe_bench_tasks.py` to download tasks from Hugging Face:
 
 ```bash
-# Run a single task with a patch file
-pnpm tsx scripts/run-swebench-task.ts --task assets/swebench-tasks/simple-python-fix.json --patch my-solution.patch
+# Download SWE-Bench Lite dataset (300 tasks, recommended for testing)
+python scripts/download_swe_bench_tasks.py
 
-# Run with inline patch content
-pnpm tsx scripts/run-swebench-task.ts --task task.json --patch-content "diff --git a/file.py..."
+# Download full SWE-Bench dataset (2,294 tasks)
+python scripts/download_swe_bench_tasks.py --dataset_name princeton-nlp/SWE-bench
 
-# Run without a patch (to see baseline failures)
-pnpm tsx scripts/run-swebench-task.ts --task task.json --no-patch
+# Download only first 10 tasks for quick testing
+python scripts/download_swe_bench_tasks.py --max_tasks 10
 
-# Use the simple runner for demonstration
-pnpm tsx scripts/run-swebench-task-simple.ts --task assets/swebench-tasks/django-framework.json --patch assets/swebench-tasks/patches/django-framework.patch
+# Download to custom directory
+python scripts/download_swe_bench_tasks.py --output_dir ./my-swe-bench-tasks
 ```
 
-### Command Line Options
+#### Command Line Arguments
 
-- `--task <path>` - Path to the task JSON file (required)
-- `--patch <path>` - Path to a patch file to apply
-- `--patch-content <content>` - Inline patch content (alternative to --patch)
-- `--no-patch` - Run without applying any patch
-- `--output <path>` - Output directory for results (default: `./swebench-results`)
-- `--keep-container` - Don't remove the Docker container after evaluation
-- `--verbose` - Enable detailed logging
+- `--dataset_name` - Hugging Face dataset name (default: `princeton-nlp/SWE-bench_Lite`)
+- `--split` - Dataset split to download (default: `test`)
+- `--output_dir` - Directory to save task JSON files (default: `assets/swe_bench_data`)
+- `--max_tasks` - Maximum number of tasks to download (optional)
+
+### Task File Naming
+
+Tasks are saved as `<instance_id>.json` with sanitized filenames (e.g., `django__django-11099.json`).
+
+## Running Evaluations
+
+### Batch Evaluation Runner
+
+Use `scripts/run_swe_bench_batch_env.ts` to evaluate multiple tasks:
+
+```bash
+# Run all downloaded tasks with gold patches
+pnpm tsx scripts/run_swe_bench_batch_env.ts
+
+# Run specific tasks by instance ID
+pnpm tsx scripts/run_swe_bench_batch_env.ts --instance_ids "django__django-11099,sympy__sympy-13146"
+
+# Run first 5 tasks
+pnpm tsx scripts/run_swe_bench_batch_env.ts --max_tasks 5
+
+# Run without gold patches (baseline testing)
+pnpm tsx scripts/run_swe_bench_batch_env.ts --no-use_gold_patch
+
+# Skip tasks that don't have gold patches
+pnpm tsx scripts/run_swe_bench_batch_env.ts --skip_if_no_patch
+
+# Stop on first failure
+pnpm tsx scripts/run_swe_bench_batch_env.ts --stop_on_failure
+
+# Custom output directory
+pnpm tsx scripts/run_swe_bench_batch_env.ts --output_dir ./my-results
+
+# Custom task directory
+pnpm tsx scripts/run_swe_bench_batch_env.ts --tasks_dir ./my-swe-bench-tasks
+```
+
+**Note:** The `run_swe_bench_batch_env.ts` script uses environment variables internally to configure the harness. This avoids Effect.js layer composition issues that can occur with standalone scripts.
+
+#### Command Line Arguments
+
+- `--tasks_dir <path>` - Directory containing task JSON files (default: `assets/swe_bench_data`)
+- `--instance_ids <ids>` - Comma-separated list of specific instance IDs to run
+- `--max_tasks <N>` - Maximum number of tasks to run
+- `--output_dir <path>` - Directory for results (default: `./swebench-results/run-<timestamp>`)
+- `--use_gold_patch` - Use gold patches from task data (default: true)
+- `--no-use_gold_patch` - Run with empty patches
+- `--skip_if_no_patch` - Skip tasks without gold patches when `--use_gold_patch` is true
+- `--stop_on_failure` - Stop batch execution on first task failure
+
+### Single Task Runners (Alternative)
+
+For running individual tasks:
+
+```bash
+# Full runner with complete harness
+pnpm tsx scripts/run-swebench-task.ts --task assets/swe_bench_data/django__django-11099.json --patch fix.patch
+
+# Simple runner for demonstration
+pnpm tsx scripts/run-swebench-task-simple.ts --task task.json --patch-content "diff --git..."
+```
 
 ## Understanding the Evaluation Process
 
-1. **Task Loading**: The runner loads and validates the task JSON
-2. **Docker Image Build**: A custom Docker image is built for the specific repository and commit
-3. **Container Setup**: A container is created with the repository at the correct state
-4. **Patch Application**: Your patch is applied to the codebase
+1. **Task Loading**: The runner loads and validates task JSON files
+2. **Docker Image Build**: A custom Docker image is built for each repository and commit
+3. **Container Setup**: A container is created with the repository at the specified commit
+4. **Patch Application**: The gold patch (or empty patch) is applied to the codebase
 5. **Test Execution**: The specified tests are run to check if the issue is fixed
 6. **Result Collection**: Test results and logs are collected and analyzed
+7. **Cleanup**: Container and image are removed (unless debugging)
 
 ## Interpreting Results
 
 ### Success Criteria
-A task is considered resolved when:
+
+A task is considered "resolved" when:
 - The patch applies cleanly
 - All `FAIL_TO_PASS` tests now pass
 - All `PASS_TO_PASS` tests still pass
 
 ### Output Structure
+
 ```
-swebench-results/
-├── django__django-11099/
-│   ├── evaluation_report.json    # Detailed evaluation results
-│   ├── patch_applied.diff        # The patch that was applied
-│   ├── test_output.log          # Full test execution logs
-│   └── container_logs.txt       # Docker container logs
+swebench-results/run-2024-05-31T10-30-45-123Z/
+├── summary.json                                    # Overall batch summary
+├── django__django-11099_eval_result.json          # Individual task result
+├── sympy__sympy-13146_eval_result.json
+└── ...
 ```
 
-### Evaluation Report Fields
-- `instance_id`: The task identifier
-- `patch_applied_successfully`: Whether the patch applied cleanly
-- `tests_passed`: Whether all required tests passed
-- `resolved`: Overall success status
-- `test_output_log_path`: Path to detailed test logs
+### Result Files
+
+**summary.json**:
+```json
+{
+  "timestamp": "2024-05-31T10:30:45.123Z",
+  "tasks_attempted": 5,
+  "tasks_succeeded": 3,
+  "tasks_failed": 2,
+  "tasks_skipped": 0,
+  "options": { ... },
+  "results": [ ... ]
+}
+```
+
+**Individual result files**:
+```json
+{
+  "instanceId": "django__django-11099",
+  "result": {
+    "report": {
+      "instance_id": "django__django-11099",
+      "resolved": true,
+      "patch_applied_successfully": true,
+      "tests_run": 2,
+      "test_output_log_path": "/workspace/test_output.log"
+    },
+    "logs": {
+      "patch_output": "...",
+      "test_output": "...",
+      "error_log": null
+    }
+  }
+}
+```
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Docker Permission Errors**
+1. **Docker not running**
    ```bash
-   # Ensure your user is in the docker group
-   sudo usermod -aG docker $USER
-   # Log out and back in for changes to take effect
+   # Start Docker daemon
+   docker info  # Check if Docker is running
    ```
 
-2. **Container Build Failures**
-   - Check Docker daemon is running: `docker ps`
-   - Ensure sufficient disk space: `docker system df`
-   - Clean up old images: `docker system prune -a`
+2. **Missing base image**
+   ```bash
+   # Note: swebench/swe-eval:latest may not exist publicly
+   # Create a custom base image:
+   docker build -t swebench/swe-eval:latest -f scripts/swebench-base.dockerfile .
+   ```
 
-3. **Patch Application Failures**
-   - Ensure patch is based on the correct commit
-   - Check for whitespace or line ending issues
-   - Use `git diff` to generate patches
+3. **Python dependencies missing**
+   ```bash
+   pip install datasets huggingface_hub
+   ```
 
-4. **Test Execution Timeouts**
-   - Some tests may take longer than expected
-   - Use `--timeout` flag to increase limits
-   - Check container resources with `docker stats`
+4. **Hugging Face authentication required**
+   ```bash
+   # Some datasets may require authentication
+   huggingface-cli login
+   ```
+
+5. **Task download failures**
+   - Check internet connection
+   - Verify dataset name is correct
+   - Some datasets may be private or require agreement to terms
 
 ### Debug Mode
 
-For detailed debugging:
+Keep containers for inspection:
 ```bash
-# Keep container running for inspection
-pnpm tsx scripts/run-swebench-task.ts --task task.json --patch fix.patch --keep-container --verbose
-
-# Inspect the container
-docker exec -it <container-id> bash
-cd /workspace
-# Manually run tests or inspect code
+# Add to any runner command
+--keep-container
 ```
 
 ## Best Practices
 
-1. **Start Simple**: Begin with the example tasks to understand the workflow
-2. **Incremental Development**: Test patches locally before running full evaluation
-3. **Resource Management**: Clean up containers and images regularly
-4. **Logging**: Save evaluation logs for debugging and analysis
-5. **Parallel Execution**: Run multiple tasks in parallel with care for system resources
+1. **Start Small**: Test with a few tasks first using `--max_tasks 5`
+2. **Monitor Resources**: Docker builds can use significant disk space
+3. **Clean Up Regularly**: Remove old Docker images with `docker system prune`
+4. **Save Results**: Results are timestamped but consider backing up important runs
+5. **Verify Patches**: Check that gold patches actually fix the issues
 
-## Advanced Usage
+## Example Workflow
 
-### Batch Processing
 ```bash
-# Process multiple tasks
-for task in assets/swebench-tasks/*.json; do
-  pnpm tsx scripts/run-swebench-task.ts --task "$task" --patch fixes/$(basename "$task" .json).patch
-done
-```
+# 1. Download a small set of tasks for testing
+python3 scripts/download_swe_bench_tasks.py --max_tasks 5
 
-### Custom Evaluation Scripts
-The harness generates evaluation scripts automatically, but you can customize behavior by modifying the script generation in `SWEBenchEvaluationScriptService`.
+# 2. Run evaluations with gold patches
+pnpm tsx scripts/run_swe_bench_batch_env.ts --max_tasks 5
 
-### Integration with AI Models
-The task runner can be integrated with AI services to automatically generate and test patches:
-```typescript
-// Example integration
-const patch = await aiService.generatePatch(task.problem_statement);
-const result = await harnessService.evaluateTask(task.instance_id, patch);
+# 3. Check results
+cat swebench-results/run-*/summary.json | jq '.tasks_succeeded'
+
+# 4. Run specific failed tasks again
+pnpm tsx scripts/run_swe_bench_batch_env.ts --instance_ids "django__django-11099"
+
+# 5. Run without patches to see baseline failures
+pnpm tsx scripts/run_swe_bench_batch_env.ts --no-use_gold_patch --max_tasks 2
 ```
 
 ## References
@@ -189,3 +263,4 @@ const result = await harnessService.evaluateTask(task.instance_id, patch);
 - [SWE-bench Paper](https://arxiv.org/abs/2310.06770)
 - [Official SWE-bench Repository](https://github.com/princeton-nlp/SWE-bench)
 - [Dataset on HuggingFace](https://huggingface.co/datasets/princeton-nlp/SWE-bench)
+- [SWE-bench Lite Dataset](https://huggingface.co/datasets/princeton-nlp/SWE-bench_Lite)

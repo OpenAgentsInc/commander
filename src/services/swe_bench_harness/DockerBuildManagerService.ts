@@ -10,6 +10,9 @@ export interface BuildContextResult {
   readonly dockerfileName: string; // Name of the Dockerfile within contextPath (e.g., "Dockerfile")
   readonly imageName: string; // Suggested image name:tag
   readonly containerRepoPath: string; // Path where repo will be inside the container
+  readonly pythonVersion: string; // Python version for the task
+  readonly condaEnvName: string; // Conda environment name for the task
+  readonly baseImageName: string; // Base Docker image name
 }
 
 export interface DockerBuildManagerService {

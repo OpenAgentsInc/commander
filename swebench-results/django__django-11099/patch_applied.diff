@@ -1,0 +1,8 @@
+--- a/django/core/cache/backends/memcached.py
++++ b/django/core/cache/backends/memcached.py
+@@ -1,5 +1,5 @@
+-"Memcached cache backend"
++"Memcached cache backend."
+ 
+ from django.core.cache.backends.base import DEFAULT_TIMEOUT, BaseCache
+ from django.utils.functional import cached_property

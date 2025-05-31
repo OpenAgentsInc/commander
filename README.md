@@ -59,6 +59,68 @@ If you plan to use or develop the SWE-Bench evaluation harness:
     ```
     This image is required for running SWE-Bench task evaluations in an isolated environment.
 
+## Running SWE-Bench Evaluations
+
+The project includes tools for running SWE-Bench task evaluations using official data from Hugging Face.
+
+### Prerequisites
+
+1. **Python 3 and pip** - Required for downloading task data
+2. **Python dependencies** - Install with:
+   ```bash
+   pip install datasets huggingface_hub
+   ```
+3. **Docker** - Must be installed and running
+4. **SWE-Bench base image** - Pull with:
+   ```bash
+   docker pull swebench/swe-eval:latest
+   ```
+
+### Downloading Task Data
+
+Use the Python script to download official SWE-Bench tasks:
+
+```bash
+# Download SWE-Bench Lite (test split) to assets/swe_bench_data
+python scripts/download_swe_bench_tasks.py
+
+# Download first 10 tasks from full SWE-Bench
+python scripts/download_swe_bench_tasks.py --dataset_name princeton-nlp/SWE-bench --max_tasks 10
+
+# Download to custom directory
+python scripts/download_swe_bench_tasks.py --output_dir ./my-tasks
+```
+
+### Running Batch Evaluations
+
+Use the TypeScript batch runner to evaluate multiple tasks:
+
+```bash
+# Run all tasks from default directory using gold patches
+pnpm tsx scripts/run_swe_bench_batch_env.ts
+
+# Run specific instance IDs
+pnpm tsx scripts/run_swe_bench_batch_env.ts --instance_ids "django__django-11099,sympy__sympy-13146"
+
+# Run first 5 tasks and stop if one fails
+pnpm tsx scripts/run_swe_bench_batch_env.ts --max_tasks 5 --stop_on_failure
+
+# Run without gold patches (empty patch)
+pnpm tsx scripts/run_swe_bench_batch_env.ts --no-use_gold_patch
+
+# Skip tasks without gold patches
+pnpm tsx scripts/run_swe_bench_batch_env.ts --skip_if_no_patch
+
+# Use custom task directory
+pnpm tsx scripts/run_swe_bench_batch_env.ts --tasks_dir ./my-tasks
+```
+
+Note: The `run_swe_bench_batch_env.ts` script uses environment variables for configuration to avoid Effect.js layer composition issues in standalone scripts.
+
+Results are saved to `./swebench-results/run-<timestamp>/` with individual result files and a summary.
+
+For more details, see [docs/swebench/running-swebench-tasks.md](./docs/swebench/running-swebench-tasks.md).
+
 ## Tech Stack
 
 *   **Application Framework:** [Electron](https://www.electronjs.org) (~v35)

@@ -102,7 +102,10 @@ const mockDockerBuildManagerService = DockerBuildManagerService.of({
     contextPath: "/tmp/swe-bench-build-test",
     dockerfileName: "Dockerfile",
     imageName: "swe-bench-task/test:latest",
-    containerRepoPath: "/opt/swe-bench/repo"
+    containerRepoPath: "/opt/swe-bench/repo",
+    pythonVersion: "3.8",
+    condaEnvName: "test-owner__test-repo-1_0",
+    baseImageName: "swebench/swe-eval:latest"
   }))
 });
 
