@@ -1,0 +1,17 @@
+{
+  "instance_id": "django__django-11099",
+  "repo": "django/django",
+  "base_commit": "ef082ebb84f00e38af4e8880d04e8365c2766d34",
+  "problem_statement": "UsernameValidator allows trailing newline in usernames\n\nDescription\n\nUsernameValidator uses the regex r'^[\\w.@+-]+$' to validate usernames. However, the $ only matches the end of the string and not newlines, so a username like \"user\\n\" is accepted by the regex.\n\nThe fix is to replace $ with \\Z in the regex (and potentially in the other validators).",
+  "hints_text": "See ​https://docs.python.org/3/library/re.html \\Z Matches only at the end of the string.",
+  "test_patch": "diff --git a/tests/auth_tests/test_validators.py b/tests/auth_tests/test_validators.py\nindex d5e2c73afd..924d390e64 100644\n--- a/tests/auth_tests/test_validators.py\n+++ b/tests/auth_tests/test_validators.py\n@@ -237,6 +237,11 @@ class UsernameValidatorsTests(TestCase):\n             v('o')\n         with self.assertRaises(ValidationError):\n             v('_')\n+        # UsernameValidator should not allow trailing newlines\n+        with self.assertRaises(ValidationError):\n+            v('user\\n')\n+        with self.assertRaises(ValidationError):\n+            v('user\\r\\n')\n         self.assertEqual(v.message, 'Enter a valid username. This value may contain only letters, numbers, and @/./+/-/_ characters.')\n         self.assertEqual(v.code, 'invalid')\n",
+  "version": "3.0",
+  "FAIL_TO_PASS": [
+    "tests/auth_tests/test_validators.py::UsernameValidatorsTests::test_unicode_validator"
+  ],
+  "PASS_TO_PASS": [
+    "tests/auth_tests/test_validators.py::UsernameValidatorsTests::test_ascii_validator",
+    "tests/auth_tests/test_validators.py::UserAttributeSimilarityValidatorTest::test_validate"
+  ],
+  "patch": "diff --git a/django/contrib/auth/validators.py b/django/contrib/auth/validators.py\nindex b4878cfd45..e17384cbf2 100644\n--- a/django/contrib/auth/validators.py\n+++ b/django/contrib/auth/validators.py\n@@ -6,7 +6,7 @@ from django.utils.translation import gettext_lazy as _\n \n \n class ASCIIUsernameValidator(validators.RegexValidator):\n-    regex = r'^[\\w.@+-]+$'\n+    regex = r'^[\\w.@+-]+\\Z'\n     message = _(\n         'Enter a valid username. This value may contain only English letters, '\n         'numbers, and @/./+/-/_ characters.'\n@@ -15,7 +15,7 @@ class ASCIIUsernameValidator(validators.RegexValidator):\n \n \n class UnicodeUsernameValidator(validators.RegexValidator):\n-    regex = r'^[\\w.@+-]+$'\n+    regex = r'^[\\w.@+-]+\\Z'\n     message = _(\n         'Enter a valid username. This value may contain only letters, '\n         'numbers, and @/./+/-/_ characters.'"
+}

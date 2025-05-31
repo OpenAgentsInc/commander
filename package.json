@@ -56,6 +56,7 @@
     "@types/react-dom": "^19.1.2",
     "@types/tar-fs": "^2.0.4",
     "@types/tar-stream": "^3.1.3",
+    "commander": "^14.0.0",
     "dockerode": "^4.0.6",
     "electron": "^36.3.1",
     "electron-devtools-installer": "^4.0.0",

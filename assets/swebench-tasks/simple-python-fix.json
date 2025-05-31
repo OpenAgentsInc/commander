@@ -1,0 +1,17 @@
+{
+  "instance_id": "sympy__sympy-12419",
+  "repo": "sympy/sympy",
+  "base_commit": "3ac1464b8840d5f8b618a654f9fbf09c452fe969",
+  "problem_statement": "Sum(1, (n, a, b)) should return b - a + 1\n\nSum(1, (n, a, b)) should return b - a + 1.\n\nI'm guessing this should be done in `Sum.doit`. I'm not sure how to handle the case where the limits are symbolic. If we can't tell that `a <= b`, then we can't return `b - a + 1`.",
+  "hints_text": "",
+  "test_patch": "diff --git a/sympy/concrete/tests/test_sums_products.py b/sympy/concrete/tests/test_sums_products.py\nindex 3a67098543..d29dc8a842 100644\n--- a/sympy/concrete/tests/test_sums_products.py\n+++ b/sympy/concrete/tests/test_sums_products.py\n@@ -295,6 +295,13 @@ def test_karr_convention():\n     assert Sum(finite, (n, 1, oo)) == finite\n \n \n+def test_karr_convention_finite_sum():\n+    # Test that Sum(1, (n, a, b)) simplifies correctly\n+    a, b, n = symbols('a b n', integer=True)\n+    assert Sum(1, (n, a, b)).doit() == b - a + 1\n+    assert Sum(1, (n, 0, 5)).doit() == 6\n+    assert Sum(1, (n, 3, 8)).doit() == 6\n+\n def test_karr_proposition_2a():\n     # Test Karr, page 309, proposition 2, part a\n     m, n = symbols('m n', integer=True)",
+  "version": "1.0",
+  "FAIL_TO_PASS": [
+    "sympy/concrete/tests/test_sums_products.py::test_karr_convention_finite_sum"
+  ],
+  "PASS_TO_PASS": [
+    "sympy/concrete/tests/test_sums_products.py::test_karr_convention",
+    "sympy/concrete/tests/test_sums_products.py::test_karr_proposition_2a"
+  ],
+  "patch": "diff --git a/sympy/concrete/summations.py b/sympy/concrete/summations.py\nindex abc3f8d534..b1e8c0e945 100644\n--- a/sympy/concrete/summations.py\n+++ b/sympy/concrete/summations.py\n@@ -379,6 +379,11 @@ def doit(self, **hints):\n         if self.function.is_Matrix:\n             return self.expand().doit()\n \n+        # Handle Sum(1, (n, a, b)) case\n+        f = self.function\n+        if f == 1 and len(self.limits) == 1:\n+            i, a, b = self.limits[0]\n+            return b - a + 1\n+            \n         for n, limit in enumerate(self.limits):\n             i, a, b = limit\n             dif = b - a"
+}
