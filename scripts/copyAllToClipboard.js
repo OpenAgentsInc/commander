@@ -29,7 +29,7 @@ const dirsToExclude = [
   "docs/local",
   "docs/logs/old",
   "docs/misc",
-  // "docs/nips",
+  "docs/nips",
   "docs/transcripts",
   "src/assets/fonts",
   // "src/components",
