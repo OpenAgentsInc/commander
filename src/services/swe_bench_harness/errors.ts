@@ -42,3 +42,10 @@ export class LifecycleEvalError extends Data.TaggedError("LifecycleEvalError")<{
   readonly stderr?: string;
   readonly context?: Record<string, any>;
 }> {}
+
+export class HarnessError extends Data.TaggedError("HarnessError")<{
+  readonly message: string;
+  readonly cause?: unknown;
+  readonly instanceId?: string; // Optional: helps identify which task failed at harness level
+  readonly context?: Record<string, any>;
+}> {}

@@ -33,3 +33,15 @@ export interface ContainerContext {
   readonly containerEvalDir: string;     // Absolute path inside container (mount point of hostEvalDir)
   readonly containerRepoPath: string;    // Absolute path to repo root inside container
 }
+
+export const EvaluationResultSchema = Schema.Struct({
+  instance_id: Schema.String,
+  report: EvaluationReportSchema, // The report from inside the container
+  container_logs: Schema.optional(Schema.Struct({ // Logs from the eval.sh script itself
+    stdout: Schema.String,
+    stderr: Schema.String,
+  })),
+  error_message: Schema.optional(Schema.String), // For overall harness-level errors before report generation
+  duration_ms: Schema.optional(Schema.Number), // Optional: time taken for evaluation
+});
+export type EvaluationResult = Schema.Schema.Type<typeof EvaluationResultSchema>;

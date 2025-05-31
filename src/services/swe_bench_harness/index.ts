@@ -6,3 +6,5 @@ export * from "./SWEBenchEvaluationScriptService";
 export * from "./SWEBenchEvaluationScriptServiceImpl";
 export * from "./SWEBenchLifecycleService";
 export * from "./SWEBenchLifecycleServiceImpl";
+export * from "./SWEBenchHarnessService";
+export * from "./SWEBenchHarnessServiceImpl";
