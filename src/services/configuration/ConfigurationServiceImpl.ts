@@ -156,7 +156,9 @@ export const DefaultDevConfigLayer = Layer.effect(
     // SWE-Bench dynamic Docker image building configuration
     yield* _(configService.set("SWE_BENCH_DOCKERFILE_TEMPLATE_PATH", "./assets/dockerfiles/swe_bench_task.Dockerfile")); // Path to Dockerfile template
     yield* _(configService.set("SWE_BENCH_CONTAINER_REPO_PATH", "/opt/swe-bench/repo")); // Path where repo is cloned inside container
-    yield* _(configService.set("SWE_BENCH_BASE_IMAGE", "swebench/swe-eval:latest")); // Base image for dynamic builds (optional)
+    yield* _(configService.set("SWE_BENCH_BASE_IMAGE", "swebench/swe-eval:latest")); // Base image for dynamic builds (deprecated)
+    yield* _(configService.set("SWE_BENCH_BASE_IMAGE_NAME", "swebench/swe-eval:latest")); // Base image for dynamic builds
+    yield* _(configService.set("SWE_BENCH_DEFAULT_PYTHON_VERSION", "3.8")); // Default Python version if not specified in task
 
     return configService;
   })

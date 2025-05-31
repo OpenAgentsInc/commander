@@ -10,12 +10,8 @@ export const SWEBenchEvaluationScriptServiceLive = Layer.effect(
     const telemetry = yield* TelemetryService;
 
     return SWEBenchEvaluationScriptService.of({
-      buildEvalScript: (task, patchFileNameInContainer, containerEvalDir, containerRepoPath) => 
+      buildEvalScript: (task, patchFileNameInContainer, containerEvalDir, containerRepoPath, testPatchFileNameInContainer) => 
         Effect.gen(function* () {
-            // Basic environment setup
-            const envName = `swe-bench`; // Could be derived from task.version in the future
-            const condaActivate = `source /opt/miniconda/etc/profile.d/conda.sh && conda activate ${envName}`;
-
             // Patch application command
             // Try reverse apply first in case patch was already partially applied
             const patchPath = `${containerEvalDir}/${patchFileNameInContainer}`;
@@ -35,10 +31,15 @@ export const SWEBenchEvaluationScriptServiceLive = Layer.effect(
             const scriptContent = `#!/bin/bash
 set -eo pipefail # Exit on error, treat pipe failures as errors
 
-echo "=== Activating Conda Environment: ${envName} ==="
-${condaActivate}
-if [ $? -ne 0 ]; then
-  echo '{"error": "Conda activation failed"}' > ${reportFile}
+# Virtual environment is already activated via PATH in Docker ENV
+echo "=== Verifying Python Environment ==="
+echo "Virtual environment: \${VIRTUAL_ENV}"
+echo "Current Python: \$(which python) - \$(python --version)"
+echo "Current pip: \$(which pip)"
+
+# Verify we're using the virtual environment's Python
+if [[ "\$(which python)" != "\${VIRTUAL_ENV}/bin/python" ]]; then
+  echo '{"error": "Virtual environment not properly activated"}' > ${reportFile}
   exit 1
 fi
 
@@ -48,8 +49,22 @@ if [ $? -ne 0 ]; then
   echo '{"error": "Failed to cd to repo"}' > ${reportFile}
   exit 1
 fi
-
-echo "=== Applying Patch: ${patchFileNameInContainer} ==="
+${testPatchFileNameInContainer ? `
+echo "=== Applying Test Patch: ${testPatchFileNameInContainer} ==="
+TEST_PATCH_PATH="${containerEvalDir}/${testPatchFileNameInContainer}"
+if [ -f "$TEST_PATCH_PATH" ]; then
+  git apply -v "$TEST_PATCH_PATH"
+  if [ $? -ne 0 ]; then
+    echo "Warning: Test patch application failed. This might affect test execution."
+    # Continue anyway as some test patches might be already applied
+  else
+    echo "Test patch applied successfully."
+  fi
+else
+  echo "No test patch file found at $TEST_PATCH_PATH"
+fi
+` : ''}
+echo "=== Applying Solution Patch: ${patchFileNameInContainer} ==="
 PATCH_APPLIED_SUCCESSFULLY=false
 (${patchApplyCmd})
 if [ $? -eq 0 ]; then

@@ -52,12 +52,92 @@ If you plan to use or develop the SWE-Bench evaluation harness:
 1.  **Ensure Docker is installed and running:**
     Docker Desktop (for Mac/Windows) or Docker Engine (for Linux) must be installed and the Docker daemon must be running.
 
-2.  **Pull the SWE-Bench evaluation image:**
-    Open your terminal and run the following command to download the necessary Docker image:
-    ```bash
-    docker pull swebench/swe-eval:latest
-    ```
-    This image is required for running SWE-Bench task evaluations in an isolated environment.
+2.  **Prepare the SWE-Bench Base Docker Image:**
+    Commander's SWE-Bench harness dynamically builds a custom Docker image for each task instance. This process requires a base image that provides the core Python environment and tools. By default, Commander expects this base image to be named `swebench/swe-eval:latest`.
+
+    **To build this base image locally:**
+    1. Clone the official SWE-Bench repository:
+       ```bash
+       git clone https://github.com/princeton-nlp/SWE-bench.git
+       cd SWE-bench
+       ```
+    2. Build their base Docker image (often referred to as `sweb.base`):
+       ```bash
+       docker build -f dockerfiles/Dockerfile.base -t sweb.base .
+       ```
+    3. Tag this image so Commander can find it by the default name:
+       ```bash
+       docker tag sweb.base swebench/swe-eval:latest
+       ```
+
+    **Alternatively**, if you use a different name for your locally built base image (e.g., `my-sweb-base:custom`), you must update Commander's configuration by setting the `SWE_BENCH_BASE_IMAGE_NAME` in the configuration service or relevant environment variable to match your custom image name.
+
+    Having this base image prepared locally will speed up the dynamic per-task image builds performed by the Commander harness.
+
+## Running SWE-Bench Evaluations
+
+The project includes tools for running SWE-Bench task evaluations using official data from Hugging Face.
+
+### Prerequisites
+
+1. **Python 3 and pip** - Required for downloading task data
+2. **Python dependencies** - Install with:
+   ```bash
+   pip install datasets huggingface_hub
+   ```
+   **Note:** Some Hugging Face datasets may require authentication. If you encounter issues, you may need to log in using the Hugging Face CLI: `huggingface-cli login`.
+
+   As a dependency-light alternative for downloading tasks, you can use the `scripts/fetch_swebench_tasks.sh` shell script (requires `curl` and `jq`). However, the Python script is recommended for full compatibility with all dataset features.
+3. **Docker** - Must be installed and running
+4. **SWE-Bench base image** - Pull with:
+   ```bash
+   docker pull swebench/swe-eval:latest
+   ```
+
+### Downloading Task Data
+
+Use the Python script to download official SWE-Bench tasks:
+
+```bash
+# Download SWE-Bench Lite (test split) to assets/swe_bench_data
+python scripts/download_swe_bench_tasks.py
+
+# Download first 10 tasks from full SWE-Bench
+python scripts/download_swe_bench_tasks.py --dataset_name princeton-nlp/SWE-bench --max_tasks 10
+
+# Download to custom directory
+python scripts/download_swe_bench_tasks.py --output_dir ./my-tasks
+```
+
+### Running Batch Evaluations
+
+Use the TypeScript batch runner to evaluate multiple tasks:
+
+```bash
+# Run all tasks from default directory using gold patches
+pnpm tsx scripts/run_swe_bench_batch_env.ts
+
+# Run specific instance IDs
+pnpm tsx scripts/run_swe_bench_batch_env.ts --instance_ids "django__django-11099,sympy__sympy-13146"
+
+# Run first 5 tasks and stop if one fails
+pnpm tsx scripts/run_swe_bench_batch_env.ts --max_tasks 5 --stop_on_failure
+
+# Run without gold patches (empty patch)
+pnpm tsx scripts/run_swe_bench_batch_env.ts --no-use_gold_patch
+
+# Skip tasks without gold patches
+pnpm tsx scripts/run_swe_bench_batch_env.ts --skip_if_no_patch
+
+# Use custom task directory
+pnpm tsx scripts/run_swe_bench_batch_env.ts --tasks_dir ./my-tasks
+```
+
+Note: The `run_swe_bench_batch_env.ts` script uses environment variables for configuration to avoid Effect.js layer composition issues in standalone scripts.
+
+Results are saved to `./swebench-results/run-<timestamp>/` with individual result files and a summary.
+
+For more details, see [docs/swebench/running-swebench-tasks.md](./docs/swebench/running-swebench-tasks.md).
 
 ## Tech Stack
 

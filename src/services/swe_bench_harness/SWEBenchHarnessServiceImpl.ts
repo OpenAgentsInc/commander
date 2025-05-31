@@ -35,18 +35,23 @@ export const SWEBenchHarnessServiceLive = Layer.effect(
                 Effect.catchAll(() => Effect.void)
               );
 
+              // Prepare test patch file name if test patch exists
+              const testPatchFileName = task.test_patch ? "test_patch.diff" : undefined;
+              
               const evalScriptContent = yield* scriptService.buildEvalScript(
                 task,
                 patchFileName,
                 containerContext.containerEvalDir,
-                containerContext.containerRepoPath
+                containerContext.containerRepoPath,
+                testPatchFileName
               );
 
               const report: EvaluationReport = yield* lifecycleService.runEvaluationInContainer(
                 containerContext,
                 evalScriptContent,
                 patchContent,
-                patchFileName // Pass the filename to runEvaluationInContainer
+                patchFileName, // Pass the filename to runEvaluationInContainer
+                task.test_patch // Pass test patch content if available
               );
 
               const durationMs = Date.now() - startTime;

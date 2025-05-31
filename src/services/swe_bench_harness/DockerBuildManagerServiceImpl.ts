@@ -79,7 +79,33 @@ export const DockerBuildManagerServiceLive = Layer.effect(
             )
           );
 
-          // 6. Generate a unique image name
+          // 6. Derive Python version from task.version or use default
+          const defaultPythonVersion = yield* _(
+            config.get("SWE_BENCH_DEFAULT_PYTHON_VERSION").pipe(
+              Effect.orElse(() => Effect.succeed("3.8"))
+            )
+          );
+          
+          // Parse Python version from task.version if it looks like a Python version
+          let pythonVersion = defaultPythonVersion;
+          if (task.version && /^\d+\.\d+(\.\d+)?$/.test(task.version)) {
+            pythonVersion = task.version;
+          }
+
+          // 7. Derive conda environment name from task repo and version
+          // Sanitize the repo name and version for use as conda env name
+          const repoSanitized = task.repo.replace(/[\/]/g, "__").replace(/[^a-zA-Z0-9_-]/g, "_");
+          const versionSanitized = (task.version || "default").replace(/[^a-zA-Z0-9_-]/g, "_");
+          const condaEnvName = `${repoSanitized}-${versionSanitized}`;
+
+          // 8. Get base image name from config
+          const baseImageName = yield* _(
+            config.get("SWE_BENCH_BASE_IMAGE_NAME").pipe(
+              Effect.orElse(() => Effect.succeed("swebench/swe-eval:latest"))
+            )
+          );
+
+          // 9. Generate a unique image name
           const sanitizedInstanceId = task.instance_id.replace(/[\/\:]/g, "--");
           const imageName = `swe-bench-task/${sanitizedInstanceId}:latest`;
 
@@ -91,7 +117,9 @@ export const DockerBuildManagerServiceLive = Layer.effect(
             context: {
               contextPath,
               imageName,
-              repoUrl
+              repoUrl,
+              pythonVersion,
+              condaEnvName
             }
           }).pipe(Effect.catchAll(() => Effect.void)));
 
@@ -99,7 +127,10 @@ export const DockerBuildManagerServiceLive = Layer.effect(
             contextPath,
             dockerfileName: "Dockerfile",
             imageName,
-            containerRepoPath
+            containerRepoPath,
+            pythonVersion,
+            condaEnvName,
+            baseImageName
           };
         }).pipe(
           Effect.provide(Layer.mergeAll(

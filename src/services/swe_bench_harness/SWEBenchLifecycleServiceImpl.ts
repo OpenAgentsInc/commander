@@ -38,6 +38,9 @@ export const SWEBenchLifecycleServiceLive = Layer.effect(
             t: buildContext.imageName,
             dockerfile: buildContext.dockerfileName,
             buildargs: {
+              SWE_BENCH_BASE_IMAGE_ARG: buildContext.baseImageName,
+              PYTHON_VERSION_ARG: buildContext.pythonVersion,
+              CONDA_ENV_NAME_ARG: buildContext.condaEnvName,
               REPO_URL_ARG: `https://github.com/${task.repo}.git`,
               BASE_COMMIT_ARG: task.base_commit,
               CONTAINER_REPO_PATH_ARG: buildContext.containerRepoPath
@@ -145,7 +148,7 @@ export const SWEBenchLifecycleServiceLive = Layer.effect(
             return context;
         }),
 
-      runEvaluationInContainer: (containerContext, evalScriptContent, patchContent, patchFileName = "patch.diff") =>
+      runEvaluationInContainer: (containerContext, evalScriptContent, patchContent, patchFileName = "patch.diff", testPatchContent) =>
         Effect.gen(function* () {
           // Write patch file to host
             const patchPath = path.join(containerContext.hostEvalDir, patchFileName);
@@ -156,6 +159,18 @@ export const SWEBenchLifecycleServiceLive = Layer.effect(
                 context: { patchPath }
               }))
             );
+
+            // Write test patch file to host if provided
+            if (testPatchContent) {
+              const testPatchPath = path.join(containerContext.hostEvalDir, "test_patch.diff");
+              yield* fs.writeFileString(testPatchPath, testPatchContent).pipe(
+                Effect.mapError(error => new LifecycleEvalError({
+                  message: "Failed to write test patch file",
+                  cause: error,
+                  context: { testPatchPath }
+                }))
+              );
+            }
 
             // Write eval script to host
             const scriptPath = path.join(containerContext.hostEvalDir, "eval.sh");
