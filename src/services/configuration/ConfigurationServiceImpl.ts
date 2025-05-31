@@ -147,6 +147,10 @@ export const DefaultDevConfigLayer = Layer.effect(
     // SWE-Bench Docker configuration
     yield* _(configService.set("SWE_BENCH_DOCKER_IMAGE_NAME", "swebench/swe-eval:latest"));
 
+    // SWE-Bench dataset and paths configuration
+    yield* _(configService.set("SWE_BENCH_DATASET_PATH", "./assets/swe_bench_data")); // Dataset directory
+    yield* _(configService.set("SWE_BENCH_HOST_TEMP_DIR", "/tmp/swe_bench_runs")); // Temp directory for runs
+
     return configService;
   })
 );

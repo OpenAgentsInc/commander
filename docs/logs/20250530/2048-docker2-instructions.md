@@ -1,807 +1,406 @@
-## Phase 2: SWE-Bench Harness - DockerUtilsService Foundation
+You are absolutely right! My apologies. I got caught up in the "Phase 2" label from the document title `2048-docker2-instructions.md` and didn't fully reconcile that with the "Phase 1.0 Complete!" status in the `2017-docker-log.md` and your provided code snippet.
 
-**Goal:** To establish the foundational Docker utilities service (`DockerUtilsService`) using Dockerode and Effect-TS. This service will abstract Docker client interactions for managing containers and images, which is a prerequisite for running SWE-bench tasks in isolated environments.
+The `DockerUtilsService` and its related files (`DockerUtilsServiceImpl.ts`, `errors.ts`, `DockerUtilsService.ts`, the unit tests, integration test script, and README) are indeed complete as per your logs and the code you've shown.
 
-**I. Project Setup & Dependencies:**
+Let's move on to the **actual next phase** based on the original plan in `docs/swebench/instructions.md`, which is:
 
-1.  **Install Dockerode:**
-    *   Verify or add `dockerode` and its type definitions to `devDependencies` in `package.json`. The target versions (based on your `package.json`) are:
-        ```json
-        "dockerode": "^4.0.6",
-        "@types/dockerode": "^3.3.39"
+**Phase 2 (Original Plan): SWE-Bench Task Management (`SWEBenchTaskService`)**
+
+This phase focuses on creating a service to load and manage SWE-bench task definitions.
+
+---
+
+**Instructions for the Coding Agent (Next Phase: SWE-Bench Task Management):**
+
+**Goal:** To create the `SWEBenchTaskService` responsible for loading SWE-bench task definitions from the filesystem. This service will provide task details (instance ID, repository, problem statement, etc.) needed for the evaluation harness.
+
+**I. Define Custom Errors and Task Data Structures:**
+
+1.  **Create Harness-Specific Error Types:**
+    *   **File:** `src/services/swe_bench_harness/errors.ts` (This file should exist but might be empty; populate it now).
+    *   **Content:**
+        ```typescript
+        // src/services/swe_bench_harness/errors.ts
+        import { Data } from "effect";
+
+        export class SWEBenchHarnessError extends Data.TaggedError("SWEBenchHarnessError")<{
+          readonly message: string;
+          readonly cause?: unknown;
+          readonly context?: Record<string, any>;
+        }> {}
+
+        export class TaskNotFoundError extends Data.TaggedError("TaskNotFoundError")<{
+          readonly instanceId: string;
+          readonly pathSearched?: string;
+          readonly cause?: unknown;
+        }> {
+          get message() {
+            return `SWE-Bench task not found: ${this.instanceId}${this.pathSearched ? ` (searched in ${this.pathSearched})` : ''}`;
+          }
+        }
+
+        export class DatasetAccessError extends Data.TaggedError("DatasetAccessError")<{
+          readonly message: string;
+          readonly path?: string;
+          readonly cause?: unknown;
+        }> {}
+
+        // Add other harness-specific errors as they become necessary in later phases.
         ```
-    *   If not already present or if versions differ, run:
-        ```bash
-        pnpm add -D dockerode@^4.0.6 @types/dockerode@^3.3.39
-        ```
-    *   Ensure changes are reflected by running `pnpm install`.
 
-2.  **Create Initial Directory Structure:**
-    *   Ensure the following directory structure exists. Create any missing directories or files:
-        ```
-        src/
-        └── services/
-            ├── docker/
-            │   ├── DockerUtilsService.ts       # Interface, Tag, and data types
-            │   ├── DockerUtilsServiceImpl.ts   # Live implementation
-            │   ├── errors.ts                   # Custom Docker errors
-            │   └── index.ts                    # Barrel file for docker/*
-            ├── swe_bench_harness/
-            │   ├── errors.ts                   # Create as empty file for now
-            │   └── types.ts                    # Create as empty file for now
-            └── index.ts                        # Main barrel file for services/
+2.  **Define `SWEBenchTask` Data Structure:**
+    *   **File:** `src/services/swe_bench_harness/types.ts` (This file should exist but might be empty; populate it now).
+    *   **Instructions:** Define an interface or Effect Schema for `SWEBenchTask`. It should align with the structure of SWE-bench task JSON files.
+    *   **Content:**
+        ```typescript
+        // src/services/swe_bench_harness/types.ts
+        import { Schema } from "effect";
+
+        export const SWEBenchTaskSchema = Schema.Struct({
+          instance_id: Schema.String,
+          repo: Schema.String,
+          base_commit: Schema.String,
+          problem_statement: Schema.String,
+          hints_text: Schema.optional(Schema.String),
+          test_patch: Schema.String, // Content of the test patch
+          version: Schema.String,
+          FAIL_TO_PASS: Schema.Array(Schema.String),
+          PASS_TO_PASS: Schema.Array(Schema.String),
+          // Add other fields from swe-bench task definition if needed
+          patch: Schema.optional(Schema.String), // Gold patch, if available in dataset
+        });
+
+        export type SWEBenchTask = Schema.Schema.Type<typeof SWEBenchTaskSchema>;
         ```
 
-**II. Define Docker Error Types:**
+**II. Implement `SWEBenchTaskService`:**
 
-*   **File:** `src/services/docker/errors.ts`
+1.  **Define `SWEBenchTaskService` Interface:**
+    *   **File:** `src/services/swe_bench_harness/SWEBenchTaskService.ts` (Create this new file).
+    *   **Content:**
+        ```typescript
+        // src/services/swe_bench_harness/SWEBenchTaskService.ts
+        import { Context, Effect } from "effect";
+        import type { SWEBenchTask } from "./types";
+        import { TaskNotFoundError, DatasetAccessError } from "./errors";
+        import type { ConfigError } from "@/services/configuration"; // For ConfigurationService errors
+
+        export interface SWEBenchTaskService {
+          getTask(instanceId: string): Effect.Effect<SWEBenchTask, TaskNotFoundError | DatasetAccessError | ConfigError>;
+          listAvailableTaskIds(subset?: string): Effect.Effect<string[], DatasetAccessError | ConfigError>;
+        }
+
+        export const SWEBenchTaskService = Context.GenericTag<SWEBenchTaskService>("SWEBenchTaskService");
+        ```
+
+2.  **Implement `SWEBenchTaskServiceLive`:**
+    *   **File:** `src/services/swe_bench_harness/SWEBenchTaskServiceImpl.ts` (Create this new file).
+    *   **Instructions:**
+        *   Dependencies: `ConfigurationService`, `FileSystem` (from `@effect/platform-node`), `TelemetryService`.
+        *   Use `Ref` for in-memory caching of loaded tasks.
+        *   Implement `getTask` to read a JSON file (e.g., `instance_id.json`) from the path specified by `SWE_BENCH_DATASET_PATH` in `ConfigurationService`, parse it, and validate against `SWEBenchTaskSchema`.
+        *   Implement `listAvailableTaskIds` to read all `.json` filenames from the dataset path and extract instance IDs.
+    *   **Content:**
+        ```typescript
+        // src/services/swe_bench_harness/SWEBenchTaskServiceImpl.ts
+        import { Effect, Layer, Ref, Schema } from "effect";
+        import { FileSystem } from "@effect/platform-node"; // Use Node specific FileSystem
+        import { ConfigurationService, ConfigError } from "@/services/configuration";
+        import { TelemetryService } from "@/services/telemetry";
+        import { SWEBenchTaskService } from "./SWEBenchTaskService";
+        import { SWEBenchTask, SWEBenchTaskSchema } from "./types";
+        import { TaskNotFoundError, DatasetAccessError } from "./errors";
+        import path from "path"; // Node.js path module
+
+        export const SWEBenchTaskServiceLive = Layer.effect(
+          SWEBenchTaskService,
+          Effect.gen(function* (_) {
+            const configService = yield* _(ConfigurationService);
+            const fs = yield* _(FileSystem);
+            const telemetry = yield* _(TelemetryService);
+            const taskCache = yield* _(Ref.make(new Map<string, SWEBenchTask>()));
+
+            const getDatasetPath = () => configService.get("SWE_BENCH_DATASET_PATH").pipe(
+              Effect.tapError((e) => telemetry.trackEvent({ category: "swe_bench", action: "get_dataset_path_error", value: e.message }))
+            );
+
+            return SWEBenchTaskService.of({
+              getTask: (instanceId: string) => Effect.gen(function* (_) {
+                const cache = yield* _(Ref.get(taskCache));
+                if (cache.has(instanceId)) {
+                  yield* _(telemetry.trackEvent({ category: "swe_bench", action: "get_task_cache_hit", label: instanceId }));
+                  return cache.get(instanceId)!;
+                }
+
+                const datasetPath = yield* _(getDatasetPath());
+                const filePath = path.join(datasetPath, `${instanceId}.json`);
+                yield* _(telemetry.trackEvent({ category: "swe_bench", action: "get_task_read_file", label: instanceId, value: filePath }));
+
+                const content = yield* _(fs.readFileString(filePath, "utf-8").pipe(
+                  Effect.mapError((e) => new TaskNotFoundError({ instanceId, pathSearched: filePath, cause: e }))
+                ));
+
+                const taskData = yield* _(Effect.try({
+                  try: () => JSON.parse(content),
+                  catch: (e) => new DatasetAccessError({ message: `Failed to parse JSON for task ${instanceId}`, path: filePath, cause: e })
+                }));
+
+                const task = yield* _(Schema.decodeUnknown(SWEBenchTaskSchema)(taskData).pipe(
+                  Effect.mapError((e) => new DatasetAccessError({ message: `Invalid task data schema for ${instanceId}`, path: filePath, cause: e }))
+                ));
+
+                yield* _(Ref.update(taskCache, (map) => map.set(instanceId, task)));
+                yield* _(telemetry.trackEvent({ category: "swe_bench", action: "get_task_success", label: instanceId }));
+                return task;
+              }),
+
+              listAvailableTaskIds: (subset?: string) // `subset` is for future use
+                => Effect.gen(function* (_) {
+                  const datasetPath = yield* _(getDatasetPath());
+                  yield* _(telemetry.trackEvent({ category: "swe_bench", action: "list_tasks_start", value: datasetPath }));
+
+                  const files = yield* _(fs.readDirectory(datasetPath).pipe(
+                    Effect.mapError((e) => new DatasetAccessError({ message: `Failed to read dataset directory: ${datasetPath}`, path: datasetPath, cause: e }))
+                  ));
+
+                  const taskIds = files
+                    .filter(file => file.endsWith(".json"))
+                    .map(file => file.replace(".json", ""));
+
+                  yield* _(telemetry.trackEvent({ category: "swe_bench", action: "list_tasks_success", value: `${taskIds.length} tasks found` }));
+                  return taskIds;
+                }),
+            });
+          })
+        );
+        ```
+
+**III. Unit Tests for `SWEBenchTaskService`:**
+
+*   **File:** `src/services/swe_bench_harness/SWEBenchTaskService.test.ts` (Create this new file).
 *   **Instructions:**
-    *   Define custom tagged errors for Docker operations using `Effect/Data`.
-    *   Create a base `DockerError`, a `DockerConnectionError` for issues connecting to the Docker daemon, and a `DockerOperationError` for errors during Docker commands.
-
+    *   Mock `ConfigurationService` to provide `SWE_BENCH_DATASET_PATH`.
+    *   Mock `FileSystem` (from `@effect/platform-node`) to simulate file reads and directory listings.
+    *   Mock `TelemetryService`.
+    *   Test `getTask`:
+        *   Successful task loading, parsing, and schema validation.
+        *   Task file not found (should yield `TaskNotFoundError`).
+        *   Invalid JSON in task file (should yield `DatasetAccessError`).
+        *   Task data not matching schema (should yield `DatasetAccessError`).
+        *   Caching (ensure file is read once for multiple calls to the same ID).
+    *   Test `listAvailableTaskIds`:
+        *   Successfully lists task IDs.
+        *   Handles empty directory.
+        *   Handles directory read error (should yield `DatasetAccessError`).
+*   **Content Example Snippet:**
     ```typescript
-    // src/services/docker/errors.ts
-    import { Data } from "effect";
-
-    export class DockerError extends Data.TaggedError("DockerError")<{
-      readonly message: string;
-      readonly cause?: unknown;
-      readonly context?: Record<string, any>;
-    }> {}
-
-    export class DockerConnectionError extends Data.TaggedError("DockerConnectionError")<{
-      readonly message: string;
-      readonly cause?: unknown;
-    }> {}
-
-    export class DockerOperationError extends Data.TaggedError("DockerOperationError")<{
-      readonly message: string;
-      readonly operation: string;
-      readonly cause?: unknown;
-      readonly containerId?: string;
-      readonly imageName?: string;
-    }> {}
-    ```
-
-**III. Define `DockerUtilsService` Interface and Data Types:**
-
-*   **File:** `src/services/docker/DockerUtilsService.ts`
-*   **Instructions:**
-    *   Import necessary types from `dockerode` and your custom errors.
-    *   Define the `DockerUtilsService` interface with methods for listing containers, pulling images, creating, starting, stopping, and removing containers.
-    *   Create and export the `Context.Tag` for `DockerUtilsService`.
-
-    ```typescript
-    // src/services/docker/DockerUtilsService.ts
-    import { Context, Effect } from "effect";
-    import type Dockerode from 'dockerode';
-    import { DockerError, DockerOperationError } from "./errors";
-
-    export interface DockerUtilsService {
-      readonly listContainers: (options?: Dockerode.ContainerListOptions) => Effect.Effect<Dockerode.ContainerInfo[], DockerError>;
-      readonly pullImage: (imageName: string, onProgress?: (event: any) => void) => Effect.Effect<void, DockerOperationError>;
-      readonly createContainer: (options: Dockerode.ContainerCreateOptions) => Effect.Effect<string, DockerOperationError>; // Returns container ID
-      readonly startContainer: (containerId: string) => Effect.Effect<void, DockerOperationError>;
-      readonly stopContainer: (containerId: string, options?: Dockerode.ContainerStopOptions) => Effect.Effect<void, DockerOperationError>;
-      readonly removeContainer: (containerId: string, options?: Dockerode.ContainerRemoveOptions) => Effect.Effect<void, DockerOperationError>;
-    }
-
-    export const DockerUtilsService = Context.GenericTag<DockerUtilsService>("DockerUtilsService");
-    ```
-
-**IV. Implement Unit Tests for `DockerUtilsService`:**
-
-*   **File:** `src/services/docker/DockerUtilsService.test.ts` (Create this new file)
-*   **Instructions:**
-    *   Use `vitest` (`describe`, `it`, `expect`, `vi`, `beforeEach`).
-    *   Mock the `dockerode` library.
-    *   For each method in `DockerUtilsService`:
-        *   Test successful execution, ensuring the mock was called correctly and the Effect succeeds.
-        *   Test error handling, ensuring the Effect fails with the appropriate custom `DockerError` type.
-    *   The `DockerUtilsServiceLive` layer depends on `ConfigurationService`. Provide `DefaultDevConfigLayer` for tests.
-
-    ```typescript
-    // src/services/docker/DockerUtilsService.test.ts
+    // src/services/swe_bench_harness/SWEBenchTaskService.test.ts
     import { describe, it, expect, vi, beforeEach } from 'vitest';
-    import { Effect, Exit, Layer } from 'effect';
-    import Dockerode from 'dockerode';
-    import { DockerUtilsService } from './DockerUtilsService';
-    import { DockerUtilsServiceLive } from './DockerUtilsServiceImpl';
-    import { DockerError, DockerOperationError, DockerConnectionError } from './errors';
-    import { ConfigurationService, DefaultDevConfigLayer } from '@/services/configuration';
+    import { Effect, Exit, Layer, Ref } from 'effect';
+    import { FileSystem } from '@effect/platform-node';
+    import { ConfigurationService } from '@/services/configuration';
+    import { TelemetryService } from '@/services/telemetry';
+    import { SWEBenchTaskService } from './SWEBenchTaskService';
+    import { SWEBenchTaskServiceLive } from './SWEBenchTaskServiceImpl';
+    import { SWEBenchTaskSchema } from './types';
+    import { TaskNotFoundError, DatasetAccessError } from './errors';
 
-    const mockListContainers = vi.fn();
-    const mockPull = vi.fn();
-    const mockModemFollowProgress = vi.fn();
-    const mockCreateContainer = vi.fn();
-    const mockGetContainer = vi.fn();
-    const mockContainerStart = vi.fn();
-    const mockContainerStop = vi.fn();
-    const mockContainerRemove = vi.fn();
-    const mockPing = vi.fn();
+    const mockReadFileString = vi.fn();
+    const mockReadDirectory = vi.fn();
+    const mockTrackEvent = vi.fn(() => Effect.void);
 
-    vi.mock('dockerode', () => ({
-      default: vi.fn().mockImplementation(() => ({
-        listContainers: mockListContainers,
-        pull: mockPull,
-        modem: {
-          followProgress: mockModemFollowProgress,
-        },
-        createContainer: mockCreateContainer,
-        getContainer: mockGetContainer,
-        ping: mockPing,
-      })),
-    }));
+    const mockFileSystem = FileSystem.of({
+        readFileString: mockReadFileString,
+        readDirectory: mockReadDirectory,
+        // ... other methods with default mock implementations ...
+        exists: vi.fn(() => Effect.succeed(true)),
+        writeFileString: vi.fn(() => Effect.void),
+        remove: vi.fn(() => Effect.void),
+        copy: vi.fn(() => Effect.void),
+        makeDirectory: vi.fn(() => Effect.void),
+        // Add any other methods your service might eventually use or that FileSystem interface requires
+    } as any); // Cast to any to simplify mock, ensure all used methods are mocked
 
-    const testLayer = DockerUtilsServiceLive.pipe(
-      Layer.provide(DefaultDevConfigLayer)
-    );
+    const mockConfigService = (datasetPath: string) => ConfigurationService.of({
+        get: vi.fn((key: string) => {
+            if (key === "SWE_BENCH_DATASET_PATH") return Effect.succeed(datasetPath);
+            return Effect.fail({ _tag: "ConfigError", message: `Unknown key: ${key}` });
+        }),
+        getSecret: vi.fn(() => Effect.fail({ _tag: "SecretNotFoundError", message: "Not found", keyName: "" })),
+        set: vi.fn(() => Effect.void),
+        delete: vi.fn(() => Effect.void),
+    });
 
-    describe('DockerUtilsService', () => {
-      beforeEach(() => {
-        vi.clearAllMocks();
-        // Default mock implementations for success
-        mockPing.mockResolvedValue("OK");
-      });
+    const mockTelemetryService = TelemetryService.of({
+        trackEvent: mockTrackEvent,
+        isEnabled: () => Effect.succeed(true),
+        setEnabled: () => Effect.void,
+    });
 
-      describe('listContainers', () => {
-        it('should list containers successfully', async () => {
-          const mockContainerList = [{ Id: '123', Names: ['/test'] }] as Dockerode.ContainerInfo[];
-          mockListContainers.mockResolvedValue(mockContainerList);
+    describe('SWEBenchTaskService', () => {
+        const testDatasetPath = "/test/dataset";
+        let testLayer: Layer.Layer<SWEBenchTaskService, never, never>;
 
-          const program = Effect.flatMap(DockerUtilsService, (service) => service.listContainers());
-          const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
-
-          expect(Exit.isSuccess(result)).toBe(true);
-          if (Exit.isSuccess(result)) {
-            expect(result.value).toEqual(mockContainerList);
-          }
-          expect(mockListContainers).toHaveBeenCalled();
+        beforeEach(() => {
+            vi.clearAllMocks();
+            testLayer = SWEBenchTaskServiceLive.pipe(
+                Layer.provide(Layer.succeed(FileSystem, mockFileSystem)),
+                Layer.provide(Layer.succeed(ConfigurationService, mockConfigService(testDatasetPath))),
+                Layer.provide(Layer.succeed(TelemetryService, mockTelemetryService))
+            );
         });
 
-        it('should return DockerError on failure', async () => {
-          mockListContainers.mockRejectedValue(new Error('Docker daemon error'));
-
-          const program = Effect.flatMap(DockerUtilsService, (service) => service.listContainers());
-          const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
-
-          expect(Exit.isFailure(result)).toBe(true);
-          if (Exit.isFailure(result)) {
-            const error = result.cause.error as DockerError;
-            expect(error._tag).toBe('DockerError');
-            expect(error.message).toContain('Failed to list containers');
-          }
-        });
-      });
-
-      describe('pullImage', () => {
-        it('should pull an image successfully', async () => {
-          mockPull.mockImplementation((_imageName, _options, callback) => {
-            const mockStream = {
-              on: vi.fn().mockReturnThis(), pipe: vi.fn().mockReturnThis()
+        describe('getTask', () => {
+            const sampleTaskData = {
+                instance_id: "test-task-1",
+                repo: "test/repo",
+                base_commit: "abc123_base",
+                problem_statement: "Fix the bug.",
+                test_patch: "diff --git a/test.py b/test.py\n...",
+                version: "1.0",
+                FAIL_TO_PASS: ["test_case1"],
+                PASS_TO_PASS: ["test_case2"],
             };
-            mockModemFollowProgress.mockImplementation((stream, onFinished) => {
-                onFinished(null, [{ status: 'Downloaded' }]);
-            });
-            if (typeof callback === 'function') callback(null, mockStream);
-            return mockStream;
-          });
 
-          const program = Effect.flatMap(DockerUtilsService, (service) => service.pullImage('test-image:latest'));
-          const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
+            it('should load, parse, and validate a task successfully', async () => {
+                mockReadFileString.mockReturnValue(Effect.succeed(JSON.stringify(sampleTaskData)));
 
-          expect(Exit.isSuccess(result)).toBe(true);
-          expect(mockPull).toHaveBeenCalledWith('test-image:latest', {}, expect.any(Function));
-          expect(mockModemFollowProgress).toHaveBeenCalled();
-        });
+                const program = Effect.flatMap(SWEBenchTaskService, s => s.getTask("test-task-1"));
+                const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
 
-        it('should return DockerOperationError on pull failure reported by followProgress', async () => {
-          mockPull.mockImplementation((_imageName, _options, callback) => {
-            const mockStream = { on: vi.fn().mockReturnThis(), pipe: vi.fn().mockReturnThis() };
-            mockModemFollowProgress.mockImplementation((stream, onFinished) => {
-                onFinished(new Error('Network error during pull'), null);
-            });
-            if (typeof callback === 'function') callback(null, mockStream);
-            return mockStream;
-          });
-
-          const program = Effect.flatMap(DockerUtilsService, (service) => service.pullImage('test-image:latest'));
-          const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
-
-          expect(Exit.isFailure(result)).toBe(true);
-          if (Exit.isFailure(result)) {
-            const error = result.cause.error as DockerOperationError;
-            expect(error._tag).toBe('DockerOperationError');
-            expect(error.message).toContain('Failed to pull image test-image:latest');
-            expect(error.operation).toBe('pullImage');
-            expect(error.imageName).toBe('test-image:latest');
-          }
-        });
-
-        it('should return DockerOperationError if pull stream itself errors', async () => {
-          mockPull.mockImplementation((_imageName, _options, callback) => {
-            if (typeof callback === 'function') {
-              callback(new Error('Stream creation failed'), undefined);
-            } else {
-              // If Dockerode version returns Promise that might reject for stream
-              return Promise.reject(new Error('Stream creation failed'));
-            }
-            return undefined; // Or mock stream that emits error
-          });
-
-          const program = Effect.flatMap(DockerUtilsService, (service) => service.pullImage('test-image:latest'));
-          const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
-
-          expect(Exit.isFailure(result)).toBe(true);
-          if (Exit.isFailure(result)) {
-            const error = result.cause.error as DockerOperationError;
-            expect(error._tag).toBe('DockerOperationError');
-            expect(error.message).toContain('Docker pull stream error for test-image:latest');
-          }
-        });
-
-        it('should return DockerOperationError if pull stream is not provided by Dockerode', async () => {
-            mockPull.mockImplementation((_imageName, _options, callback) => {
-              if (typeof callback === 'function') {
-                callback(null, undefined); // Simulate no stream
-              }
-              return undefined;
+                expect(Exit.isSuccess(result)).toBe(true);
+                if (Exit.isSuccess(result)) {
+                    expect(result.value).toEqual(sampleTaskData);
+                }
+                expect(mockReadFileString).toHaveBeenCalledWith(
+                    expect.stringContaining("/test/dataset/test-task-1.json"),
+                    "utf-8"
+                );
             });
 
-            const program = Effect.flatMap(DockerUtilsService, (service) => service.pullImage('test-image:latest'));
-            const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
+            it('should return TaskNotFoundError if task file does not exist', async () => {
+                mockReadFileString.mockReturnValue(Effect.fail(new Error("File not found error"))); // Simulate fs error
 
-            expect(Exit.isFailure(result)).toBe(true);
-            if (Exit.isFailure(result)) {
-              const error = result.cause.error as DockerOperationError;
-              expect(error._tag).toBe('DockerOperationError');
-              expect(error.message).toContain('No stream returned for pull test-image:latest');
-            }
-        });
+                const program = Effect.flatMap(SWEBenchTaskService, s => s.getTask("nonexistent-task"));
+                const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
 
-        it('should return DockerOperationError if followProgress output indicates error', async () => {
-            mockPull.mockImplementation((_imageName, _options, callback) => {
-              const mockStream = { on: vi.fn().mockReturnThis(), pipe: vi.fn().mockReturnThis() };
-              mockModemFollowProgress.mockImplementation((stream, onFinished) => {
-                  onFinished(null, [{ error: 'Image not found', errorDetail: { message: 'Image not found in repository' } }]);
-              });
-              if (typeof callback === 'function') callback(null, mockStream);
-              return mockStream;
+                expect(Exit.isFailure(result)).toBe(true);
+                if (Exit.isFailure(result)) {
+                    expect(result.cause.error).toBeInstanceOf(TaskNotFoundError);
+                    expect((result.cause.error as TaskNotFoundError).instanceId).toBe("nonexistent-task");
+                }
             });
 
-            const program = Effect.flatMap(DockerUtilsService, (service) => service.pullImage('test-image:latest'));
-            const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
+            it('should return DatasetAccessError if JSON is invalid', async () => {
+                mockReadFileString.mockReturnValue(Effect.succeed("invalid json"));
 
-            expect(Exit.isFailure(result)).toBe(true);
-            if (Exit.isFailure(result)) {
-              const error = result.cause.error as DockerOperationError;
-              expect(error._tag).toBe('DockerOperationError');
-              expect(error.message).toContain('Failed to pull image test-image:latest: Image not found');
-            }
-          });
-      });
+                const program = Effect.flatMap(SWEBenchTaskService, s => s.getTask("invalid-json-task"));
+                const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
 
-      describe('createContainer', () => {
-        const containerOptions: Dockerode.ContainerCreateOptions = { Image: 'test-image' };
-        it('should create a container successfully and return its ID', async () => {
-          const mockContainerInspect = { id: 'container-id-123' };
-          const mockContainerObj = { id: 'container-id-123', inspect: vi.fn().mockResolvedValue(mockContainerInspect) };
-          mockCreateContainer.mockResolvedValue(mockContainerObj);
+                expect(Exit.isFailure(result)).toBe(true);
+                if (Exit.isFailure(result)) {
+                    expect(result.cause.error).toBeInstanceOf(DatasetAccessError);
+                    expect((result.cause.error as DatasetAccessError).message).toContain("Failed to parse JSON");
+                }
+            });
 
-          const program = Effect.flatMap(DockerUtilsService, (service) => service.createContainer(containerOptions));
-          const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
+            it('should return DatasetAccessError if task data schema is invalid', async () => {
+                const invalidTaskData = { ...sampleTaskData, repo: undefined }; // Missing required 'repo'
+                mockReadFileString.mockReturnValue(Effect.succeed(JSON.stringify(invalidTaskData)));
 
-          expect(Exit.isSuccess(result)).toBe(true);
-          if (Exit.isSuccess(result)) {
-            expect(result.value).toBe('container-id-123');
-          }
-          expect(mockCreateContainer).toHaveBeenCalledWith(containerOptions);
+                const program = Effect.flatMap(SWEBenchTaskService, s => s.getTask("invalid-schema-task"));
+                const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
+
+                expect(Exit.isFailure(result)).toBe(true);
+                if (Exit.isFailure(result)) {
+                    expect(result.cause.error).toBeInstanceOf(DatasetAccessError);
+                    expect((result.cause.error as DatasetAccessError).message).toContain("Invalid task data schema");
+                }
+            });
+
+            it('should cache tasks after first load', async () => {
+                mockReadFileString.mockReturnValue(Effect.succeed(JSON.stringify(sampleTaskData)));
+
+                const program = Effect.gen(function*(_){
+                    const service = yield* _(SWEBenchTaskService);
+                    yield* _(service.getTask("test-task-1")); // First call
+                    return yield* _(service.getTask("test-task-1")); // Second call
+                });
+                await Effect.runPromise(Effect.provide(program, testLayer));
+
+                expect(mockReadFileString).toHaveBeenCalledTimes(1); // Should only be called once
+            });
         });
 
-        it('should return DockerOperationError on createContainer failure', async () => {
-          mockCreateContainer.mockRejectedValue(new Error('Create container failed'));
+        describe('listAvailableTaskIds', () => {
+            it('should list available task IDs successfully', async () => {
+                mockReadDirectory.mockReturnValue(Effect.succeed(["task1.json", "task2.json", "task3.txt"]));
 
-          const program = Effect.flatMap(DockerUtilsService, (service) => service.createContainer(containerOptions));
-          const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
+                const program = Effect.flatMap(SWEBenchTaskService, s => s.listAvailableTaskIds());
+                const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
 
-          expect(Exit.isFailure(result)).toBe(true);
-          if (Exit.isFailure(result)) {
-            const error = result.cause.error as DockerOperationError;
-            expect(error._tag).toBe('DockerOperationError');
-            expect(error.message).toContain('Failed to create container');
-            expect(error.operation).toBe('createContainer');
-          }
+                expect(Exit.isSuccess(result)).toBe(true);
+                if (Exit.isSuccess(result)) {
+                    expect(result.value).toEqual(["task1", "task2"]);
+                }
+                expect(mockReadDirectory).toHaveBeenCalledWith(testDatasetPath);
+            });
+
+            it('should handle empty directory', async () => {
+                mockReadDirectory.mockReturnValue(Effect.succeed([]));
+
+                const program = Effect.flatMap(SWEBenchTaskService, s => s.listAvailableTaskIds());
+                const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
+
+                expect(Exit.isSuccess(result)).toBe(true);
+                if (Exit.isSuccess(result)) {
+                    expect(result.value).toEqual([]);
+                }
+            });
+
+            it('should return DatasetAccessError if directory read fails', async () => {
+                mockReadDirectory.mockReturnValue(Effect.fail(new Error("Directory read error")));
+
+                const program = Effect.flatMap(SWEBenchTaskService, s => s.listAvailableTaskIds());
+                const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
+
+                expect(Exit.isFailure(result)).toBe(true);
+                if (Exit.isFailure(result)) {
+                    expect(result.cause.error).toBeInstanceOf(DatasetAccessError);
+                    expect((result.cause.error as DatasetAccessError).message).toContain("Failed to read dataset directory");
+                }
+            });
         });
-      });
-
-      describe('startContainer', () => {
-        const containerId = 'container-id-123';
-
-        beforeEach(() => {
-            mockGetContainer.mockReturnValue({ start: mockContainerStart });
-        });
-
-        it('should start a container successfully', async () => {
-          mockContainerStart.mockResolvedValue(undefined);
-
-          const program = Effect.flatMap(DockerUtilsService, (service) => service.startContainer(containerId));
-          const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
-
-          expect(Exit.isSuccess(result)).toBe(true);
-          expect(mockGetContainer).toHaveBeenCalledWith(containerId);
-          expect(mockContainerStart).toHaveBeenCalled();
-        });
-
-        it('should return DockerOperationError on startContainer failure', async () => {
-          mockContainerStart.mockRejectedValue(new Error('Start container failed'));
-
-          const program = Effect.flatMap(DockerUtilsService, (service) => service.startContainer(containerId));
-          const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
-
-          expect(Exit.isFailure(result)).toBe(true);
-          if (Exit.isFailure(result)) {
-            const error = result.cause.error as DockerOperationError;
-            expect(error._tag).toBe('DockerOperationError');
-            expect(error.message).toContain('Failed to start container');
-            expect(error.containerId).toBe(containerId);
-            expect(error.operation).toBe('startContainer');
-          }
-        });
-      });
-
-      describe('stopContainer', () => {
-        const containerId = 'container-id-123';
-
-        beforeEach(() => {
-            mockGetContainer.mockReturnValue({ stop: mockContainerStop });
-        });
-
-        it('should stop a container successfully', async () => {
-          mockContainerStop.mockResolvedValue(undefined);
-
-          const program = Effect.flatMap(DockerUtilsService, (service) => service.stopContainer(containerId));
-          const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
-
-          expect(Exit.isSuccess(result)).toBe(true);
-          expect(mockGetContainer).toHaveBeenCalledWith(containerId);
-          expect(mockContainerStop).toHaveBeenCalled();
-        });
-
-        it('should return DockerOperationError on stopContainer failure', async () => {
-          mockContainerStop.mockRejectedValue(new Error('Stop container failed'));
-
-          const program = Effect.flatMap(DockerUtilsService, (service) => service.stopContainer(containerId));
-          const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
-
-          expect(Exit.isFailure(result)).toBe(true);
-           if (Exit.isFailure(result)) {
-            const error = result.cause.error as DockerOperationError;
-            expect(error._tag).toBe('DockerOperationError');
-            expect(error.message).toContain('Failed to stop container');
-            expect(error.containerId).toBe(containerId);
-            expect(error.operation).toBe('stopContainer');
-          }
-        });
-      });
-
-      describe('removeContainer', () => {
-        const containerId = 'container-id-123';
-
-        beforeEach(() => {
-            mockGetContainer.mockReturnValue({ remove: mockContainerRemove });
-        });
-
-        it('should remove a container successfully', async () => {
-          mockContainerRemove.mockResolvedValue(undefined);
-
-          const program = Effect.flatMap(DockerUtilsService, (service) => service.removeContainer(containerId));
-          const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
-
-          expect(Exit.isSuccess(result)).toBe(true);
-          expect(mockGetContainer).toHaveBeenCalledWith(containerId);
-          expect(mockContainerRemove).toHaveBeenCalled();
-        });
-
-        it('should return DockerOperationError on removeContainer failure', async () => {
-          mockContainerRemove.mockRejectedValue(new Error('Remove container failed'));
-
-          const program = Effect.flatMap(DockerUtilsService, (service) => service.removeContainer(containerId));
-          const result = await Effect.runPromiseExit(Effect.provide(program, testLayer));
-
-          expect(Exit.isFailure(result)).toBe(true);
-          if (Exit.isFailure(result)) {
-            const error = result.cause.error as DockerOperationError;
-            expect(error._tag).toBe('DockerOperationError');
-            expect(error.message).toContain('Failed to remove container');
-            expect(error.containerId).toBe(containerId);
-            expect(error.operation).toBe('removeContainer');
-          }
-        });
-      });
     });
     ```
 
-**V. Implement `DockerUtilsServiceLive`:**
+**IV. Update Barrel Files:**
 
-*   **File:** `src/services/docker/DockerUtilsServiceImpl.ts`
-*   **Instructions:**
-    *   Implement the `DockerUtilsServiceLive` Layer.
-    *   Instantiate `Dockerode`. Perform an initial `docker.ping()` to check connectivity, failing with `DockerConnectionError` if it fails.
-    *   Implement each service method using `Effect.tryPromise` or `Effect.async` for `pullImage`, wrapping `dockerode` calls.
-    *   Map errors to your custom `DockerError` types, including context like `operation`, `containerId`, `imageName`.
-
-    ```typescript
-    // src/services/docker/DockerUtilsServiceImpl.ts
-    import { Effect, Layer } from "effect";
-    import Dockerode from 'dockerode';
-    import { DockerUtilsService } from "./DockerUtilsService";
-    import { DockerError, DockerConnectionError, DockerOperationError } from "./errors";
-
-    export const DockerUtilsServiceLive = Layer.effect(
-      DockerUtilsService,
-      Effect.gen(function* (_) {
-        const docker = new Dockerode(); // Uses default local Docker socket connection
-
-        // Test connection on service creation
-        yield* _(Effect.tryPromise({
-          try: () => docker.ping(),
-          catch: (cause) => new DockerConnectionError({ message: "Failed to ping Docker daemon. Is Docker running and accessible?", cause })
-        }));
-
-        return DockerUtilsService.of({
-          listContainers: (options?: Dockerode.ContainerListOptions) =>
-            Effect.tryPromise({
-              try: () => docker.listContainers(options),
-              catch: (cause) => new DockerError({ message: "Failed to list containers", cause }),
-            }),
-
-          pullImage: (imageName: string, onProgress?: (event: any) => void) =>
-            Effect.async<void, DockerOperationError>((resume) => {
-              docker.pull(imageName, {}, (err: Error | null, stream: NodeJS.ReadableStream | undefined) => {
-                if (err) {
-                  resume(Effect.fail(new DockerOperationError({ message: `Docker pull stream error for ${imageName}`, operation: "pullImage", imageName, cause: err })));
-                  return;
-                }
-                if (!stream) {
-                  resume(Effect.fail(new DockerOperationError({ message: `No stream returned for pull ${imageName}`, operation: "pullImage", imageName })));
-                  return;
-                }
-
-                docker.modem.followProgress(stream, (errFollow, output) => {
-                  if (errFollow) {
-                    resume(Effect.fail(new DockerOperationError({ message: `Failed to pull image ${imageName}`, operation: "pullImage", imageName, cause: errFollow })));
-                  } else {
-                    const lastOp = output && output.length > 0 ? output[output.length -1] : null;
-                    if(lastOp && lastOp.errorDetail) {
-                         resume(Effect.fail(new DockerOperationError({ message: `Failed to pull image ${imageName}: ${lastOp.errorDetail.message}`, operation: "pullImage", imageName, cause: lastOp.errorDetail })));
-                    } else if (lastOp && lastOp.error) {
-                        resume(Effect.fail(new DockerOperationError({ message: `Failed to pull image ${imageName}: ${lastOp.error}`, operation: "pullImage", imageName, cause: lastOp.error })));
-                    }
-                    else {
-                        resume(Effect.succeed(undefined));
-                    }
-                  }
-                }, onProgress);
-              });
-            }),
-
-          createContainer: (options: Dockerode.ContainerCreateOptions) =>
-            Effect.tryPromise({
-              try: async () => {
-                const container = await docker.createContainer(options);
-                return container.id;
-              },
-              catch: (cause) => new DockerOperationError({ message: "Failed to create container", operation: "createContainer", cause }),
-            }),
-
-          startContainer: (containerId: string) =>
-            Effect.tryPromise({
-              try: () => docker.getContainer(containerId).start(),
-              catch: (cause) => new DockerOperationError({ message: `Failed to start container ${containerId}`, operation: "startContainer", containerId, cause }),
-            }).pipe(Effect.asVoid),
-
-          stopContainer: (containerId: string, options?: Dockerode.ContainerStopOptions) =>
-            Effect.tryPromise({
-              try: () => docker.getContainer(containerId).stop(options),
-              catch: (cause) => new DockerOperationError({ message: `Failed to stop container ${containerId}`, operation: "stopContainer", containerId, cause }),
-            }).pipe(Effect.asVoid),
-
-          removeContainer: (containerId: string, options?: Dockerode.ContainerRemoveOptions) =>
-            Effect.tryPromise({
-              try: () => docker.getContainer(containerId).remove(options),
-              catch: (cause) => new DockerOperationError({ message: `Failed to remove container ${containerId}`, operation: "removeContainer", containerId, cause }),
-            }).pipe(Effect.asVoid),
-        });
-      })
-    );
-    ```
-
-**VI. Update Barrel Files:**
-
-*   **File:** `src/services/docker/index.ts`
-    ```typescript
-    // src/services/docker/index.ts
-    export * from "./DockerUtilsService";
-    export * from "./DockerUtilsServiceImpl";
-    export * from "./errors";
-    ```
+*   **File:** `src/services/swe_bench_harness/index.ts`
+    *   **Content:**
+        ```typescript
+        // src/services/swe_bench_harness/index.ts
+        export * from "./types";
+        export * from "./errors";
+        export * from "./SWEBenchTaskService";
+        export * from "./SWEBenchTaskServiceImpl";
+        // Add other SWEBench harness exports as they are created
+        ```
 *   **File:** `src/services/index.ts`
-    *   Add: `export * as DockerUtils from "./docker";`
-    *   Also add (for future phases): `export * from "./swe_bench_harness";` (if not already present from other tasks)
+    *   Ensure `export * from "./swe_bench_harness";` is present.
 
-**VII. Update Configuration Service for Docker Image:**
+**V. Update Configuration Service:**
 
 *   **File:** `src/services/configuration/ConfigurationServiceImpl.ts`
 *   **Instructions:**
-    *   In `DefaultDevConfigLayer`, add the configuration for `SWE_BENCH_DOCKER_IMAGE_NAME`.
+    *   In `DefaultDevConfigLayer`, add the configuration for `SWE_BENCH_DATASET_PATH` and `SWE_BENCH_HOST_TEMP_DIR` (for a future phase, but good to add now).
         ```typescript
-        // Inside DefaultDevConfigLayer's Effect.gen block, after existing configService.set calls:
-        yield* _(configService.set("SWE_BENCH_DOCKER_IMAGE_NAME", "swebench/swe-eval:latest"));
+        // Inside DefaultDevConfigLayer's Effect.gen block
+        yield* _(configService.set("SWE_BENCH_DATASET_PATH", "./assets/swe_bench_data")); // Example path
+        yield* _(configService.set("SWE_BENCH_HOST_TEMP_DIR", "/tmp/swe_bench_runs")); // Example path
         ```
-
-**VIII. README Update:**
-
-*   **File:** `README.md`
-*   **Instructions:**
-    *   Locate the existing section: `## SWE-Bench Harness Prerequisites (Optional)`
-    *   Ensure it matches the following (update if necessary):
-        ```markdown
-        ## SWE-Bench Harness Prerequisites (Optional)
-
-        If you plan to use or develop the SWE-Bench evaluation harness:
-
-        1.  **Ensure Docker is installed and running:**
-            Docker Desktop (for Mac/Windows) or Docker Engine (for Linux) must be installed and the Docker daemon must be running.
-
-        2.  **Pull the SWE-Bench evaluation image:**
-            Open your terminal and run the following command to download the necessary Docker image:
-            ```bash
-            docker pull swebench/swe-eval:latest
-            ```
-            This image is required for running SWE-Bench task evaluations in an isolated environment.
-        ```
-
-**IX. Live Integration Testing (Manual Script):**
-
-*   **File:** `src/services/docker/test-docker-integration.ts` (Create this new file)
-*   **Instructions:** Create a script to test the `DockerUtilsService` against a live Docker daemon. This script can be run manually by developers.
-
-    ```typescript
-    #!/usr/bin/env tsx
-    /**
-     * Docker Integration Test Script
-     *
-     * Run with: pnpm tsx src/services/docker/test-docker-integration.ts
-     * (Ensure tsx is installed: pnpm add -D tsx)
-     * Or compile and run with node.
-     *
-     * Prerequisites:
-     * - Docker must be installed and running
-     * - The test image (hello-world) will be pulled if not present
-     */
-
-    import { Effect, Exit, Layer, Console } from "effect";
-    import { DockerUtilsService } from "./DockerUtilsService";
-    import { DockerUtilsServiceLive } from "./DockerUtilsServiceImpl";
-    import { ConfigurationService } from "@/services/configuration"; // Minimal config for test
-
-    // Create a minimal config layer for testing
-    // DockerUtilsServiceLive does not strictly depend on ConfigurationService for default Docker connection
-    const TestConfigLayer = Layer.succeed(
-      ConfigurationService,
-      ConfigurationService.of({
-        get: () => Effect.fail({ _tag: "ConfigError" as const, message: "Not needed for this test" }),
-        getSecret: () => Effect.fail({ _tag: "SecretNotFoundError" as const, message: "Not needed", keyName: "" }),
-        set: () => Effect.succeed(undefined),
-        delete: () => Effect.succeed(undefined),
-      })
-    );
-
-    const testProgram = Effect.gen(function* (_) {
-      const docker = yield* _(DockerUtilsService);
-
-      yield* _(Console.log("🐳 Docker Integration Test Starting..."));
-
-      yield* _(Console.log("\n📋 Test 1: Listing containers..."));
-      const containers = yield* _(docker.listContainers({ all: true }));
-      yield* _(Console.log(`Found ${containers.length} containers (showing max 3):`));
-      containers.slice(0, 3).forEach(c => {
-        console.log(`  - ${c.Names?.[0] || 'unnamed'} (${c.Id.substring(0, 12)}) - ${c.State}`);
-      });
-
-      const testImage = "hello-world:latest";
-      yield* _(Console.log(`\n📥 Test 2: Pulling image ${testImage}...`));
-
-      let pullProgressEvents = 0;
-      yield* _(docker.pullImage(testImage, (event) => {
-        if (event.status) {
-          process.stdout.write(`\r  ${event.status} ${event.progress || ''}`);
-          pullProgressEvents++;
-        }
-      }));
-      process.stdout.write('\n'); // Newline after progress
-      yield* _(Console.log(`  ✓ Image pulled successfully (${pullProgressEvents} progress events)`));
-
-      yield* _(Console.log("\n📦 Test 3: Creating container..."));
-      const containerName = `test-container-${Date.now()}`;
-      const containerId = yield* _(docker.createContainer({
-        Image: testImage,
-        name: containerName,
-        HostConfig: {
-          AutoRemove: false,
-        }
-      }));
-      yield* _(Console.log(`  ✓ Container created: ${containerName} (${containerId.substring(0, 12)})`));
-
-      yield* _(Console.log("\n▶️  Test 4: Starting container..."));
-      yield* _(docker.startContainer(containerId));
-      yield* _(Console.log("  ✓ Container started"));
-
-      yield* _(Console.log("  ⏳ Waiting for hello-world container to exit..."));
-      yield* _(Effect.sleep("2 seconds"));
-
-      yield* _(Console.log("\n⏹️  Test 5: Stopping container (if not already stopped)..."));
-      yield* _(
-        docker.stopContainer(containerId, { t: 5 }) // 5 sec timeout
-          .pipe(
-            Effect.tap(() => Console.log("  ✓ Container stopped or was already stopped.")),
-            Effect.catchTag("DockerOperationError", (e) => {
-              if (e.message.includes("is already stopped")) {
-                return Console.log("  ℹ️  Container already stopped as expected.");
-              }
-              return Effect.fail(e);
-            })
-          )
-      );
-
-      yield* _(Console.log("\n🗑️  Test 6: Removing container..."));
-      yield* _(docker.removeContainer(containerId, { force: true })); // force remove
-      yield* _(Console.log("  ✓ Container removed"));
-
-      yield* _(Console.log("\n✅ Docker Integration Test Passed!"));
-    });
-
-    const main = async () => {
-      const layer = DockerUtilsServiceLive.pipe(Layer.provide(TestConfigLayer));
-      const result = await Effect.runPromiseExit(testProgram.pipe(Effect.provide(layer)));
-
-      if (Exit.isFailure(result)) {
-        console.error("\n❌ Docker Integration Test Failed!");
-        console.error("Error details:", result.cause);
-
-        if (result.cause._tag === "Fail") {
-          const error = result.cause.error as any;
-          console.error("\nError message:", error.message);
-          if (error.cause) console.error("Underlying cause:", error.cause);
-        }
-
-        console.error("\nTroubleshooting:");
-        console.error("1. Is Docker installed and running? Run `docker ps`.");
-        console.error("2. Docker Desktop (Mac/Win) or Docker Engine (Linux) must be active.");
-
-        process.exit(1);
-      } else {
-        console.log("\n🎉 All integration tests completed successfully!");
-        process.exit(0);
-      }
-    };
-
-    main().catch(console.error);
-
-    // To run:
-    // 1. Save as src/services/docker/test-docker-integration.ts
-    // 2. Ensure you have tsx: `pnpm add -D tsx`
-    // 3. Run from project root: `pnpm tsx src/services/docker/test-docker-integration.ts`
-    ```
-
-*   **File:** `scripts/test-docker.js` (Create this new file)
-*   **Instructions:** Add a Node.js script to easily run the integration test.
-    ```javascript
-    // scripts/test-docker.js
-    const { exec } = require('child_process');
-    const path = require('path');
-
-    console.log("Starting Docker integration test runner...");
-
-    // Check if Docker is running
-    exec('docker ps', (error, stdout, stderr) => {
-      if (error) {
-        console.error("❌ Docker daemon is not running or not accessible.");
-        console.error("Please start Docker and try again.");
-        if (stderr) console.error("Stderr:", stderr);
-        process.exit(1);
-      }
-
-      console.log("✅ Docker daemon is running.");
-      console.log("🚀 Running DockerUtilsService integration tests...\n");
-
-      const testScriptPath = path.join(__dirname, '../src/services/docker/test-docker-integration.ts');
-
-      // Determine if tsx is available locally or globally
-      let tsxCmd = 'tsx';
-      try {
-        require.resolve('tsx'); // Check if tsx is in node_modules
-        tsxCmd = `node --loader tsx --no-warnings ${testScriptPath}`; // More robust way to call local tsx
-      } catch (e) {
-        console.warn("tsx not found locally, trying global tsx. For best results, install with `pnpm add -D tsx`");
-        tsxCmd = `tsx ${testScriptPath}`;
-      }
-
-
-      const testProcess = exec(tsxCmd, { cwd: path.join(__dirname, '..') });
-
-      testProcess.stdout.on('data', (data) => {
-        process.stdout.write(data);
-      });
-
-      testProcess.stderr.on('data', (data) => {
-        process.stderr.write(data);
-      });
-
-      testProcess.on('close', (code) => {
-        console.log(`\nIntegration test process exited with code ${code}`);
-        process.exit(code);
-      });
-
-      testProcess.on('error', (err) => {
-        console.error("Failed to start integration test script:", err);
-        process.exit(1);
-      });
-    });
-    ```
-
-*   **File:** `package.json`
-*   **Instructions:** Add a script to `scripts` to run the integration test:
-    ```json
-        "test:docker": "node scripts/test-docker.js",
-    ```
-    (Ensure `tsx` is installed as a dev dependency: `pnpm add -D tsx`)
-
-*   **File:** `src/services/docker/README.md` (Create this new file)
-*   **Instructions:** Add basic documentation for the Docker service and its testing.
-    ```markdown
-    # Docker Utilities Service
-
-    This service provides an Effect-TS based interface for interacting with the Docker daemon, abstracting operations like container and image management using `dockerode`.
-
-    ## Features
-
-    - Container lifecycle management (create, start, stop, remove)
-    - Docker image pulling with progress tracking
-    - Container listing
-    - Robust error handling integrated with Effect-TS.
-
-    ## Testing
-
-    ### Unit Tests (Mocked)
-
-    Unit tests for this service use mocked implementations of `dockerode` and do not require a running Docker daemon.
-
-    Run unit tests with:
-    ```bash
-    pnpm vitest run src/services/docker/DockerUtilsService.test.ts
-    ```
-
-    ### Integration Tests (Requires Live Docker)
-
-    To test the service against a live Docker daemon:
-
-    1.  **Ensure Docker is running** on your system.
-    2.  Run the integration test script:
-        ```bash
-        pnpm test:docker
-        ```
-        This script will:
-        - Check if Docker is installed and the daemon is running.
-        - Execute `src/services/docker/test-docker-integration.ts` using `tsx`.
-        - The test script performs operations like pulling `hello-world`, creating, starting, stopping, and removing a container.
-
-    #### Troubleshooting Integration Tests:
-
-    -   If tests fail, ensure your Docker daemon is active and responsive (`docker ps` should work).
-    -   On Linux, you might need to add your user to the `docker` group or run Docker commands with `sudo`.
-    -   Check the output of the `pnpm test:docker` command for specific error messages.
-    ```
+*   **Action for User:** Create a directory `assets/swe_bench_data` in the project root. Download a few sample task JSON files from a SWE-Bench dataset (e.g., from the DGM repository or official SWE-bench dataset) and place them in `assets/swe_bench_data`. For example, `django__django-10973.json`.
 
 ---
-This concludes Phase 2 (originally Phase 1.0 of the DockerUtilsService Foundation). The service should now be functional and well-tested, ready for integration into the higher-level SWE-Bench harness services.
+
+This completes Phase 2. The `SWEBenchTaskService` should now be able to load task definitions, providing the necessary data for the subsequent phases of the harness. Remember to run `pnpm test` to verify the unit tests for `SWEBenchTaskService`.
