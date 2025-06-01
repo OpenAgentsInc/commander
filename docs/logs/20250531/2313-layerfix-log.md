@@ -124,3 +124,19 @@ Modified example-layer-composition.ts to use FullAppLayer instead of trying to c
 Commented out remaining telemetry calls in NIP90ServiceImpl async callbacks.
 
 ### 00:00 - Ready for Another Test Run
+
+### 00:02 - Success! Docker Build Started
+
+Added FileSystem and DockerUtils services to the runtime. The Docker build is now running successfully!
+
+### 00:05 - New Error: window is not defined
+
+The Claude Code provider is trying to access window.electronAPI in the main process. This is the renderer-specific implementation.
+
+### 00:10 - Fixed Claude Code Provider for Main Process
+
+Modified ChatOrchestratorService.ts to detect if we're in main process or renderer:
+- In main process: Use WebSocket connection directly to claude-bridge-service
+- In renderer process: Keep using window.electronAPI
+
+This allows the Claude Code provider to work in both contexts without errors.

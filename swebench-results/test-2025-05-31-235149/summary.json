@@ -1,0 +1,22 @@
+{
+  "timestamp": "2025-06-01T04:52:47.331Z",
+  "tasks_attempted": 1,
+  "tasks_succeeded": 0,
+  "tasks_failed": 1,
+  "tasks_skipped": 0,
+  "options": {
+    "tasks_dir": "assets/swe_bench_data",
+    "patch_source": "agent:claude_code",
+    "stop_on_failure": false,
+    "max_tasks": 1,
+    "output_dir": "./swebench-results/test-2025-05-31-235149"
+  },
+  "results": [
+    {
+      "instanceId": "astropy__astropy-12907",
+      "result": {
+        "error": "Evaluation failed for astropy__astropy-12907"
+      }
+    }
+  ]
+}

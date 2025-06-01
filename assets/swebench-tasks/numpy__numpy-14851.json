@@ -1,0 +1,17 @@
+{
+  "instance_id": "numpy__numpy-14851",
+  "repo": "numpy/numpy",
+  "base_commit": "74d05c81d1e601700afc2c31a129a52b47cf72f6",
+  "problem_statement": "BUG: AxisError when attempting to reduce a 0-dimensional array along axis 1\n\nWhen using np.add.reduce on a 0-dimensional array along axis=1, we get an AxisError.\n\nReproducing code example:\n```python\nimport numpy as np\nnp.add.reduce(np.array(1), axis=1)\n```\n\nError message:\n```\nAxisError: axis 1 is out of bounds for array of dimension 0\n```\n\nNumPy/Python version information:\n1.16.0.dev0+d73d209 3.6.5 | packaged by conda-forge | (default, Apr  6 2018, 13:44:09)\n[GCC 4.2.1 Compatible Apple LLVM 6.1.0 (clang-602.0.53)]",
+  "hints_text": "",
+  "test_patch": "diff --git a/numpy/core/tests/test_ufunc.py b/numpy/core/tests/test_ufunc.py\nindex df6df489a..8b10fc19f 100644\n--- a/numpy/core/tests/test_ufunc.py\n+++ b/numpy/core/tests/test_ufunc.py\n@@ -1813,6 +1813,13 @@ class TestUfunc:\n         assert_equal(a.sum(initial=5), 15)\n         assert_equal(a.sum(initial=6, where=b), 15)\n \n+    def test_reduce_axis_out_of_bounds(self):\n+        # Test that reducing a 0-dimensional array with axis=1 raises AxisError\n+        arr_0d = np.array(1)\n+        with pytest.raises(np.AxisError, match=\"axis 1 is out of bounds\"):\n+            np.add.reduce(arr_0d, axis=1)\n+        with pytest.raises(np.AxisError):\n+            np.multiply.reduce(arr_0d, axis=1)\n \n class TestLowlevelAPIAccess:\n     def test_ufunc_instance_descriptor_access(self):",
+  "version": "1.16.0",
+  "FAIL_TO_PASS": [
+    "numpy/core/tests/test_ufunc.py::TestUfunc::test_reduce_axis_out_of_bounds"
+  ],
+  "PASS_TO_PASS": [
+    "numpy/core/tests/test_ufunc.py::TestUfunc::test_reduce_basics",
+    "numpy/core/tests/test_ufunc.py::TestUfunc::test_sum_initial"
+  ],
+  "patch": "diff --git a/numpy/core/src/umath/reduction.c b/numpy/core/src/umath/reduction.c\nindex 68e0c36e1..7a1b2e5f5 100644\n--- a/numpy/core/src/umath/reduction.c\n+++ b/numpy/core/src/umath/reduction.c\n@@ -141,6 +141,17 @@ PyArray_ReduceWrapper(PyArrayObject *operand, PyArrayObject *out,\n         return NULL;\n     }\n \n+    /* Check for out-of-bounds axis on 0-dimensional arrays */\n+    if (PyArray_NDIM(operand) == 0 && naxes > 0) {\n+        for (int i = 0; i < naxes; i++) {\n+            if (axis_norm_array[i] != 0) {\n+                PyErr_Format(PyExc_AxisError,\n+                    \"axis %d is out of bounds for array of dimension 0\",\n+                    axis_norm_array[i]);\n+                return NULL;\n+            }\n+        }\n+    }\n+\n     PyArrayObject *result = PyUFunc_Reduce((PyUFuncObject *)ufunc,\n             operand, out, naxes, axis_norm_array, descr, initial);\n"
+}

@@ -1,0 +1,6 @@
+{
+  "instanceId": "astropy__astropy-12907",
+  "result": {
+    "error": "Service not found: DockerUtilsService (defined at <anonymous> (/Users/christopherdavid/code/commander/src/services/docker/DockerUtilsService.ts:41:43))"
+  }
+}

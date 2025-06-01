@@ -142,21 +142,27 @@ export function buildFullAppLayer() {
     Layer.provide(nip13Layer),
   );
 
-  // Create HttpClient layer first (moved up)
-  const httpClientLayer = typeof window !== 'undefined' 
-    ? BrowserHttpClient.layerXMLHttpRequest
-    : (() => {
-        // For main process, we need NodeHttpClient
-        try {
-          const { NodeHttpClient } = require("@effect/platform-node");
-          return NodeHttpClient.layerUndici;
-        } catch (e) {
-          console.warn("[Runtime] Failed to load NodeHttpClient, falling back to empty layer");
-          return Layer.succeed(HttpClient.HttpClient, {
-            execute: () => Effect.fail(new Error("HttpClient not available in main process")),
-          } as any);
-        }
-      })();
+  // Create platform-specific layers
+  const isMainProcess = typeof window === 'undefined';
+  let httpClientLayer: Layer.Layer<HttpClient.HttpClient, never, never>;
+  let fileSystemLayer = Layer.empty as Layer.Layer<any, never, never>;
+  
+  if (isMainProcess) {
+    // For main process, we need Node implementations
+    try {
+      const { NodeHttpClient, NodeFileSystem } = require("@effect/platform-node");
+      httpClientLayer = NodeHttpClient.layerUndici;
+      fileSystemLayer = NodeFileSystem.layer;
+    } catch (e) {
+      console.warn("[Runtime] Failed to load Node platform layers, falling back to empty layers");
+      httpClientLayer = Layer.succeed(HttpClient.HttpClient, {
+        execute: () => Effect.fail(new Error("HttpClient not available in main process")),
+      } as any);
+    }
+  } else {
+    // For browser/renderer
+    httpClientLayer = BrowserHttpClient.layerXMLHttpRequest;
+  }
 
   const ollamaLayer = OllamaServiceLive.pipe(
     Layer.provide(
@@ -225,6 +231,7 @@ export function buildFullAppLayer() {
     telemetryLayer,
     devConfigLayer,
     httpClientLayer,
+    fileSystemLayer,
     ollamaLayer,
     ollamaAdapterLayer,
   );
@@ -264,6 +271,19 @@ export function buildFullAppLayer() {
     ),
   );
 
+  // Docker layer (only for main process)
+  const dockerLayer = isMainProcess
+    ? (() => {
+        try {
+          const { DockerUtilsServiceLive } = require("@/services/docker");
+          return DockerUtilsServiceLive;
+        } catch (e) {
+          console.warn("[Runtime] Failed to load DockerUtilsService");
+          return Layer.empty;
+        }
+      })()
+    : Layer.empty;
+
   // Full application layer - compose services incrementally
   return Layer.mergeAll(
     baseLayer,
@@ -280,6 +300,7 @@ export function buildFullAppLayer() {
     kind5050DVMLayer,
     databaseLayer,
     featureFlagLayer,
+    dockerLayer,
   );
 }
 
