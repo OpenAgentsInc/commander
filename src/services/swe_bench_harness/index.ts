@@ -1,5 +1,15 @@
 export * from "./types";
-export * from "./errors";
+export { 
+  SWEBenchHarnessError,
+  TaskNotFoundError,
+  DatasetAccessError,
+  ScriptBuildError,
+  LifecycleSetupError,
+  LifecycleEvalError,
+  HarnessError,
+  DockerBuildPrepError,
+  AgentPatchGenerationError
+} from "./errors";
 export * from "./SWEBenchTaskService";
 export * from "./SWEBenchTaskServiceImpl";
 export * from "./SWEBenchEvaluationScriptService";
@@ -12,3 +22,5 @@ export * from "./DockerBuildManagerService";
 export * from "./DockerBuildManagerServiceImpl";
 export * from "./SWEBenchEnvironmentSetupService";
 export * from "./SWEBenchEnvironmentSetupServiceImpl";
+export { AgentPatchGeneratorService } from "./AgentPatchGeneratorService";
+export { AgentPatchGeneratorServiceLive } from "./AgentPatchGeneratorServiceImpl";

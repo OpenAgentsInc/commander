@@ -55,3 +55,11 @@ export class DockerBuildPrepError extends Data.TaggedError("DockerBuildPrepError
   readonly cause?: unknown;
   readonly context?: Record<string, any>;
 }> {}
+
+export class AgentPatchGenerationError extends Data.TaggedError("AgentPatchGenerationError")<{
+  readonly message: string;
+  readonly instanceId?: string;
+  readonly providerKey?: string;
+  readonly cause?: unknown;
+  readonly context?: Record<string, any>;
+}> {}

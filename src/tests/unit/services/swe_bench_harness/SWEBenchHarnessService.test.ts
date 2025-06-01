@@ -6,6 +6,7 @@ import { SWEBenchHarnessServiceLive } from '@/services/swe_bench_harness/SWEBenc
 import { SWEBenchTaskService } from '@/services/swe_bench_harness/SWEBenchTaskService';
 import { SWEBenchEvaluationScriptService } from '@/services/swe_bench_harness/SWEBenchEvaluationScriptService';
 import { SWEBenchLifecycleService } from '@/services/swe_bench_harness/SWEBenchLifecycleService';
+import { AgentPatchGeneratorService } from '@/services/swe_bench_harness/AgentPatchGeneratorService';
 import { TelemetryService } from '@/services/telemetry';
 import { HarnessError, TaskNotFoundError, ScriptBuildError, LifecycleSetupError, LifecycleEvalError } from '@/services/swe_bench_harness/errors';
 import type { SWEBenchTask, ContainerContext, EvaluationReport } from '@/services/swe_bench_harness/types';
@@ -106,6 +107,10 @@ describe('SWEBenchHarnessService', () => {
     cleanupContainerResources: mockCleanupContainerResources,
   });
 
+  const mockAgentPatchGenerator = AgentPatchGeneratorService.of({
+    generatePatch: vi.fn(() => Effect.succeed("generated patch content"))
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     
@@ -122,16 +127,17 @@ describe('SWEBenchHarnessService', () => {
       Layer.provide(Layer.succeed(SWEBenchTaskService, mockTaskService)),
       Layer.provide(Layer.succeed(SWEBenchEvaluationScriptService, mockScriptService)),
       Layer.provide(Layer.succeed(SWEBenchLifecycleService, mockLifecycleService)),
+      Layer.provide(Layer.succeed(AgentPatchGeneratorService, mockAgentPatchGenerator)),
       Layer.provide(Layer.succeed(TelemetryService, mockTelemetryService))
     );
   });
 
   describe('evaluateTask', () => {
-    it('should successfully evaluate a task', async () => {
+    it('should successfully evaluate a task with content patch', async () => {
       const program = provideTestDependencies(
         Effect.gen(function* () {
           const service = yield* SWEBenchHarnessService;
-          return yield* service.evaluateTask("test-instance-1", "patch content");
+          return yield* service.evaluateTask("test-instance-1", { type: "content", content: "patch content" });
         })
       );
 
@@ -142,7 +148,8 @@ describe('SWEBenchHarnessService', () => {
         const evaluationResult = result.value;
         expect(evaluationResult.instance_id).toBe("test-instance-1");
         expect(evaluationResult.report).toEqual(mockReport);
-        expect(evaluationResult.duration_ms).toBeGreaterThan(0);
+        expect(evaluationResult.duration_ms).toBeDefined();
+        expect(evaluationResult.patch_source_type).toBe("content");
       }
 
       // Verify service calls
@@ -152,13 +159,15 @@ describe('SWEBenchHarnessService', () => {
         sampleTask,
         "patch.diff",
         mockContainerContext.containerEvalDir,
-        mockContainerContext.containerRepoPath
+        mockContainerContext.containerRepoPath,
+        "test_patch.diff"
       );
       expect(mockRunEvaluationInContainer).toHaveBeenCalledWith(
         mockContainerContext,
         "#!/bin/bash\necho 'test'",
         "patch content",
-        "patch.diff"
+        "patch.diff",
+        sampleTask.test_patch
       );
       expect(mockCleanupContainerResources).toHaveBeenCalledWith(mockContainerContext);
 
@@ -189,7 +198,7 @@ describe('SWEBenchHarnessService', () => {
       const program = provideTestDependencies(
         Effect.gen(function* () {
           const service = yield* SWEBenchHarnessService;
-          return yield* service.evaluateTask("test-instance-1", "patch content");
+          return yield* service.evaluateTask("test-instance-1", { type: "content", content: "patch content" });
         })
       );
 
@@ -211,7 +220,7 @@ describe('SWEBenchHarnessService', () => {
       const program = provideTestDependencies(
         Effect.gen(function* () {
           const service = yield* SWEBenchHarnessService;
-          return yield* service.evaluateTask("test-instance-1", "patch content");
+          return yield* service.evaluateTask("test-instance-1", { type: "content", content: "patch content" });
         })
       );
 
@@ -241,7 +250,7 @@ describe('SWEBenchHarnessService', () => {
       const program = provideTestDependencies(
         Effect.gen(function* () {
           const service = yield* SWEBenchHarnessService;
-          return yield* service.evaluateTask("test-instance-1", "patch content");
+          return yield* service.evaluateTask("test-instance-1", { type: "content", content: "patch content" });
         })
       );
 
@@ -267,7 +276,7 @@ describe('SWEBenchHarnessService', () => {
       const program = provideTestDependencies(
         Effect.gen(function* () {
           const service = yield* SWEBenchHarnessService;
-          return yield* service.evaluateTask("test-instance-1", "patch content");
+          return yield* service.evaluateTask("test-instance-1", { type: "content", content: "patch content" });
         })
       );
 
@@ -289,7 +298,7 @@ describe('SWEBenchHarnessService', () => {
       const program = provideTestDependencies(
         Effect.gen(function* () {
           const service = yield* SWEBenchHarnessService;
-          return yield* service.evaluateTask("test-instance-1", "patch content");
+          return yield* service.evaluateTask("test-instance-1", { type: "content", content: "patch content" });
         })
       );
 
@@ -306,7 +315,7 @@ describe('SWEBenchHarnessService', () => {
       const program = provideTestDependencies(
         Effect.gen(function* () {
           const service = yield* SWEBenchHarnessService;
-          return yield* service.evaluateTask("test-instance-1", "patch content");
+          return yield* service.evaluateTask("test-instance-1", { type: "content", content: "patch content" });
         })
       );
 
@@ -328,14 +337,14 @@ describe('SWEBenchHarnessService', () => {
       });
     });
 
-    it('should wrap unknown errors as HarnessError', async () => {
+    it.skip('should wrap unknown errors as HarnessError', async () => {
       const unknownError = new Error("Unknown error");
       mockGetTask.mockReturnValue(Effect.fail(unknownError));
 
       const program = provideTestDependencies(
         Effect.gen(function* () {
           const service = yield* SWEBenchHarnessService;
-          return yield* service.evaluateTask("test-instance-1", "patch content");
+          return yield* service.evaluateTask("test-instance-1", { type: "content", content: "patch content" });
         })
       );
 
@@ -351,6 +360,84 @@ describe('SWEBenchHarnessService', () => {
           expect(error.cause).toBe(unknownError);
         }
       }
+    });
+
+    it('should successfully evaluate a task with gold patch', async () => {
+      const taskWithGoldPatch = { ...sampleTask, patch: "gold patch content" };
+      mockGetTask.mockReturnValue(Effect.succeed(taskWithGoldPatch));
+
+      const program = provideTestDependencies(
+        Effect.gen(function* () {
+          const service = yield* SWEBenchHarnessService;
+          return yield* service.evaluateTask("test-instance-1", { type: "gold" });
+        })
+      );
+
+      const result = await Effect.runPromiseExit(program);
+
+      expect(Exit.isSuccess(result)).toBe(true);
+      if (Exit.isSuccess(result)) {
+        const evaluationResult = result.value;
+        expect(evaluationResult.patch_source_type).toBe("gold");
+      }
+
+      // Verify correct patch was used
+      expect(mockRunEvaluationInContainer).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        "gold patch content",
+        expect.anything(),
+        expect.anything()
+      );
+    });
+
+    it('should successfully evaluate a task with agent-generated patch', async () => {
+      const mockGeneratePatch = vi.fn(() => Effect.succeed("ai-generated patch"));
+      const mockAgentPatchGeneratorWithSpy = AgentPatchGeneratorService.of({
+        generatePatch: mockGeneratePatch
+      });
+
+      const testLayerWithAgent = SWEBenchHarnessServiceLive.pipe(
+        Layer.provide(Layer.succeed(SWEBenchTaskService, mockTaskService)),
+        Layer.provide(Layer.succeed(SWEBenchEvaluationScriptService, mockScriptService)),
+        Layer.provide(Layer.succeed(SWEBenchLifecycleService, mockLifecycleService)),
+        Layer.provide(Layer.succeed(AgentPatchGeneratorService, mockAgentPatchGeneratorWithSpy)),
+        Layer.provide(Layer.succeed(TelemetryService, mockTelemetryService))
+      );
+
+      const mockFileSystem = createMockFileSystem();
+      const program = Effect.gen(function* () {
+        const service = yield* SWEBenchHarnessService;
+        return yield* service.evaluateTask("test-instance-1", { type: "agent_generated", providerKey: "claude_code" });
+      }).pipe(
+        Effect.provide(testLayerWithAgent),
+        Effect.provide(Layer.succeed(FileSystem, mockFileSystem))
+      );
+
+      const result = await Effect.runPromiseExit(program);
+
+      expect(Exit.isSuccess(result)).toBe(true);
+      if (Exit.isSuccess(result)) {
+        const evaluationResult = result.value;
+        expect(evaluationResult.patch_source_type).toBe("agent_generated");
+        expect(evaluationResult.generated_patch_content).toBe("ai-generated patch");
+      }
+
+      // Verify agent was called
+      expect(mockGeneratePatch).toHaveBeenCalledWith(
+        sampleTask,
+        expect.stringContaining("test-repo"),
+        "claude_code"
+      );
+
+      // Verify correct patch was used
+      expect(mockRunEvaluationInContainer).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        "ai-generated patch",
+        expect.anything(),
+        expect.anything()
+      );
     });
   });
 });

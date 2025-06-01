@@ -10,8 +10,10 @@ import {
   SWEBenchLifecycleServiceLive,
   SWEBenchHarnessServiceLive,
   DockerBuildManagerServiceLive,
-  SWEBenchEnvironmentSetupServiceLive
+  SWEBenchEnvironmentSetupServiceLive,
+  AgentPatchGeneratorServiceLive
 } from "@/services/swe_bench_harness";
+import { ChatOrchestratorServiceLive } from "@/services/ai/orchestration";
 
 // First provide the base ConfigurationService implementation
 const ConfigLayer = DefaultDevConfigLayer.pipe(
@@ -30,11 +32,20 @@ const BaseServicesLayer = Layer.mergeAll(
   DockerUtilsServiceLive
 );
 
+// Add AI services layer for agent patch generation
+const AIServicesLayer = Layer.mergeAll(
+  ChatOrchestratorServiceLive,
+  AgentPatchGeneratorServiceLive
+).pipe(
+  Layer.provide(BaseServicesLayer)
+);
+
 export const FullSWEBenchHarnessLayer = SWEBenchHarnessServiceLive.pipe(
   Layer.provide(SWEBenchLifecycleServiceLive),
   Layer.provide(SWEBenchEvaluationScriptServiceLive),
   Layer.provide(SWEBenchTaskServiceLive),
   Layer.provide(DockerBuildManagerServiceLive),
   Layer.provide(SWEBenchEnvironmentSetupServiceLive),
+  Layer.provide(AIServicesLayer),
   Layer.provide(BaseServicesLayer)
 );

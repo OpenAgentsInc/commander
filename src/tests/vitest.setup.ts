@@ -1,5 +1,14 @@
-import { beforeAll, afterEach, afterAll } from "vitest";
+import { beforeAll, afterEach, afterAll, vi } from "vitest";
 import { server } from "./mocks/server";
+
+// Mock external libraries that might cause problems
+vi.mock("@buildonspark/lrc20-sdk", () => ({
+  initEccLib: vi.fn(),
+}));
+vi.mock("bitcoinjs-lib", () => ({
+  initEccLib: vi.fn(),
+}));
+vi.mock("nostr-tools", () => ({}));
 
 // Store original console methods
 const originalConsoleLog = console.log;
