@@ -55,8 +55,20 @@ export const SweBenchSimpleLauncherPane: React.FC<SweBenchSimpleLauncherPaneProp
           setDownloadMessage(data.message);
           if (data.progress !== undefined) setDownloadProgress(data.progress);
         } else if (data.type === 'error' && data.message) {
-          setError(`Download Error: ${data.message}`);
-          setDownloadMessage(`Error: ${data.message}`);
+          const errorMsg = data.message;
+          let helpfulError = errorMsg;
+          
+          // Add helpful context for common errors
+          if (errorMsg.includes("Python 3 is not installed")) {
+            helpfulError = "Python 3 is required. Please install Python 3.7 or later from python.org";
+          } else if (errorMsg.includes("Missing required Python packages") || errorMsg.includes("pip install datasets")) {
+            helpfulError = "Missing Python dependencies. Please run: pip install datasets";
+          } else if (errorMsg.includes("Download process exited with code 1")) {
+            helpfulError = "Download failed. Check if Python 3 is installed and run: pip install datasets";
+          }
+          
+          setError(helpfulError);
+          setDownloadMessage(`Error: ${helpfulError}`);
           setIsDownloading(false);
         } else if (data.type === 'complete') {
           setDownloadMessage(data.message || "Download complete!");
