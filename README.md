@@ -78,6 +78,12 @@ If you plan to use or develop the SWE-Bench evaluation harness:
 
 The project includes tools for running SWE-Bench task evaluations using official data from Hugging Face.
 
+### Using the UI (Recommended)
+
+The easiest way to run evaluations is through the graphical interface. Press **Ctrl+7** to open the Task Browser and get started.
+
+**[📖 Full UI Guide: Running Evaluations with the UI](./docs/swebench/running-evaluations-ui.md)**
+
 ### Prerequisites
 
 1. **Python 3 and pip** - Required for downloading task data
