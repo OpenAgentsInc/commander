@@ -18,7 +18,7 @@ const { execSync } = require("child_process");
 // In CommonJS, __dirname is available globally
 
 // Directories to recursively scan
-const dirsToScan = ["docs", "src", "scripts"
+const dirsToScan = ["docs", "src", "scripts", "swebench-results"
   // "node_modules/@effect/ai-openai/dist/dts/"
 ];
 

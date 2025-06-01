@@ -28,6 +28,7 @@ import {
   TelemetryService,
   TelemetryServiceLive,
   DefaultTelemetryConfigLayer,
+  TelemetryServiceConfigFromConfigurationLayer,
 } from "@/services/telemetry";
 console.log("[Runtime] Imported TelemetryService");
 
@@ -52,8 +53,8 @@ import { SparkServiceTestLive } from "@/services/spark/SparkServiceTestImpl";
 import { globalWalletConfig } from "@/services/walletConfig";
 console.log("[Runtime] Imported SparkService");
 
-// import { NIP90Service, NIP90ServiceLive } from "@/services/nip90";
-// console.log("[Runtime] Imported NIP90Service");
+import { NIP90Service, NIP90ServiceLive } from "@/services/nip90";
+console.log("[Runtime] Imported NIP90Service");
 
 import {
   Kind5050DVMService,
@@ -102,7 +103,7 @@ export type FullAppContext =
   | NIP28Service
   | OllamaService
   | SparkService
-  // | NIP90Service (commented out)
+  | NIP90Service
   | Kind5050DVMService
   | HttpClient.HttpClient
   | ConfigurationService
@@ -116,14 +117,41 @@ let mainRuntimeInstance: Runtime.Runtime<FullAppContext>;
 
 // Function to build all layers - can be called with updated configuration
 export function buildFullAppLayer() {
-  // Compose individual services with their direct dependencies
-  const telemetryLayer = TelemetryServiceLive.pipe(
-    Layer.provide(DefaultTelemetryConfigLayer),
-  );
-  const configLayer = ConfigurationServiceLive.pipe(
-    Layer.provide(telemetryLayer),
-  );
+  // First create the base configuration layer
+  const configLayer = ConfigurationServiceLive;
   const devConfigLayer = DefaultDevConfigLayer.pipe(Layer.provide(configLayer));
+  
+  // Create platform-specific layers first
+  const isMainProcess = typeof window === 'undefined';
+  let httpClientLayer: Layer.Layer<HttpClient.HttpClient, never, never>;
+  let fileSystemLayer = Layer.empty as Layer.Layer<any, never, never>;
+  
+  if (isMainProcess) {
+    // For main process, we need Node implementations
+    try {
+      const { NodeHttpClient, NodeFileSystem } = require("@effect/platform-node");
+      httpClientLayer = NodeHttpClient.layerUndici;
+      fileSystemLayer = NodeFileSystem.layer;
+    } catch (e) {
+      console.warn("[Runtime] Failed to load Node platform layers, falling back to empty layers");
+      httpClientLayer = Layer.succeed(HttpClient.HttpClient, {
+        execute: () => Effect.fail(new Error("HttpClient not available in main process")),
+      } as any);
+    }
+  } else {
+    // For browser/renderer
+    httpClientLayer = BrowserHttpClient.layerXMLHttpRequest;
+  }
+  
+  // Create telemetry config layer that reads from configuration service
+  const telemetryConfigLayer = TelemetryServiceConfigFromConfigurationLayer.pipe(
+    Layer.provide(devConfigLayer)
+  );
+  
+  // Create telemetry service with configuration from ConfigurationService and FileSystem
+  const telemetryLayer = TelemetryServiceLive.pipe(
+    Layer.provide(Layer.merge(telemetryConfigLayer, fileSystemLayer)),
+  );
 
   // Feature flag layer depends on configuration and telemetry
   const featureFlagLayer = FeatureFlagServiceLive.pipe(
@@ -144,7 +172,7 @@ export function buildFullAppLayer() {
 
   const ollamaLayer = OllamaServiceLive.pipe(
     Layer.provide(
-      Layer.merge(UiOllamaConfigLive, BrowserHttpClient.layerXMLHttpRequest),
+      Layer.merge(UiOllamaConfigLive, httpClientLayer),
     ),
     Layer.provide(telemetryLayer),
   );
@@ -195,10 +223,9 @@ export function buildFullAppLayer() {
     );
   }
 
-  // Temporarily comment out NIP90 layer due to initialization issues
-  // const nip90Layer = NIP90ServiceLive.pipe(
-  //   Layer.provide(Layer.mergeAll(nostrLayer, nip04Layer, telemetryLayer)),
-  // );
+  const nip90Layer = NIP90ServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(nostrLayer, nip04Layer, telemetryLayer)),
+  );
 
   // AI service layers - Ollama provider
   const ollamaAdapterLayer = OllamaProvider.OllamaAsOpenAIClientLive.pipe(
@@ -209,7 +236,8 @@ export function buildFullAppLayer() {
   const baseLayer = Layer.mergeAll(
     telemetryLayer,
     devConfigLayer,
-    BrowserHttpClient.layerXMLHttpRequest,
+    httpClientLayer,
+    fileSystemLayer,
     ollamaLayer,
     ollamaAdapterLayer,
   );
@@ -238,9 +266,9 @@ export function buildFullAppLayer() {
     Layer.provide(
       Layer.mergeAll(
         devConfigLayer,              // For ConfigurationService
-        BrowserHttpClient.layerXMLHttpRequest, // For HttpClient.HttpClient
+        httpClientLayer, // For HttpClient.HttpClient
         telemetryLayer,              // For TelemetryService
-        // nip90Layer,                  // For NIP90Service (commented out)
+        nip90Layer,                  // For NIP90Service
         nostrLayer,                  // For NostrService
         nip04Layer,                  // For NIP04Service
         sparkLayer,                  // For SparkService
@@ -248,6 +276,19 @@ export function buildFullAppLayer() {
       ),
     ),
   );
+
+  // Docker layer (only for main process)
+  const dockerLayer = isMainProcess
+    ? (() => {
+        try {
+          const { DockerUtilsServiceLive } = require("@/services/docker");
+          return DockerUtilsServiceLive;
+        } catch (e) {
+          console.warn("[Runtime] Failed to load DockerUtilsService");
+          return Layer.empty;
+        }
+      })()
+    : Layer.empty;
 
   // Full application layer - compose services incrementally
   return Layer.mergeAll(
@@ -259,12 +300,13 @@ export function buildFullAppLayer() {
     BIP32ServiceLive,
     nip28Layer,
     sparkLayer,
-    // nip90Layer, (commented out)
+    nip90Layer,
     ollamaLanguageModelLayer,
     chatOrchestratorLayer,
     kind5050DVMLayer,
     databaseLayer,
     featureFlagLayer,
+    dockerLayer,
   );
 }
 

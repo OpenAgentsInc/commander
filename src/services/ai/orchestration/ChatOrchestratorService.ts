@@ -64,23 +64,23 @@ export const ChatOrchestratorServiceLive = Layer.effect(
     const nip04Service = yield* _(NIP04Service);
     const sparkService = yield* _(SparkService);
 
-    const runTelemetry = (event: any) => Effect.runFork(telemetry.trackEvent(event).pipe(Effect.ignoreLogged));
+    const runTelemetryEffect = (event: any) => telemetry.trackEvent(event).pipe(Effect.ignoreLogged);
 
     // Helper to get provider-specific AgentLanguageModel
     const getProviderLanguageModel = (providerKey: string, modelName?: string): Effect.Effect<AgentLanguageModel, AiConfigurationError | AiProviderError, never> => {
       return (Effect.gen(function* (_) {
-        runTelemetry({ category: "orchestrator", action: "get_provider_model_start", label: providerKey, value: modelName });
+        yield* _(runTelemetryEffect({ category: "orchestrator", action: "get_provider_model_start", label: providerKey, value: modelName }));
         
         switch (providerKey.toLowerCase()) {
           case "ollama_gemma3_1b": {
             // Use the default Ollama provider from runtime
-            runTelemetry({ category: "orchestrator", action: "get_provider_model_success_ollama", label: providerKey });
+            yield* _(runTelemetryEffect({ category: "orchestrator", action: "get_provider_model_success_ollama", label: providerKey }));
             return defaultAgentLM;
           }
           
           case "nip90_devstral": {
             // Build NIP90 provider with devstral configuration
-            runTelemetry({ category: "orchestrator", action: "get_provider_model_start_nip90", label: providerKey });
+            yield* _(runTelemetryEffect({ category: "orchestrator", action: "get_provider_model_start_nip90", label: providerKey }));
             
             // Fetch NIP90 devstral configuration
             const dvmPubkey = yield* _(configService.get("AI_PROVIDER_DEVSTRAL_DVM_PUBKEY").pipe(Effect.orElseSucceed(() => "default_dvm_pk")));
@@ -148,13 +148,13 @@ export const ChatOrchestratorServiceLive = Layer.effect(
               )
             );
             
-            runTelemetry({ category: "orchestrator", action: "get_provider_model_success_nip90", label: providerKey });
+            yield* _(runTelemetryEffect({ category: "orchestrator", action: "get_provider_model_success_nip90", label: providerKey }));
             console.log("[ChatOrchestratorService] Successfully built NIP90 provider for", providerKey);
             return nip90AgentLM;
           }
 
           case "nip90_custom": {
-            runTelemetry({ category: "orchestrator", action: "get_provider_model_start_nip90_custom", label: providerKey });
+            yield* _(runTelemetryEffect({ category: "orchestrator", action: "get_provider_model_start_nip90_custom", label: providerKey }));
 
             const dvmPubkey = yield* _(
               configService.get("USER_NIP90_DVM_PUBKEY").pipe(
@@ -231,79 +231,27 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                 }))
               )
             );
-            runTelemetry({ category: "orchestrator", action: "get_provider_model_success_nip90_custom", label: providerKey });
+            yield* _(runTelemetryEffect({ category: "orchestrator", action: "get_provider_model_success_nip90_custom", label: providerKey }));
             return nip90AgentLMCustomInstance;
           }
 
           case "claude_code": {
-            // Use Claude Code CLI provider via IPC (main process only)
-            runTelemetry({ category: "orchestrator", action: "get_provider_model_start_claude_code", label: providerKey });
+            // Use Claude Code CLI provider - different approach for main vs renderer process
+            yield* _(runTelemetryEffect({ category: "orchestrator", action: "get_provider_model_start_claude_code", label: providerKey }));
             
-            // Create an IPC-based AgentLanguageModel that delegates to main process
-            const claudeCodeAgentLM: AgentLanguageModel = makeAgentLanguageModel({
-              generateText: (options: GenerateTextOptions) =>
-                Effect.gen(function* (_) {
-                  // Parse messages from prompt string 
-                  let messages: any[];
-                  try {
-                    const parsed = JSON.parse(options.prompt);
-                    messages = parsed.messages || [];
-                  } catch {
-                    messages = [{ role: "user", content: options.prompt }];
-                  }
-                  
-                  // Use IPC to call main process Claude Code implementation
-                  const response = yield* _(
-                    Effect.tryPromise({
-                      try: () => window.electronAPI.claudeCode!.chatCompletion({
-                        messages: messages.map(msg => ({
-                          role: msg.role,
-                          content: msg.content
-                        })),
-                        model: options.model || "claude-3-opus-20240229",
-                        max_tokens: options.maxTokens,
-                        temperature: options.temperature,
-                        sessionId: (options as any).sessionId, // Pass sessionId for database persistence
-                      }),
-                      catch: (error) => {
-                        const serializedCause = getErrorMessage(error);
-                        return new AiProviderError({
-                          message: `Claude Code IPC call failed: ${error}`,
-                          cause: serializedCause,
-                          isRetryable: false,
-                          provider: "claude_code"
-                        });
-                      }
-                    })
-                  );
-                  
-                  // Handle error response format
-                  if (typeof response === 'object' && response !== null && '__error' in response) {
-                    return yield* _(Effect.fail(new AiProviderError({
-                      message: `Claude Code CLI error: ${response.message}`,
-                      cause: response && typeof response === 'object' ? (response.message || JSON.stringify(response, Object.getOwnPropertyNames(response))) : String(response),
-                      isRetryable: false,
-                      provider: "claude_code"
-                    })));
-                  }
-                  
-                  // Parse successful response
-                  const content = typeof response === 'string' ? response : JSON.stringify(response);
-                  
-                  return AiResponse.fromSimple({
-                    text: content,
-                    metadata: {
-                      usage: {
-                        promptTokens: messages.reduce((acc, msg) => acc + msg.content.length / 4, 0), // Rough estimate
-                        completionTokens: content.length / 4, // Rough estimate
-                        totalTokens: 0
-                      }
-                    }
-                  });
-                }),
-
-              streamText: (options: StreamTextOptions) =>
-                Stream.asyncScoped((emit) =>
+            // Check if we're in main process or renderer
+            const isMainProcess = typeof window === 'undefined';
+            
+            if (isMainProcess) {
+              // In main process, use WebSocket bridge directly
+              yield* _(runTelemetryEffect({ category: "orchestrator", action: "claude_code_using_websocket", label: providerKey }));
+              
+              // Create WebSocket connection to Claude bridge
+              const WS_PORT = 45671;
+              const WebSocketClient = require('ws');
+              
+              const claudeCodeAgentLM: AgentLanguageModel = makeAgentLanguageModel({
+                generateText: (options: GenerateTextOptions) =>
                   Effect.gen(function* (_) {
                     // Parse messages from prompt string 
                     let messages: any[];
@@ -314,131 +262,433 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                       messages = [{ role: "user", content: options.prompt }];
                     }
                     
-                    let cleanup: (() => void) | undefined;
+                    // Create WebSocket connection
+                    const ws = new WebSocketClient(`ws://localhost:${WS_PORT}`);
                     
+                    return yield* _(
+                      Effect.async<AiResponse, AiProviderError>((resume) => {
+                        let fullContent = '';
+                        let hasError = false;
+                        
+                        ws.on('open', () => {
+                          // Send non-streaming request
+                          const args = [
+                            '-p', messages.map((m: any) => `${m.role}: ${m.content}`).join('\n'),
+                            '--output-format', 'text'
+                          ];
+                          
+                          if (options.model) {
+                            args.push('--model', options.model);
+                          }
+                          if (options.maxTokens) {
+                            args.push('--max-tokens', String(options.maxTokens));
+                          }
+                          if (options.temperature !== undefined) {
+                            args.push('--temperature', String(options.temperature));
+                          }
+                          
+                          ws.send(JSON.stringify({
+                            type: 'claude',
+                            id: Math.random().toString(36).substring(7),
+                            args,
+                            sessionId: (options as any).sessionId
+                          }));
+                        });
+                        
+                        ws.on('message', (data: Buffer) => {
+                          try {
+                            const msg = JSON.parse(data.toString());
+                            
+                            if (msg.type === 'claude_stream_chunk') {
+                              const chunk = msg.payload;
+                              if (chunk.type === 'content_block_delta' && chunk.delta?.text) {
+                                fullContent += chunk.delta.text;
+                              }
+                            } else if (msg.type === 'raw') {
+                              // For text format, accumulate raw data
+                              fullContent += msg.data + '\n';
+                            } else if (msg.type === 'claude_stream_error') {
+                              hasError = true;
+                              resume(Effect.fail(new AiProviderError({
+                                message: `Claude Code error: ${msg.error}`,
+                                cause: msg.error,
+                                isRetryable: false,
+                                provider: "claude_code"
+                              })));
+                            } else if (msg.type === 'claude_stream_done') {
+                              if (!hasError) {
+                                resume(Effect.succeed(AiResponse.fromSimple({
+                                  text: fullContent.trim(),
+                                  metadata: {
+                                    usage: {
+                                      promptTokens: messages.reduce((acc: number, msg: any) => acc + msg.content.length / 4, 0),
+                                      completionTokens: fullContent.length / 4,
+                                      totalTokens: 0
+                                    }
+                                  }
+                                })));
+                              }
+                              ws.close();
+                            }
+                          } catch (e) {
+                            console.error('Error parsing WebSocket message:', e);
+                          }
+                        });
+                        
+                        ws.on('error', (error: Error) => {
+                          resume(Effect.fail(new AiProviderError({
+                            message: `WebSocket error: ${error.message}`,
+                            cause: error,
+                            isRetryable: false,
+                            provider: "claude_code"
+                          })));
+                        });
+                        
+                        ws.on('close', () => {
+                          if (!hasError && fullContent) {
+                            resume(Effect.succeed(AiResponse.fromSimple({
+                              text: fullContent.trim(),
+                              metadata: {
+                                usage: {
+                                  promptTokens: messages.reduce((acc: number, msg: any) => acc + msg.content.length / 4, 0),
+                                  completionTokens: fullContent.length / 4,
+                                  totalTokens: 0
+                                }
+                              }
+                            })));
+                          }
+                        });
+                      })
+                    );
+                  }),
+
+                streamText: (options: StreamTextOptions) =>
+                  Stream.asyncScoped((emit) =>
+                    Effect.gen(function* (_) {
+                      // Parse messages from prompt string 
+                      let messages: any[];
+                      try {
+                        const parsed = JSON.parse(options.prompt);
+                        messages = parsed.messages || [];
+                      } catch {
+                        messages = [{ role: "user", content: options.prompt }];
+                      }
+                      
+                      // Create WebSocket connection
+                      const ws = new WebSocketClient(`ws://localhost:${WS_PORT}`);
+                      let hasError = false;
+                      
+                      ws.on('open', () => {
+                        // Send streaming request
+                        // Format messages for Claude CLI
+                        // Claude CLI doesn't support system messages in the format "system: content"
+                        // Instead, we'll prepend system messages to the first user message
+                        let formattedPrompt = '';
+                        let systemContent = '';
+                        
+                        for (const msg of messages) {
+                          if (msg.role === 'system') {
+                            systemContent += msg.content + '\n\n';
+                          } else if (msg.role === 'user') {
+                            if (systemContent) {
+                              formattedPrompt += systemContent + msg.content;
+                              systemContent = '';
+                            } else {
+                              formattedPrompt += msg.content;
+                            }
+                          } else if (msg.role === 'assistant') {
+                            formattedPrompt += '\n\nAssistant: ' + msg.content + '\n\nHuman: ';
+                          }
+                        }
+                        
+                        const args = [
+                          '-p', formattedPrompt.trim(),
+                          '--output-format', 'stream-json',
+                          '--verbose'
+                        ];
+                        
+                        if (options.model) {
+                          args.push('--model', options.model);
+                        }
+                        if (options.maxTokens) {
+                          args.push('--max-tokens', String(options.maxTokens));
+                        }
+                        if (options.temperature !== undefined) {
+                          args.push('--temperature', String(options.temperature));
+                        }
+                        
+                        ws.send(JSON.stringify({
+                          type: 'claude',
+                          id: Math.random().toString(36).substring(7),
+                          args,
+                          sessionId: (options as any).sessionId
+                        }));
+                      });
+                      
+                      ws.on('message', (data: Buffer) => {
+                        try {
+                          const msg = JSON.parse(data.toString());
+                          
+                          if (msg.type === 'claude_stream_chunk') {
+                            const chunk = msg.payload;
+                            if (chunk.type === 'content_block_delta' && chunk.delta?.text) {
+                              emit.single(AiResponse.fromSimple({
+                                text: chunk.delta.text
+                              }));
+                            }
+                          } else if (msg.type === 'claude_stream_error') {
+                            hasError = true;
+                            emit.fail(new AiProviderError({
+                              message: `Claude Code error: ${msg.error}`,
+                              cause: msg.error,
+                              isRetryable: false,
+                              provider: "claude_code"
+                            }));
+                          } else if (msg.type === 'claude_stream_done') {
+                            emit.end();
+                            ws.close();
+                          }
+                        } catch (e) {
+                          console.error('Error parsing WebSocket message:', e);
+                        }
+                      });
+                      
+                      ws.on('error', (error: Error) => {
+                        emit.fail(new AiProviderError({
+                          message: `WebSocket error: ${error.message}`,
+                          cause: error,
+                          isRetryable: false,
+                          provider: "claude_code"
+                        }));
+                      });
+                      
+                      ws.on('close', () => {
+                        if (!hasError) {
+                          emit.end();
+                        }
+                      });
+                      
+                      // Return cleanup function
+                      return Effect.sync(() => {
+                        ws.close();
+                      });
+                    })
+                  ),
+                
+                generateStructured: (options: GenerateStructuredOptions) =>
+                  // Use generateText for structured output
+                  Effect.gen(function* (_) {
+                    const response = yield* _(claudeCodeAgentLM.generateText(options));
+                    return response;
+                  })
+              });
+              
+              yield* _(runTelemetryEffect({ category: "orchestrator", action: "get_provider_model_success_claude_code_websocket", label: providerKey }));
+              console.log("[ChatOrchestratorService] Successfully created Claude Code WebSocket provider for", providerKey);
+              return claudeCodeAgentLM;
+              
+            } else {
+              // In renderer process, use IPC
+              const claudeCodeAgentLM: AgentLanguageModel = makeAgentLanguageModel({
+                generateText: (options: GenerateTextOptions) =>
+                  Effect.gen(function* (_) {
+                    // Parse messages from prompt string 
+                    let messages: any[];
                     try {
-                      cleanup = window.electronAPI.claudeCode!.streamChat(
-                        {
+                      const parsed = JSON.parse(options.prompt);
+                      messages = parsed.messages || [];
+                    } catch {
+                      messages = [{ role: "user", content: options.prompt }];
+                    }
+                    
+                    // Use IPC to call main process Claude Code implementation
+                    const response = yield* _(
+                      Effect.tryPromise({
+                        try: () => window.electronAPI.claudeCode!.chatCompletion({
                           messages: messages.map(msg => ({
                             role: msg.role,
                             content: msg.content
                           })),
-                          model: options.model || "claude-sonnet",
+                          model: options.model || "claude-3-opus-20240229",
                           max_tokens: options.maxTokens,
                           temperature: options.temperature,
                           sessionId: (options as any).sessionId, // Pass sessionId for database persistence
-                        },
-                        (chunk: string) => {
-                          // Emit each chunk as a text delta
-                          emit.single(AiResponse.fromSimple({
-                            text: chunk
-                          }));
-                        },
-                        () => {
-                          // Stream completed
-                          emit.end();
-                        },
-                        (error: any) => {
-                          // Stream error
-                          const errorMessage = getErrorMessage(error);
-                          // Serialize cause properly for logging
+                        }),
+                        catch: (error) => {
                           const serializedCause = getErrorMessage(error);
-                          emit.fail(new AiProviderError({
-                            message: `Claude Code stream error: ${errorMessage}`,
+                          return new AiProviderError({
+                            message: `Claude Code IPC call failed: ${error}`,
                             cause: serializedCause,
                             isRetryable: false,
                             provider: "claude_code"
-                          }));
+                          });
                         }
-                      );
-                    } catch (error) {
-                      const errorMessage = getErrorMessage(error);
-                      // Serialize cause properly for logging
-                      const serializedCause = getErrorMessage(error);
-                      emit.fail(new AiProviderError({
-                        message: `Failed to start Claude Code stream: ${errorMessage}`,
-                        cause: serializedCause,
+                      })
+                    );
+                    
+                    // Handle error response format
+                    if (typeof response === 'object' && response !== null && '__error' in response) {
+                      return yield* _(Effect.fail(new AiProviderError({
+                        message: `Claude Code CLI error: ${response.message}`,
+                        cause: response && typeof response === 'object' ? (response.message || JSON.stringify(response, Object.getOwnPropertyNames(response))) : String(response),
                         isRetryable: false,
                         provider: "claude_code"
-                      }));
+                      })));
                     }
                     
-                    // Return cleanup function
-                    return Effect.sync(() => {
-                      cleanup?.();
+                    // Parse successful response
+                    const content = typeof response === 'string' ? response : JSON.stringify(response);
+                    
+                    return AiResponse.fromSimple({
+                      text: content,
+                      metadata: {
+                        usage: {
+                          promptTokens: messages.reduce((acc, msg) => acc + msg.content.length / 4, 0), // Rough estimate
+                          completionTokens: content.length / 4, // Rough estimate
+                          totalTokens: 0
+                        }
+                      }
                     });
-                  })
-                ),
-              
-              generateStructured: (options: GenerateStructuredOptions) =>
-                Effect.gen(function* (_) {
-                  // Parse messages from prompt string 
-                  let messages: any[];
-                  try {
-                    const parsed = JSON.parse(options.prompt);
-                    messages = parsed.messages || [];
-                  } catch {
-                    messages = [{ role: "user", content: options.prompt }];
-                  }
-                  
-                  // Use IPC to call main process Claude Code implementation
-                  const response = yield* _(
-                    Effect.tryPromise({
-                      try: () => window.electronAPI.claudeCode!.chatCompletion({
-                        messages: messages.map(msg => ({
-                          role: msg.role,
-                          content: msg.content
-                        })),
-                        model: options.model || "claude-3-opus-20240229",
-                        max_tokens: options.maxTokens,
-                        temperature: options.temperature,
-                        sessionId: (options as any).sessionId, // Pass sessionId for database persistence
-                      }),
-                      catch: (error) => {
+                  }),
+
+                streamText: (options: StreamTextOptions) =>
+                  Stream.asyncScoped((emit) =>
+                    Effect.gen(function* (_) {
+                      // Parse messages from prompt string 
+                      let messages: any[];
+                      try {
+                        const parsed = JSON.parse(options.prompt);
+                        messages = parsed.messages || [];
+                      } catch {
+                        messages = [{ role: "user", content: options.prompt }];
+                      }
+                      
+                      let cleanup: (() => void) | undefined;
+                      
+                      try {
+                        cleanup = window.electronAPI.claudeCode!.streamChat(
+                          {
+                            messages: messages.map(msg => ({
+                              role: msg.role,
+                              content: msg.content
+                            })),
+                            model: options.model,
+                            max_tokens: options.maxTokens,
+                            temperature: options.temperature,
+                            sessionId: (options as any).sessionId, // Pass sessionId for database persistence
+                          },
+                          (chunk: string) => {
+                            // Emit each chunk as a text delta
+                            emit.single(AiResponse.fromSimple({
+                              text: chunk
+                            }));
+                          },
+                          () => {
+                            // Stream completed
+                            emit.end();
+                          },
+                          (error: any) => {
+                            // Stream error
+                            const errorMessage = getErrorMessage(error);
+                            // Serialize cause properly for logging
+                            const serializedCause = getErrorMessage(error);
+                            emit.fail(new AiProviderError({
+                              message: `Claude Code stream error: ${errorMessage}`,
+                              cause: serializedCause,
+                              isRetryable: false,
+                              provider: "claude_code"
+                            }));
+                          }
+                        );
+                      } catch (error) {
+                        const errorMessage = getErrorMessage(error);
+                        // Serialize cause properly for logging
                         const serializedCause = getErrorMessage(error);
-                        return new AiProviderError({
-                          message: `Claude Code IPC call failed: ${error}`,
+                        emit.fail(new AiProviderError({
+                          message: `Failed to start Claude Code stream: ${errorMessage}`,
                           cause: serializedCause,
                           isRetryable: false,
                           provider: "claude_code"
-                        });
+                        }));
                       }
+                      
+                      // Return cleanup function
+                      return Effect.sync(() => {
+                        cleanup?.();
+                      });
                     })
-                  );
-                  
-                  // Handle error response format
-                  if (typeof response === 'object' && response !== null && '__error' in response) {
-                    return yield* _(Effect.fail(new AiProviderError({
-                      message: `Claude Code CLI error: ${response.message}`,
-                      cause: response && typeof response === 'object' ? (response.message || JSON.stringify(response, Object.getOwnPropertyNames(response))) : String(response),
-                      isRetryable: false,
-                      provider: "claude_code"
-                    })));
-                  }
-                  
-                  // Parse successful response
-                  const content = typeof response === 'string' ? response : JSON.stringify(response);
-                  
-                  return AiResponse.fromSimple({
-                    text: content,
-                    metadata: {
-                      usage: {
-                        promptTokens: messages.reduce((acc, msg) => acc + msg.content.length / 4, 0),
-                        completionTokens: content.length / 4,
-                        totalTokens: 0
-                      }
+                  ),
+                
+                generateStructured: (options: GenerateStructuredOptions) =>
+                  Effect.gen(function* (_) {
+                    // Parse messages from prompt string 
+                    let messages: any[];
+                    try {
+                      const parsed = JSON.parse(options.prompt);
+                      messages = parsed.messages || [];
+                    } catch {
+                      messages = [{ role: "user", content: options.prompt }];
                     }
-                  });
-                })
-            });
-            
-            runTelemetry({ category: "orchestrator", action: "get_provider_model_success_claude_code", label: providerKey });
-            console.log("[ChatOrchestratorService] Successfully created Claude Code IPC provider for", providerKey);
-            return claudeCodeAgentLM;
+                    
+                    // Use IPC to call main process Claude Code implementation
+                    const response = yield* _(
+                      Effect.tryPromise({
+                        try: () => window.electronAPI.claudeCode!.chatCompletion({
+                          messages: messages.map(msg => ({
+                            role: msg.role,
+                            content: msg.content
+                          })),
+                          model: options.model || "claude-3-opus-20240229",
+                          max_tokens: options.maxTokens,
+                          temperature: options.temperature,
+                          sessionId: (options as any).sessionId, // Pass sessionId for database persistence
+                        }),
+                        catch: (error) => {
+                          const serializedCause = getErrorMessage(error);
+                          return new AiProviderError({
+                            message: `Claude Code IPC call failed: ${error}`,
+                            cause: serializedCause,
+                            isRetryable: false,
+                            provider: "claude_code"
+                          });
+                        }
+                      })
+                    );
+                    
+                    // Handle error response format
+                    if (typeof response === 'object' && response !== null && '__error' in response) {
+                      return yield* _(Effect.fail(new AiProviderError({
+                        message: `Claude Code CLI error: ${response.message}`,
+                        cause: response && typeof response === 'object' ? (response.message || JSON.stringify(response, Object.getOwnPropertyNames(response))) : String(response),
+                        isRetryable: false,
+                        provider: "claude_code"
+                      })));
+                    }
+                    
+                    // Parse successful response
+                    const content = typeof response === 'string' ? response : JSON.stringify(response);
+                    
+                    return AiResponse.fromSimple({
+                      text: content,
+                      metadata: {
+                        usage: {
+                          promptTokens: messages.reduce((acc, msg) => acc + msg.content.length / 4, 0),
+                          completionTokens: content.length / 4,
+                          totalTokens: 0
+                        }
+                      }
+                    });
+                  })
+              });
+              
+              yield* _(runTelemetryEffect({ category: "orchestrator", action: "get_provider_model_success_claude_code_ipc", label: providerKey }));
+              console.log("[ChatOrchestratorService] Successfully created Claude Code IPC provider for", providerKey);
+              return claudeCodeAgentLM;
+            }
           }
 
           default:
-            runTelemetry({ category: "orchestrator", action: "get_provider_model_unknown", label: providerKey });
+            yield* _(runTelemetryEffect({ category: "orchestrator", action: "get_provider_model_unknown", label: providerKey }));
             return yield* _(Effect.fail(new AiConfigurationError({ message: `Unsupported provider key: ${providerKey}` })));
         }
       }) as Effect.Effect<AgentLanguageModel, AiConfigurationError | AiProviderError, unknown>).pipe(
@@ -456,7 +706,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
     return {
       _tag: "ChatOrchestratorService" as const,
       streamConversation: ({ messages, preferredProvider, options }) => {
-        runTelemetry({ category: "orchestrator", action: "stream_conversation_start", label: preferredProvider.key });
+        Effect.runFork(runTelemetryEffect({ category: "orchestrator", action: "stream_conversation_start", label: preferredProvider.key }));
 
         return Stream.fromEffect(
           getProviderLanguageModel(preferredProvider.key, preferredProvider.modelName)
@@ -465,7 +715,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
             const streamOptions: StreamTextOptions = {
               ...options,
               prompt: JSON.stringify({ messages }),
-              model: preferredProvider.modelName,
+              ...(preferredProvider.modelName ? { model: preferredProvider.modelName } : {}),
             };
 
             // Use Stream.retry instead of Effect.retry for streams
@@ -480,7 +730,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                   )
                 )
               ),
-              Stream.tapError((err) => runTelemetry({
+              Stream.tapError((err) => runTelemetryEffect({
                 category: "orchestrator",
                 action: "stream_error",
                 label: err instanceof Error ? err.message : String(err)
@@ -490,14 +740,14 @@ export const ChatOrchestratorServiceLive = Layer.effect(
         );
       },
       generateConversationResponse: ({ messages, preferredProvider, options }) => {
-        runTelemetry({ category: "orchestrator", action: "generate_conversation_start", label: preferredProvider.key });
+        Effect.runFork(runTelemetryEffect({ category: "orchestrator", action: "generate_conversation_start", label: preferredProvider.key }));
 
         return getProviderLanguageModel(preferredProvider.key, preferredProvider.modelName).pipe(
           Effect.flatMap((agentLM) => {
             const generateOptions: GenerateTextOptions = {
               ...options,
               prompt: JSON.stringify({ messages }),
-              model: preferredProvider.modelName,
+              ...(preferredProvider.modelName ? { model: preferredProvider.modelName } : {}),
             };
 
             return Effect.retry(
@@ -513,7 +763,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                 )
               )
             ).pipe(
-              Effect.tapError((err) => runTelemetry({
+              Effect.tapError((err) => runTelemetryEffect({
                 category: "orchestrator",
                 action: "generate_conversation_error",
                 label: err instanceof Error ? err.message : String(err)

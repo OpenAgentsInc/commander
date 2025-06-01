@@ -91,14 +91,15 @@ export const ClaudeCodeAgentLanguageModelLive = Effect.gen(function* (_) {
             return Stream.fail(new AiProviderError({ message: "Claude Code IPC bridge (streamChat) not available.", provider: "ClaudeCode", isRetryable: false }));
         }
         
-        Effect.runFork(telemetry.trackEvent({ 
-          category: "claude_code_provider", 
-          action: "stream_text_start", 
-          label: modelToUse, 
-          value: `Prompt length: ${cliPrompt.length}` 
-        }));
-
-        return Stream.async<AiResponse, AiProviderError>(emit => {
+        return Stream.fromEffect(
+          telemetry.trackEvent({ 
+            category: "claude_code_provider", 
+            action: "stream_text_start", 
+            label: modelToUse, 
+            value: `Prompt length: ${cliPrompt.length}` 
+          }).pipe(Effect.ignoreLogged)
+        ).pipe(
+          Stream.flatMap(() => Stream.async<AiResponse, AiProviderError>(emit => {
           const cancelIPC = electronAPI.claudeCode.streamChat(
             cliParams,
             (rawChunkString: string) => { // IPC sends one JSON object string per chunk
@@ -131,7 +132,8 @@ export const ClaudeCodeAgentLanguageModelLive = Effect.gen(function* (_) {
             Effect.runFork(telemetry.trackEvent({ category: "claude_code_provider", action: "stream_text_cancel_requested", label: modelToUse })); 
             cancelIPC(); 
           });
-        });
+        }))
+        );
       },
 
       generateText: (options: GenerateTextOptions) => Effect.gen(function*(_) {

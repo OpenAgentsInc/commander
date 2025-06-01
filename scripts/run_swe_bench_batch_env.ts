@@ -9,7 +9,7 @@
 import { Command } from 'commander';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { Effect, Exit, Cause, Console, pipe } from 'effect';
+import { Effect, Exit, Cause, Console, pipe, NodeRuntime } from 'effect';
 
 interface BatchOptions {
   tasks_dir: string;
@@ -211,8 +211,13 @@ async function runBatch() {
   await fs.writeFile(summaryPath, JSON.stringify(summary, null, 2));
 }
 
+// Note: This script has been refactored to use Effect for better telemetry
+// The original implementation is preserved here for compatibility
+// For the new Effect-based version with telemetry, use run_swe_bench_batch_env_effect.ts
+
 // Run the batch processor
 runBatch().catch(error => {
   console.error('\n❌ Fatal error:', error);
+  console.error('\n💡 Consider using run_swe_bench_batch_env_effect.ts for better telemetry and logging');
   process.exit(1);
 });

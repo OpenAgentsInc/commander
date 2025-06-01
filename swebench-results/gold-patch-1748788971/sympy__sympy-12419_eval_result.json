@@ -1,0 +1,6 @@
+{
+  "instanceId": "sympy__sympy-12419",
+  "result": {
+    "error": "Service not found: TelemetryService (defined at <anonymous> (/Users/christopherdavid/code/commander/src/services/telemetry/TelemetryService.ts:99:11))"
+  }
+}

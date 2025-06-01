@@ -1,0 +1,22 @@
+{
+  "timestamp": "2025-06-01T05:07:53.633Z",
+  "tasks_attempted": 1,
+  "tasks_succeeded": 0,
+  "tasks_failed": 1,
+  "tasks_skipped": 0,
+  "options": {
+    "tasks_dir": "assets/swebench-tasks",
+    "patch_source": "agent:claude_code",
+    "stop_on_failure": false,
+    "instance_ids": "sympy__sympy-12419",
+    "output_dir": "swebench-results/test-1748754471"
+  },
+  "results": [
+    {
+      "instanceId": "sympy__sympy-12419",
+      "result": {
+        "error": "SWE-Bench task not found: sympy__sympy-12419 (searched in assets/swe_bench_data/sympy__sympy-12419.json)"
+      }
+    }
+  ]
+}

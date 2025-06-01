@@ -95,24 +95,24 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
     streamText: (options: StreamTextOptions) => {
       const resolvedModel = options.model || modelName; // FIX: Honor options.model
       
-      // Fire-and-forget telemetry logging
-      Effect.runFork(
+      const messages = parseMessages(options.prompt);
+      
+      // Include telemetry in the stream
+      return Stream.fromEffect(
         telemetry.trackEvent({
           category: "ollama_provider",
           action: "stream_text_model_resolved",
           label: "OllamaAgentLanguageModelLive",
           value: `Using: ${resolvedModel} (requested: ${options.model || "none"}, default: ${modelName})`
-        })
-      );
-      
-      const messages = parseMessages(options.prompt);
-      return client.stream({
-        model: resolvedModel, // FIX: Use resolved model
-        messages,
-        temperature: options.temperature ?? 0.7,
-        max_tokens: options.maxTokens ?? 2048,
-        stop: options.stopSequences
-      }).pipe(
+        }).pipe(Effect.ignoreLogged)
+      ).pipe(
+        Stream.flatMap(() => client.stream({
+          model: resolvedModel, // FIX: Use resolved model
+          messages,
+          temperature: options.temperature ?? 0.7,
+          max_tokens: options.maxTokens ?? 2048,
+          stop: options.stopSequences
+        }).pipe(
         Stream.map((chunk) => {
           // The stream already returns AiResponse objects from @effect/ai
           // We need to convert to our AiResponse
@@ -128,6 +128,7 @@ export const OllamaAgentLanguageModelLive = Effect.gen(function* (_) {
             cause: error
           })
         )
+      ))
       );
     },
 

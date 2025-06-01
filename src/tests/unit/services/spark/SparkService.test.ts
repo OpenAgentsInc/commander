@@ -86,6 +86,9 @@ describe("SparkService", () => {
     enabled: true,
     logToConsole: false,
     logLevel: "info",
+    logToFile: false,
+    logFilePath: "test.log",
+    logFileLevel: "info",
   });
 
   // Correctly combine the Telemetry Layer

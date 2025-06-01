@@ -14,6 +14,7 @@ import { Effect, Exit, Layer, Console } from "effect";
 import { DockerUtilsService } from "./DockerUtilsService";
 import { DockerUtilsServiceLive } from "./DockerUtilsServiceImpl";
 import { ConfigurationService, ConfigurationServiceLive, ConfigError, SecretNotFoundError } from "@/services/configuration";
+import { TelemetryService } from "@/services/telemetry";
 
 // Create a minimal config layer for testing
 const TestConfigLayer = Layer.succeed(
@@ -23,6 +24,16 @@ const TestConfigLayer = Layer.succeed(
     getSecret: () => Effect.fail(new SecretNotFoundError({ message: "Not implemented", keyName: "" })),
     set: () => Effect.succeed(undefined),
     delete: () => Effect.succeed(undefined),
+  })
+);
+
+// Create a minimal telemetry layer for testing
+const TestTelemetryLayer = Layer.succeed(
+  TelemetryService,
+  TelemetryService.of({
+    trackEvent: () => Effect.void,
+    isEnabled: () => Effect.succeed(true),
+    setEnabled: () => Effect.void,
   })
 );
 
@@ -96,7 +107,7 @@ const runTests = async () => {
   console.log("Make sure Docker is running!\n");
   
   const layer = DockerUtilsServiceLive.pipe(
-    Layer.provide(TestConfigLayer)
+    Layer.provide(Layer.merge(TestConfigLayer, TestTelemetryLayer))
   );
   
   const result = await Effect.runPromiseExit(

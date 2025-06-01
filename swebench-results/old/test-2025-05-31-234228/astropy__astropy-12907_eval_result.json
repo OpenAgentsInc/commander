@@ -1,0 +1,6 @@
+{
+  "instanceId": "astropy__astropy-12907",
+  "result": {
+    "error": "Service not found: @effect/platform/HttpClient (defined at Object.<anonymous> (/Users/christopherdavid/code/commander/node_modules/@effect/platform/src/internal/httpClient.ts:35:28))"
+  }
+}

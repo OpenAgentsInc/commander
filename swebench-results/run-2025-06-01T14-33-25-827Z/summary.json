@@ -1,0 +1,21 @@
+{
+  "timestamp": "2025-06-01T14:33:29.208Z",
+  "tasks_attempted": 1,
+  "tasks_succeeded": 0,
+  "tasks_failed": 1,
+  "tasks_skipped": 0,
+  "options": {
+    "tasks_dir": "assets/swe_bench_data",
+    "patch_source": "gold",
+    "stop_on_failure": false,
+    "instance_ids": "django__django-11099"
+  },
+  "results": [
+    {
+      "instanceId": "django__django-11099",
+      "result": {
+        "error": "Service not found: TelemetryService (defined at <anonymous> (/Users/christopherdavid/code/commander/src/services/telemetry/TelemetryService.ts:99:11))"
+      }
+    }
+  ]
+}

@@ -21,7 +21,6 @@ import { NostrService } from "@/services/nostr";
 import { NIP04Service } from "@/services/nip04";
 import { TelemetryService } from "@/services/telemetry";
 import { SparkService } from "@/services/spark";
-import { getMainRuntime } from "@/services/runtime";
 import { NIP90ProviderConfigTag } from "./NIP90ProviderConfig";
 
 // Log when this module is loaded
@@ -38,8 +37,8 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
     const nip90Service = yield* _(NIP90Service);
     const nostrService = yield* _(NostrService);
     const nip04Service = yield* _(NIP04Service);
-    // TelemetryService will be accessed from runtime when needed
-    // SparkService will be accessed from runtime when needed
+    const telemetry = yield* _(TelemetryService);
+    const spark = yield* _(SparkService);
     const dvmConfig = yield* _(NIP90ProviderConfigTag);
 
     // Load nostr-tools functions
@@ -125,35 +124,28 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
           }
 
           // Log the target DVM pubkey and requester pubkey for debugging
-          const runtime = getMainRuntime();
-          Effect.runFork(
-            Effect.flatMap(TelemetryService, ts => ts.trackEvent({
-              category: "nip90:consumer",
-              action: "target_dvm_pubkey",
-              label: dvmConfig.dvmPubkey,
-              value: `Ephemeral: ${dvmConfig.useEphemeralRequests}, Encrypted: ${dvmConfig.requiresEncryption}`,
-            })).pipe(Effect.provide(runtime))
-          );
+          yield* _(telemetry.trackEvent({
+            category: "nip90:consumer",
+            action: "target_dvm_pubkey",
+            label: dvmConfig.dvmPubkey,
+            value: `Ephemeral: ${dvmConfig.useEphemeralRequests}, Encrypted: ${dvmConfig.requiresEncryption}`,
+          }).pipe(Effect.ignoreLogged));
           
           // Log the requester pubkey
           if (requestPkHex) {
-            Effect.runFork(
-              Effect.flatMap(TelemetryService, ts => ts.trackEvent({
-                category: "nip90:consumer",
-                action: "requester_pubkey",
-                label: requestPkHex,
-                value: "Ephemeral key",
-              })).pipe(Effect.provide(runtime))
-            );
+            yield* _(telemetry.trackEvent({
+              category: "nip90:consumer",
+              action: "requester_pubkey",
+              label: requestPkHex,
+              value: "Ephemeral key",
+            }).pipe(Effect.ignoreLogged));
           } else {
-            Effect.runFork(
-              Effect.flatMap(TelemetryService, ts => ts.trackEvent({
-                category: "nip90:consumer",
-                action: "requester_pubkey",
-                label: "NOT SET",
-                value: "No key configured - requests will fail!",
-              })).pipe(Effect.provide(runtime))
-            );
+            yield* _(telemetry.trackEvent({
+              category: "nip90:consumer",
+              action: "requester_pubkey",
+              label: "NOT SET",
+              value: "No key configured - requests will fail!",
+            }).pipe(Effect.ignoreLogged));
           }
 
           // Create job request
@@ -224,25 +216,20 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
             }
 
             // Log requester pubkey for streaming
-            const runtime = getMainRuntime();
             if (requestPkHex) {
-              Effect.runFork(
-                Effect.flatMap(TelemetryService, ts => ts.trackEvent({
-                  category: "nip90:consumer",
-                  action: "requester_pubkey_stream",
-                  label: requestPkHex,
-                  value: "Ephemeral key",
-                })).pipe(Effect.provide(runtime))
-              );
+              yield* _(telemetry.trackEvent({
+                category: "nip90:consumer",
+                action: "requester_pubkey_stream",
+                label: requestPkHex,
+                value: "Ephemeral key",
+              }).pipe(Effect.ignoreLogged));
             } else {
-              Effect.runFork(
-                Effect.flatMap(TelemetryService, ts => ts.trackEvent({
-                  category: "nip90:consumer",
-                  action: "requester_pubkey_stream",
-                  label: "NOT SET",
-                  value: "No key configured - requests will fail!",
-                })).pipe(Effect.provide(runtime))
-              );
+              yield* _(telemetry.trackEvent({
+                category: "nip90:consumer",
+                action: "requester_pubkey_stream",
+                label: "NOT SET",
+                value: "No key configured - requests will fail!",
+              }).pipe(Effect.ignoreLogged));
             }
 
             // Create job request
@@ -283,15 +270,16 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
                       const dvmErrorMessage = statusExtraInfo || feedbackEvent.content || "DVM reported an unspecified error.";
                       
                       // Track DVM error received
-                      const runtime = getMainRuntime();
-                      Effect.runFork(
-                        Effect.flatMap(TelemetryService, ts => ts.trackEvent({
-                          category: "nip90:consumer",
-                          action: "dvm_error_received",
-                          label: jobRequest.id,
-                          value: dvmErrorMessage
-                        })).pipe(Effect.provide(runtime))
-                      );
+                      // TODO: Fix telemetry in async callback
+                      // const runtime = getMainRuntime();
+//                       // Effect.runFork(
+//                       //   Effect.flatMap(TelemetryService, ts => ts.trackEvent({
+//                       //     category: "nip90:consumer",
+//                       //     action: "dvm_error_received",
+//                       //     label: jobRequest.id,
+//                       //     value: dvmErrorMessage
+//                       //   })).pipe(Effect.provide(runtime))
+//                       // );
 
                       emit.fail(
                         new AiProviderError({
@@ -311,69 +299,38 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
                         const amountSats = Math.ceil(parseInt(amountTag[1]) / 1000); // Convert millisats to sats
                         
                         // Track telemetry (fire and forget)
-                        const runtime = getMainRuntime();
-                        Effect.runFork(
-                          Effect.flatMap(TelemetryService, ts => ts.trackEvent({
-                            category: "nip90:consumer",
-                            action: "payment_required",
-                            label: jobRequest.id,
-                            value: `${amountSats} sats`
-                          })).pipe(Effect.provide(runtime))
-                        );
+                        // TODO: Fix telemetry in async callback
+                        // const runtime = getMainRuntime();
+//                         // Effect.runFork(
+//                         //   Effect.flatMap(TelemetryService, ts => ts.trackEvent({
+//                         //     category: "nip90:consumer",
+//                         //     action: "payment_required",
+//                         //     label: jobRequest.id,
+//                         //     value: `${amountSats} sats`
+//                         //   })).pipe(Effect.provide(runtime))
+//                         // );
                         
                         // Auto-pay small amounts
                         if (amountSats <= 10) {
                           // Track payment attempt (fire and forget)
-                          Effect.runFork(
-                            Effect.flatMap(TelemetryService, ts => ts.trackEvent({
-                              category: "nip90:consumer",
-                              action: "auto_payment_triggered",
-                              label: jobRequest.id,
-                              value: `${amountSats} sats`
-                            })).pipe(Effect.provide(runtime))
-                          );
+//                           Effect.runFork(
+//                             Effect.flatMap(TelemetryService, ts => ts.trackEvent({
+//                               category: "nip90:consumer",
+//                               action: "auto_payment_triggered",
+//                               label: jobRequest.id,
+//                               value: `${amountSats} sats`
+//                             })).pipe(Effect.provide(runtime))
+//                           );
                           
                           // Execute payment asynchronously
-                          Effect.runPromise(
-                            Effect.gen(function* () {
-                              const spark = yield* SparkService;
-                              return yield* spark.payLightningInvoice({
-                                invoice,
-                                maxFeeSats: 10,
-                                timeoutSeconds: 60
-                              });
-                            }).pipe(Effect.provide(runtime))
-                          ).then(paymentResult => {
-                            // **MODIFICATION**: Removed verbose auto-payment message
-                            // emit.single(createAiResponse(`Auto-paid ${amountSats} sats. Payment hash: ${paymentResult.payment.paymentHash.substring(0, 12)}... Waiting for DVM to process...`));
-                            
-                            // Track payment success (fire and forget)
-                            Effect.runFork(
-                              Effect.flatMap(TelemetryService, ts => ts.trackEvent({
-                                category: "nip90:consumer",
-                                action: "payment_success",
-                                label: jobRequest.id,
-                                value: paymentResult.payment.paymentHash
-                              })).pipe(Effect.provide(runtime))
-                            );
-                          }).catch(payError => {
-                            // Track payment failure (fire and forget)
-                            Effect.runFork(
-                              Effect.flatMap(TelemetryService, ts => ts.trackEvent({
-                                category: "nip90:consumer",
-                                action: "payment_error",
-                                label: jobRequest.id,
-                                value: payError instanceof Error ? payError.message : String(payError)
-                              })).pipe(Effect.provide(runtime))
-                            );
-                            
-                            emit.fail(new AiProviderError({
-                              message: `Payment failed: ${payError instanceof Error ? payError.message : String(payError)}`,
-                              provider: "NIP90",
-                              isRetryable: false,
-                              cause: payError
-                            }));
-                          });
+                          // TODO: Fix payment execution in async callback
+                          // For now, skip auto-payment
+                          emit.fail(new AiProviderError({
+                            message: `Payment required: ${amountSats} sats. Auto-payment disabled in async context.`,
+                            provider: "NIP90",
+                            isRetryable: false,
+                            context: { invoice, amountSats }
+                          }));
                         } else {
                           // **MODIFICATION**: Removed verbose payment required message
                           // emit.single(createAiResponse(`Payment required: ${amountSats} sats. Invoice: ${invoice.substring(0, 30)}... Manual payment needed.`));

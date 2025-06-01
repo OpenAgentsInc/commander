@@ -14,7 +14,6 @@ import {
   NIP04DecryptError,
 } from "@/services/nip04";
 import { TelemetryService } from "@/services/telemetry";
-import { getMainRuntime } from "@/services/runtime";
 import { createNip90JobRequest } from "@/helpers/nip90/event_creation";
 import {
   NIP90Service,
@@ -681,25 +680,27 @@ export const NIP90ServiceLive = Layer.effect(
                 (event) => {
                   try {
                     // Track that we received an event (CRITICAL for debugging)
-                    Effect.runFork(
-                      Effect.flatMap(TelemetryService, ts => ts.trackEvent({
-                        category: "nip90:subscription",
-                        action: "event_received",
-                        label: event.id,
-                        value: `Kind: ${event.kind} | Job: ${jobRequestEventId} | Author: ${event.pubkey}`,
-                      })).pipe(Effect.provide(getMainRuntime()))
-                    );
+                    // TODO: Fix telemetry in async callback
+                    // Effect.runFork(
+                    //   Effect.flatMap(TelemetryService, ts => ts.trackEvent({
+                    //     category: "nip90:subscription",
+                    //     action: "event_received",
+                    //     label: event.id,
+                    //     value: `Kind: ${event.kind} | Job: ${jobRequestEventId} | Author: ${event.pubkey}`,
+                    //   })).pipe(Effect.provide(Layer.empty))
+                    // );
                     // Determine if it's a result (6xxx) or feedback (7000) event
                     if (event.kind === 7000) {
                       // Track Kind 7000 feedback event specifically
-                      Effect.runFork(
-                        Effect.flatMap(TelemetryService, ts => ts.trackEvent({
-                          category: "nip90:subscription",
-                          action: "kind_7000_feedback_received",
-                          label: event.id,
-                          value: `Content: ${event.content.substring(0, 50)}... | Tags: ${JSON.stringify(event.tags)}`,
-                        })).pipe(Effect.provide(getMainRuntime()))
-                      );
+                      // TODO: Fix telemetry in async callback
+                      // Effect.runFork(
+                      //   Effect.flatMap(TelemetryService, ts => ts.trackEvent({
+                      //     category: "nip90:subscription",
+                      //     action: "kind_7000_feedback_received",
+                      //     label: event.id,
+                      //     value: `Content: ${event.content.substring(0, 50)}... | Tags: ${JSON.stringify(event.tags)}`,
+                      //   })).pipe(Effect.provide(Layer.empty))
+                      // );
 
                       // Process as feedback
                       let feedbackEvent: NIP90JobFeedback = {

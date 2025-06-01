@@ -1,4 +1,5 @@
 import { Effect, Layer, Schema } from "effect";
+import { FileSystem } from "@effect/platform/FileSystem";
 import {
   TelemetryService,
   TelemetryEvent,
@@ -16,6 +17,7 @@ export const TelemetryServiceLive = Layer.effect(
   TelemetryService,
   Effect.gen(function* (_) {
     const config = yield* _(TelemetryServiceConfigTag);
+    const fs = yield* _(Effect.serviceOption(FileSystem));
 
     // Start with the config's enabled value
     let telemetryEnabled = config.enabled;
@@ -64,6 +66,51 @@ export const TelemetryServiceLive = Layer.effect(
         "[TelemetryService] Development mode detected, telemetry would be enabled by default but config overrides to:",
         config.enabled,
       );
+    }
+
+    // Set up file logging if enabled
+    let resolvedLogFilePath: string | undefined = undefined;
+    if (config.logToFile && fs._tag === "Some") {
+      const fileSystem = fs.value;
+      
+      // Get app data directory path
+      let appDataPath: string;
+      
+      // Check if we're in Electron main process
+      if (typeof process !== "undefined" && process.type === "browser") {
+        try {
+          const { app } = require("electron");
+          appDataPath = app.getPath("userData");
+        } catch (e) {
+          // Fallback to temp directory
+          appDataPath = process.env.TEMP || process.env.TMP || "/tmp";
+        }
+      } else {
+        // Fallback for non-Electron environments or renderer
+        appDataPath = process.env.APPDATA || process.env.HOME || ".";
+      }
+      
+      // Build the full path manually
+      const logFilePath = `${appDataPath}/${config.logFilePath}`.replace(/\/+/g, '/');
+      const logDir = logFilePath.substring(0, logFilePath.lastIndexOf('/'));
+      
+      const setupResult = yield* _(
+        fileSystem.makeDirectory(logDir, { recursive: true }).pipe(
+          Effect.flatMap(() => Effect.succeed(logFilePath)),
+          Effect.catchAll((err) => {
+            console.error(`[TelemetryService] Failed to create log directory: ${logDir}`, err); // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+            return Effect.succeed(undefined);
+          })
+        )
+      );
+      
+      resolvedLogFilePath = setupResult;
+      
+      if (resolvedLogFilePath) {
+        console.log(`[TelemetryService] File logging enabled. Path: ${resolvedLogFilePath}`); // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+      }
+    } else if (config.logToFile) {
+      console.log(`[TelemetryService] File logging requested but FileSystem service not available`); // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
     }
 
     return TelemetryService.of({
@@ -120,6 +167,46 @@ export const TelemetryServiceLive = Layer.effect(
                 );
               }
             }
+            
+            // File logging
+            if (config.logToFile && resolvedLogFilePath && fs._tag === "Some") {
+              const fileSystem = fs.value;
+              const levelOrder = ["debug", "info", "warn", "error"];
+              const eventLevel = event.level || "info";
+              
+              if (levelOrder.indexOf(eventLevel) >= levelOrder.indexOf(config.logFileLevel)) {
+                // Format the log line
+                const timestamp = new Date(eventWithTimestamp.timestamp).toISOString();
+                const level = eventLevel.toUpperCase();
+                const category = eventWithTimestamp.category;
+                const action = eventWithTimestamp.action;
+                const label = eventWithTimestamp.label || "";
+                
+                let valueStr = "";
+                if (eventWithTimestamp.value !== undefined) {
+                  const valueString = String(eventWithTimestamp.value);
+                  valueStr = ` | Value: ${valueString.substring(0, 500)}`;
+                }
+                
+                let contextStr = "";
+                if (eventWithTimestamp.context) {
+                  contextStr = ` | Context: ${JSON.stringify(eventWithTimestamp.context)}`;
+                }
+                
+                const logLine = `${timestamp} [${level}] [${category}] (${action}) ${label}${valueStr}${contextStr}\n`;
+                
+                // Append to file (fire and forget)
+                yield* _(
+                  fileSystem.writeFileString(resolvedLogFilePath, logLine, { flag: "a" }).pipe(
+                    Effect.catchAll((err) => {
+                      console.error(`[TelemetryService] Error writing to log file ${resolvedLogFilePath}:`, err); // TELEMETRY_IGNORE_THIS_CONSOLE_CALL
+                      return Effect.void;
+                    })
+                  )
+                );
+              }
+            }
+            
             return;
           } catch (cause) {
             // In case other errors occur, we still want to avoid breaking the application
