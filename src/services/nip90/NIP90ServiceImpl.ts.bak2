@@ -686,7 +686,7 @@ export const NIP90ServiceLive = Layer.effect(
                         action: "event_received",
                         label: event.id,
                         value: `Kind: ${event.kind} | Job: ${jobRequestEventId} | Author: ${event.pubkey}`,
-                      })).pipe(Effect.provide(Layer.empty))
+                      })).pipe(Effect.provide(getMainRuntime()))
                     );
                     // Determine if it's a result (6xxx) or feedback (7000) event
                     if (event.kind === 7000) {
@@ -697,7 +697,7 @@ export const NIP90ServiceLive = Layer.effect(
                           action: "kind_7000_feedback_received",
                           label: event.id,
                           value: `Content: ${event.content.substring(0, 50)}... | Tags: ${JSON.stringify(event.tags)}`,
-                        })).pipe(Effect.provide(Layer.empty))
+                        })).pipe(Effect.provide(getMainRuntime()))
                       );
 
                       // Process as feedback

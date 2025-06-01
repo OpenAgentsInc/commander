@@ -92,3 +92,21 @@ Updated all handlers to:
 This follows the instruction pattern to defer Effect execution until inside the handler callbacks.
 
 ### 23:36 - Checking db-listeners.ts next
+
+db-listeners.ts was clean - no issues found.
+
+### 23:45 - Re-enabled NIP90Service
+
+After fixing the layer initialization issues, I re-enabled NIP90Service in runtime.ts. Now trying to run SWE-bench again.
+
+### 23:46 - Testing SWE-bench Run
+
+First attempt failed with runtime initialization error on line 198 (NIP90ServiceLive.pipe undefined).
+
+### 23:48 - Fixed NIP90ServiceImpl Circular Dependency
+
+Removed import of getMainRuntime from NIP90ServiceImpl.ts and replaced getMainRuntime() calls with Layer.empty.
+
+### 23:50 - New Error: HttpClient Service Not Found
+
+Progress! Now getting "Service not found: @effect/platform/HttpClient" error. This suggests the runtime is initializing but missing the HttpClient layer in the main process context.
