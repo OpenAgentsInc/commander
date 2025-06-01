@@ -19,20 +19,18 @@ export default defineConfig((configEnv) => {
       watch: isDevelopment ? false : undefined,
       rollupOptions: {
         external: [
-          // Native modules that should not be bundled
+          // Externalize electron
+          'electron',
+          // Externalize problematic native modules
           'cpu-features',
-          'ssh2',
           'dockerode',
-          'docker-modem',
-          // Also externalize the native bindings
-          /\.node$/,
-          // Common native modules that might be used
-          'bcrypt',
-          'sqlite3',
-          'canvas',
-          'sharp',
-          '@scure/bip39/wordlists',
-          '@scure/bip32'
+          'docker-modem', 
+          'ssh2',
+          // Also match any deep imports
+          /^cpu-features/,
+          /^dockerode/,
+          /^docker-modem/,
+          /^ssh2/,
         ],
       },
     },
