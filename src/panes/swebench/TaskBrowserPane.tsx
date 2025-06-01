@@ -24,7 +24,11 @@ interface SWEBenchTask {
 }
 
 export const TaskBrowserPane: React.FC<TaskBrowserPaneProps> = ({ pane }) => {
-  const { openEvaluationLauncherPane } = usePaneStore();
+  const openEvaluationLauncherPane = usePaneStore((state) => {
+    console.log("[TaskBrowserPane] Getting openEvaluationLauncherPane from store");
+    console.log("[TaskBrowserPane] Store state keys:", Object.keys(state));
+    return state.openEvaluationLauncherPane;
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tasksDir, setTasksDir] = useState<string>("patches");
@@ -34,6 +38,13 @@ export const TaskBrowserPane: React.FC<TaskBrowserPaneProps> = ({ pane }) => {
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [availableDirs, setAvailableDirs] = useState<string[]>([]);
+
+  // Test openEvaluationLauncherPane on mount
+  useEffect(() => {
+    console.log("[TaskBrowserPane] Component mounted, testing openEvaluationLauncherPane");
+    console.log("[TaskBrowserPane] openEvaluationLauncherPane is:", openEvaluationLauncherPane);
+    console.log("[TaskBrowserPane] typeof openEvaluationLauncherPane:", typeof openEvaluationLauncherPane);
+  }, [openEvaluationLauncherPane]);
 
   // Load available task directories
   useEffect(() => {
@@ -58,6 +69,7 @@ export const TaskBrowserPane: React.FC<TaskBrowserPaneProps> = ({ pane }) => {
   // Load task IDs when directory changes
   useEffect(() => {
     const loadTasks = async () => {
+      console.log("[TaskBrowserPane] Loading tasks from directory:", tasksDir);
       setLoading(true);
       setError(null);
       setSelectedTaskId(null);
@@ -70,6 +82,7 @@ export const TaskBrowserPane: React.FC<TaskBrowserPaneProps> = ({ pane }) => {
         }
         
         const ids = await window.electronAPI.sweBench.listTasks(tasksDir);
+        console.log("[TaskBrowserPane] Loaded task IDs:", ids);
         setTaskIds(ids);
       } catch (err) {
         console.error("Error loading tasks:", err);
@@ -127,12 +140,39 @@ export const TaskBrowserPane: React.FC<TaskBrowserPaneProps> = ({ pane }) => {
   };
 
   const handleLaunchEvaluation = () => {
-    if (selectedTaskIds.size === 0) return;
+    console.log("[TaskBrowserPane] handleLaunchEvaluation called");
+    console.log("[TaskBrowserPane] selectedTaskIds:", Array.from(selectedTaskIds));
+    console.log("[TaskBrowserPane] tasksDir:", tasksDir);
+    console.log("[TaskBrowserPane] openEvaluationLauncherPane function:", openEvaluationLauncherPane);
+    console.log("[TaskBrowserPane] typeof openEvaluationLauncherPane:", typeof openEvaluationLauncherPane);
     
-    openEvaluationLauncherPane({
-      taskInstanceIds: Array.from(selectedTaskIds),
-      tasksDir
-    });
+    if (selectedTaskIds.size === 0) {
+      console.warn("[TaskBrowserPane] No tasks selected!");
+      return;
+    }
+    
+    if (!openEvaluationLauncherPane) {
+      console.error("[TaskBrowserPane] openEvaluationLauncherPane is not defined!");
+      setError("Unable to open evaluation launcher - function not available");
+      return;
+    }
+    
+    try {
+      console.log("[TaskBrowserPane] Calling openEvaluationLauncherPane with:", {
+        taskInstanceIds: Array.from(selectedTaskIds),
+        tasksDir
+      });
+      
+      openEvaluationLauncherPane({
+        taskInstanceIds: Array.from(selectedTaskIds),
+        tasksDir
+      });
+      
+      console.log("[TaskBrowserPane] openEvaluationLauncherPane called successfully");
+    } catch (err) {
+      console.error("[TaskBrowserPane] Error calling openEvaluationLauncherPane:", err);
+      setError("Failed to open evaluation launcher");
+    }
   };
 
   return (
