@@ -21,7 +21,8 @@ interface SWEBenchTask {
 async function sendClaudeRequest(prompt: string): Promise<string | null> {
   return new Promise((resolve) => {
     const ws = new WebSocket('ws://localhost:45671');
-    let messageReceived = false;
+    let fullResponse = '';
+    let requestCompleted = false;
 
     ws.on('open', () => {
       console.log('🔌 Connected to Claude bridge');
@@ -38,21 +39,27 @@ async function sendClaudeRequest(prompt: string): Promise<string | null> {
       try {
         const response = JSON.parse(data.toString());
         
-        if (response.type === 'response' && response.responseType === 'text') {
-          messageReceived = true;
+        // Handle different response types from bridge
+        if (response.type === 'raw') {
+          // Accumulate raw text output
+          fullResponse += response.data + '\n';
+        } else if (response.type === 'claude_stream_done') {
+          // Process is complete
+          requestCompleted = true;
           ws.close();
           
-          // Extract patch from response
-          const content = response.response || '';
-          const patchMatch = content.match(/```diff\n([\s\S]*?)```/);
+          // Extract patch from accumulated response
+          const patchMatch = fullResponse.match(/```diff\n([\s\S]*?)```/);
           
           if (patchMatch) {
+            console.log('✅ Found patch in response');
             resolve(patchMatch[1].trim());
           } else {
             console.log('⚠️  No patch found in response');
+            console.log('Response preview:', fullResponse.substring(0, 200) + '...');
             resolve(null);
           }
-        } else if (response.type === 'error') {
+        } else if (response.type === 'error' || response.type === 'claude_stream_error') {
           console.error('❌ Error from bridge:', response.error);
           ws.close();
           resolve(null);
@@ -70,20 +77,23 @@ async function sendClaudeRequest(prompt: string): Promise<string | null> {
     });
 
     ws.on('close', () => {
-      if (!messageReceived) {
-        console.log('⚠️  Connection closed without response');
+      if (!requestCompleted) {
+        console.log('⚠️  Connection closed without completion');
+        if (fullResponse) {
+          console.log('Partial response:', fullResponse.substring(0, 200) + '...');
+        }
         resolve(null);
       }
     });
 
-    // Timeout after 60 seconds
+    // Extend timeout to 10 minutes for complex patch generation
     setTimeout(() => {
-      if (!messageReceived) {
-        console.log('⏱️  Request timed out');
+      if (!requestCompleted) {
+        console.log('⏱️  Request timed out after 10 minutes');
         ws.close();
         resolve(null);
       }
-    }, 60000);
+    }, 600000); // 10 minutes
   });
 }
 
@@ -118,7 +128,7 @@ async function main() {
   const tasksDir = path.join(process.cwd(), 'assets/swe_bench_data');
   const taskFiles = (await fs.readdir(tasksDir))
     .filter(f => f.endsWith('.json'))
-    .slice(0, 5); // Take first 5
+    .slice(0, 1); // Take first 1 for final verification
 
   console.log(`Running ${taskFiles.length} tasks...\n`);
 

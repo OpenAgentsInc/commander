@@ -1,0 +1,18 @@
+{
+  "timestamp": "2025-06-01T03:32:49.816Z",
+  "total_tasks": 1,
+  "patches_generated": 1,
+  "patches_failed": 0,
+  "total_duration_ms": 174260,
+  "average_duration_ms": 174260,
+  "tasks": [
+    {
+      "instance_id": "astropy__astropy-12907",
+      "patch_generated": true,
+      "duration_ms": 174260,
+      "patch_length": 467,
+      "patch_source_type": "agent_generated",
+      "generated_patch_content": "diff --git a/astropy/modeling/separable.py b/astropy/modeling/separable.py\nindex 6df3157..d1a0a8f 100644\n--- a/astropy/modeling/separable.py\n+++ b/astropy/modeling/separable.py\n@@ -204,7 +204,7 @@ def _cstack(left, right):\ncright = _coord_matrix(right, 'right', noutp)\nelse:\ncright = np.zeros((noutp, right.shape[1]))\n-        cright[-right.shape[0]:, -right.shape[1]:] = 1\n+        cright[-right.shape[0]:, -right.shape[1]:] = right\nreturn np.hstack([cleft, cright])"
+    }
+  ]
+}
