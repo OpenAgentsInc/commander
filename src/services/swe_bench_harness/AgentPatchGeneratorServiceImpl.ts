@@ -29,10 +29,13 @@ export const AgentPatchGeneratorServiceLive = Layer.effect(
           }).pipe(Effect.catchAll(() => Effect.void));
 
           // Get the default model for the provider
+          // For claude_code, don't pass a model - let the CLI use its defaults
           const modelConfigKey = `${preferredProviderKey.toUpperCase()}_DEFAULT_MODEL`;
-          const defaultModel = yield* config.get(modelConfigKey).pipe(
-            Effect.orElse(() => Effect.succeed("claude-3-5-sonnet-20241022"))
-          );
+          const defaultModel = preferredProviderKey === 'claude_code' 
+            ? undefined 
+            : yield* config.get(modelConfigKey).pipe(
+                Effect.orElse(() => Effect.succeed("claude-3-5-sonnet-20241022"))
+              );
 
           // Construct the initial prompt
           const systemPrompt = "You are an expert software developer. You analyze code issues and create precise patches to fix them.";

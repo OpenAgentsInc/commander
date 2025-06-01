@@ -20,6 +20,14 @@ export const TelemetryEventSchema = Schema.Struct({
       value: Schema.Unknown,
     }),
   ),
+  level: Schema.optional(
+    Schema.Union(
+      Schema.Literal("debug"),
+      Schema.Literal("info"),
+      Schema.Literal("warn"),
+      Schema.Literal("error"),
+    ),
+  ),
 });
 
 export type TelemetryEvent = Schema.Schema.Type<typeof TelemetryEventSchema>;
@@ -29,6 +37,9 @@ export interface TelemetryServiceConfig {
   enabled: boolean;
   logToConsole: boolean;
   logLevel: "debug" | "info" | "warn" | "error";
+  logToFile: boolean;
+  logFilePath: string;
+  logFileLevel: "debug" | "info" | "warn" | "error";
 }
 
 export const TelemetryServiceConfigTag =
@@ -41,6 +52,9 @@ export const DefaultTelemetryConfigLayer = Layer.succeed(
     enabled: true,
     logToConsole: true,
     logLevel: "info",
+    logToFile: true,
+    logFilePath: "logs/commander-run.log",
+    logFileLevel: "info",
   },
 );
 

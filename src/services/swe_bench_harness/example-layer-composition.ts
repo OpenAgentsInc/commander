@@ -15,34 +15,56 @@ import {
 } from "@/services/swe_bench_harness";
 import { ChatOrchestratorServiceLive } from "@/services/ai/orchestration";
 
+// Import config layer dependencies
+import { TelemetryServiceConfigFromConfigurationLayer } from "@/services/telemetry";
+
 // First provide the base ConfigurationService implementation
 const ConfigLayer = DefaultDevConfigLayer.pipe(
   Layer.provide(ConfigurationServiceLive)
 );
 
+// Provide FileSystem for telemetry
+const FileSystemLayer = NodeFileSystem.layer;
+
+// Create telemetry config layer that reads from configuration
+const TelemetryConfigLayer = TelemetryServiceConfigFromConfigurationLayer.pipe(
+  Layer.provide(ConfigLayer)
+);
+
 // Then provide TelemetryService with its config
 const TelemetryLayer = TelemetryServiceLive.pipe(
-  Layer.provide(DefaultTelemetryConfigLayer)
+  Layer.provide(Layer.merge(TelemetryConfigLayer, FileSystemLayer))
 );
 
 const BaseServicesLayer = Layer.mergeAll(
   ConfigLayer,
   TelemetryLayer,
-  NodeFileSystem.layer,
+  FileSystemLayer,
   NodeHttpClient.layerUndici,  // Add HttpClient for main process
-  DockerUtilsServiceLive
+  DockerUtilsServiceLive.pipe(Layer.provide(TelemetryLayer))
 );
 
-// Import the full runtime layer which has all dependencies
-import { FullAppLayer, initializeMainRuntime, getMainRuntime } from "@/services/runtime";
+// Import the full runtime layer which has all dependencies including AI
+import { buildFullAppLayer } from "@/services/runtime";
 
-// For SWE-bench, we'll use a different approach - provide the full runtime
-export const FullSWEBenchHarnessLayer = SWEBenchHarnessServiceLive.pipe(
-  Layer.provide(SWEBenchLifecycleServiceLive),
-  Layer.provide(SWEBenchEvaluationScriptServiceLive),
-  Layer.provide(SWEBenchTaskServiceLive),
-  Layer.provide(DockerBuildManagerServiceLive),
-  Layer.provide(SWEBenchEnvironmentSetupServiceLive),
-  Layer.provide(AgentPatchGeneratorServiceLive),
-  Layer.provide(FullAppLayer)  // Use the full app layer which has all services
+// For SWE-bench, use the full app layer which includes all AI services
+const fullAppLayer = buildFullAppLayer();
+
+// Build the complete layer stack from bottom to top
+// Start with the full app layer as the base (has all core services)
+export const FullSWEBenchHarnessLayer = Layer.mergeAll(
+  // Core services that don't need AI
+  SWEBenchTaskServiceLive,
+  SWEBenchEvaluationScriptServiceLive,
+  DockerBuildManagerServiceLive,
+  SWEBenchEnvironmentSetupServiceLive,
+  // AI-dependent services  
+  AgentPatchGeneratorServiceLive,
+  // Lifecycle service depends on other SWE-bench services
+  SWEBenchLifecycleServiceLive,
+  // Harness service depends on everything
+  SWEBenchHarnessServiceLive
+).pipe(
+  // Provide the full app layer which has all dependencies
+  Layer.provide(fullAppLayer)
 );

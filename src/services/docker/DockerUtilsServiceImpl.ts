@@ -5,12 +5,14 @@ import path from 'path';
 import { PassThrough } from 'stream';
 import { DockerUtilsService } from "./DockerUtilsService";
 import { DockerError, DockerConnectionError, DockerOperationError } from "./errors";
+import { TelemetryService } from "@/services/telemetry";
 // ConfigurationService is not strictly needed if Dockerode uses environment variables or defaults
 // import { ConfigurationService } from "@/services/configuration";
 
 export const DockerUtilsServiceLive = Layer.effect(
   DockerUtilsService,
   Effect.gen(function* (_) {
+    const telemetry = yield* _(TelemetryService);
     const docker = new Dockerode();
 
     yield* _(Effect.tryPromise({
@@ -201,6 +203,27 @@ export const DockerUtilsServiceLive = Layer.effect(
               });
             });
           });
+
+          // Log stdout and stderr to telemetry
+          yield* _(telemetry.trackEvent({
+            category: "docker:exec",
+            action: "stdout",
+            label: containerId,
+            value: result.stdout.substring(0, 10000),
+            context: { fullLength: result.stdout.length, exitCode: result.exitCode },
+            level: "debug"
+          }).pipe(Effect.catchAll(() => Effect.void)));
+
+          if (result.stderr && result.stderr.trim().length > 0) {
+            yield* _(telemetry.trackEvent({
+              category: "docker:exec",
+              action: "stderr",
+              label: containerId,
+              value: result.stderr.substring(0, 10000),
+              context: { fullLength: result.stderr.length, exitCode: result.exitCode },
+              level: "warn"
+            }).pipe(Effect.catchAll(() => Effect.void)));
+          }
 
           return result;
         }),

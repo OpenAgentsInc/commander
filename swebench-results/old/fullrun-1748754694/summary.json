@@ -1,0 +1,34 @@
+{
+  "timestamp": "2025-06-01T05:13:25.986Z",
+  "tasks_attempted": 3,
+  "tasks_succeeded": 0,
+  "tasks_failed": 3,
+  "tasks_skipped": 0,
+  "options": {
+    "tasks_dir": "assets/swe_bench_data",
+    "patch_source": "agent:claude_code",
+    "stop_on_failure": false,
+    "instance_ids": "sympy__sympy-12419,django__django-11099,numpy__numpy-14851",
+    "output_dir": "swebench-results/fullrun-1748754694"
+  },
+  "results": [
+    {
+      "instanceId": "django__django-11099",
+      "result": {
+        "error": "Evaluation failed for django__django-11099"
+      }
+    },
+    {
+      "instanceId": "numpy__numpy-14851",
+      "result": {
+        "error": "Evaluation failed for numpy__numpy-14851"
+      }
+    },
+    {
+      "instanceId": "sympy__sympy-12419",
+      "result": {
+        "error": "Evaluation failed for sympy__sympy-12419"
+      }
+    }
+  ]
+}

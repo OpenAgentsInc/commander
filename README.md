@@ -144,6 +144,21 @@ Results are saved to `./swebench-results/run-<timestamp>/` with individual resul
 
 For more details, see [docs/swebench/running-swebench-tasks.md](./docs/swebench/running-swebench-tasks.md).
 
+## Logging and Observability
+
+Commander includes comprehensive file-based logging for better observability:
+
+- **Log Location**: `<userDataPath>/logs/commander-run.log`
+  - macOS: `~/Library/Application Support/commander/logs/commander-run.log`
+  - Linux: `~/.config/commander/logs/commander-run.log`
+  - Windows: `%APPDATA%\commander\logs\commander-run.log`
+
+- **Log Contents**: Structured entries with timestamp, level, category, action, and context
+- **Default Level**: INFO (configurable to DEBUG for more verbose output)
+- **SWE-Bench Operations**: Docker builds, container execution, test results all logged
+
+See [docs/swebench/running-swebench-tasks.md](./docs/swebench/running-swebench-tasks.md#logging-and-observability) for detailed logging information.
+
 ## Tech Stack
 
 *   **Application Framework:** [Electron](https://www.electronjs.org) (~v35)

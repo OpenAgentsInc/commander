@@ -209,6 +209,98 @@ swebench-results/run-2024-05-31T10-30-45-123Z/
 }
 ```
 
+## Logging and Observability
+
+### Main Application Log
+
+The Commander application now writes detailed operational logs to a file for better observability during SWE-Bench runs:
+
+- **Log Location**: `<userDataPath>/logs/commander-run.log`
+  - On macOS: `~/Library/Application Support/commander/logs/commander-run.log`
+  - On Linux: `~/.config/commander/logs/commander-run.log`
+  - On Windows: `%APPDATA%\commander\logs\commander-run.log`
+
+### Log Contents
+
+The log file contains structured entries with:
+- Timestamp in ISO format
+- Log level (DEBUG, INFO, WARN, ERROR)
+- Category and action (e.g., `[swe_bench:lifecycle] (container_created)`)
+- Relevant context data
+
+Example log entries:
+```
+2024-06-01T16:30:45.123Z [INFO] [swe_bench:batch] (batch_start) batch_runner | Context: {"options":{"patch_source":"gold"}}
+2024-06-01T16:30:46.456Z [INFO] [swe_bench:lifecycle] (image_build_start) django__django-11099 | Context: {"imageName":"sweb.eval.django__django-11099"}
+2024-06-01T16:30:47.789Z [DEBUG] [docker:build] (output_line) sweb.eval.django__django-11099 | Value: Step 1/10 : FROM python:3.8
+2024-06-01T16:31:23.456Z [DEBUG] [docker:exec] (stdout) container123 | Value: Running tests... | Context: {"fullLength":2048,"exitCode":0}
+2024-06-01T16:31:25.789Z [INFO] [swe_bench:harness] (evaluation_complete) django__django-11099 | Context: {"resolved":true}
+```
+
+### Configuring Log Levels
+
+To adjust the verbosity of file logging, modify the configuration:
+
+1. **For Development**: Edit `src/services/configuration/ConfigurationServiceImpl.ts`:
+   ```typescript
+   yield* _(configService.set("TELEMETRY_LOG_FILE_LEVEL", "debug")); // Options: debug, info, warn, error
+   ```
+
+2. **For Runtime**: Set environment variables (if implemented):
+   ```bash
+   TELEMETRY_LOG_FILE_LEVEL=debug pnpm tsx scripts/run_swe_bench_batch_env_effect.ts
+   ```
+
+### Other Log Sources
+
+1. **Claude Bridge Service Log**: `~/claude-bridge-service.log`
+   - Contains Claude Code CLI interactions
+   - Bridge service communication logs
+
+2. **Batch Runner Console Output**: 
+   - Real-time progress updates
+   - Can be redirected: `pnpm tsx scripts/run_swe_bench_batch_env.ts > batch_run.log 2>&1`
+
+3. **Docker Build Output**: 
+   - Captured in main log at DEBUG level
+   - Includes all Docker build steps and layer caching
+
+4. **Container Execution Logs**:
+   - Test execution stdout/stderr captured at DEBUG level
+   - Full output available in result JSON files
+
+### Using the Enhanced Batch Runner
+
+For better telemetry integration, use the Effect-based batch runner:
+
+```bash
+# Use the new Effect-based runner with integrated telemetry
+pnpm tsx scripts/run_swe_bench_batch_env_effect.ts --instance_ids django__django-11099
+
+# The original runner still works but has limited telemetry
+pnpm tsx scripts/run_swe_bench_batch_env.ts --instance_ids django__django-11099
+```
+
+### Monitoring a Run
+
+To monitor a SWE-Bench evaluation in real-time:
+
+1. **Terminal 1** - Run the evaluation:
+   ```bash
+   pnpm tsx scripts/run_swe_bench_batch_env_effect.ts --max_tasks 5
+   ```
+
+2. **Terminal 2** - Tail the log file:
+   ```bash
+   tail -f ~/Library/Application\ Support/commander/logs/commander-run.log
+   ```
+
+3. **Terminal 3** - Monitor Docker activity:
+   ```bash
+   docker ps -a  # See containers
+   docker images | grep sweb  # See built images
+   ```
+
 ## Troubleshooting
 
 ### Common Issues

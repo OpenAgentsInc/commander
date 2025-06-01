@@ -161,6 +161,11 @@ export const DefaultDevConfigLayer = Layer.effect(
     yield* _(configService.set("SWE_BENCH_DEFAULT_PYTHON_VERSION", "3.8")); // Default Python version if not specified in task
     yield* _(configService.set("SWE_BENCH_USE_ENHANCED_DOCKERFILE", "true")); // Use enhanced Dockerfile with setup script support
 
+    // Telemetry file logging configuration
+    yield* _(configService.set("TELEMETRY_LOG_TO_FILE", "true"));
+    yield* _(configService.set("TELEMETRY_LOG_FILE_PATH", "logs/commander-run.log"));
+    yield* _(configService.set("TELEMETRY_LOG_FILE_LEVEL", "info"));
+
     return configService;
   })
 );

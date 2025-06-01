@@ -113,12 +113,27 @@ export const SWEBenchHarnessServiceLive = Layer.effect(
                 Effect.catchAll(() => Effect.void) // Ensure cleanup errors don't mask evaluation errors
               )
           ).pipe(
+             Effect.tapError((err) => 
+                // Log unexpected errors before mapping
+                (err instanceof HarnessError || err instanceof LifecycleSetupError || err instanceof LifecycleEvalError || err instanceof ScriptBuildError || err instanceof AgentPatchGenerationError)
+                  ? Effect.void
+                  : telemetry.trackEvent({ 
+                      category: "swe_bench:harness", 
+                      action: "evaluation_error", 
+                      label: instanceId,
+                      level: "error",
+                      context: {
+                        error: err instanceof Error ? err.message : String(err),
+                        errorType: err?.constructor?.name || 'UnknownError',
+                        stack: err instanceof Error ? err.stack : undefined
+                      }
+                    }).pipe(Effect.catchAll(() => Effect.void))
+             ),
              Effect.mapError((err): EvaluateTaskError => {
                 if (err instanceof HarnessError || err instanceof LifecycleSetupError || err instanceof LifecycleEvalError || err instanceof ScriptBuildError || err instanceof AgentPatchGenerationError) {
                   return err;
                 }
                 // Wrap other known errors or create a generic HarnessError
-                console.error(`[SWEBenchHarness] Detailed error for ${instanceId}:`, err);
                 return new HarnessError({ message: `Evaluation failed for ${instanceId}`, cause: err, instanceId });
              })
           );

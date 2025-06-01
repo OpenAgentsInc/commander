@@ -380,8 +380,29 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                       
                       ws.on('open', () => {
                         // Send streaming request
+                        // Format messages for Claude CLI
+                        // Claude CLI doesn't support system messages in the format "system: content"
+                        // Instead, we'll prepend system messages to the first user message
+                        let formattedPrompt = '';
+                        let systemContent = '';
+                        
+                        for (const msg of messages) {
+                          if (msg.role === 'system') {
+                            systemContent += msg.content + '\n\n';
+                          } else if (msg.role === 'user') {
+                            if (systemContent) {
+                              formattedPrompt += systemContent + msg.content;
+                              systemContent = '';
+                            } else {
+                              formattedPrompt += msg.content;
+                            }
+                          } else if (msg.role === 'assistant') {
+                            formattedPrompt += '\n\nAssistant: ' + msg.content + '\n\nHuman: ';
+                          }
+                        }
+                        
                         const args = [
-                          '-p', messages.map((m: any) => `${m.role}: ${m.content}`).join('\n'),
+                          '-p', formattedPrompt.trim(),
                           '--output-format', 'stream-json',
                           '--verbose'
                         ];
@@ -551,7 +572,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                               role: msg.role,
                               content: msg.content
                             })),
-                            model: options.model || "claude-sonnet",
+                            model: options.model,
                             max_tokens: options.maxTokens,
                             temperature: options.temperature,
                             sessionId: (options as any).sessionId, // Pass sessionId for database persistence
@@ -694,7 +715,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
             const streamOptions: StreamTextOptions = {
               ...options,
               prompt: JSON.stringify({ messages }),
-              model: preferredProvider.modelName,
+              ...(preferredProvider.modelName ? { model: preferredProvider.modelName } : {}),
             };
 
             // Use Stream.retry instead of Effect.retry for streams
@@ -726,7 +747,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
             const generateOptions: GenerateTextOptions = {
               ...options,
               prompt: JSON.stringify({ messages }),
-              model: preferredProvider.modelName,
+              ...(preferredProvider.modelName ? { model: preferredProvider.modelName } : {}),
             };
 
             return Effect.retry(

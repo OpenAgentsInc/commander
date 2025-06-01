@@ -72,13 +72,40 @@ export const SWEBenchLifecycleServiceLive = Layer.effect(
                   try {
                     const event = JSON.parse(line);
                     if (event.stream) {
-                      console.log(`[Docker Build] ${event.stream.trim()}`);
+                      telemetry.trackEvent({
+                        category: "swe_bench:lifecycle",
+                        action: "docker_build_stream",
+                        label: task.instance_id,
+                        level: "debug",
+                        context: {
+                          imageName: buildContext.imageName,
+                          stream: event.stream.trim()
+                        }
+                      }).pipe(Effect.catchAll(() => Effect.void)).pipe(Effect.runSync);
                     } else if (event.error) {
-                      console.error(`[Docker Build Error] ${event.error}`);
+                      telemetry.trackEvent({
+                        category: "swe_bench:lifecycle",
+                        action: "docker_build_error",
+                        label: task.instance_id,
+                        level: "error",
+                        context: {
+                          imageName: buildContext.imageName,
+                          error: event.error
+                        }
+                      }).pipe(Effect.catchAll(() => Effect.void)).pipe(Effect.runSync);
                     }
                   } catch {
                     // Not JSON, just log as is
-                    console.log(`[Docker Build] ${line}`);
+                    telemetry.trackEvent({
+                      category: "swe_bench:lifecycle",
+                      action: "docker_build_output",
+                      label: task.instance_id,
+                      level: "debug",
+                      context: {
+                        imageName: buildContext.imageName,
+                        output: line
+                      }
+                    }).pipe(Effect.catchAll(() => Effect.void)).pipe(Effect.runSync);
                   }
                 }
               });
@@ -131,7 +158,17 @@ export const SWEBenchLifecycleServiceLive = Layer.effect(
           const containerId = yield* docker.createContainer(containerOptions);
           yield* docker.startContainer(containerId);
           
-          console.log(`[Lifecycle] Container ${containerId} started with tail -f /dev/null`);
+          yield* telemetry.trackEvent({
+            category: "swe_bench:lifecycle",
+            action: "container_started",
+            label: task.instance_id,
+            level: "info",
+            context: {
+              containerId,
+              imageName: buildContext.imageName,
+              command: "tail -f /dev/null"
+            }
+          }).pipe(Effect.catchAll(() => Effect.void));
 
           const context: ContainerContext = {
             containerId,
@@ -194,7 +231,18 @@ export const SWEBenchLifecycleServiceLive = Layer.effect(
             );
 
             // Execute eval script in container
-            console.log(`[Lifecycle] Executing eval.sh in container ${containerContext.containerId}`);
+            yield* telemetry.trackEvent({
+              category: "swe_bench:lifecycle",
+              action: "eval_script_start",
+              label: containerContext.containerId,
+              level: "info",
+              context: {
+                containerId: containerContext.containerId,
+                scriptPath: path.join(containerContext.containerEvalDir, "eval.sh"),
+                workingDir: containerContext.containerRepoPath
+              }
+            }).pipe(Effect.catchAll(() => Effect.void));
+            
             const execResult = yield* docker.execInContainer(
               containerContext.containerId,
               ["/bin/bash", path.join(containerContext.containerEvalDir, "eval.sh")],
@@ -202,10 +250,18 @@ export const SWEBenchLifecycleServiceLive = Layer.effect(
             );
 
             // Log execution results for debugging
-            console.log(`[Lifecycle] Eval script execution results:`);
-            console.log(`  Exit code: ${execResult.exitCode}`);
-            console.log(`  Stdout: ${execResult.stdout.substring(0, 500)}...`);
-            console.log(`  Stderr: ${execResult.stderr.substring(0, 500)}...`);
+            yield* telemetry.trackEvent({
+              category: "swe_bench:lifecycle",
+              action: "eval_script_complete",
+              label: containerContext.containerId,
+              level: execResult.exitCode === 0 ? "info" : "error",
+              context: {
+                containerId: containerContext.containerId,
+                exitCode: execResult.exitCode,
+                stdoutPreview: execResult.stdout.substring(0, 500),
+                stderrPreview: execResult.stderr.substring(0, 500)
+              }
+            }).pipe(Effect.catchAll(() => Effect.void));
 
             // Try to retrieve report.json from container
             const reportStream = yield* docker.copyFromContainer(

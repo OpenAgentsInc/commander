@@ -28,6 +28,7 @@ import {
   TelemetryService,
   TelemetryServiceLive,
   DefaultTelemetryConfigLayer,
+  TelemetryServiceConfigFromConfigurationLayer,
 } from "@/services/telemetry";
 console.log("[Runtime] Imported TelemetryService");
 
@@ -116,33 +117,11 @@ let mainRuntimeInstance: Runtime.Runtime<FullAppContext>;
 
 // Function to build all layers - can be called with updated configuration
 export function buildFullAppLayer() {
-  // Compose individual services with their direct dependencies
-  const telemetryLayer = TelemetryServiceLive.pipe(
-    Layer.provide(DefaultTelemetryConfigLayer),
-  );
-  const configLayer = ConfigurationServiceLive.pipe(
-    Layer.provide(telemetryLayer),
-  );
+  // First create the base configuration layer
+  const configLayer = ConfigurationServiceLive;
   const devConfigLayer = DefaultDevConfigLayer.pipe(Layer.provide(configLayer));
-
-  // Feature flag layer depends on configuration and telemetry
-  const featureFlagLayer = FeatureFlagServiceLive.pipe(
-    Layer.provide(Layer.mergeAll(devConfigLayer, telemetryLayer))
-  );
-
-  const nip13Layer = NIP13ServiceLive;
   
-  // Database layer for renderer (uses IPC proxy)
-  // Use WebSocket proxy for database instead of IPC
-  const databaseLayer = DatabaseServiceWebSocketProxyLive;
-  
-  const nostrLayer = NostrServiceLive.pipe(
-    Layer.provide(NostrServiceConfigLive),
-    Layer.provide(telemetryLayer),
-    Layer.provide(nip13Layer),
-  );
-
-  // Create platform-specific layers
+  // Create platform-specific layers first
   const isMainProcess = typeof window === 'undefined';
   let httpClientLayer: Layer.Layer<HttpClient.HttpClient, never, never>;
   let fileSystemLayer = Layer.empty as Layer.Layer<any, never, never>;
@@ -163,6 +142,33 @@ export function buildFullAppLayer() {
     // For browser/renderer
     httpClientLayer = BrowserHttpClient.layerXMLHttpRequest;
   }
+  
+  // Create telemetry config layer that reads from configuration service
+  const telemetryConfigLayer = TelemetryServiceConfigFromConfigurationLayer.pipe(
+    Layer.provide(devConfigLayer)
+  );
+  
+  // Create telemetry service with configuration from ConfigurationService and FileSystem
+  const telemetryLayer = TelemetryServiceLive.pipe(
+    Layer.provide(Layer.merge(telemetryConfigLayer, fileSystemLayer)),
+  );
+
+  // Feature flag layer depends on configuration and telemetry
+  const featureFlagLayer = FeatureFlagServiceLive.pipe(
+    Layer.provide(Layer.mergeAll(devConfigLayer, telemetryLayer))
+  );
+
+  const nip13Layer = NIP13ServiceLive;
+  
+  // Database layer for renderer (uses IPC proxy)
+  // Use WebSocket proxy for database instead of IPC
+  const databaseLayer = DatabaseServiceWebSocketProxyLive;
+  
+  const nostrLayer = NostrServiceLive.pipe(
+    Layer.provide(NostrServiceConfigLive),
+    Layer.provide(telemetryLayer),
+    Layer.provide(nip13Layer),
+  );
 
   const ollamaLayer = OllamaServiceLive.pipe(
     Layer.provide(
