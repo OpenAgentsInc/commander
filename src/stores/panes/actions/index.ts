@@ -30,3 +30,8 @@ export * from "./togglePane";
 // Coder pane actions
 export * from "./toggleAllCoderPanes";
 export * from "./openNewCoderPane";
+// SWE-Bench pane actions
+export * from "./openTaskBrowserPane";
+export * from "./openEvaluationLauncherPane";
+export * from "./openEvaluationMonitorPane";
+export * from "./openResultsViewerPane";

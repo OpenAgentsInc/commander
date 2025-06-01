@@ -33,6 +33,11 @@ import {
   // Coder pane action
   toggleAllCoderPanesAction,
   openNewCoderPaneAction,
+  // SWE-Bench pane actions
+  openTaskBrowserPaneAction,
+  openEvaluationLauncherPaneAction,
+  openEvaluationMonitorPaneAction,
+  openResultsViewerPaneAction,
 } from "./panes/actions";
 import {
   DEFAULT_NIP28_PANE_ID,
@@ -184,6 +189,12 @@ export const usePaneStore = create<PaneStoreType>()(
       // Coder pane - toggles all coder panes (hide/show)
       toggleCoderPane: () => toggleAllCoderPanesAction(set, get),
       openNewCoderPane: () => openNewCoderPaneAction(set, get),
+      
+      // SWE-Bench pane actions
+      openTaskBrowserPane: () => openTaskBrowserPaneAction(set, get),
+      openEvaluationLauncherPane: (content) => openEvaluationLauncherPaneAction(set, get, content),
+      openEvaluationMonitorPane: (content) => openEvaluationMonitorPaneAction(set, get, content),
+      openResultsViewerPane: () => openResultsViewerPaneAction(set, get),
       
       resetHUDState: () => {
         // Force recreate initial panes with current screen dimensions

@@ -19,6 +19,11 @@ import SecondPage from "@/pages/SecondPage";
 import WalletSetupPage from "@/pages/WalletSetupPage";
 import SeedPhraseBackupPage from "@/pages/SeedPhraseBackupPage";
 import RestoreWalletPage from "@/pages/RestoreWalletPage";
+// Import SWE-Bench pane components
+import { TaskBrowserPane } from "@/panes/swebench/TaskBrowserPane";
+import { EvaluationLauncherPane } from "@/panes/swebench/EvaluationLauncherPane";
+import { EvaluationMonitorPane } from "@/panes/swebench/EvaluationMonitorPane";
+import { ResultsViewerPane } from "@/panes/swebench/ResultsViewerPane";
 
 // Placeholder Content Components
 const PlaceholderChatComponent = ({ threadId }: { threadId?: string }) => (
@@ -179,6 +184,18 @@ export const PaneManager = () => {
               set: (value: any) => { coderTitleBarRefs.current[pane.id] = value; }
             }} 
           />}
+          {pane.type === "swe_bench_task_browser" && (
+            <TaskBrowserPane {...pane} />
+          )}
+          {pane.type === "swe_bench_evaluation_launcher" && (
+            <EvaluationLauncherPane {...pane} />
+          )}
+          {pane.type === "swe_bench_evaluation_monitor" && (
+            <EvaluationMonitorPane {...pane} />
+          )}
+          {pane.type === "swe_bench_results_viewer" && (
+            <ResultsViewerPane {...pane} />
+          )}
           {pane.type === "default" && (
             <PlaceholderDefaultComponent type={pane.type} />
           )}
@@ -204,6 +221,10 @@ export const PaneManager = () => {
             pane.type === "agent_chat" ||
             pane.type === "previous_chats_list" ||
             pane.type === "coder" ||
+            pane.type === "swe_bench_task_browser" ||
+            pane.type === "swe_bench_evaluation_launcher" ||
+            pane.type === "swe_bench_evaluation_monitor" ||
+            pane.type === "swe_bench_results_viewer" ||
             pane.type === "default"
           ) && <PlaceholderDefaultComponent type={pane.type} />}
         </PaneComponent>

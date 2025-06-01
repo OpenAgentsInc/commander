@@ -1,7 +1,7 @@
 import React from "react";
 import { cn } from "@/utils/tailwind";
 import { HotbarItem } from "./HotbarItem";
-import { Store, History, Hand, Wallet, Bot, MessageSquare, CodeXml } from "lucide-react";
+import { Store, History, Hand, Wallet, Bot, MessageSquare, CodeXml, ClipboardCheck } from "lucide-react";
 import { usePaneStore } from "@/stores/pane";
 import { useShallow } from "zustand/react/shallow";
 import { Feature } from '@/services/featureflags/FeatureFlag';
@@ -12,6 +12,7 @@ import {
   AGENT_CHAT_PANE_ID,
   PREVIOUS_CHATS_PANE_ID,
   CODER_PANE_ID,
+  SWE_BENCH_TASK_BROWSER_PANE_ID_CONST,
 } from "@/stores/panes/constants";
 import { DVM_JOB_HISTORY_PANE_ID } from "@/stores/panes/actions/openDvmJobHistoryPane";
 
@@ -25,6 +26,7 @@ interface HotbarProps {
   onToggleAgentChatPane: () => void;
   onTogglePreviousChatsPane?: () => void;
   onToggleCoderPane: () => void;
+  onOpenTaskBrowserPane?: () => void;
 }
 
 export const Hotbar: React.FC<HotbarProps> = ({
@@ -37,6 +39,7 @@ export const Hotbar: React.FC<HotbarProps> = ({
   onToggleAgentChatPane,
   onTogglePreviousChatsPane,
   onToggleCoderPane,
+  onOpenTaskBrowserPane,
 }) => {
   const { activePaneId, panes } = usePaneStore(
     useShallow((state) => ({
@@ -53,6 +56,7 @@ export const Hotbar: React.FC<HotbarProps> = ({
   const [isAgentChatEnabled] = useFeatureFlag(Feature.AGENT_CHAT_PANE);
   const [isPreviousChatsEnabled] = useFeatureFlag(Feature.PREVIOUS_CHATS_PANE);
   const [isHandTrackingEnabled] = useFeatureFlag(Feature.HAND_TRACKING);
+  const [isSweBenchEnabled] = useFeatureFlag(Feature.SWE_BENCH_MVP_UI);
 
   // Check if the active pane is a coder pane (matches coder_pane* pattern)
   const isCoderPaneActive = activePaneId?.startsWith('coder_pane') || 
@@ -137,8 +141,19 @@ export const Hotbar: React.FC<HotbarProps> = ({
         </HotbarItem>
       ) : <HotbarItem slotNumber={6} isGhost><span className="h-5 w-5"/></HotbarItem>}
 
-      {/* Slot 7 & 8: Always Ghost/Empty by current design */}
-      <HotbarItem slotNumber={7} isGhost><span className="h-5 w-5"/></HotbarItem>
+      {/* Slot 7: SWE-Bench Task Browser */}
+      {onOpenTaskBrowserPane && isSweBenchEnabled ? (
+        <HotbarItem
+          slotNumber={7}
+          onClick={onOpenTaskBrowserPane}
+          title="SWE-Bench Task Browser"
+          isActive={activePaneId === SWE_BENCH_TASK_BROWSER_PANE_ID_CONST}
+        >
+          <ClipboardCheck className="text-muted-foreground h-5 w-5" />
+        </HotbarItem>
+      ) : <HotbarItem slotNumber={7} isGhost><span className="h-5 w-5"/></HotbarItem>}
+
+      {/* Slot 8: Empty by current design */}
       <HotbarItem slotNumber={8} isGhost><span className="h-5 w-5"/></HotbarItem>
 
       {/* Slot 9: Hand Tracking */}
