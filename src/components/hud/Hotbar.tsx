@@ -13,6 +13,7 @@ import {
   PREVIOUS_CHATS_PANE_ID,
   CODER_PANE_ID,
   SWE_BENCH_TASK_BROWSER_PANE_ID_CONST,
+  SWE_BENCH_SIMPLE_LAUNCHER_PANE_ID_CONST,
 } from "@/stores/panes/constants";
 import { DVM_JOB_HISTORY_PANE_ID } from "@/stores/panes/actions/openDvmJobHistoryPane";
 
@@ -27,6 +28,7 @@ interface HotbarProps {
   onTogglePreviousChatsPane?: () => void;
   onToggleCoderPane: () => void;
   onOpenTaskBrowserPane?: () => void;
+  onOpenSweBenchSimpleLauncherPane?: () => void;
 }
 
 export const Hotbar: React.FC<HotbarProps> = ({
@@ -40,6 +42,7 @@ export const Hotbar: React.FC<HotbarProps> = ({
   onTogglePreviousChatsPane,
   onToggleCoderPane,
   onOpenTaskBrowserPane,
+  onOpenSweBenchSimpleLauncherPane,
 }) => {
   const { activePaneId, panes } = usePaneStore(
     useShallow((state) => ({
@@ -56,7 +59,7 @@ export const Hotbar: React.FC<HotbarProps> = ({
   const [isAgentChatEnabled] = useFeatureFlag(Feature.AGENT_CHAT_PANE);
   const [isPreviousChatsEnabled] = useFeatureFlag(Feature.PREVIOUS_CHATS_PANE);
   const [isHandTrackingEnabled] = useFeatureFlag(Feature.HAND_TRACKING);
-  const [isSweBenchEnabled] = useFeatureFlag(Feature.SWE_BENCH_MVP_UI);
+  const [isSweBenchEnabled] = useFeatureFlag(Feature.SWE_BENCH_SIMPLE_LAUNCHER);
 
   // Check if the active pane is a coder pane (matches coder_pane* pattern)
   const isCoderPaneActive = activePaneId?.startsWith('coder_pane') || 
@@ -141,13 +144,13 @@ export const Hotbar: React.FC<HotbarProps> = ({
         </HotbarItem>
       ) : <HotbarItem slotNumber={6} isGhost><span className="h-5 w-5"/></HotbarItem>}
 
-      {/* Slot 7: SWE-Bench Task Browser */}
-      {onOpenTaskBrowserPane && isSweBenchEnabled ? (
+      {/* Slot 7: SWE-Bench Launcher */}
+      {onOpenSweBenchSimpleLauncherPane && isSweBenchEnabled ? (
         <HotbarItem
           slotNumber={7}
-          onClick={onOpenTaskBrowserPane}
-          title="SWE-Bench Task Browser"
-          isActive={activePaneId === SWE_BENCH_TASK_BROWSER_PANE_ID_CONST}
+          onClick={onOpenSweBenchSimpleLauncherPane}
+          title="SWE-Bench Launcher"
+          isActive={activePaneId === SWE_BENCH_SIMPLE_LAUNCHER_PANE_ID_CONST}
         >
           <ClipboardCheck className="text-muted-foreground h-5 w-5" />
         </HotbarItem>

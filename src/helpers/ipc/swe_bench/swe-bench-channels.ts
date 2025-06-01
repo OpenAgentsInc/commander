@@ -22,3 +22,10 @@ export const SWE_BENCH_GET_TASK_RESULT_CHANNEL = "swebench:get-task-result";
 // Generic file system operations (for results viewing)
 export const FS_LIST_DIRS_CHANNEL = "fs:list-dirs";
 export const FS_READ_JSON_FILE_CHANNEL = "fs:read-json-file";
+
+// Dataset management
+export const SWE_BENCH_CHECK_DATASET_STATUS_CHANNEL = "swebench:check-dataset-status";
+export const SWE_BENCH_DOWNLOAD_DATASET_CHANNEL = "swebench:download-dataset";
+export const SWE_BENCH_DOWNLOAD_DATASET_PROGRESS_CHANNEL = "swebench:download-dataset-progress";
+export const SWE_BENCH_DOWNLOAD_DATASET_COMPLETE_CHANNEL = "swebench:download-dataset-complete";
+export const SWE_BENCH_GET_RANDOM_TASK_IDS_CHANNEL = "swebench:get-random-task-ids";

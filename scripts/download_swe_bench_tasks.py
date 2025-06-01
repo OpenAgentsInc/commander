@@ -9,7 +9,8 @@ and saves each task as a JSON file matching the SWEBenchTask schema.
 import argparse
 import json
 import os
-from datasets import load_dataset
+import sys
+from typing import Optional
 
 
 def sanitize_filename(instance_id):
@@ -18,63 +19,67 @@ def sanitize_filename(instance_id):
     return instance_id.replace("/", "__").replace(":", "__")
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Download SWE-Bench tasks from Hugging Face."
-    )
-    parser.add_argument(
-        "--dataset_name",
-        type=str,
-        default="princeton-nlp/SWE-bench_Lite",
-        help="Name of the dataset on Hugging Face.",
-    )
-    parser.add_argument(
-        "--split",
-        type=str,
-        default="test",
-        help="Dataset split to download (e.g., 'test', 'dev', 'train').",
-    )
-    parser.add_argument(
-        "--output_dir",
-        type=str,
-        default="assets/swe_bench_data",
-        help="Directory to save task JSON files.",
-    )
-    parser.add_argument(
-        "--max_tasks",
-        type=int,
-        default=None,
-        help="Maximum number of tasks to download.",
-    )
-
-    args = parser.parse_args()
-
-    print(f"Loading dataset {args.dataset_name}, split {args.split}...")
+def download_tasks(
+    dataset_name: str = "princeton-nlp/SWE-bench",
+    split: str = "test",
+    output_dir: str = "./assets/swe_bench_data",
+    max_tasks: Optional[int] = None
+):
+    """Download SWE-Bench tasks from Hugging Face."""
+    
     try:
-        dataset = load_dataset(args.dataset_name, split=args.split)
+        # Import datasets library (will fail if not installed)
+        from datasets import load_dataset
+    except ImportError:
+        print(json.dumps({
+            "type": "error",
+            "message": "Please install datasets library: pip install datasets"
+        }))
+        sys.exit(1)
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+    
+    print(json.dumps({
+        "type": "progress",
+        "message": f"Loading dataset {dataset_name} (split: {split})...",
+        "progress": 0
+    }))
+    
+    try:
+        # Load the dataset
+        dataset = load_dataset(dataset_name, split=split, trust_remote_code=True)
     except Exception as e:
-        print(f"Error loading dataset: {e}")
-        print(
-            "Please ensure you have the 'datasets' library installed ('pip install datasets') "
-            "and are authenticated with Hugging Face if necessary ('huggingface-cli login')."
-        )
-        return
-
-    if not os.path.exists(args.output_dir):
-        os.makedirs(args.output_dir)
-        print(f"Created output directory: {args.output_dir}")
-
+        print(json.dumps({
+            "type": "error",
+            "message": f"Failed to load dataset: {str(e)}"
+        }))
+        sys.exit(1)
+    
+    # Determine how many tasks to download
+    total_tasks = len(dataset)
+    tasks_to_download = min(max_tasks, total_tasks) if max_tasks else total_tasks
+    
+    print(json.dumps({
+        "type": "progress",
+        "message": f"Found {total_tasks} tasks. Downloading {tasks_to_download}...",
+        "progress": 5
+    }))
+    
     count = 0
     skipped = 0
     
+    # Download and save each task
     for i, task in enumerate(dataset):
-        if args.max_tasks is not None and count >= args.max_tasks:
-            print(f"Reached max_tasks limit of {args.max_tasks}.")
+        if max_tasks and count >= max_tasks:
             break
-
+            
         instance_id = task.get("instance_id")
         if not instance_id:
-            print(f"Skipping task at index {i} due to missing instance_id.")
+            print(json.dumps({
+                "type": "error",
+                "message": f"Skipping task at index {i} due to missing instance_id"
+            }))
             skipped += 1
             continue
 
@@ -103,22 +108,74 @@ def main():
 
         # Use sanitized filename
         safe_filename = sanitize_filename(instance_id)
-        file_path = os.path.join(args.output_dir, f"{safe_filename}.json")
+        file_path = os.path.join(output_dir, f"{safe_filename}.json")
         
         try:
             with open(file_path, "w") as f:
                 json.dump(task_data_cleaned, f, indent=2)
             count += 1
-            if count % 10 == 0:
-                print(f"Saved {count} tasks...")
         except IOError as e:
-            print(f"Error writing file {file_path}: {e}")
+            print(json.dumps({
+                "type": "error",
+                "message": f"Error writing file {file_path}: {e}"
+            }))
             skipped += 1
+            continue
+        
+        # Report progress
+        progress = int(5 + (count) / tasks_to_download * 90)
+        if count % 10 == 0 or count == tasks_to_download:
+            print(json.dumps({
+                "type": "progress",
+                "message": f"Downloaded {count}/{tasks_to_download} tasks",
+                "progress": progress
+            }))
+    
+    # Complete
+    print(json.dumps({
+        "type": "complete",
+        "message": f"Successfully downloaded {count} tasks to {output_dir}",
+        "taskCount": count
+    }))
 
-    print(f"\nDownload complete!")
-    print(f"Successfully saved: {count} tasks")
-    print(f"Skipped: {skipped} tasks")
-    print(f"Output directory: {args.output_dir}")
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Download SWE-Bench tasks from Hugging Face."
+    )
+    parser.add_argument(
+        "--dataset_name",
+        type=str,
+        default="princeton-nlp/SWE-bench",
+        help="Name of the dataset on Hugging Face.",
+    )
+    parser.add_argument(
+        "--split",
+        type=str,
+        default="test",
+        help="Dataset split to download (e.g., 'test', 'dev', 'train').",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="assets/swe_bench_data",
+        help="Directory to save task JSON files.",
+    )
+    parser.add_argument(
+        "--max_tasks",
+        type=int,
+        default=None,
+        help="Maximum number of tasks to download.",
+    )
+
+    args = parser.parse_args()
+    
+    download_tasks(
+        dataset_name=args.dataset_name,
+        split=args.split,
+        output_dir=args.output_dir,
+        max_tasks=args.max_tasks
+    )
 
 
 if __name__ == "__main__":

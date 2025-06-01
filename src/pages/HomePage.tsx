@@ -56,6 +56,7 @@ export default function HomePage() {
     toggleCoderPane,
     openNewCoderPane,
     openTaskBrowserPane,
+    openSweBenchSimpleLauncherPane,
   } = usePaneStore(
     useShallow((state) => ({
       panes: state.panes,
@@ -70,6 +71,7 @@ export default function HomePage() {
       toggleCoderPane: state.toggleCoderPane,
       openNewCoderPane: state.openNewCoderPane,
       openTaskBrowserPane: state.openTaskBrowserPane,
+      openSweBenchSimpleLauncherPane: state.openSweBenchSimpleLauncherPane,
     })),
   );
 
@@ -81,7 +83,7 @@ export default function HomePage() {
   const [isAgentChatEnabled] = useFeatureFlag(Feature.AGENT_CHAT_PANE);
   const [isPreviousChatsEnabled] = useFeatureFlag(Feature.PREVIOUS_CHATS_PANE);
   const [isHandTrackingEnabled] = useFeatureFlag(Feature.HAND_TRACKING);
-  const [isSweBenchEnabled] = useFeatureFlag(Feature.SWE_BENCH_MVP_UI);
+  const [isSweBenchEnabled] = useFeatureFlag(Feature.SWE_BENCH_SIMPLE_LAUNCHER);
 
   // Wrap toggleHandTracking in useCallback to prevent unnecessary re-renders
   const toggleHandTracking = useCallback(() => {
@@ -299,11 +301,11 @@ export default function HomePage() {
             togglePreviousChatsPane();
           }
           break;
-        // Slot 7: SWE-Bench Task Browser
+        // Slot 7: SWE-Bench Launcher
         case 7:
           if (isSweBenchEnabled) {
-            console.log("Keyboard: Open SWE-Bench Task Browser");
-            openTaskBrowserPane();
+            console.log("Keyboard: Open SWE-Bench Launcher");
+            openSweBenchSimpleLauncherPane();
           }
           break;
         // Slot 8 is currently unassigned
@@ -345,6 +347,7 @@ export default function HomePage() {
     togglePreviousChatsPane,
     openNewCoderPane,
     openTaskBrowserPane,
+    openSweBenchSimpleLauncherPane,
   ]);
 
   // Handler for keyboard shortcuts (kept as a backup, but we'll primarily use the global handler)
@@ -381,6 +384,7 @@ export default function HomePage() {
           onTogglePreviousChatsPane={togglePreviousChatsPane}
           onToggleCoderPane={toggleCoderPane}
           onOpenTaskBrowserPane={openTaskBrowserPane}
+          onOpenSweBenchSimpleLauncherPane={openSweBenchSimpleLauncherPane}
         />
       </div>
     </KeyboardControls>

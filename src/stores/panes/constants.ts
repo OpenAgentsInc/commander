@@ -81,3 +81,8 @@ export const SWE_BENCH_EVALUATION_MONITOR_PANE_TITLE_BASE = "SWE-Bench: Monitor"
 export const SWE_BENCH_RESULTS_VIEWER_PANE_TYPE = "swe_bench_results_viewer";
 export const SWE_BENCH_RESULTS_VIEWER_PANE_ID_CONST = "swe_bench_results_viewer_main";
 export const SWE_BENCH_RESULTS_VIEWER_PANE_TITLE = "SWE-Bench: Results";
+
+// SWE-Bench Simple Launcher Pane
+export const SWE_BENCH_SIMPLE_LAUNCHER_PANE_TYPE = "swe_bench_simple_launcher";
+export const SWE_BENCH_SIMPLE_LAUNCHER_PANE_ID_CONST = "swe_bench_simple_launcher_main";
+export const SWE_BENCH_SIMPLE_LAUNCHER_PANE_TITLE = "SWE-Bench Launcher";

@@ -24,7 +24,12 @@ import {
   SWE_BENCH_GET_RESULT_SUMMARY_CHANNEL,
   SWE_BENCH_GET_TASK_RESULT_CHANNEL,
   FS_LIST_DIRS_CHANNEL,
-  FS_READ_JSON_FILE_CHANNEL
+  FS_READ_JSON_FILE_CHANNEL,
+  SWE_BENCH_CHECK_DATASET_STATUS_CHANNEL,
+  SWE_BENCH_DOWNLOAD_DATASET_CHANNEL,
+  SWE_BENCH_DOWNLOAD_DATASET_PROGRESS_CHANNEL,
+  SWE_BENCH_DOWNLOAD_DATASET_COMPLETE_CHANNEL,
+  SWE_BENCH_GET_RANDOM_TASK_IDS_CHANNEL
 } from "./helpers/ipc/swe_bench/swe-bench-channels";
 // @ts-ignore - Conditionally imported in main process only
 let sweBenchImports: any;
@@ -732,6 +737,145 @@ app.whenReady().then(async () => {
     } catch (error) {
       console.error("[IPC Main] Error reading JSON file:", error);
       return null;
+    }
+  });
+
+  // Dataset management handlers
+  ipcMain.handle(SWE_BENCH_CHECK_DATASET_STATUS_CHANNEL, async (_event, datasetName?: string, tasksDir?: string) => {
+    console.log(`[IPC Main] Checking dataset status: ${datasetName || 'default'}, ${tasksDir || 'default'}`);
+    try {
+      const fs = require("fs").promises;
+      const path = require("path");
+      
+      // Default values
+      const dataset = datasetName || "princeton-nlp/SWE-bench";
+      let datasetPath = tasksDir;
+      
+      if (!datasetPath) {
+        // Default to ./assets/swe_bench_data relative to app directory
+        datasetPath = path.join(process.cwd(), "assets/swe_bench_data");
+      }
+      
+      // Check if directory exists
+      try {
+        const stats = await fs.stat(datasetPath);
+        if (!stats.isDirectory()) {
+          return { exists: false, path: datasetPath, datasetName: dataset };
+        }
+      } catch (e) {
+        // Directory doesn't exist
+        return { exists: false, path: datasetPath, datasetName: dataset };
+      }
+      
+      // Count JSON files
+      const files = await fs.readdir(datasetPath);
+      const taskCount = files.filter((f: string) => f.endsWith('.json')).length;
+      
+      return { exists: true, path: datasetPath, taskCount, datasetName: dataset };
+    } catch (error) {
+      console.error("[IPC Main] Error checking dataset status:", error);
+      return { exists: false, path: "", datasetName: datasetName || "princeton-nlp/SWE-bench" };
+    }
+  });
+
+  ipcMain.handle(SWE_BENCH_DOWNLOAD_DATASET_CHANNEL, async (event, params: any) => {
+    console.log("[IPC Main] Downloading dataset:", params);
+    try {
+      const { spawn } = require("child_process");
+      const path = require("path");
+      
+      // Generate unique download ID
+      const downloadId = `download-${Date.now()}`;
+      
+      // Build arguments for Python script
+      const args = ["scripts/download_swe_bench_tasks.py"];
+      if (params.datasetName) {
+        args.push("--dataset_name", params.datasetName);
+      }
+      if (params.split) {
+        args.push("--split", params.split);
+      }
+      if (params.outputDir) {
+        args.push("--output_dir", params.outputDir);
+      } else {
+        // Default output directory
+        args.push("--output_dir", path.join(process.cwd(), "assets/swe_bench_data"));
+      }
+      if (params.maxTasks) {
+        args.push("--max_tasks", params.maxTasks.toString());
+      }
+      
+      // Spawn Python process
+      const child = spawn("python3", args, {
+        cwd: process.cwd(),
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      
+      // Handle stdout (progress messages)
+      child.stdout.on("data", (data: Buffer) => {
+        const messages = data.toString().split('\n').filter((line: string) => line.trim());
+        for (const message of messages) {
+          try {
+            const parsed = JSON.parse(message);
+            event.sender.send(
+              parsed.type === 'complete' ? SWE_BENCH_DOWNLOAD_DATASET_COMPLETE_CHANNEL : SWE_BENCH_DOWNLOAD_DATASET_PROGRESS_CHANNEL,
+              { downloadId, ...parsed }
+            );
+          } catch (e) {
+            // Not JSON, ignore
+          }
+        }
+      });
+      
+      // Handle stderr (errors)
+      child.stderr.on("data", (data: Buffer) => {
+        event.sender.send(SWE_BENCH_DOWNLOAD_DATASET_PROGRESS_CHANNEL, {
+          downloadId,
+          type: "error",
+          message: data.toString()
+        });
+      });
+      
+      // Handle exit
+      child.on("exit", (code: number) => {
+        if (code !== 0) {
+          event.sender.send(SWE_BENCH_DOWNLOAD_DATASET_PROGRESS_CHANNEL, {
+            downloadId,
+            type: "error",
+            message: `Download process exited with code ${code}`
+          });
+        }
+      });
+      
+      return { downloadId };
+    } catch (error) {
+      console.error("[IPC Main] Error starting download:", error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle(SWE_BENCH_GET_RANDOM_TASK_IDS_CHANNEL, async (_event, tasksDir: string, count: number) => {
+    console.log(`[IPC Main] Getting ${count} random task IDs from: ${tasksDir}`);
+    try {
+      const fs = require("fs").promises;
+      const path = require("path");
+      
+      // List all JSON files
+      const files = await fs.readdir(tasksDir);
+      const taskFiles = files.filter((f: string) => f.endsWith('.json'));
+      
+      // Extract instance IDs
+      const instanceIds = taskFiles.map((f: string) => f.replace('.json', ''));
+      
+      // Shuffle and take requested count
+      const shuffled = instanceIds.sort(() => Math.random() - 0.5);
+      const selected = shuffled.slice(0, Math.min(count, shuffled.length));
+      
+      console.log(`[IPC Main] Selected ${selected.length} random task IDs`);
+      return selected;
+    } catch (error) {
+      console.error("[IPC Main] Error getting random task IDs:", error);
+      return [];
     }
   });
 
