@@ -781,11 +781,43 @@ app.whenReady().then(async () => {
   ipcMain.handle(SWE_BENCH_DOWNLOAD_DATASET_CHANNEL, async (event, params: any) => {
     console.log("[IPC Main] Downloading dataset:", params);
     try {
-      const { spawn } = require("child_process");
+      const { spawn, spawnSync } = require("child_process");
       const path = require("path");
       
       // Generate unique download ID
       const downloadId = `download-${Date.now()}`;
+      
+      // First check if Python dependencies are installed
+      console.log("[IPC Main] Checking Python dependencies...");
+      const depCheck = spawnSync("python3", ["scripts/check_python_deps.py"], {
+        cwd: process.cwd(),
+        encoding: 'utf8'
+      });
+      
+      if (depCheck.error) {
+        console.error("[IPC Main] Python not found:", depCheck.error);
+        throw new Error("Python 3 is not installed or not in PATH. Please install Python 3.7 or later.");
+      }
+      
+      if (depCheck.status !== 0) {
+        const errorOutput = depCheck.stderr || depCheck.stdout || "Failed to check dependencies";
+        console.error("[IPC Main] Dependency check failed:", errorOutput);
+        
+        // Try to parse JSON error message
+        try {
+          const lines = (depCheck.stdout || "").split('\n').filter((line: string) => line.trim());
+          for (const line of lines) {
+            const parsed = JSON.parse(line);
+            if (parsed.type === "error") {
+              throw new Error(parsed.message);
+            }
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+        
+        throw new Error("Python dependencies are not installed. Please run: pip install datasets");
+      }
       
       // Build arguments for Python script
       const args = ["scripts/download_swe_bench_tasks.py"];
@@ -811,6 +843,16 @@ app.whenReady().then(async () => {
         stdio: ["pipe", "pipe", "pipe"],
       });
       
+      // Handle spawn errors
+      child.on("error", (error: any) => {
+        console.error("[IPC Main] Failed to spawn Python process:", error);
+        event.sender.send(SWE_BENCH_DOWNLOAD_DATASET_PROGRESS_CHANNEL, {
+          downloadId,
+          type: "error",
+          message: `Failed to start download: ${error.message}. Make sure Python 3 is installed and available in PATH.`
+        });
+      });
+      
       // Handle stdout (progress messages)
       child.stdout.on("data", (data: Buffer) => {
         const messages = data.toString().split('\n').filter((line: string) => line.trim());
@@ -828,21 +870,21 @@ app.whenReady().then(async () => {
       });
       
       // Handle stderr (errors)
+      let stderrBuffer = "";
       child.stderr.on("data", (data: Buffer) => {
-        event.sender.send(SWE_BENCH_DOWNLOAD_DATASET_PROGRESS_CHANNEL, {
-          downloadId,
-          type: "error",
-          message: data.toString()
-        });
+        stderrBuffer += data.toString();
+        console.error("[IPC Main] Download stderr:", data.toString());
       });
       
       // Handle exit
       child.on("exit", (code: number) => {
         if (code !== 0) {
+          const errorMessage = stderrBuffer || `Download process exited with code ${code}`;
+          console.error(`[IPC Main] Download failed with code ${code}:`, errorMessage);
           event.sender.send(SWE_BENCH_DOWNLOAD_DATASET_PROGRESS_CHANNEL, {
             downloadId,
             type: "error",
-            message: `Download process exited with code ${code}`
+            message: errorMessage
           });
         }
       });
