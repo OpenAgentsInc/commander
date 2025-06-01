@@ -55,6 +55,7 @@ export default function HomePage() {
     togglePreviousChatsPane,
     toggleCoderPane,
     openNewCoderPane,
+    openTaskBrowserPane,
   } = usePaneStore(
     useShallow((state) => ({
       panes: state.panes,
@@ -68,6 +69,7 @@ export default function HomePage() {
       togglePreviousChatsPane: state.togglePreviousChatsPane,
       toggleCoderPane: state.toggleCoderPane,
       openNewCoderPane: state.openNewCoderPane,
+      openTaskBrowserPane: state.openTaskBrowserPane,
     })),
   );
 
@@ -79,6 +81,7 @@ export default function HomePage() {
   const [isAgentChatEnabled] = useFeatureFlag(Feature.AGENT_CHAT_PANE);
   const [isPreviousChatsEnabled] = useFeatureFlag(Feature.PREVIOUS_CHATS_PANE);
   const [isHandTrackingEnabled] = useFeatureFlag(Feature.HAND_TRACKING);
+  const [isSweBenchEnabled] = useFeatureFlag(Feature.SWE_BENCH_MVP_UI);
 
   // Wrap toggleHandTracking in useCallback to prevent unnecessary re-renders
   const toggleHandTracking = useCallback(() => {
@@ -296,8 +299,14 @@ export default function HomePage() {
             togglePreviousChatsPane();
           }
           break;
-        // Slots 7 and 8 are currently unassigned
+        // Slot 7: SWE-Bench Task Browser
         case 7:
+          if (isSweBenchEnabled) {
+            console.log("Keyboard: Open SWE-Bench Task Browser");
+            openTaskBrowserPane();
+          }
+          break;
+        // Slot 8 is currently unassigned
         case 8:
           break;
         case 9: // Hand Tracking (remains 9)
@@ -325,6 +334,7 @@ export default function HomePage() {
     isAgentChatEnabled,
     isPreviousChatsEnabled,
     isHandTrackingEnabled,
+    isSweBenchEnabled,
     // Toggle functions
     toggleCoderPane,
     toggleSellComputePane,
@@ -334,6 +344,7 @@ export default function HomePage() {
     toggleAgentChatPane,
     togglePreviousChatsPane,
     openNewCoderPane,
+    openTaskBrowserPane,
   ]);
 
   // Handler for keyboard shortcuts (kept as a backup, but we'll primarily use the global handler)
@@ -369,6 +380,7 @@ export default function HomePage() {
           onToggleAgentChatPane={toggleAgentChatPane}
           onTogglePreviousChatsPane={togglePreviousChatsPane}
           onToggleCoderPane={toggleCoderPane}
+          onOpenTaskBrowserPane={openTaskBrowserPane}
         />
       </div>
     </KeyboardControls>

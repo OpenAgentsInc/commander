@@ -281,10 +281,12 @@ export function buildFullAppLayer() {
   const dockerLayer = isMainProcess
     ? (() => {
         try {
-          const { DockerUtilsServiceLive } = require("@/services/docker");
+          // Use dynamic import to prevent bundling
+          const dockerPath = "@/services/docker";
+          const { DockerUtilsServiceLive } = require(dockerPath);
           return DockerUtilsServiceLive;
         } catch (e) {
-          console.warn("[Runtime] Failed to load DockerUtilsService");
+          console.warn("[Runtime] Failed to load DockerUtilsService", e);
           return Layer.empty;
         }
       })()

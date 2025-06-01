@@ -66,3 +66,18 @@ export const PREVIOUS_CHATS_PANE_DEFAULT_HEIGHT = 450;
 // Constants for Coder pane
 export const CODER_PANE_ID = "coder_pane";
 export const CODER_PANE_TITLE = "Coder";
+
+// SWE-Bench MVP Panes
+export const SWE_BENCH_TASK_BROWSER_PANE_TYPE = "swe_bench_task_browser";
+export const SWE_BENCH_TASK_BROWSER_PANE_ID_CONST = "swe_bench_task_browser_main";
+export const SWE_BENCH_TASK_BROWSER_PANE_TITLE = "SWE-Bench: Task Browser";
+
+export const SWE_BENCH_EVALUATION_LAUNCHER_PANE_TYPE = "swe_bench_evaluation_launcher";
+export const SWE_BENCH_EVALUATION_LAUNCHER_PANE_TITLE_BASE = "SWE-Bench: Launch";
+
+export const SWE_BENCH_EVALUATION_MONITOR_PANE_TYPE = "swe_bench_evaluation_monitor";
+export const SWE_BENCH_EVALUATION_MONITOR_PANE_TITLE_BASE = "SWE-Bench: Monitor";
+
+export const SWE_BENCH_RESULTS_VIEWER_PANE_TYPE = "swe_bench_results_viewer";
+export const SWE_BENCH_RESULTS_VIEWER_PANE_ID_CONST = "swe_bench_results_viewer_main";
+export const SWE_BENCH_RESULTS_VIEWER_PANE_TITLE = "SWE-Bench: Results";

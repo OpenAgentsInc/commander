@@ -142,7 +142,7 @@ export const DefaultDevConfigLayer = Layer.effect(
 
     // Feature flags configuration for v0.0.5
     // Only enable Claude Code provider, Coder Pane, and Hand Tracking
-    yield* _(configService.set("FEATURE_FLAGS_ENABLED_LIST", "CLAUDE_CODE_PROVIDER,CODER_PANE,HAND_TRACKING"));
+    yield* _(configService.set("FEATURE_FLAGS_ENABLED_LIST", "CLAUDE_CODE_PROVIDER,CODER_PANE,HAND_TRACKING,SWE_BENCH_MVP_UI"));
 
     // SWE-Bench Docker configuration
     // Note: SWE-bench builds images dynamically, not using a pre-built image

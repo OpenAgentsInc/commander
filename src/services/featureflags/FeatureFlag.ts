@@ -25,4 +25,7 @@ export enum Feature {
   
   // Agent Chat Pane - The old multi-provider chat interface
   AGENT_CHAT_PANE = "AGENT_CHAT_PANE", // Agent Chat pane, toggled by Hotbar 5
+  
+  // SWE-Bench UI panes
+  SWE_BENCH_MVP_UI = "SWE_BENCH_MVP_UI", // SWE-Bench UI feature flag
 }

@@ -24,7 +24,7 @@ const program = new Command();
 program
   .name('run_swe_bench_batch_env')
   .description('Run SWE-Bench tasks in batch mode (env var version)')
-  .option('--tasks_dir <path>', 'Directory containing task JSON files', 'assets/swe_bench_data')
+  .option('--tasks_dir <path>', 'Directory containing task JSON files', 'assets/swebench-tasks')
   .option('--instance_ids <ids>', 'Comma-separated list of instance IDs to run')
   .option('--max_tasks <N>', 'Maximum number of tasks to run', (val) => parseInt(val, 10))
   .option('--output_dir <path>', 'Directory to save evaluation results')
@@ -38,10 +38,29 @@ const options = program.opts() as BatchOptions;
 process.env.SWE_BENCH_DATASET_PATH = path.resolve(options.tasks_dir);
 process.env.SWE_BENCH_USE_ENHANCED_DOCKERFILE = 'true';
 
+// Global telemetry logger
+let logStream: fs.FileHandle | null = null;
+let telemetryPath: string = '';
+
+async function log(message: string) {
+  const timestamp = new Date().toISOString();
+  const logLine = `[${timestamp}] ${message}`;
+  console.log(logLine);
+  
+  if (logStream) {
+    await logStream.write(`${logLine}\n`);
+  }
+}
+
 async function ensureOutputDir(): Promise<string> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const outputDir = options.output_dir || path.join(process.cwd(), 'swebench-results', `run-${timestamp}`);
   await fs.mkdir(outputDir, { recursive: true });
+  
+  // Initialize telemetry logging
+  telemetryPath = path.join(outputDir, 'telemetry.log');
+  logStream = await fs.open(telemetryPath, 'w');
+  
   return outputDir;
 }
 
@@ -52,7 +71,6 @@ async function listTaskIds(tasksDir: string): Promise<string[]> {
       .filter(f => f.endsWith('.json'))
       .map(f => f.replace('.json', ''));
   } catch (error) {
-    console.error(`Failed to read tasks directory: ${error}`);
     return [];
   }
 }
@@ -65,30 +83,53 @@ async function loadTask(tasksDir: string, instanceId: string): Promise<any> {
 
 async function runBatch() {
   const outputDir = await ensureOutputDir();
-  console.log(`Results will be saved to: ${outputDir}`);
-  console.log(`Loading tasks from: ${options.tasks_dir}`);
+  
+  await log(`=== SWE-Bench Batch Evaluation Run ===`);
+  await log(`Run ID: ${path.basename(outputDir)}`);
+  await log(`Results directory: ${outputDir}`);
+  await log(`Telemetry log: ${telemetryPath}`);
+  await log(`Tasks directory: ${path.resolve(options.tasks_dir)}`);
+  await log(`Patch source: ${options.patch_source}`);
   
   // Get all available task IDs
-  let allTaskIds = await listTaskIds(options.tasks_dir);
+  let allTaskIds = await listTaskIds(path.resolve(options.tasks_dir));
+  await log(`Found ${allTaskIds.length} total tasks in directory`);
+  
+  if (allTaskIds.length > 0) {
+    await log(`Available tasks: ${allTaskIds.join(', ')}`);
+  }
 
   // Filter by instance_ids if provided
   if (options.instance_ids) {
     const specifiedIds = options.instance_ids.split(',').map(id => id.trim());
+    await log(`Filtering by specified IDs: ${specifiedIds.join(', ')}`);
+    
+    const originalCount = allTaskIds.length;
     allTaskIds = allTaskIds.filter(id => specifiedIds.includes(id));
     
     if (allTaskIds.length === 0) {
-      console.error('No matching instance IDs found!');
+      await log(`ERROR: No matching instance IDs found!`);
+      await log(`Requested ${specifiedIds.length} IDs: ${specifiedIds.join(', ')}`);
+      await log(`Available ${originalCount} IDs in directory`);
+      await log(`Check that your task IDs match exactly (case-sensitive)`);
+      
+      if (logStream) {
+        await logStream.close();
+      }
       return;
     }
+    
+    await log(`Matched ${allTaskIds.length} tasks: ${allTaskIds.join(', ')}`);
   }
 
   // Limit tasks if max_tasks is specified
   let tasksToRun = allTaskIds;
   if (options.max_tasks !== undefined && options.max_tasks < tasksToRun.length) {
     tasksToRun = tasksToRun.slice(0, options.max_tasks);
+    await log(`Limited to first ${options.max_tasks} tasks`);
   }
 
-  console.log(`Found ${allTaskIds.length} tasks. Will attempt to run ${tasksToRun.length} tasks.`);
+  await log(`Will evaluate ${tasksToRun.length} tasks: ${tasksToRun.join(', ')}`);
 
   // Initialize counters and results
   const results: Array<{ instanceId: string; result: any }> = [];
@@ -102,28 +143,28 @@ async function runBatch() {
 
   // Process each task
   for (const instanceId of tasksToRun) {
-    console.log(`\n${'='.repeat(60)}`);
-    console.log(`Evaluating task: ${instanceId}`);
-    console.log(`${'='.repeat(60)}`);
+    await log(`\n${'='.repeat(60)}`);
+    await log(`Evaluating task: ${instanceId}`);
+    await log(`${'='.repeat(60)}`);
 
     try {
       // Load task details
-      const task = await loadTask(options.tasks_dir, instanceId);
+      const task = await loadTask(path.resolve(options.tasks_dir), instanceId);
 
       // Parse patch source
       let patchSource: any;
       if (options.patch_source === "gold") {
         patchSource = { type: "gold" };
-        console.log("✓ Using gold patch from task data");
+        await log("✓ Using gold patch from task data");
       } else if (options.patch_source === "empty") {
         patchSource = { type: "empty" };
-        console.log("ℹ️  Using empty patch");
+        await log("ℹ️  Using empty patch");
       } else if (options.patch_source.startsWith("agent:")) {
         const providerKey = options.patch_source.substring(6);
         patchSource = { type: "agent_generated", providerKey };
-        console.log(`🤖 Using agent-generated patch from provider: ${providerKey}`);
+        await log(`🤖 Using agent-generated patch from provider: ${providerKey}`);
       } else {
-        console.error(`❌ Invalid patch source: ${options.patch_source}`);
+        await log(`❌ Invalid patch source: ${options.patch_source}`);
         tasksFailed++;
         continue;
       }
@@ -135,6 +176,7 @@ async function runBatch() {
       });
 
       // Run evaluation
+      await log(`Starting Docker container for ${instanceId}...`);
       const result = await Effect.runPromiseExit(
         evaluationProgram.pipe(Effect.provide(FullSWEBenchHarnessLayer))
       );
@@ -143,9 +185,10 @@ async function runBatch() {
         const evalResult = result.value;
         const resolved = evalResult.report.resolved;
         
-        console.log(`\n📊 Task Results:`);
-        console.log(`   Resolved: ${resolved ? '✅ YES' : '❌ NO'}`);
-        console.log(`   Patch Source: ${evalResult.patch_source_type}`);
+        await log(`\n📊 Task Results:`);
+        await log(`   Instance ID: ${instanceId}`);
+        await log(`   Resolved: ${resolved ? '✅ YES' : '❌ NO'}`);
+        await log(`   Patch Source: ${evalResult.patch_source_type}`);
         
         results.push({ instanceId, result: evalResult });
         
@@ -158,7 +201,7 @@ async function runBatch() {
         const error = Cause.squash(result.cause);
         const errorMessage = error instanceof Error ? error.message : String(error);
         
-        console.error(`\n❌ Task failed with error: ${errorMessage}`);
+        await log(`\n❌ Task failed with error: ${errorMessage}`);
         results.push({ 
           instanceId, 
           result: { error: errorMessage } 
@@ -166,7 +209,7 @@ async function runBatch() {
         tasksFailed++;
         
         if (options.stop_on_failure) {
-          console.log("\n🛑 Stopping due to --stop_on_failure");
+          await log("\n🛑 Stopping due to --stop_on_failure");
           break;
         }
       }
@@ -176,25 +219,26 @@ async function runBatch() {
       await fs.writeFile(resultFilePath, JSON.stringify(results[results.length - 1], null, 2));
 
     } catch (error) {
-      console.error(`\n❌ Unexpected error processing task ${instanceId}:`, error);
+      await log(`\n❌ Unexpected error processing task ${instanceId}: ${error}`);
       tasksFailed++;
       
       if (options.stop_on_failure) {
-        console.log("\n🛑 Stopping due to --stop_on_failure");
+        await log("\n🛑 Stopping due to --stop_on_failure");
         break;
       }
     }
   }
 
   // Print summary
-  console.log(`\n${'='.repeat(60)}`);
-  console.log('📈 Batch Evaluation Summary');
-  console.log(`${'='.repeat(60)}`);
-  console.log(`Total tasks attempted: ${tasksToRun.length}`);
-  console.log(`✅ Succeeded (resolved): ${tasksSucceeded}`);
-  console.log(`❌ Failed (not resolved or error): ${tasksFailed}`);
-  console.log(`⏭️  Skipped: ${tasksSkipped}`);
-  console.log(`\n📁 Full results saved in: ${outputDir}`);
+  await log(`\n${'='.repeat(60)}`);
+  await log('📈 Batch Evaluation Summary');
+  await log(`${'='.repeat(60)}`);
+  await log(`Total tasks attempted: ${tasksToRun.length}`);
+  await log(`✅ Succeeded (resolved): ${tasksSucceeded}`);
+  await log(`❌ Failed (not resolved or error): ${tasksFailed}`);
+  await log(`⏭️  Skipped: ${tasksSkipped}`);
+  await log(`\n📁 Full results saved in: ${outputDir}`);
+  await log(`📋 Telemetry log saved to: ${telemetryPath}`);
 
   // Save summary file
   const summaryPath = path.join(outputDir, 'summary.json');
@@ -209,15 +253,19 @@ async function runBatch() {
   };
   
   await fs.writeFile(summaryPath, JSON.stringify(summary, null, 2));
+  
+  // Close telemetry log
+  if (logStream) {
+    await log(`\n=== End of Evaluation Run ===`);
+    await logStream.close();
+  }
 }
 
-// Note: This script has been refactored to use Effect for better telemetry
-// The original implementation is preserved here for compatibility
-// For the new Effect-based version with telemetry, use run_swe_bench_batch_env_effect.ts
-
 // Run the batch processor
-runBatch().catch(error => {
-  console.error('\n❌ Fatal error:', error);
-  console.error('\n💡 Consider using run_swe_bench_batch_env_effect.ts for better telemetry and logging');
+runBatch().catch(async error => {
+  await log(`\n❌ Fatal error: ${error}`);
+  if (logStream) {
+    await logStream.close();
+  }
   process.exit(1);
 });

@@ -10,8 +10,23 @@ import { WIN_MINIMIZE_CHANNEL, WIN_MAXIMIZE_CHANNEL, WIN_CLOSE_CHANNEL } from ".
 import { OLLAMA_CHAT_COMPLETION_CHANNEL, OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL, OLLAMA_STATUS_CHECK } from "./ollama/ollama-channels";
 import { dbChannels } from "./db/db-channels";
 import type { DBSession, DBMessage, DBToolExecution } from "@/services/db";
-import { SWE_BENCH_EVALUATE_TASK_CHANNEL } from "./swe_bench/swe-bench-channels";
-import type { EvaluationResult } from "@/services/swe_bench_harness/types";
+import { 
+  SWE_BENCH_EVALUATE_TASK_CHANNEL,
+  SWE_BENCH_LIST_TASKS_CHANNEL,
+  SWE_BENCH_GET_TASK_CHANNEL,
+  SWE_BENCH_SPAWN_BATCH_RUN_CHANNEL,
+  SWE_BENCH_STOP_BATCH_RUN_CHANNEL,
+  SWE_BENCH_BATCH_RUN_STDOUT_CHANNEL,
+  SWE_BENCH_BATCH_RUN_STDERR_CHANNEL,
+  SWE_BENCH_BATCH_RUN_EXIT_CHANNEL,
+  SWE_BENCH_LIST_RESULT_RUNS_CHANNEL,
+  SWE_BENCH_GET_RESULT_SUMMARY_CHANNEL,
+  SWE_BENCH_GET_TASK_RESULT_CHANNEL,
+  FS_LIST_DIRS_CHANNEL,
+  FS_READ_JSON_FILE_CHANNEL,
+} from "./swe_bench/swe-bench-channels";
+import type { EvaluationResult, SWEBenchTask } from "@/services/swe_bench_harness/types";
+import type { SpawnBatchRunParams, BatchRunOutput } from "./swe_bench/swe-bench-context";
 // import { claudeCodeChannels } from "./claude_code/claude-code-channels";
 
 // Define Claude Code channels inline to avoid import issues
@@ -139,6 +154,41 @@ export default function exposeContexts() {
     sweBench: {
       evaluateTask: (instanceId: string, patchContent: string) =>
         ipcRenderer.invoke(SWE_BENCH_EVALUATE_TASK_CHANNEL, instanceId, patchContent),
+      
+      // Task listing and retrieval
+      listTasks: (tasksDir: string) =>
+        ipcRenderer.invoke(SWE_BENCH_LIST_TASKS_CHANNEL, tasksDir),
+      getTask: (tasksDir: string, instanceId: string) =>
+        ipcRenderer.invoke(SWE_BENCH_GET_TASK_CHANNEL, tasksDir, instanceId),
+      
+      // Batch run management
+      spawnBatchRun: (params: SpawnBatchRunParams) =>
+        ipcRenderer.invoke(SWE_BENCH_SPAWN_BATCH_RUN_CHANNEL, params),
+      stopBatchRun: (runId: string) =>
+        ipcRenderer.invoke(SWE_BENCH_STOP_BATCH_RUN_CHANNEL, runId),
+      
+      // Event listeners for batch run output
+      onBatchRunOutput: (channel: string, callback: (data: BatchRunOutput) => void) => {
+        const listener = (_event: any, data: BatchRunOutput) => callback(data);
+        ipcRenderer.on(channel, listener);
+        return () => ipcRenderer.removeListener(channel, listener);
+      },
+      
+      // Results management  
+      listResultRuns: () =>
+        ipcRenderer.invoke(SWE_BENCH_LIST_RESULT_RUNS_CHANNEL),
+      getResultSummary: (runDir: string) =>
+        ipcRenderer.invoke(SWE_BENCH_GET_RESULT_SUMMARY_CHANNEL, runDir),
+      getTaskResult: (runDir: string, instanceId: string) =>
+        ipcRenderer.invoke(SWE_BENCH_GET_TASK_RESULT_CHANNEL, runDir, instanceId),
+    },
+    
+    // Generic file system operations
+    fs: {
+      listDirs: (dirPath: string) =>
+        ipcRenderer.invoke(FS_LIST_DIRS_CHANNEL, dirPath),
+      readJsonFile: (filePath: string) =>
+        ipcRenderer.invoke(FS_READ_JSON_FILE_CHANNEL, filePath),
     },
   };
 

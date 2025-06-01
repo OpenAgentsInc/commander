@@ -43,6 +43,7 @@ const dirsToExclude = [
   "src/localization/",
   "src/tests",
   "src/utils",
+  "swebench-results/old"
   // "src/services/ai/providers",
   // "src/stores/panes/",
   // "docs",

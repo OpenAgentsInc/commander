@@ -57,6 +57,12 @@ export interface PaneStoreType extends PaneState {
   togglePreviousChatsPane: () => void; // Toggle Previous Chats List pane (open if closed, close if open)
   toggleCoderPane: () => void; // Toggle Coder pane (open if closed, close if open)
   openNewCoderPane: () => void; // Open a new Coder pane instance
+  
+  // SWE-Bench MVP UI pane actions
+  openTaskBrowserPane: () => void;
+  openEvaluationLauncherPane: (content: { taskInstanceIds: string[], tasksDir: string }) => void;
+  openEvaluationMonitorPane: (content: { runId: string, outputDir: string, totalTasks: number }) => void;
+  openResultsViewerPane: () => void;
 }
 
 export type SetPaneStore = StoreApi<PaneStoreType>["setState"];
