@@ -456,7 +456,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
     return {
       _tag: "ChatOrchestratorService" as const,
       streamConversation: ({ messages, preferredProvider, options }) => {
-        Effect.runFork(runTelemetryEffect({ category: "orchestrator", action: "stream_conversation_start", label: preferredProvider.key }));
+            yield* _(runTelemetryEffect({ category: "orchestrator", action: "stream_conversation_start", label: preferredProvider.key }));
 
         return Stream.fromEffect(
           getProviderLanguageModel(preferredProvider.key, preferredProvider.modelName)
@@ -480,7 +480,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                   )
                 )
               ),
-              Stream.tapError((err) => runTelemetryEffect({
+              Stream.tapError((err) => runTelemetry({
                 category: "orchestrator",
                 action: "stream_error",
                 label: err instanceof Error ? err.message : String(err)
@@ -490,7 +490,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
         );
       },
       generateConversationResponse: ({ messages, preferredProvider, options }) => {
-        Effect.runFork(runTelemetryEffect({ category: "orchestrator", action: "generate_conversation_start", label: preferredProvider.key }));
+            yield* _(runTelemetryEffect({ category: "orchestrator", action: "generate_conversation_start", label: preferredProvider.key });
 
         return getProviderLanguageModel(preferredProvider.key, preferredProvider.modelName).pipe(
           Effect.flatMap((agentLM) => {
@@ -513,7 +513,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                 )
               )
             ).pipe(
-              Effect.tapError((err) => runTelemetryEffect({
+              Effect.tapError((err) => runTelemetry({
                 category: "orchestrator",
                 action: "generate_conversation_error",
                 label: err instanceof Error ? err.message : String(err)

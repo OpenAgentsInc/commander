@@ -237,7 +237,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
 
           case "claude_code": {
             // Use Claude Code CLI provider via IPC (main process only)
-            yield* _(runTelemetryEffect({ category: "orchestrator", action: "get_provider_model_start_claude_code", label: providerKey }));
+            yield* _(runTelemetryEffect({ category: "orchestrator", action: "get_provider_model_start_claude_code", label: providerKey });
             
             // Create an IPC-based AgentLanguageModel that delegates to main process
             const claudeCodeAgentLM: AgentLanguageModel = makeAgentLanguageModel({
@@ -432,13 +432,13 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                 })
             });
             
-            yield* _(runTelemetryEffect({ category: "orchestrator", action: "get_provider_model_success_claude_code", label: providerKey }));
+            yield* _(runTelemetryEffect({ category: "orchestrator", action: "get_provider_model_success_claude_code", label: providerKey });
             console.log("[ChatOrchestratorService] Successfully created Claude Code IPC provider for", providerKey);
             return claudeCodeAgentLM;
           }
 
           default:
-            yield* _(runTelemetryEffect({ category: "orchestrator", action: "get_provider_model_unknown", label: providerKey }));
+            yield* _(runTelemetryEffect({ category: "orchestrator", action: "get_provider_model_unknown", label: providerKey });
             return yield* _(Effect.fail(new AiConfigurationError({ message: `Unsupported provider key: ${providerKey}` })));
         }
       }) as Effect.Effect<AgentLanguageModel, AiConfigurationError | AiProviderError, unknown>).pipe(
@@ -456,7 +456,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
     return {
       _tag: "ChatOrchestratorService" as const,
       streamConversation: ({ messages, preferredProvider, options }) => {
-        Effect.runFork(runTelemetryEffect({ category: "orchestrator", action: "stream_conversation_start", label: preferredProvider.key }));
+            yield* _(runTelemetryEffect({ category: "orchestrator", action: "stream_conversation_start", label: preferredProvider.key });
 
         return Stream.fromEffect(
           getProviderLanguageModel(preferredProvider.key, preferredProvider.modelName)
@@ -480,7 +480,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                   )
                 )
               ),
-              Stream.tapError((err) => runTelemetryEffect({
+              Stream.tapError((err) => runTelemetry({
                 category: "orchestrator",
                 action: "stream_error",
                 label: err instanceof Error ? err.message : String(err)
@@ -490,7 +490,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
         );
       },
       generateConversationResponse: ({ messages, preferredProvider, options }) => {
-        Effect.runFork(runTelemetryEffect({ category: "orchestrator", action: "generate_conversation_start", label: preferredProvider.key }));
+            yield* _(runTelemetryEffect({ category: "orchestrator", action: "generate_conversation_start", label: preferredProvider.key });
 
         return getProviderLanguageModel(preferredProvider.key, preferredProvider.modelName).pipe(
           Effect.flatMap((agentLM) => {
@@ -513,7 +513,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
                 )
               )
             ).pipe(
-              Effect.tapError((err) => runTelemetryEffect({
+              Effect.tapError((err) => runTelemetry({
                 category: "orchestrator",
                 action: "generate_conversation_error",
                 label: err instanceof Error ? err.message : String(err)

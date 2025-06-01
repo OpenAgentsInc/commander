@@ -133,19 +133,23 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
           
           // Log the requester pubkey
           if (requestPkHex) {
-            yield* _(telemetry.trackEvent({
-              category: "nip90:consumer",
-              action: "requester_pubkey",
-              label: requestPkHex,
-              value: "Ephemeral key",
-            }).pipe(Effect.ignoreLogged));
+            Effect.runFork(
+              Effect.flatMap(TelemetryService, ts => ts.trackEvent({
+                category: "nip90:consumer",
+                action: "requester_pubkey",
+                label: requestPkHex,
+                value: "Ephemeral key",
+              })).pipe(Effect.provide(runtime))
+            );
           } else {
-            yield* _(telemetry.trackEvent({
-              category: "nip90:consumer",
-              action: "requester_pubkey",
-              label: "NOT SET",
-              value: "No key configured - requests will fail!",
-            }).pipe(Effect.ignoreLogged));
+            Effect.runFork(
+              Effect.flatMap(TelemetryService, ts => ts.trackEvent({
+                category: "nip90:consumer",
+                action: "requester_pubkey",
+                label: "NOT SET",
+                value: "No key configured - requests will fail!",
+              })).pipe(Effect.provide(runtime))
+            );
           }
 
           // Create job request
@@ -216,20 +220,25 @@ const nip90AgentLanguageModelEffect = Effect.gen(function* (_) {
             }
 
             // Log requester pubkey for streaming
+            const runtime = getMainRuntime();
             if (requestPkHex) {
-              yield* _(telemetry.trackEvent({
-                category: "nip90:consumer",
-                action: "requester_pubkey_stream",
-                label: requestPkHex,
-                value: "Ephemeral key",
-              }).pipe(Effect.ignoreLogged));
+              Effect.runFork(
+                Effect.flatMap(TelemetryService, ts => ts.trackEvent({
+                  category: "nip90:consumer",
+                  action: "requester_pubkey_stream",
+                  label: requestPkHex,
+                  value: "Ephemeral key",
+                })).pipe(Effect.provide(runtime))
+              );
             } else {
-              yield* _(telemetry.trackEvent({
-                category: "nip90:consumer",
-                action: "requester_pubkey_stream",
-                label: "NOT SET",
-                value: "No key configured - requests will fail!",
-              }).pipe(Effect.ignoreLogged));
+              Effect.runFork(
+                Effect.flatMap(TelemetryService, ts => ts.trackEvent({
+                  category: "nip90:consumer",
+                  action: "requester_pubkey_stream",
+                  label: "NOT SET",
+                  value: "No key configured - requests will fail!",
+                })).pipe(Effect.provide(runtime))
+              );
             }
 
             // Create job request
