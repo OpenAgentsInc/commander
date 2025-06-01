@@ -132,7 +132,8 @@ export const ClaudeCodeAgentLanguageModelLive = Effect.gen(function* (_) {
             Effect.runFork(telemetry.trackEvent({ category: "claude_code_provider", action: "stream_text_cancel_requested", label: modelToUse })); 
             cancelIPC(); 
           });
-        });
+        }))
+        );
       },
 
       generateText: (options: GenerateTextOptions) => Effect.gen(function*(_) {

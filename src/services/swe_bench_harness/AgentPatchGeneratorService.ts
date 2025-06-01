@@ -4,6 +4,8 @@ import type { SWEBenchTask } from "./types";
 import type { AiProviderError, AiConfigurationError } from "@/services/ai/core";
 import { AgentPatchGenerationError } from "./errors";
 
+export { AgentPatchGenerationError };
+
 export interface AgentPatchGeneratorService {
   /**
    * Generates a patch for a given SWE-Bench task using a specified AI agent.

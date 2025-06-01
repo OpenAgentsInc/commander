@@ -18,6 +18,7 @@ import {
   DefaultTelemetryConfigLayer,
 } from "@/services/telemetry";
 import { TelemetryServiceLive } from "@/services/telemetry/TelemetryServiceImpl";
+import { getMainRuntime } from "@/services/runtime";
 
 // Track active streams for cancellation
 const activeStreams = new Map<string, () => void>();
@@ -185,20 +186,27 @@ export function addOllamaEventListeners() {
         "[IPC Handler] Received request to check Ollama status through IPC",
       );
 
-      // The ollamaServiceLayer should be defined at this point since we're within the same scope
-      // We're keeping a simplified check as a defense-in-depth measure
-      if (!ollamaServiceLayer) {
-        console.error(
-          "[IPC Handler] CRITICAL ERROR: ollamaServiceLayer is not defined!",
-        );
-        return false; // Consider it not connected
-      }
+      const runtime = getMainRuntime();
 
       const program = Effect.gen(function* (_) {
         const ollamaService = yield* _(OllamaService);
-        return yield* _(ollamaService.checkOllamaStatus());
+        const telemetry = yield* _(TelemetryService);
+        yield* _(telemetry.trackEvent({
+          category: "ollama:ipc",
+          action: "status_check_start"
+        }).pipe(Effect.ignoreLogged));
+
+        const status = yield* _(ollamaService.checkOllamaStatus());
+
+        yield* _(telemetry.trackEvent({
+          category: "ollama:ipc",
+          action: "status_check_result",
+          value: String(status)
+        }).pipe(Effect.ignoreLogged));
+        
+        return status;
       }).pipe(
-        Effect.provide(ollamaServiceLayer),
+        Effect.provide(runtime),
         Effect.catchAll((error) => {
           // Handle error object without using Cause.pretty since it's not a Cause type
           const errorMessage =
@@ -243,13 +251,7 @@ export function addOllamaEventListeners() {
         request?.model || "unspecified",
       );
 
-      // The ollamaServiceLayer should be defined at this point
-      if (!ollamaServiceLayer) {
-        console.error(
-          "[IPC Handler] CRITICAL ERROR: ollamaServiceLayer is not defined!",
-        );
-        return { __error: true, message: "Service layer not initialized" };
-      }
+      const runtime = getMainRuntime();
 
       const program = Effect.gen(function* (_) {
         const ollamaService = yield* _(OllamaService);
@@ -291,7 +293,7 @@ export function addOllamaEventListeners() {
 
       try {
         const result = await Effect.runPromise(
-          program.pipe(Effect.provide(ipcHandlerLayer)),
+          program.pipe(Effect.provide(runtime)),
         );
         console.log("[IPC Handler] Chat completion generated successfully");
         return result;
@@ -316,21 +318,7 @@ export function addOllamaEventListeners() {
           `[IPC Listener] Received streaming request ${requestId} for model: ${request?.model || "unspecified"}`,
         );
 
-        // The ollamaServiceLayer should be defined at this point
-        if (!ollamaServiceLayer) {
-          console.error(
-            "[IPC Listener] CRITICAL ERROR: ollamaServiceLayer is not defined!",
-          );
-          event.sender.send(
-            `${OLLAMA_CHAT_COMPLETION_STREAM_CHANNEL}:error`,
-            requestId,
-            {
-              __error: true,
-              message: "Service layer not initialized",
-            },
-          );
-          return;
-        }
+        const runtime = getMainRuntime();
 
         // Make sure the request has stream: true
         const streamingRequest = {
@@ -401,7 +389,7 @@ export function addOllamaEventListeners() {
           );
           // Run the program and get the stream result, with detailed error handling
           const streamResult = await Effect.runPromiseExit(
-            program.pipe(Effect.provide(ipcHandlerLayer)),
+            program.pipe(Effect.provide(runtime)),
           );
 
           if (Exit.isFailure(streamResult)) {
@@ -494,7 +482,7 @@ export function addOllamaEventListeners() {
                       context: { chunks: chunkCounter[requestId] },
                     }),
                   );
-                }).pipe(Effect.provide(ipcHandlerLayer), Effect.ignoreLogged),
+                }).pipe(Effect.provide(runtime), Effect.ignoreLogged),
               );
 
               event.sender.send(
@@ -519,7 +507,7 @@ export function addOllamaEventListeners() {
                       context: { chunks: chunkCounter[requestId] },
                     }),
                   );
-                }).pipe(Effect.provide(ipcHandlerLayer), Effect.ignoreLogged),
+                }).pipe(Effect.provide(runtime), Effect.ignoreLogged),
               );
             }
           } else {
@@ -549,7 +537,7 @@ export function addOllamaEventListeners() {
                       },
                     }),
                   );
-                }).pipe(Effect.provide(ipcHandlerLayer), Effect.ignoreLogged),
+                }).pipe(Effect.provide(runtime), Effect.ignoreLogged),
               );
 
               event.sender.send(
@@ -576,7 +564,7 @@ export function addOllamaEventListeners() {
                       context: { chunks: chunkCounter[requestId] },
                     }),
                   );
-                }).pipe(Effect.provide(ipcHandlerLayer), Effect.ignoreLogged),
+                }).pipe(Effect.provide(runtime), Effect.ignoreLogged),
               );
             }
           }

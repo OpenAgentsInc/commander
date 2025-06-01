@@ -81,3 +81,14 @@ This file is in the renderer process (checks window.electronAPI) and has complex
 Since ClaudeCodeAgentLanguageModelLive is for renderer process, let me focus on fixing the main process issues first. The SWE-bench script runs in main process only.
 
 Let me check the IPC listeners next.
+
+### 23:35 - Fixed IPC Listeners in ollama-listeners.ts
+
+Updated all handlers to:
+- Import and use getMainRuntime()
+- Replace Effect.provide(ipcHandlerLayer) with Effect.provide(runtime)
+- Add telemetry tracking in the handlers using yielded TelemetryService
+
+This follows the instruction pattern to defer Effect execution until inside the handler callbacks.
+
+### 23:36 - Checking db-listeners.ts next
