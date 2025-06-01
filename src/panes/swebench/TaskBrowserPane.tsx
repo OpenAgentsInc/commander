@@ -31,7 +31,7 @@ export const TaskBrowserPane: React.FC<TaskBrowserPaneProps> = ({ pane }) => {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tasksDir, setTasksDir] = useState<string>("patches");
+  const [tasksDir, setTasksDir] = useState<string>("");
   const [taskIds, setTaskIds] = useState<string[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<SWEBenchTask | null>(null);
@@ -55,16 +55,20 @@ export const TaskBrowserPane: React.FC<TaskBrowserPaneProps> = ({ pane }) => {
           return;
         }
         const dirs = await window.electronAPI.fs.listDirs("assets/swebench-tasks");
-        setAvailableDirs(dirs);
-        if (dirs.length > 0 && !dirs.includes(tasksDir)) {
-          setTasksDir(dirs[0]);
+        // Add root directory option at the beginning
+        const allDirs = [".", ...dirs];
+        setAvailableDirs(allDirs);
+        
+        // Set initial directory if not already set
+        if (!tasksDir && allDirs.length > 0) {
+          setTasksDir(allDirs[0]);
         }
       } catch (err) {
         console.error("Error loading available directories:", err);
       }
     };
     loadAvailableDirs();
-  }, [tasksDir]);
+  }, []); // Remove tasksDir dependency to avoid infinite loop
 
   // Load task IDs when directory changes
   useEffect(() => {
@@ -188,7 +192,9 @@ export const TaskBrowserPane: React.FC<TaskBrowserPaneProps> = ({ pane }) => {
               </SelectTrigger>
               <SelectContent>
                 {availableDirs.map(dir => (
-                  <SelectItem key={dir} value={dir}>{dir}</SelectItem>
+                  <SelectItem key={dir} value={dir}>
+                    {dir === "." ? "Root (all tasks)" : dir}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

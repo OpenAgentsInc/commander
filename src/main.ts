@@ -539,13 +539,16 @@ app.whenReady().then(async () => {
       const path = require("path");
       
       const basePath = path.join(process.cwd(), "assets/swebench-tasks");
-      const fullPath = path.join(basePath, tasksDir);
+      // Handle "." as root directory
+      const fullPath = tasksDir === "." || !tasksDir ? basePath : path.join(basePath, tasksDir);
       
+      console.log(`[IPC Main] Full path for tasks: ${fullPath}`);
       const files = await fs.readdir(fullPath);
       const taskIds = files
         .filter((f: string) => f.endsWith('.json'))
         .map((f: string) => f.replace('.json', ''));
       
+      console.log(`[IPC Main] Found ${taskIds.length} tasks:`, taskIds);
       return taskIds;
     } catch (error) {
       console.error("[IPC Main] Error listing tasks:", error);
@@ -560,7 +563,9 @@ app.whenReady().then(async () => {
       const path = require("path");
       
       const basePath = path.join(process.cwd(), "assets/swebench-tasks");
-      const fullPath = path.join(basePath, tasksDir, `${instanceId}.json`);
+      // Handle "." as root directory
+      const dirPath = tasksDir === "." || !tasksDir ? basePath : path.join(basePath, tasksDir);
+      const fullPath = path.join(dirPath, `${instanceId}.json`);
       
       const content = await fs.readFile(fullPath, 'utf-8');
       return JSON.parse(content);
