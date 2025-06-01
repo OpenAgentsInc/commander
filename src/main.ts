@@ -11,7 +11,21 @@ import {
   REACT_DEVELOPER_TOOLS,
 } from "electron-devtools-installer";
 import { setupClaudeWebSocketHandler } from "./main-claude-websocket";
-import { SWE_BENCH_EVALUATE_TASK_CHANNEL } from "./helpers/ipc/swe_bench/swe-bench-channels";
+import { 
+  SWE_BENCH_EVALUATE_TASK_CHANNEL,
+  SWE_BENCH_LIST_TASKS_CHANNEL,
+  SWE_BENCH_GET_TASK_CHANNEL,
+  SWE_BENCH_SPAWN_BATCH_RUN_CHANNEL,
+  SWE_BENCH_STOP_BATCH_RUN_CHANNEL,
+  SWE_BENCH_BATCH_RUN_STDOUT_CHANNEL,
+  SWE_BENCH_BATCH_RUN_STDERR_CHANNEL,
+  SWE_BENCH_BATCH_RUN_EXIT_CHANNEL,
+  SWE_BENCH_LIST_RESULT_RUNS_CHANNEL,
+  SWE_BENCH_GET_RESULT_SUMMARY_CHANNEL,
+  SWE_BENCH_GET_TASK_RESULT_CHANNEL,
+  FS_LIST_DIRS_CHANNEL,
+  FS_READ_JSON_FILE_CHANNEL
+} from "./helpers/ipc/swe_bench/swe-bench-channels";
 // @ts-ignore - Conditionally imported in main process only
 let sweBenchImports: any;
 
@@ -514,6 +528,209 @@ app.whenReady().then(async () => {
     }
   });
   console.log("[Main Process] SWE-Bench IPC handler registered for evaluate-task");
+
+  // Add new SWE-Bench IPC handlers
+  
+  // Task listing and retrieval handlers
+  ipcMain.handle(SWE_BENCH_LIST_TASKS_CHANNEL, async (_event, tasksDir: string) => {
+    console.log(`[IPC Main] Listing tasks from: ${tasksDir}`);
+    try {
+      const fs = require("fs").promises;
+      const path = require("path");
+      
+      const basePath = path.join(process.cwd(), "assets/swebench-tasks");
+      const fullPath = path.join(basePath, tasksDir);
+      
+      const files = await fs.readdir(fullPath);
+      const taskIds = files
+        .filter((f: string) => f.endsWith('.json'))
+        .map((f: string) => f.replace('.json', ''));
+      
+      return taskIds;
+    } catch (error) {
+      console.error("[IPC Main] Error listing tasks:", error);
+      return [];
+    }
+  });
+
+  ipcMain.handle(SWE_BENCH_GET_TASK_CHANNEL, async (_event, tasksDir: string, instanceId: string) => {
+    console.log(`[IPC Main] Getting task: ${instanceId} from ${tasksDir}`);
+    try {
+      const fs = require("fs").promises;
+      const path = require("path");
+      
+      const basePath = path.join(process.cwd(), "assets/swebench-tasks");
+      const fullPath = path.join(basePath, tasksDir, `${instanceId}.json`);
+      
+      const content = await fs.readFile(fullPath, 'utf-8');
+      return JSON.parse(content);
+    } catch (error) {
+      console.error("[IPC Main] Error getting task:", error);
+      return null;
+    }
+  });
+
+  // Batch run management - store running processes
+  const runningBatchProcesses = new Map<string, any>();
+
+  ipcMain.handle(SWE_BENCH_SPAWN_BATCH_RUN_CHANNEL, async (event, params: any) => {
+    console.log("[IPC Main] Spawning batch run:", params);
+    try {
+      const { spawn } = require("child_process");
+      const path = require("path");
+      
+      // Generate unique run ID with timestamp
+      const runId = `run-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+      
+      // Build arguments for the batch runner script
+      const args = ["tsx", "scripts/run_swe_bench_batch_env.ts"];
+      if (params.instanceIds && params.instanceIds.length > 0) {
+        args.push("--instance-ids", params.instanceIds.join(","));
+      }
+      args.push("--patch-source", params.patchSource);
+      if (params.outputDirName) {
+        args.push("--output-dir", params.outputDirName);
+      } else {
+        args.push("--output-dir", runId);
+      }
+      if (params.maxTasks) {
+        args.push("--max-tasks", params.maxTasks.toString());
+      }
+      args.push("--tasks-dir", params.tasksDir);
+      
+      // Spawn the process
+      const child = spawn("pnpm", args, {
+        cwd: process.cwd(),
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      
+      // Store the process
+      runningBatchProcesses.set(runId, child);
+      
+      // Handle stdout
+      child.stdout.on("data", (data: Buffer) => {
+        event.sender.send(SWE_BENCH_BATCH_RUN_STDOUT_CHANNEL, { runId, output: data.toString() });
+      });
+      
+      // Handle stderr
+      child.stderr.on("data", (data: Buffer) => {
+        event.sender.send(SWE_BENCH_BATCH_RUN_STDERR_CHANNEL, { runId, output: data.toString() });
+      });
+      
+      // Handle exit
+      child.on("exit", (code: number) => {
+        console.log(`[IPC Main] Batch run ${runId} exited with code ${code}`);
+        runningBatchProcesses.delete(runId);
+        event.sender.send(SWE_BENCH_BATCH_RUN_EXIT_CHANNEL, { runId, output: code });
+      });
+      
+      return { runId };
+    } catch (error) {
+      console.error("[IPC Main] Error spawning batch run:", error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle(SWE_BENCH_STOP_BATCH_RUN_CHANNEL, async (_event, runId: string) => {
+    console.log(`[IPC Main] Stopping batch run: ${runId}`);
+    const child = runningBatchProcesses.get(runId);
+    if (child) {
+      child.kill();
+      runningBatchProcesses.delete(runId);
+    }
+  });
+
+  // Results management handlers
+  ipcMain.handle(SWE_BENCH_LIST_RESULT_RUNS_CHANNEL, async () => {
+    console.log("[IPC Main] Listing result runs");
+    try {
+      const fs = require("fs").promises;
+      const path = require("path");
+      
+      const resultsDir = path.join(process.cwd(), "swebench-results");
+      const entries = await fs.readdir(resultsDir, { withFileTypes: true });
+      
+      return entries
+        .filter((e: any) => e.isDirectory())
+        .map((e: any) => e.name)
+        .sort()
+        .reverse(); // Most recent first
+    } catch (error) {
+      console.error("[IPC Main] Error listing result runs:", error);
+      return [];
+    }
+  });
+
+  ipcMain.handle(SWE_BENCH_GET_RESULT_SUMMARY_CHANNEL, async (_event, runDir: string) => {
+    console.log(`[IPC Main] Getting result summary for: ${runDir}`);
+    try {
+      const fs = require("fs").promises;
+      const path = require("path");
+      
+      const summaryPath = path.join(process.cwd(), "swebench-results", runDir, "summary.json");
+      const content = await fs.readFile(summaryPath, 'utf-8');
+      
+      return JSON.parse(content);
+    } catch (error) {
+      console.error("[IPC Main] Error getting result summary:", error);
+      return null;
+    }
+  });
+
+  ipcMain.handle(SWE_BENCH_GET_TASK_RESULT_CHANNEL, async (_event, runDir: string, instanceId: string) => {
+    console.log(`[IPC Main] Getting task result for: ${instanceId} in ${runDir}`);
+    try {
+      const fs = require("fs").promises;
+      const path = require("path");
+      
+      const resultPath = path.join(process.cwd(), "swebench-results", runDir, `${instanceId}_eval_result.json`);
+      const content = await fs.readFile(resultPath, 'utf-8');
+      
+      return JSON.parse(content);
+    } catch (error) {
+      console.error("[IPC Main] Error getting task result:", error);
+      return null;
+    }
+  });
+
+  // Generic file system handlers
+  ipcMain.handle(FS_LIST_DIRS_CHANNEL, async (_event, dirPath: string) => {
+    console.log(`[IPC Main] Listing directories in: ${dirPath}`);
+    try {
+      const fs = require("fs").promises;
+      const path = require("path");
+      
+      // Ensure we only access allowed directories
+      const safePath = path.join(process.cwd(), dirPath);
+      const entries = await fs.readdir(safePath, { withFileTypes: true });
+      
+      return entries
+        .filter((e: any) => e.isDirectory())
+        .map((e: any) => e.name);
+    } catch (error) {
+      console.error("[IPC Main] Error listing directories:", error);
+      return [];
+    }
+  });
+
+  ipcMain.handle(FS_READ_JSON_FILE_CHANNEL, async (_event, filePath: string) => {
+    console.log(`[IPC Main] Reading JSON file: ${filePath}`);
+    try {
+      const fs = require("fs").promises;
+      const path = require("path");
+      
+      // Ensure we only access allowed files
+      const safePath = path.join(process.cwd(), filePath);
+      const content = await fs.readFile(safePath, 'utf-8');
+      
+      return JSON.parse(content);
+    } catch (error) {
+      console.error("[IPC Main] Error reading JSON file:", error);
+      return null;
+    }
+  });
+
+  console.log("[Main Process] All SWE-Bench IPC handlers registered");
 
   // Create window and install extensions
   createWindow();

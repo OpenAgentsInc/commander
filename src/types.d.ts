@@ -1,5 +1,9 @@
 import type { DBSession, DBMessage, DBToolExecution } from "@/services/db";
-import type { EvaluationResult as SWEBenchEvaluationResult } from "@/services/swe_bench_harness/types";
+import type { 
+  EvaluationResult as SWEBenchEvaluationResult,
+  SWEBenchTask 
+} from "@/services/swe_bench_harness/types";
+import type { SpawnBatchRunParams, BatchRunOutput } from "@/helpers/ipc/swe_bench/swe-bench-context";
 
 declare global {
   // Types for Claude Code (defined locally to avoid importing Node.js modules in renderer)
@@ -75,13 +79,29 @@ declare global {
     getAllSessions: (options?: { limit?: number; offset?: number; sortBy?: "created_at" | "last_updated_at"; sortOrder?: "ASC" | "DESC" }) => Promise<DBSession[] | IpcErrorObject>;
   }
 
+  interface SweBenchAPI {
+    evaluateTask: (instanceId: string, patchContent: string) => Promise<SWEBenchEvaluationResult | IpcErrorObject>;
+    listTasks: (tasksDir: string) => Promise<string[]>;
+    getTask: (tasksDir: string, instanceId: string) => Promise<SWEBenchTask | null>;
+    spawnBatchRun: (params: SpawnBatchRunParams) => Promise<{ runId: string }>;
+    stopBatchRun: (runId: string) => Promise<void>;
+    onBatchRunOutput: (channel: string, callback: (data: BatchRunOutput) => void) => () => void;
+    listResultRuns: () => Promise<string[]>;
+    getResultSummary: (runDir: string) => Promise<any>;
+    getTaskResult: (runDir: string, instanceId: string) => Promise<any>;
+  }
+
+  interface FileSystemAPI {
+    listDirs: (dirPath: string) => Promise<string[]>;
+    readJsonFile: (filePath: string) => Promise<any>;
+  }
+
   interface ElectronAPI {
     claudeCode?: ClaudeCodeAPI;
     ollama: OllamaAPI; // Make ollama non-optional
     database: DatabaseAPI;
-    sweBench?: {
-      evaluateTask: (instanceId: string, patchContent: string) => Promise<SWEBenchEvaluationResult | IpcErrorObject>;
-    };
+    sweBench?: SweBenchAPI;
+    fs?: FileSystemAPI;
   }
 
   interface Window {
