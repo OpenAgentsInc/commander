@@ -1,6 +1,6 @@
 // Example of a full SWE-Bench Harness Layer composition
 import { Layer } from "effect";
-import { NodeFileSystem } from "@effect/platform-node"; // Ensure this is available if not already in base
+import { NodeFileSystem, NodeHttpClient } from "@effect/platform-node"; // Ensure this is available if not already in base
 import { ConfigurationServiceLive, DefaultDevConfigLayer } from "@/services/configuration"; // Or your specific config layer
 import { TelemetryServiceLive, DefaultTelemetryConfigLayer } from "@/services/telemetry";   // Or your specific telemetry layer
 import { DockerUtilsServiceLive } from "@/services/docker";
@@ -29,23 +29,20 @@ const BaseServicesLayer = Layer.mergeAll(
   ConfigLayer,
   TelemetryLayer,
   NodeFileSystem.layer,
+  NodeHttpClient.layerUndici,  // Add HttpClient for main process
   DockerUtilsServiceLive
 );
 
-// Add AI services layer for agent patch generation
-const AIServicesLayer = Layer.mergeAll(
-  ChatOrchestratorServiceLive,
-  AgentPatchGeneratorServiceLive
-).pipe(
-  Layer.provide(BaseServicesLayer)
-);
+// Import the full runtime layer which has all dependencies
+import { FullAppLayer, initializeMainRuntime, getMainRuntime } from "@/services/runtime";
 
+// For SWE-bench, we'll use a different approach - provide the full runtime
 export const FullSWEBenchHarnessLayer = SWEBenchHarnessServiceLive.pipe(
   Layer.provide(SWEBenchLifecycleServiceLive),
   Layer.provide(SWEBenchEvaluationScriptServiceLive),
   Layer.provide(SWEBenchTaskServiceLive),
   Layer.provide(DockerBuildManagerServiceLive),
   Layer.provide(SWEBenchEnvironmentSetupServiceLive),
-  Layer.provide(AIServicesLayer),
-  Layer.provide(BaseServicesLayer)
+  Layer.provide(AgentPatchGeneratorServiceLive),
+  Layer.provide(FullAppLayer)  // Use the full app layer which has all services
 );

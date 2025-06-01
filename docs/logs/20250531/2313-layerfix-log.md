@@ -110,3 +110,17 @@ Removed import of getMainRuntime from NIP90ServiceImpl.ts and replaced getMainRu
 ### 23:50 - New Error: HttpClient Service Not Found
 
 Progress! Now getting "Service not found: @effect/platform/HttpClient" error. This suggests the runtime is initializing but missing the HttpClient layer in the main process context.
+
+### 23:52 - Fixed HttpClient for Main Process
+
+Added conditional HttpClient layer creation in runtime.ts - using NodeHttpClient for main process.
+
+### 23:55 - Updated SWE-bench Layer Composition
+
+Modified example-layer-composition.ts to use FullAppLayer instead of trying to compose services manually.
+
+### 23:58 - Commented Out More Telemetry
+
+Commented out remaining telemetry calls in NIP90ServiceImpl async callbacks.
+
+### 00:00 - Ready for Another Test Run
