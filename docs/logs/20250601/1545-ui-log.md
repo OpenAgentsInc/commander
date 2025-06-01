@@ -86,3 +86,47 @@ Implement MVP UI for SWE-Bench with four panes:
 ✅ Added missing SWE_BENCH_GET_TASK_RESULT_CHANNEL handler
 ✅ Implemented batch run process management with stdout/stderr streaming
 ✅ Added file system handlers for directory listing and JSON reading
+
+### Phase 2 Summary (16:12)
+✅ All TypeScript checks passing
+✅ All tests passing (321 passed, 29 skipped)
+✅ Committed: feat(ui): Phase 2 - Add IPC layer for SWE-Bench UI
+
+## Phase 3: Implement Pane Functionality
+
+### 3.1 TaskBrowserPane Implementation (16:13)
+✅ Implemented full task browser with:
+  - Directory selection dropdown
+  - Task list with search/filter
+  - Multi-select with checkboxes
+  - Task details preview
+  - Launch evaluation button
+
+### 3.2 EvaluationLauncherPane Implementation (16:15)
+✅ Implemented evaluation launcher with:
+  - Patch source selection (gold, empty, agent:claude_code, agent:ollama)
+  - Optional output directory suffix
+  - Max tasks limit for all-task runs
+  - Selected tasks display
+  - Launch button that opens monitor pane
+
+### 3.3 EvaluationMonitorPane Implementation (16:17)
+✅ Implemented evaluation monitor with:
+  - Real-time stdout/stderr log streaming
+  - Progress tracking with summary polling
+  - Stop run functionality
+  - Success/failure statistics
+  - Auto-scrolling logs with tabs
+  - View results button
+
+### 3.4 ResultsViewerPane Implementation (16:19)
+✅ Implemented results viewer with:
+  - Run selection dropdown
+  - Summary statistics cards
+  - Run information display
+  - Results table with status indicators
+  - Patch viewer dialog for generated patches
+  - Duration formatting
+
+### 3.5 Added Missing UI Components (16:20)
+✅ Added Progress component from shadcn

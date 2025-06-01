@@ -185,16 +185,16 @@ export const PaneManager = () => {
             }} 
           />}
           {pane.type === "swe_bench_task_browser" && (
-            <TaskBrowserPane {...pane} />
+            <TaskBrowserPane pane={pane} />
           )}
           {pane.type === "swe_bench_evaluation_launcher" && (
-            <EvaluationLauncherPane {...pane} />
+            <EvaluationLauncherPane pane={pane} />
           )}
           {pane.type === "swe_bench_evaluation_monitor" && (
-            <EvaluationMonitorPane {...pane} />
+            <EvaluationMonitorPane pane={pane} />
           )}
           {pane.type === "swe_bench_results_viewer" && (
-            <ResultsViewerPane {...pane} />
+            <ResultsViewerPane pane={pane} />
           )}
           {pane.type === "default" && (
             <PlaceholderDefaultComponent type={pane.type} />
