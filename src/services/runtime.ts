@@ -52,8 +52,8 @@ import { SparkServiceTestLive } from "@/services/spark/SparkServiceTestImpl";
 import { globalWalletConfig } from "@/services/walletConfig";
 console.log("[Runtime] Imported SparkService");
 
-import { NIP90Service, NIP90ServiceLive } from "@/services/nip90";
-console.log("[Runtime] Imported NIP90Service");
+// import { NIP90Service, NIP90ServiceLive } from "@/services/nip90";
+// console.log("[Runtime] Imported NIP90Service");
 
 import {
   Kind5050DVMService,
@@ -102,7 +102,7 @@ export type FullAppContext =
   | NIP28Service
   | OllamaService
   | SparkService
-  | NIP90Service
+  // | NIP90Service (commented out)
   | Kind5050DVMService
   | HttpClient.HttpClient
   | ConfigurationService
@@ -195,9 +195,10 @@ export function buildFullAppLayer() {
     );
   }
 
-  const nip90Layer = NIP90ServiceLive.pipe(
-    Layer.provide(Layer.mergeAll(nostrLayer, nip04Layer, telemetryLayer)),
-  );
+  // Temporarily comment out NIP90 layer due to initialization issues
+  // const nip90Layer = NIP90ServiceLive.pipe(
+  //   Layer.provide(Layer.mergeAll(nostrLayer, nip04Layer, telemetryLayer)),
+  // );
 
   // AI service layers - Ollama provider
   const ollamaAdapterLayer = OllamaProvider.OllamaAsOpenAIClientLive.pipe(
@@ -239,7 +240,7 @@ export function buildFullAppLayer() {
         devConfigLayer,              // For ConfigurationService
         BrowserHttpClient.layerXMLHttpRequest, // For HttpClient.HttpClient
         telemetryLayer,              // For TelemetryService
-        nip90Layer,                  // For NIP90Service
+        // nip90Layer,                  // For NIP90Service (commented out)
         nostrLayer,                  // For NostrService
         nip04Layer,                  // For NIP04Service
         sparkLayer,                  // For SparkService
@@ -258,7 +259,7 @@ export function buildFullAppLayer() {
     BIP32ServiceLive,
     nip28Layer,
     sparkLayer,
-    nip90Layer,
+    // nip90Layer, (commented out)
     ollamaLanguageModelLayer,
     chatOrchestratorLayer,
     kind5050DVMLayer,

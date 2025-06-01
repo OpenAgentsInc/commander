@@ -740,24 +740,60 @@ wss.on('connection', (ws) => {
       }
     }
     
-    // Ensure streaming format is enabled
-    const claudeArgs = [...args];
-    const outputFormatIndex = claudeArgs.findIndex(arg => arg === '--output-format');
-    if (outputFormatIndex !== -1) {
-      claudeArgs.splice(outputFormatIndex, 2); // Remove existing output format
+    // --- BEGIN MODIFICATIONS ---
+    const originalArgs = [...args];
+    let finalArgs = [...args]; // Work on a mutable copy
+    
+    log(`[Bridge Arg Handler] Initial args from client: ${JSON.stringify(finalArgs)}`);
+    
+    const hasPromptFlag = finalArgs.includes('-p') || finalArgs.includes('--prompt');
+    let outputFormat = null;
+    const outputFormatIndex = finalArgs.findIndex(arg => arg === '--output-format');
+    
+    if (outputFormatIndex !== -1 && finalArgs.length > outputFormatIndex + 1) {
+      outputFormat = finalArgs[outputFormatIndex + 1];
+      log(`[Bridge Arg Handler] Client requested --output-format: ${outputFormat}`);
+    } else {
+      log(`[Bridge Arg Handler] No --output-format specified by client.`);
     }
-    claudeArgs.push('--output-format', 'stream-json');
+    
+    let effectiveOutputFormat = outputFormat;
+    
+    // If no output format specified, default to stream-json for streaming capability
+    if (!effectiveOutputFormat) {
+      log('[Bridge Arg Handler] No output format specified by client. Defaulting to stream-json for bridge streaming.');
+      const existingFormatIndex = finalArgs.findIndex(arg => arg === '--output-format');
+      if (existingFormatIndex !== -1) {
+        finalArgs.splice(existingFormatIndex, 2); // Remove existing if any
+      }
+      finalArgs.push('--output-format', 'stream-json');
+      effectiveOutputFormat = 'stream-json';
+    }
+    
+    // Ensure --verbose if effectiveOutputFormat is 'stream-json' and a prompt is present
+    if (effectiveOutputFormat === 'stream-json' && hasPromptFlag) {
+      const hasVerboseFlag = finalArgs.includes('--verbose');
+      if (!hasVerboseFlag) {
+        log('[Bridge Arg Handler] Adding --verbose because --output-format stream-json and a prompt flag are present.');
+        finalArgs.push('--verbose');
+      } else {
+        log('[Bridge Arg Handler] --verbose already present with stream-json and prompt.');
+      }
+    } else if (effectiveOutputFormat === 'text') {
+      log(`[Bridge Arg Handler] Using --output-format text as requested. --verbose not strictly required by this rule.`);
+    }
     
     // Add --dangerously-skip-permissions flag to avoid permission prompts
-    if (!claudeArgs.includes('--dangerously-skip-permissions')) {
-      claudeArgs.push('--dangerously-skip-permissions');
+    if (!finalArgs.includes('--dangerously-skip-permissions')) {
+      finalArgs.push('--dangerously-skip-permissions');
     }
     
-    log(`Executing Claude CLI with streaming args: ${claudeArgs.join(' ')}`);
+    log(`[Bridge Arg Handler] Final claudeArgs for PTY spawn: ${JSON.stringify(finalArgs)}`);
+    // --- END MODIFICATIONS ---
     
     try {
       // Spawn Claude with PTY using project root as working directory
-      const ptyProcess = pty.spawn(claudePath, claudeArgs, {
+      const ptyProcess = pty.spawn(claudePath, finalArgs, {
         name: 'xterm-256color',
         cols: 120,
         rows: 30,

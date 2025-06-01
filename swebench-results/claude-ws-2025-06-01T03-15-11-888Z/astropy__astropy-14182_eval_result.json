@@ -1,0 +1,14 @@
+{
+  "instance_id": "astropy__astropy-14182",
+  "report": {
+    "instance_id": "astropy__astropy-14182",
+    "resolved": false,
+    "patch_applied_successfully": true,
+    "tests_passed": false
+  },
+  "container_logs": "",
+  "error_message": null,
+  "duration_ms": 264875,
+  "patch_source_type": "agent_generated",
+  "generated_patch_content": "--- a/astropy/io/ascii/rst.py\n+++ b/astropy/io/ascii/rst.py\n@@ -30,6 +30,9 @@ class SimpleRSTData(FixedWidthData):\nsplitter_class = FixedWidthTwoLineDataSplitter\ndef write(self, lines):\n+        # Get header_rows from parent RST instance if available\n+        header_rows = getattr(self.header, 'header_rows', None)\n+\nvals_list = []\ncol_str_iters = self.str_vals()\nfor vals in zip(*col_str_iters):\n@@ -39,10 +42,25 @@ class SimpleRSTData(FixedWidthData):\ncol.width = max([len(vals[i]) for vals in vals_list])\nif self.header.start_line is not None:\ncol.width = max(col.width, len(col.info.name))\n+            # If header_rows is specified, check width against unit strings too\n+            if header_rows and 'unit' in header_rows:\n+                unit_str = str(col.unit) if hasattr(col, 'unit') and col.unit else ''\n+                col.width = max(col.width, len(unit_str))\nwidths = [col.width for col in self.cols]\nif self.header.start_line is not None:\n+            if header_rows:\n+                # Write multiple header rows based on header_rows list\n+                for row_type in header_rows:\n+                    if row_type == 'name':\n+                        lines.append(self.splitter.join([col.info.name for col in self.cols], widths))\n+                    elif row_type == 'unit':\n+                        unit_strs = [str(col.unit) if hasattr(col, 'unit') and col.unit else ''\n+                                    for col in self.cols]\n+                        lines.append(self.splitter.join(unit_strs, widths))\n+            else:\n+                # Default behavior - just write column names\nlines.append(self.splitter.join([col.info.name for col in self.cols], widths))\nfor vals in vals_list:\n@@ -77,8 +95,9 @@ class RST(FixedWidth):\ndata_class = SimpleRSTData\nheader_class = SimpleRSTHeader\n-    def __init__(self):\n+    def __init__(self, header_rows=None):\nsuper().__init__(delimiter_pad=None, bookend=False)\n+        self.header.header_rows = header_rows\ndef write(self, lines):\nlines = super().write(lines)"
+}
