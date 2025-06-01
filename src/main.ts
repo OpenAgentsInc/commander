@@ -590,18 +590,18 @@ app.whenReady().then(async () => {
       // Build arguments for the batch runner script
       const args = ["tsx", "scripts/run_swe_bench_batch_env.ts"];
       if (params.instanceIds && params.instanceIds.length > 0) {
-        args.push("--instance-ids", params.instanceIds.join(","));
+        args.push("--instance_ids", params.instanceIds.join(","));
       }
-      args.push("--patch-source", params.patchSource);
+      args.push("--patch_source", params.patchSource);
       if (params.outputDirName) {
-        args.push("--output-dir", params.outputDirName);
+        args.push("--output_dir", params.outputDirName);
       } else {
-        args.push("--output-dir", runId);
+        args.push("--output_dir", runId);
       }
       if (params.maxTasks) {
-        args.push("--max-tasks", params.maxTasks.toString());
+        args.push("--max_tasks", params.maxTasks.toString());
       }
-      args.push("--tasks-dir", params.tasksDir);
+      args.push("--tasks_dir", params.tasksDir);
       
       // Spawn the process
       const child = spawn("pnpm", args, {
