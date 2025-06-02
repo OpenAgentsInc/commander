@@ -5,6 +5,14 @@
 - Electron app for "Command agents, earn bitcoin"
 - Tech stack: React 19, TypeScript, Shadcn UI, Tailwind CSS v4, TanStack Router, i18next
 
+## Claude Code Integration
+
+**IMPORTANT**: When using Claude Code (via `@anthropic-ai/claude-code` CLI), you do NOT need to set `ANTHROPIC_API_KEY`. Claude Code uses its own authentication via `claude auth`. The user should already be authenticated through the Claude Code CLI.
+
+- To check authentication: `claude auth status`
+- To authenticate: `claude auth`
+- No API keys are needed in environment variables for Claude Code
+
 ## Build/Test Commands
 
 **IMPORTANT: NEVER run `pnpm start` - the user will run the app themselves when needed**
