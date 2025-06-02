@@ -16,6 +16,7 @@ interface BatchOptions {
   max_tasks?: number;
   output_dir?: string;
   patch_source: string;
+  patch_content?: string;
   stop_on_failure: boolean;
 }
 
@@ -40,6 +41,7 @@ program
   .option('--max_tasks <N>', 'Maximum number of tasks to run', (val) => parseInt(val, 10))
   .option('--output_dir <path>', 'Directory to save evaluation results')
   .option('--patch_source <type>', 'Patch source: gold, empty, or agent', 'gold')
+  .option('--patch_content <content>', 'Patch content to use directly (overrides patch_source)')
   .option('--stop_on_failure', 'Stop batch execution on first failure', false);
 
 program.parse(process.argv);
@@ -180,17 +182,58 @@ ${(() => {
     // Handle different test formats
     if (task.repo.includes('django/django')) {
       // Django uses unittest notation: "test_name (module.tests.TestClass)"
-      // Use Django's test runner
+      // Use Django's test runner with proper test discovery
       const match = test.match(/^([\w_]+)\s*\(([\w.]+)\)$/);
       if (match) {
         const [, testMethod, testPath] = match;
         return `
 echo "Testing: ${test}"
 cd /workspace/repo
-if python -m django test ${testPath}.${testMethod} --settings=tests.test_sqlite 2>&1; then
-  PASSED_TESTS="$PASSED_TESTS ${test}"
+
+# Set up proper PYTHONPATH
+export PYTHONPATH="/workspace/repo:\${PYTHONPATH}"
+
+# Check if tests directory exists and set it up
+if [ -d "tests" ]; then
+  export PYTHONPATH="/workspace/repo/tests:\${PYTHONPATH}"
+  
+  # Try using Django's runtests.py if it exists
+  if [ -f "tests/runtests.py" ]; then
+    echo "Using Django's runtests.py"
+    cd tests
+    if python runtests.py ${testPath}.${testMethod} --verbosity=2 2>&1; then
+      PASSED_TESTS="$PASSED_TESTS ${test}"
+    else
+      # Try with just the test path
+      if python runtests.py ${testPath} -k ${testMethod} --verbosity=2 2>&1; then
+        PASSED_TESTS="$PASSED_TESTS ${test}"
+      else
+        FAILED_TESTS="$FAILED_TESTS ${test}"
+      fi
+    fi
+  else
+    # No runtests.py, use django test command
+    echo "Using django test command"
+    if python -m django test ${testPath}.${testMethod} --settings=tests.test_sqlite --verbosity=2 2>&1; then
+      PASSED_TESTS="$PASSED_TESTS ${test}"
+    else
+      # Try alternative test discovery methods
+      cd tests
+      if python -m django test ${testPath}.${testMethod} --settings=test_sqlite --verbosity=2 2>&1; then
+        PASSED_TESTS="$PASSED_TESTS ${test}"
+      else
+        FAILED_TESTS="$FAILED_TESTS ${test}"
+      fi
+    fi
+  fi
 else
-  FAILED_TESTS="$FAILED_TESTS ${test}"
+  # No tests directory, try from repo root
+  echo "No tests directory found, trying from repo root"
+  if python -m django test ${testPath}.${testMethod} --verbosity=2 2>&1; then
+    PASSED_TESTS="$PASSED_TESTS ${test}"
+  else
+    FAILED_TESTS="$FAILED_TESTS ${test}"
+  fi
 fi
 `;
       } else {
@@ -198,15 +241,55 @@ fi
         return `
 echo "Testing: ${test}"
 cd /workspace/repo
-# Try running as a test label
-if python -m django test "${test}" --settings=tests.test_sqlite 2>&1; then
-  PASSED_TESTS="$PASSED_TESTS ${test}"
+
+# Set up proper PYTHONPATH
+export PYTHONPATH="/workspace/repo:\${PYTHONPATH}"
+
+# Check if tests directory exists
+if [ -d "tests" ]; then
+  export PYTHONPATH="/workspace/repo/tests:\${PYTHONPATH}"
+  
+  # Try using Django's runtests.py if it exists
+  if [ -f "tests/runtests.py" ]; then
+    echo "Using Django's runtests.py for non-standard test"
+    cd tests
+    if python runtests.py "${test}" --verbosity=2 2>&1; then
+      PASSED_TESTS="$PASSED_TESTS ${test}"
+    else
+      FAILED_TESTS="$FAILED_TESTS ${test}"
+    fi
+  else
+    # Try django test command with various approaches
+    echo "Using django test command for non-standard test"
+    if python -m django test "${test}" --settings=tests.test_sqlite --verbosity=2 2>&1; then
+      PASSED_TESTS="$PASSED_TESTS ${test}"
+    else
+      cd tests
+      if python -m django test "${test}" --settings=test_sqlite --verbosity=2 2>&1; then
+        PASSED_TESTS="$PASSED_TESTS ${test}"
+      else
+        # Last resort: try pytest
+        cd /workspace/repo
+        if python -m pytest -k "${test}" -xvs 2>&1; then
+          PASSED_TESTS="$PASSED_TESTS ${test}"
+        else
+          FAILED_TESTS="$FAILED_TESTS ${test}"
+        fi
+      fi
+    fi
+  fi
 else
-  # If that fails, try pytest
-  if python -m pytest -k "${test}" -xvs 2>&1; then
+  # No tests directory, try from repo root
+  echo "No tests directory found, trying alternative methods"
+  if python -m django test "${test}" --verbosity=2 2>&1; then
     PASSED_TESTS="$PASSED_TESTS ${test}"
   else
-    FAILED_TESTS="$FAILED_TESTS ${test}"
+    # Try pytest as fallback
+    if python -m pytest -k "${test}" -xvs 2>&1; then
+      PASSED_TESTS="$PASSED_TESTS ${test}"
+    else
+      FAILED_TESTS="$FAILED_TESTS ${test}"
+    fi
   fi
 fi
 `;
@@ -468,7 +551,11 @@ async function main() {
       
       // Determine patch content
       let patchContent = "";
-      if (options.patch_source === 'gold') {
+      if (options.patch_content) {
+        // Use patch content provided via command line
+        patchContent = options.patch_content;
+        console.log("✓ Using patch content from command line");
+      } else if (options.patch_source === 'gold') {
         if (task.patch) {
           patchContent = task.patch;
           console.log("✓ Using gold patch from task data");
