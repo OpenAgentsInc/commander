@@ -1,6 +1,7 @@
 import { Layer } from "effect";
 import { ConfigurationServiceLive } from "@/services/configuration";
 import { TelemetryServiceLive } from "@/services/telemetry";
+import { TelemetryServiceCliConfigLayer } from "@/services/telemetry/TelemetryServiceCliConfig";
 import { SparkServiceTestLive, DefaultSparkServiceConfigLayer } from "@/services/spark";
 import { ChatOrchestratorServiceLive } from "@/services/ai/orchestration";
 import { AgentPatchGeneratorServiceLive } from "../AgentPatchGeneratorServiceImpl";
@@ -20,11 +21,18 @@ const SparkServiceLayer = SparkServiceTestLive.pipe(
 );
 
 /**
+ * Telemetry service configured for CLI
+ */
+const TelemetryServiceCliLayer = TelemetryServiceLive.pipe(
+  Layer.provide(TelemetryServiceCliConfigLayer)
+);
+
+/**
  * Base services needed for CLI execution
  */
 const BaseCliServicesLayer = Layer.mergeAll(
   ConfigurationServiceLive,
-  TelemetryServiceLive,
+  TelemetryServiceCliLayer,
   SparkServiceLayer
 );
 
