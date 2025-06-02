@@ -1,4 +1,4 @@
-import { Effect, Layer, Context } from "effect";
+import { Effect, Layer, Context, Stream } from "effect";
 import { ChatOrchestratorService } from "./ChatOrchestratorService";
 import { TelemetryService } from "@/services/telemetry";
 import { ConfigurationService } from "@/services/configuration";
@@ -97,19 +97,18 @@ export const ChatOrchestratorServiceCliLive = Layer.effect(
           label: preferredProvider.key 
         }));
         
-        return Effect.stream(
-          getProviderLanguageModel(preferredProvider.key, preferredProvider.modelName).pipe(
-            Effect.map(agentLM => {
-              const streamOptions = {
-                ...options,
-                prompt: JSON.stringify({ messages }),
-                ...(preferredProvider.modelName ? { model: preferredProvider.modelName } : {}),
-              };
-              
-              return agentLM.streamText(streamOptions);
-            }),
-            Effect.flatten
-          )
+        return Stream.fromEffect(
+          getProviderLanguageModel(preferredProvider.key, preferredProvider.modelName)
+        ).pipe(
+          Stream.flatMap(agentLM => {
+            const streamOptions = {
+              ...options,
+              prompt: JSON.stringify({ messages }),
+              ...(preferredProvider.modelName ? { model: preferredProvider.modelName } : {}),
+            };
+            
+            return agentLM.streamText(streamOptions);
+          })
         );
       },
       

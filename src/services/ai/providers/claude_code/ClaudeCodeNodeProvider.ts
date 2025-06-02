@@ -1,7 +1,7 @@
 import { Effect, Layer, Stream, pipe } from "effect";
 import { 
   makeAgentLanguageModel, 
-  type AgentLanguageModel,
+  AgentLanguageModel,
   type GenerateTextOptions,
   type StreamTextOptions,
   type GenerateStructuredOptions,
