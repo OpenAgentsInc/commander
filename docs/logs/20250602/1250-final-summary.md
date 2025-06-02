@@ -109,10 +109,34 @@ Based on testing:
 ✅ **UI Integration**: Full UI for launching evaluations - **WORKING**
 ✅ **Success Tracking**: Calculate and display success percentage - **IMPLEMENTED**
 ✅ **Clean Codebase**: All tests passing, scripts organized - **COMPLETE**
+✅ **CLI Testing**: Verified working with gold and Claude patches - **CONFIRMED**
+
+## How to Run Your Benchmark
+
+### Quick Test (1 task):
+```bash
+pnpm tsx scripts/run-swebench-evaluation.ts --max_tasks 1 --patch_source agent:claude_code
+```
+
+### Full Benchmark (all 6 tasks):
+```bash
+./scripts/run-swebench-full.sh
+# or
+pnpm tsx scripts/run-swebench-evaluation.ts --patch_source agent:claude_code
+```
+
+Expected runtime: 15-20 minutes for full evaluation
 
 ## Final Status
 
-🎯 **READY FOR SWE-BENCH EVALUATION!**
+🎯 **VERIFIED WORKING - READY FOR SWE-BENCH EVALUATION!**
+
+✅ Tested and confirmed:
+- Gold patches: Instant evaluation
+- Claude patches: 2-3 minutes per task
+- Progress saved after each task
+- Success rate calculated correctly
+- Results saved to JSON with full details
 
 The system is fully functional for:
 - Generating patches with Claude
