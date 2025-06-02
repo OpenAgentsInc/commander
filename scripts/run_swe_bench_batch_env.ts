@@ -1,5 +1,8 @@
 #!/usr/bin/env tsx
 /**
+ * DEPRECATED: This script has telemetry service initialization issues.
+ * Use run_swe_bench_standalone.ts instead.
+ * 
  * Batch runner for SWE-Bench task evaluation (Environment Variable Version).
  * 
  * This version uses environment variables for configuration to avoid layer composition issues.

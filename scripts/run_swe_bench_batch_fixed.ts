@@ -1,9 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * DEPRECATED: This script has telemetry service initialization issues.
- * Use run_swe_bench_standalone.ts instead.
- * 
- * Batch runner for SWE-Bench task evaluation.
+ * Fixed batch runner for SWE-Bench task evaluation.
  * 
  * This script runs multiple SWE-Bench tasks in sequence using the Effect-TS harness.
  * It loads tasks from JSON files downloaded by download_swe_bench_tasks.py and
@@ -14,30 +11,7 @@ import { Command } from 'commander';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { Effect, Exit, Cause, Console, pipe, Layer, Config } from 'effect';
-import { NodeRuntime, NodeFileSystem } from '@effect/platform-node';
-import {
-  SWEBenchTaskService,
-  SWEBenchHarnessService,
-  type EvaluationResult,
-  SWEBenchTaskServiceLive,
-  SWEBenchEvaluationScriptServiceLive,
-  SWEBenchLifecycleServiceLive,
-  SWEBenchHarnessServiceLive,
-  DockerBuildManagerServiceLive,
-  AgentPatchGeneratorServiceLive
-} from '../src/services/swe_bench_harness';
-import { ConfigurationService, ConfigurationServiceLive } from '../src/services/configuration';
-import { 
-  TelemetryService, 
-  TelemetryServiceLive, 
-  TelemetryServiceConfigTag 
-} from '../src/services/telemetry';
-import { DockerUtilsServiceLive } from '../src/services/docker';
-import { 
-  SWEBenchEnvironmentSetupServiceLive,
-  AgentPatchGeneratorService,
-  AgentPatchGenerationError
-} from '../src/services/swe_bench_harness';
+import { NodeRuntime, NodeFileSystem, NodeHttpClient } from '@effect/platform-node';
 
 interface BatchOptions {
   tasks_dir: string;
@@ -72,9 +46,39 @@ async function ensureOutputDir(): Promise<string> {
   return outputDir;
 }
 
+// Set environment variables BEFORE any imports that might use them
+process.env.SWE_BENCH_DATASET_PATH = path.resolve(options.tasks_dir);
+process.env.TELEMETRY_ENABLED = 'false';
+process.env.NODE_ENV = 'production';
+
 const mainProgram = Effect.gen(function* (_) {
   const outputDir = yield* _(Effect.promise(() => ensureOutputDir()));
   yield* _(Console.log(`Results will be saved to: ${outputDir}`));
+
+  // Dynamically import services after env vars are set
+  const { 
+    SWEBenchTaskService,
+    SWEBenchHarnessService,
+    SWEBenchTaskServiceLive,
+    SWEBenchEvaluationScriptServiceLive,
+    SWEBenchLifecycleServiceLive,
+    SWEBenchHarnessServiceLive,
+    DockerBuildManagerServiceLive,
+    SWEBenchEnvironmentSetupServiceLive,
+    AgentPatchGeneratorServiceLive
+  } = yield* _(Effect.promise(() => import('../src/services/swe_bench_harness')));
+
+  const { ConfigurationService, ConfigurationServiceLive, DefaultDevConfigLayer } = yield* _(
+    Effect.promise(() => import('../src/services/configuration'))
+  );
+  
+  const { TelemetryService, TelemetryServiceLive, TelemetryServiceConfigTag } = yield* _(
+    Effect.promise(() => import('../src/services/telemetry'))
+  );
+  
+  const { DockerUtilsServiceLive } = yield* _(
+    Effect.promise(() => import('../src/services/docker'))
+  );
 
   const taskService = yield* _(SWEBenchTaskService);
   const harnessService = yield* _(SWEBenchHarnessService);
@@ -104,7 +108,7 @@ const mainProgram = Effect.gen(function* (_) {
   yield* _(Console.log(`Found ${allTaskIds.length} tasks. Will attempt to run ${tasksToRun.length} tasks.`));
 
   // Initialize counters and results
-  const results: Array<{ instanceId: string; result: EvaluationResult | { error: string } }> = [];
+  const results: Array<{ instanceId: string; result: any }> = [];
   let tasksSucceeded = 0;
   let tasksFailed = 0;
   let tasksSkipped = 0;
@@ -241,25 +245,88 @@ const mainProgram = Effect.gen(function* (_) {
 });
 
 async function runBatch() {
-  // Set environment variables
-  process.env.SWE_BENCH_DATASET_PATH = path.resolve(options.tasks_dir);
-  process.env.TELEMETRY_ENABLED = 'false';
+  try {
+    // Import all required modules dynamically
+    const { 
+      SWEBenchTaskServiceLive,
+      SWEBenchEvaluationScriptServiceLive,
+      SWEBenchLifecycleServiceLive,
+      SWEBenchHarnessServiceLive,
+      DockerBuildManagerServiceLive,
+      SWEBenchEnvironmentSetupServiceLive,
+      AgentPatchGeneratorServiceLive
+    } = await import('../src/services/swe_bench_harness');
 
-  // Import the pre-built harness layer (must be done after setting env vars)
-  const { FullSWEBenchHarnessLayer } = await import('../src/services/swe_bench_harness/example-layer-composition');
+    const { ConfigurationServiceLive, DefaultDevConfigLayer } = await import('../src/services/configuration');
+    const { TelemetryServiceLive, TelemetryServiceConfigTag } = await import('../src/services/telemetry');
+    const { DockerUtilsServiceLive } = await import('../src/services/docker');
+    const { ChatOrchestratorServiceLive } = await import('../src/services/ai/orchestration');
+    const { AIModelService, AIModelServiceLive } = await import('../src/services/ai');
 
-  // Run the program with proper error handling
-  NodeRuntime.runMain(
-    mainProgram.pipe(
-      Effect.provide(FullSWEBenchHarnessLayer),
-      Effect.tapError(error => 
-        Effect.sync(() => {
-          console.error('\n❌ Fatal error:', error);
-          process.exit(1);
-        })
+    // Create minimal telemetry config for CLI
+    const MinimalTelemetryConfig = Layer.succeed(TelemetryServiceConfigTag, {
+      telemetryEnabled: false,
+      recordingsPath: "./telemetry",
+      maxRetentionDays: 7,
+      enableTelemetryService: false
+    });
+
+    // Create configuration layer
+    const ConfigLayer = DefaultDevConfigLayer.pipe(
+      Layer.provide(ConfigurationServiceLive)
+    );
+
+    // Create telemetry layer with minimal config
+    const TelemetryLayer = TelemetryServiceLive.pipe(
+      Layer.provide(Layer.merge(MinimalTelemetryConfig, NodeFileSystem.layer))
+    );
+
+    // Base services
+    const BaseServicesLayer = Layer.mergeAll(
+      ConfigLayer,
+      TelemetryLayer,
+      NodeFileSystem.layer,
+      NodeHttpClient.layerUndici,
+      DockerUtilsServiceLive.pipe(Layer.provide(TelemetryLayer))
+    );
+
+    // AI services layer - create a minimal one for CLI
+    const AIServicesLayer = Layer.mergeAll(
+      AIModelServiceLive,
+      ChatOrchestratorServiceLive
+    ).pipe(
+      Layer.provide(BaseServicesLayer)
+    );
+
+    // Build the complete SWE-bench layer
+    const CLISWEBenchLayer = Layer.mergeAll(
+      SWEBenchTaskServiceLive,
+      SWEBenchEvaluationScriptServiceLive,
+      DockerBuildManagerServiceLive,
+      SWEBenchEnvironmentSetupServiceLive,
+      AgentPatchGeneratorServiceLive,
+      SWEBenchLifecycleServiceLive,
+      SWEBenchHarnessServiceLive
+    ).pipe(
+      Layer.provide(Layer.merge(BaseServicesLayer, AIServicesLayer))
+    );
+
+    // Run the program
+    await NodeRuntime.runMain(
+      mainProgram.pipe(
+        Effect.provide(CLISWEBenchLayer),
+        Effect.tapError(error => 
+          Effect.sync(() => {
+            console.error('\n❌ Fatal error:', error);
+            process.exit(1);
+          })
+        )
       )
-    )
-  );
+    );
+  } catch (error) {
+    console.error('Failed to initialize batch runner:', error);
+    process.exit(1);
+  }
 }
 
 // Execute the batch runner
