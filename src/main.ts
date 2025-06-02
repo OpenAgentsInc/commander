@@ -593,7 +593,7 @@ app.whenReady().then(async () => {
       const runId = `run-${new Date().toISOString().replace(/[:.]/g, '-')}`;
       
       // Build arguments for the batch runner script
-      const args = ["tsx", "scripts/run_swe_bench_standalone.ts"];
+      const args = ["tsx", "scripts/run_swe_bench_docker.ts"];
       if (params.instanceIds && params.instanceIds.length > 0) {
         args.push("--instance_ids", params.instanceIds.join(","));
       }
@@ -678,6 +678,15 @@ app.whenReady().then(async () => {
       const path = require("path");
       
       const summaryPath = path.join(process.cwd(), "swebench-results", runDir, "summary.json");
+      
+      // Check if file exists first
+      try {
+        await fs.access(summaryPath);
+      } catch {
+        console.log(`[IPC Main] Summary file not found for run: ${runDir}`);
+        return null;
+      }
+      
       const content = await fs.readFile(summaryPath, 'utf-8');
       
       return JSON.parse(content);
