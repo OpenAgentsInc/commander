@@ -15,106 +15,122 @@ import { SWEBenchHarnessServiceLive } from "../SWEBenchHarnessServiceImpl";
 import { DockerUtilsServiceLive } from "@/services/docker";
 
 /**
- * Telemetry service configured for CLI (without FileSystem dependency)
+ * Layer composition for SWE-bench CLI
+ * 
+ * Dependencies flow:
+ * 1. Base services (Config, Telemetry, Spark, FileSystem)
+ * 2. Docker services
+ * 3. AI orchestration services  
+ * 4. SWE-bench core services (Task, Environment)
+ * 5. SWE-bench composite services (BuildManager, Lifecycle)
+ * 6. Top-level harness service
  */
-const TelemetryServiceCliLayer = TelemetryServiceLive.pipe(
+
+// Base configuration and telemetry
+const TelemetryWithConfigLayer = TelemetryServiceLive.pipe(
   Layer.provide(TelemetryServiceCliConfigLayer)
 );
 
-/**
- * Spark service with test implementation (avoids ECC library issues)
- * Must be created after TelemetryService is available
- */
-const SparkServiceLayer = SparkServiceTestLive.pipe(
+// Spark service with its dependencies
+const SparkWithDepsLayer = SparkServiceTestLive.pipe(
   Layer.provide(DefaultSparkServiceConfigLayer),
-  Layer.provide(TelemetryServiceCliLayer)
+  Layer.provide(TelemetryWithConfigLayer)
 );
 
-/**
- * Platform services for Node.js CLI
- */
-const PlatformServicesLayer = NodeFileSystem.layer;
-
-/**
- * Base services needed for CLI execution
- */
-const BaseCliServicesLayer = Layer.mergeAll(
+// All base services merged
+const BaseServicesLayer = Layer.mergeAll(
   ConfigurationServiceEnvLive,
-  TelemetryServiceCliLayer,
-  SparkServiceLayer,
-  PlatformServicesLayer
+  TelemetryWithConfigLayer,
+  SparkWithDepsLayer,
+  NodeFileSystem.layer
 );
 
-/**
- * Docker services layer
- */
-const DockerServicesLayer = DockerUtilsServiceLive;
-
-/**
- * AI orchestration layer for CLI
- * Uses simplified CLI orchestrator that only supports claude_code
- */
-const AiOrchestrationCliLayer = ChatOrchestratorServiceCliLive.pipe(
-  Layer.provide(BaseCliServicesLayer)
+// Docker service with base dependencies
+const DockerWithDepsLayer = DockerUtilsServiceLive.pipe(
+  Layer.provide(BaseServicesLayer)
 );
 
-/**
- * SWE-bench specific services that depend on AI orchestration
- */
-const SWEBenchServicesLayer = Layer.mergeAll(
-  SWEBenchTaskServiceLive,
-  DockerBuildManagerServiceLive,
-  SWEBenchEnvironmentSetupServiceLive,
-  SWEBenchEvaluationScriptServiceLive
-).pipe(
-  Layer.provide(DockerServicesLayer),
-  Layer.provide(BaseCliServicesLayer)
+// AI orchestration with all its dependencies
+const AiOrchestrationLayer = ChatOrchestratorServiceCliLive.pipe(
+  Layer.provide(BaseServicesLayer)
 );
 
-/**
- * Agent patch generator with AI dependencies
- */
-const PatchGeneratorLayer = AgentPatchGeneratorServiceLive.pipe(
-  Layer.provide(AiOrchestrationCliLayer),
-  Layer.provide(BaseCliServicesLayer)
+// SWE-bench task service (standalone, no SWE-bench dependencies)
+const TaskServiceLayer = SWEBenchTaskServiceLive.pipe(
+  Layer.provide(BaseServicesLayer)
 );
 
-/**
- * SWE-bench lifecycle service with all dependencies
- */
-const LifecycleLayer = SWEBenchLifecycleServiceLive.pipe(
-  Layer.provide(SWEBenchServicesLayer),
-  Layer.provide(BaseCliServicesLayer)
+// Environment setup service (only depends on base services)
+const EnvironmentSetupLayer = SWEBenchEnvironmentSetupServiceLive.pipe(
+  Layer.provide(BaseServicesLayer)
 );
 
-/**
- * Complete SWE-bench harness with all services
- */
-const HarnessLayer = SWEBenchHarnessServiceLive.pipe(
+// Evaluation script service (only depends on base services)
+const EvaluationScriptLayer = SWEBenchEvaluationScriptServiceLive.pipe(
+  Layer.provide(BaseServicesLayer)
+);
+
+// Docker build manager (depends on environment setup)
+const DockerBuildManagerLayer = DockerBuildManagerServiceLive.pipe(
+  Layer.provide(EnvironmentSetupLayer),
+  Layer.provide(DockerWithDepsLayer),
+  Layer.provide(BaseServicesLayer)
+);
+
+// Agent patch generator (depends on AI orchestration)
+const AgentPatchGeneratorLayer = AgentPatchGeneratorServiceLive.pipe(
+  Layer.provide(AiOrchestrationLayer),
+  Layer.provide(BaseServicesLayer)
+);
+
+// Lifecycle service (depends on docker build manager)
+const LifecycleServiceLayer = SWEBenchLifecycleServiceLive.pipe(
+  Layer.provide(DockerBuildManagerLayer),
+  Layer.provide(DockerWithDepsLayer),
+  Layer.provide(BaseServicesLayer)
+);
+
+// Harness service (depends on everything)
+const HarnessServiceLayer = SWEBenchHarnessServiceLive.pipe(
   Layer.provide(Layer.mergeAll(
-    SWEBenchTaskServiceLive,
-    PatchGeneratorLayer,
-    LifecycleLayer,
-    DockerBuildManagerServiceLive,
-    SWEBenchEnvironmentSetupServiceLive,
-    SWEBenchEvaluationScriptServiceLive
+    TaskServiceLayer,
+    AgentPatchGeneratorLayer,
+    LifecycleServiceLayer,
+    DockerBuildManagerLayer,
+    EnvironmentSetupLayer,
+    EvaluationScriptLayer
   )),
-  Layer.provide(DockerServicesLayer),
-  Layer.provide(BaseCliServicesLayer)
+  Layer.provide(DockerWithDepsLayer),
+  Layer.provide(BaseServicesLayer)
 );
 
 /**
  * Complete CLI layer for SWE-bench evaluation
- * This provides all services needed to run SWE-bench tasks with AI-generated patches
+ * Includes all services properly composed with dependencies
  */
-export const SWEBenchCliLayer = HarnessLayer;
+export const SWEBenchCliLayer = Layer.mergeAll(
+  HarnessServiceLayer,
+  LifecycleServiceLayer,
+  DockerBuildManagerLayer,
+  AgentPatchGeneratorLayer,
+  EvaluationScriptLayer,
+  EnvironmentSetupLayer,
+  TaskServiceLayer,
+  DockerWithDepsLayer,
+  AiOrchestrationLayer,
+  BaseServicesLayer
+);
 
 /**
- * Minimal layer for just patch generation (useful for testing)
+ * Minimal layer for just patch generation (no Docker required)
+ * Used for testing and standalone patch generation
  */
 export const PatchGenerationCliLayer = Layer.mergeAll(
-  PatchGeneratorLayer,
-  SWEBenchTaskServiceLive
-).pipe(
-  Layer.provide(BaseCliServicesLayer)
+  AgentPatchGeneratorLayer,
+  TaskServiceLayer,
+  AiOrchestrationLayer,
+  BaseServicesLayer
 );
+
+// For backwards compatibility
+export const CLISWEBenchHarnessLayer = SWEBenchCliLayer;
