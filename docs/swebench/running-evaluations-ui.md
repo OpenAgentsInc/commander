@@ -6,7 +6,7 @@ This guide shows how to run SWE-Bench evaluations using Commander's graphical in
 
 - Commander app running (`pnpm start`)
 - Docker installed and running
-- SWE-Bench tasks available in `assets/swebench-tasks/`
+- SWE-Bench tasks available in `assets/swe_bench_data/`
 
 ## Quick Start
 
@@ -61,7 +61,7 @@ When complete:
 ## Troubleshooting
 
 **No tasks showing?**
-- Check that `assets/swebench-tasks/` contains JSON files
+- Check that `assets/swe_bench_data/` contains JSON files
 - Try selecting a different directory from the dropdown
 
 **Evaluation fails immediately?**
