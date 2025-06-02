@@ -3,7 +3,7 @@ import { ConfigurationServiceLive } from "@/services/configuration";
 import { TelemetryServiceLive } from "@/services/telemetry";
 import { TelemetryServiceCliConfigLayer } from "@/services/telemetry/TelemetryServiceCliConfig";
 import { SparkServiceTestLive, DefaultSparkServiceConfigLayer } from "@/services/spark";
-import { ChatOrchestratorServiceLive } from "@/services/ai/orchestration";
+import { ChatOrchestratorServiceCliLive } from "@/services/ai/orchestration";
 import { AgentPatchGeneratorServiceLive } from "../AgentPatchGeneratorServiceImpl";
 import { SWEBenchTaskServiceLive } from "../SWEBenchTaskServiceImpl";
 import { DockerBuildManagerServiceLive } from "../DockerBuildManagerServiceImpl";
@@ -21,7 +21,7 @@ const SparkServiceLayer = SparkServiceTestLive.pipe(
 );
 
 /**
- * Telemetry service configured for CLI
+ * Telemetry service configured for CLI (without FileSystem dependency)
  */
 const TelemetryServiceCliLayer = TelemetryServiceLive.pipe(
   Layer.provide(TelemetryServiceCliConfigLayer)
@@ -43,9 +43,9 @@ const DockerServicesLayer = DockerUtilsServiceLive;
 
 /**
  * AI orchestration layer for CLI
- * ChatOrchestratorService will automatically use ClaudeCodeNodeProvider in CLI context
+ * Uses simplified CLI orchestrator that only supports claude_code
  */
-const AiOrchestrationCliLayer = ChatOrchestratorServiceLive.pipe(
+const AiOrchestrationCliLayer = ChatOrchestratorServiceCliLive.pipe(
   Layer.provide(BaseCliServicesLayer)
 );
 

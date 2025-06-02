@@ -76,10 +76,16 @@ const main = Effect.gen(function* () {
   }
 });
 
-// Run the test
+// Run the test with better error handling
 pipe(
   main,
   Effect.provide(PatchGenerationCliLayer),
+  Effect.tapErrorCause(cause => 
+    Effect.sync(() => {
+      console.error("\n💥 Error Cause Analysis:");
+      console.error(cause.toString());
+    })
+  ),
   Effect.runPromise
 ).then(result => {
   if (result.success) {

@@ -116,3 +116,16 @@ Running the test script to verify everything works.
 ## 08:15 - Debugging Service Dependencies
 
 Working through layer composition issues to get a clean test run.
+
+### Fixing TelemetryService FileSystem Dependency
+- The issue: TelemetryService uses `Effect.serviceOption(FileSystem)` but FileSystem wasn't provided
+- The proper solution: The service already handles missing FileSystem gracefully
+- Verified with minimal test that TelemetryService works without FileSystem
+
+### The Real Issue
+- Need to trace where TelemetryService is being requested without proper layer provision
+- Likely in ChatOrchestratorService or one of its dependencies
+
+## 08:25 - Tracing Layer Composition Issues
+
+Let me add better error tracing to find where the service resolution is failing.

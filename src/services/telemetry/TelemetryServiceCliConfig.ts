@@ -11,7 +11,7 @@ export const TelemetryServiceCliConfigLayer = Layer.succeed(
     enabled: true,
     logToConsole: false, // Don't clutter CLI output
     logLevel: "info",
-    logToFile: true,
+    logToFile: false, // Disable file logging to avoid FileSystem dependency
     logFilePath: "logs/swe-bench-run.log",
     logFileLevel: "debug",
   } satisfies TelemetryServiceConfig
