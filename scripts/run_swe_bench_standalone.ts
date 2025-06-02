@@ -47,7 +47,19 @@ const options = program.opts() as BatchOptions;
 
 async function ensureOutputDir(): Promise<string> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const outputDir = options.output_dir || path.join(process.cwd(), 'swebench-results', `standalone-${timestamp}`);
+  let outputDir: string;
+  
+  if (options.output_dir) {
+    // If output_dir is provided and doesn't start with swebench-results/, prepend it
+    if (!options.output_dir.startsWith('swebench-results/') && !path.isAbsolute(options.output_dir)) {
+      outputDir = path.join(process.cwd(), 'swebench-results', options.output_dir);
+    } else {
+      outputDir = path.isAbsolute(options.output_dir) ? options.output_dir : path.join(process.cwd(), options.output_dir);
+    }
+  } else {
+    outputDir = path.join(process.cwd(), 'swebench-results', `standalone-${timestamp}`);
+  }
+  
   await fs.mkdir(outputDir, { recursive: true });
   return outputDir;
 }
