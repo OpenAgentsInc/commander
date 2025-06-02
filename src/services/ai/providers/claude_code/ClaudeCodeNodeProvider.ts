@@ -80,8 +80,9 @@ const buildClaudeArgs = (
     // This would need to be handled in post-processing
   }
   
-  // Skip permissions to avoid interactive prompts
-  args.push('--dangerously-skip-permissions');
+  // NOTE: --dangerously-skip-permissions requires interactive acceptance first
+  // Removing it for now to avoid CLI errors
+  // args.push('--dangerously-skip-permissions');
   
   return args;
 };

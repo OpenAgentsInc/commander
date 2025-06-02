@@ -32,7 +32,7 @@ const program = new Command();
 program
   .name('run-swebench-cli')
   .description('Run SWE-Bench evaluation')
-  .option('--tasks_dir <path>', 'Directory containing task JSON files', 'assets/swebench-tasks')
+  .option('--tasks_dir <path>', 'Directory containing task JSON files', 'assets/swe_bench_data')
   .option('--instance_ids <ids>', 'Comma-separated list of instance IDs to run')
   .option('--max_tasks <N>', 'Maximum number of tasks to run', (val) => parseInt(val, 10))
   .option('--output_dir <path>', 'Directory to save evaluation results')
