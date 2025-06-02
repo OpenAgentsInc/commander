@@ -1,0 +1,11 @@
+{
+  "instanceId": "django__django-15995",
+  "result": {
+    "report": {
+      "resolved": false,
+      "tests_run": 7
+    },
+    "docker_image": "swebench/django__django-15995",
+    "patch_applied": true
+  }
+}

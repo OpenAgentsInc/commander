@@ -1,0 +1,6 @@
+{
+  "instanceId": "django__django-15995",
+  "result": {
+    "error": "Service not found: TelemetryService (defined at <anonymous> (/Users/christopherdavid/code/commander/src/services/telemetry/TelemetryService.ts:99:11))"
+  }
+}
