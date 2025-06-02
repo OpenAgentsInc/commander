@@ -11,6 +11,15 @@ public/assets/models
 # SWE-Bench dataset (example files only)
 assets/swe_bench_data/
 
+# SWE-Bench results and test outputs
+swebench-results/
+test-*/
+run-*/
+*.log
+
+# Temporary directories
+temp_*/
+
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 

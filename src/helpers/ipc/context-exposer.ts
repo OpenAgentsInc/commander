@@ -24,6 +24,11 @@ import {
   SWE_BENCH_GET_TASK_RESULT_CHANNEL,
   FS_LIST_DIRS_CHANNEL,
   FS_READ_JSON_FILE_CHANNEL,
+  SWE_BENCH_CHECK_DATASET_STATUS_CHANNEL,
+  SWE_BENCH_DOWNLOAD_DATASET_CHANNEL,
+  SWE_BENCH_DOWNLOAD_DATASET_PROGRESS_CHANNEL,
+  SWE_BENCH_DOWNLOAD_DATASET_COMPLETE_CHANNEL,
+  SWE_BENCH_GET_RANDOM_TASK_IDS_CHANNEL,
 } from "./swe_bench/swe-bench-channels";
 import type { EvaluationResult, SWEBenchTask } from "@/services/swe_bench_harness/types";
 import type { SpawnBatchRunParams, BatchRunOutput } from "./swe_bench/swe-bench-context";
@@ -181,6 +186,35 @@ export default function exposeContexts() {
         ipcRenderer.invoke(SWE_BENCH_GET_RESULT_SUMMARY_CHANNEL, runDir),
       getTaskResult: (runDir: string, instanceId: string) =>
         ipcRenderer.invoke(SWE_BENCH_GET_TASK_RESULT_CHANNEL, runDir, instanceId),
+        
+      // Dataset management
+      checkDatasetStatus: (datasetName?: string, tasksDir?: string) =>
+        ipcRenderer.invoke(SWE_BENCH_CHECK_DATASET_STATUS_CHANNEL, datasetName, tasksDir),
+      downloadDataset: (params: { datasetName: string, split?: string, maxTasks?: number, outputDir?: string }) =>
+        ipcRenderer.invoke(SWE_BENCH_DOWNLOAD_DATASET_CHANNEL, params),
+      onDatasetDownloadEvent: (callback: (data: { downloadId: string, type: 'progress' | 'error' | 'complete', message?: string, progress?: number, taskCount?: number }) => void) => {
+        const progressListener = (_event: any, data: any) => {
+          if (data.type === 'progress') callback(data);
+        };
+        const errorListener = (_event: any, data: any) => {
+          if (data.type === 'error') callback(data);
+        };
+        const completeListener = (_event: any, data: any) => {
+          if (data.type === 'complete') callback(data);
+        };
+        
+        ipcRenderer.on(SWE_BENCH_DOWNLOAD_DATASET_PROGRESS_CHANNEL, progressListener);
+        ipcRenderer.on(SWE_BENCH_DOWNLOAD_DATASET_PROGRESS_CHANNEL, errorListener);
+        ipcRenderer.on(SWE_BENCH_DOWNLOAD_DATASET_COMPLETE_CHANNEL, completeListener);
+        
+        return () => {
+          ipcRenderer.removeListener(SWE_BENCH_DOWNLOAD_DATASET_PROGRESS_CHANNEL, progressListener);
+          ipcRenderer.removeListener(SWE_BENCH_DOWNLOAD_DATASET_PROGRESS_CHANNEL, errorListener);
+          ipcRenderer.removeListener(SWE_BENCH_DOWNLOAD_DATASET_COMPLETE_CHANNEL, completeListener);
+        };
+      },
+      getRandomTaskIds: (tasksDir: string, count: number) =>
+        ipcRenderer.invoke(SWE_BENCH_GET_RANDOM_TASK_IDS_CHANNEL, tasksDir, count),
     },
     
     // Generic file system operations

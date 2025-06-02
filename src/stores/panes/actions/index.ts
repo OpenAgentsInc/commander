@@ -35,3 +35,4 @@ export * from "./openTaskBrowserPane";
 export * from "./openEvaluationLauncherPane";
 export * from "./openEvaluationMonitorPane";
 export * from "./openResultsViewerPane";
+export * from "./openSweBenchSimpleLauncherPane";

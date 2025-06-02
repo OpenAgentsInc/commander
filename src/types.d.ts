@@ -89,6 +89,10 @@ declare global {
     listResultRuns: () => Promise<string[]>;
     getResultSummary: (runDir: string) => Promise<any>;
     getTaskResult: (runDir: string, instanceId: string) => Promise<any>;
+    checkDatasetStatus: (datasetName?: string, tasksDir?: string) => Promise<{ exists: boolean, path: string, taskCount?: number, datasetName: string }>;
+    downloadDataset: (params: { datasetName: string, split?: string, maxTasks?: number, outputDir?: string }) => Promise<{ downloadId: string }>;
+    onDatasetDownloadEvent: (callback: (data: { downloadId: string, type: 'progress' | 'error' | 'complete', message?: string, progress?: number, taskCount?: number }) => void) => (() => void);
+    getRandomTaskIds: (tasksDir: string, count: number) => Promise<string[]>;
   }
 
   interface FileSystemAPI {

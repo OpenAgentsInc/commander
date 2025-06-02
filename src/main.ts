@@ -24,7 +24,12 @@ import {
   SWE_BENCH_GET_RESULT_SUMMARY_CHANNEL,
   SWE_BENCH_GET_TASK_RESULT_CHANNEL,
   FS_LIST_DIRS_CHANNEL,
-  FS_READ_JSON_FILE_CHANNEL
+  FS_READ_JSON_FILE_CHANNEL,
+  SWE_BENCH_CHECK_DATASET_STATUS_CHANNEL,
+  SWE_BENCH_DOWNLOAD_DATASET_CHANNEL,
+  SWE_BENCH_DOWNLOAD_DATASET_PROGRESS_CHANNEL,
+  SWE_BENCH_DOWNLOAD_DATASET_COMPLETE_CHANNEL,
+  SWE_BENCH_GET_RANDOM_TASK_IDS_CHANNEL
 } from "./helpers/ipc/swe_bench/swe-bench-channels";
 // @ts-ignore - Conditionally imported in main process only
 let sweBenchImports: any;
@@ -588,7 +593,7 @@ app.whenReady().then(async () => {
       const runId = `run-${new Date().toISOString().replace(/[:.]/g, '-')}`;
       
       // Build arguments for the batch runner script
-      const args = ["tsx", "scripts/run_swe_bench_batch_env.ts"];
+      const args = ["tsx", "scripts/run_swe_bench_docker.ts"];
       if (params.instanceIds && params.instanceIds.length > 0) {
         args.push("--instance_ids", params.instanceIds.join(","));
       }
@@ -673,6 +678,15 @@ app.whenReady().then(async () => {
       const path = require("path");
       
       const summaryPath = path.join(process.cwd(), "swebench-results", runDir, "summary.json");
+      
+      // Check if file exists first
+      try {
+        await fs.access(summaryPath);
+      } catch {
+        console.log(`[IPC Main] Summary file not found for run: ${runDir}`);
+        return null;
+      }
+      
       const content = await fs.readFile(summaryPath, 'utf-8');
       
       return JSON.parse(content);
@@ -732,6 +746,187 @@ app.whenReady().then(async () => {
     } catch (error) {
       console.error("[IPC Main] Error reading JSON file:", error);
       return null;
+    }
+  });
+
+  // Dataset management handlers
+  ipcMain.handle(SWE_BENCH_CHECK_DATASET_STATUS_CHANNEL, async (_event, datasetName?: string, tasksDir?: string) => {
+    console.log(`[IPC Main] Checking dataset status: ${datasetName || 'default'}, ${tasksDir || 'default'}`);
+    try {
+      const fs = require("fs").promises;
+      const path = require("path");
+      
+      // Default values
+      const dataset = datasetName || "princeton-nlp/SWE-bench";
+      let datasetPath = tasksDir;
+      
+      if (!datasetPath) {
+        // Default to ./assets/swe_bench_data relative to app directory
+        datasetPath = path.join(process.cwd(), "assets/swe_bench_data");
+      }
+      
+      // Check if directory exists
+      try {
+        const stats = await fs.stat(datasetPath);
+        if (!stats.isDirectory()) {
+          return { exists: false, path: datasetPath, datasetName: dataset };
+        }
+      } catch (e) {
+        // Directory doesn't exist
+        return { exists: false, path: datasetPath, datasetName: dataset };
+      }
+      
+      // Count JSON files
+      const files = await fs.readdir(datasetPath);
+      const taskCount = files.filter((f: string) => f.endsWith('.json')).length;
+      
+      return { exists: true, path: datasetPath, taskCount, datasetName: dataset };
+    } catch (error) {
+      console.error("[IPC Main] Error checking dataset status:", error);
+      return { exists: false, path: "", datasetName: datasetName || "princeton-nlp/SWE-bench" };
+    }
+  });
+
+  ipcMain.handle(SWE_BENCH_DOWNLOAD_DATASET_CHANNEL, async (event, params: any) => {
+    console.log("[IPC Main] Downloading dataset:", params);
+    try {
+      const { spawn, spawnSync } = require("child_process");
+      const path = require("path");
+      
+      // Generate unique download ID
+      const downloadId = `download-${Date.now()}`;
+      
+      // First check if Python dependencies are installed
+      console.log("[IPC Main] Checking Python dependencies...");
+      const depCheck = spawnSync("python3", ["scripts/check_python_deps.py"], {
+        cwd: process.cwd(),
+        encoding: 'utf8'
+      });
+      
+      if (depCheck.error) {
+        console.error("[IPC Main] Python not found:", depCheck.error);
+        throw new Error("Python 3 is not installed or not in PATH. Please install Python 3.7 or later.");
+      }
+      
+      if (depCheck.status !== 0) {
+        const errorOutput = depCheck.stderr || depCheck.stdout || "Failed to check dependencies";
+        console.error("[IPC Main] Dependency check failed:", errorOutput);
+        
+        // Try to parse JSON error message
+        try {
+          const lines = (depCheck.stdout || "").split('\n').filter((line: string) => line.trim());
+          for (const line of lines) {
+            const parsed = JSON.parse(line);
+            if (parsed.type === "error") {
+              throw new Error(parsed.message);
+            }
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+        
+        throw new Error("Python dependencies are not installed. Please run: pip install datasets");
+      }
+      
+      // Build arguments for Python script
+      const args = ["scripts/download_swe_bench_tasks.py"];
+      if (params.datasetName) {
+        args.push("--dataset_name", params.datasetName);
+      }
+      if (params.split) {
+        args.push("--split", params.split);
+      }
+      if (params.outputDir) {
+        args.push("--output_dir", params.outputDir);
+      } else {
+        // Default output directory
+        args.push("--output_dir", path.join(process.cwd(), "assets/swe_bench_data"));
+      }
+      if (params.maxTasks) {
+        args.push("--max_tasks", params.maxTasks.toString());
+      }
+      
+      // Spawn Python process
+      const child = spawn("python3", args, {
+        cwd: process.cwd(),
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      
+      // Handle spawn errors
+      child.on("error", (error: any) => {
+        console.error("[IPC Main] Failed to spawn Python process:", error);
+        event.sender.send(SWE_BENCH_DOWNLOAD_DATASET_PROGRESS_CHANNEL, {
+          downloadId,
+          type: "error",
+          message: `Failed to start download: ${error.message}. Make sure Python 3 is installed and available in PATH.`
+        });
+      });
+      
+      // Handle stdout (progress messages)
+      child.stdout.on("data", (data: Buffer) => {
+        const messages = data.toString().split('\n').filter((line: string) => line.trim());
+        for (const message of messages) {
+          try {
+            const parsed = JSON.parse(message);
+            event.sender.send(
+              parsed.type === 'complete' ? SWE_BENCH_DOWNLOAD_DATASET_COMPLETE_CHANNEL : SWE_BENCH_DOWNLOAD_DATASET_PROGRESS_CHANNEL,
+              { downloadId, ...parsed }
+            );
+          } catch (e) {
+            // Not JSON, ignore
+          }
+        }
+      });
+      
+      // Handle stderr (errors)
+      let stderrBuffer = "";
+      child.stderr.on("data", (data: Buffer) => {
+        stderrBuffer += data.toString();
+        console.error("[IPC Main] Download stderr:", data.toString());
+      });
+      
+      // Handle exit
+      child.on("exit", (code: number) => {
+        if (code !== 0) {
+          const errorMessage = stderrBuffer || `Download process exited with code ${code}`;
+          console.error(`[IPC Main] Download failed with code ${code}:`, errorMessage);
+          event.sender.send(SWE_BENCH_DOWNLOAD_DATASET_PROGRESS_CHANNEL, {
+            downloadId,
+            type: "error",
+            message: errorMessage
+          });
+        }
+      });
+      
+      return { downloadId };
+    } catch (error) {
+      console.error("[IPC Main] Error starting download:", error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle(SWE_BENCH_GET_RANDOM_TASK_IDS_CHANNEL, async (_event, tasksDir: string, count: number) => {
+    console.log(`[IPC Main] Getting ${count} random task IDs from: ${tasksDir}`);
+    try {
+      const fs = require("fs").promises;
+      const path = require("path");
+      
+      // List all JSON files
+      const files = await fs.readdir(tasksDir);
+      const taskFiles = files.filter((f: string) => f.endsWith('.json'));
+      
+      // Extract instance IDs
+      const instanceIds = taskFiles.map((f: string) => f.replace('.json', ''));
+      
+      // Shuffle and take requested count
+      const shuffled = instanceIds.sort(() => Math.random() - 0.5);
+      const selected = shuffled.slice(0, Math.min(count, shuffled.length));
+      
+      console.log(`[IPC Main] Selected ${selected.length} random task IDs`);
+      return selected;
+    } catch (error) {
+      console.error("[IPC Main] Error getting random task IDs:", error);
+      return [];
     }
   });
 

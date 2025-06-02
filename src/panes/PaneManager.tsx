@@ -24,6 +24,7 @@ import { TaskBrowserPane } from "@/panes/swebench/TaskBrowserPane";
 import { EvaluationLauncherPane } from "@/panes/swebench/EvaluationLauncherPane";
 import { EvaluationMonitorPane } from "@/panes/swebench/EvaluationMonitorPane";
 import { ResultsViewerPane } from "@/panes/swebench/ResultsViewerPane";
+import { SweBenchSimpleLauncherPane } from "@/panes/swebench/SweBenchSimpleLauncherPane";
 
 // Placeholder Content Components
 const PlaceholderChatComponent = ({ threadId }: { threadId?: string }) => (
@@ -196,6 +197,9 @@ export const PaneManager = () => {
           {pane.type === "swe_bench_results_viewer" && (
             <ResultsViewerPane pane={pane} />
           )}
+          {pane.type === "swe_bench_simple_launcher" && (
+            <SweBenchSimpleLauncherPane pane={pane} />
+          )}
           {pane.type === "default" && (
             <PlaceholderDefaultComponent type={pane.type} />
           )}
@@ -225,6 +229,7 @@ export const PaneManager = () => {
             pane.type === "swe_bench_evaluation_launcher" ||
             pane.type === "swe_bench_evaluation_monitor" ||
             pane.type === "swe_bench_results_viewer" ||
+            pane.type === "swe_bench_simple_launcher" ||
             pane.type === "default"
           ) && <PlaceholderDefaultComponent type={pane.type} />}
         </PaneComponent>

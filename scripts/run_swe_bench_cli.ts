@@ -1,18 +1,17 @@
 #!/usr/bin/env tsx
 /**
- * DEPRECATED: This script has telemetry service initialization issues.
- * Use run_swe_bench_standalone.ts instead.
- * 
- * Batch runner for SWE-Bench task evaluation (Environment Variable Version).
- * 
- * This version uses environment variables for configuration to avoid layer composition issues.
- * Set SWE_BENCH_DATASET_PATH environment variable to the task directory.
+ * CLI runner for SWE-Bench task evaluation using proper service layers.
+ * This uses a CLI-specific layer composition to avoid browser dependencies.
  */
 
 import { Command } from 'commander';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { Effect, Exit, Cause, Console, pipe, NodeRuntime } from 'effect';
+import { Effect, Exit, Cause, Console, pipe } from 'effect';
+
+// Import the CLI-specific layer and harness service
+import { CLISWEBenchHarnessLayer } from '../src/services/swe_bench_harness/cli-layer-composition';
+import { SWEBenchHarnessService } from '../src/services/swe_bench_harness';
 
 interface BatchOptions {
   tasks_dir: string;
@@ -25,9 +24,9 @@ interface BatchOptions {
 
 const program = new Command();
 program
-  .name('run_swe_bench_batch_env')
-  .description('Run SWE-Bench tasks in batch mode (env var version)')
-  .option('--tasks_dir <path>', 'Directory containing task JSON files', 'assets/swebench-tasks')
+  .name('run_swe_bench_cli')
+  .description('Run SWE-Bench tasks using CLI service layers')
+  .option('--tasks_dir <path>', 'Directory containing task JSON files', 'assets/swe_bench_data')
   .option('--instance_ids <ids>', 'Comma-separated list of instance IDs to run')
   .option('--max_tasks <N>', 'Maximum number of tasks to run', (val) => parseInt(val, 10))
   .option('--output_dir <path>', 'Directory to save evaluation results')
@@ -57,7 +56,19 @@ async function log(message: string) {
 
 async function ensureOutputDir(): Promise<string> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const outputDir = options.output_dir || path.join(process.cwd(), 'swebench-results', `run-${timestamp}`);
+  let outputDir: string;
+  
+  if (options.output_dir) {
+    // If output_dir is provided and doesn't start with swebench-results/, prepend it
+    if (!options.output_dir.startsWith('swebench-results/') && !path.isAbsolute(options.output_dir)) {
+      outputDir = path.join(process.cwd(), 'swebench-results', options.output_dir);
+    } else {
+      outputDir = path.isAbsolute(options.output_dir) ? options.output_dir : path.join(process.cwd(), options.output_dir);
+    }
+  } else {
+    outputDir = path.join(process.cwd(), 'swebench-results', `cli-run-${timestamp}`);
+  }
+  
   await fs.mkdir(outputDir, { recursive: true });
   
   // Initialize telemetry logging
@@ -87,7 +98,7 @@ async function loadTask(tasksDir: string, instanceId: string): Promise<any> {
 async function runBatch() {
   const outputDir = await ensureOutputDir();
   
-  await log(`=== SWE-Bench Batch Evaluation Run ===`);
+  await log(`=== SWE-Bench CLI Batch Evaluation Run ===`);
   await log(`Run ID: ${path.basename(outputDir)}`);
   await log(`Results directory: ${outputDir}`);
   await log(`Telemetry log: ${telemetryPath}`);
@@ -140,10 +151,6 @@ async function runBatch() {
   let tasksFailed = 0;
   let tasksSkipped = 0;
 
-  // Import the harness dynamically to ensure env vars are set
-  const { FullSWEBenchHarnessLayer } = await import('../src/services/swe_bench_harness/example-layer-composition');
-  const { SWEBenchHarnessService } = await import('../src/services/swe_bench_harness');
-
   // Process each task
   for (const instanceId of tasksToRun) {
     await log(`\n${'='.repeat(60)}`);
@@ -178,10 +185,10 @@ async function runBatch() {
         return yield* _(harness.evaluateTask(instanceId, patchSource));
       });
 
-      // Run evaluation
+      // Run evaluation with CLI-specific layer
       await log(`Starting Docker container for ${instanceId}...`);
       const result = await Effect.runPromiseExit(
-        evaluationProgram.pipe(Effect.provide(FullSWEBenchHarnessLayer))
+        evaluationProgram.pipe(Effect.provide(CLISWEBenchHarnessLayer))
       );
 
       if (Exit.isSuccess(result)) {

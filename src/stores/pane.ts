@@ -38,6 +38,7 @@ import {
   openEvaluationLauncherPaneAction,
   openEvaluationMonitorPaneAction,
   openResultsViewerPaneAction,
+  openSweBenchSimpleLauncherPaneAction,
 } from "./panes/actions";
 import {
   DEFAULT_NIP28_PANE_ID,
@@ -195,6 +196,7 @@ export const usePaneStore = create<PaneStoreType>()(
       openEvaluationLauncherPane: (content) => openEvaluationLauncherPaneAction(set, get, content),
       openEvaluationMonitorPane: (content) => openEvaluationMonitorPaneAction(set, get, content),
       openResultsViewerPane: () => openResultsViewerPaneAction(set, get),
+      openSweBenchSimpleLauncherPane: () => openSweBenchSimpleLauncherPaneAction(set, get),
       
       resetHUDState: () => {
         // Force recreate initial panes with current screen dimensions
