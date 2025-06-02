@@ -8,7 +8,7 @@ import * as path from 'path';
 
 async function findLatestRun(): Promise<string | null> {
   try {
-    const resultsDir = './swebench-results';
+    const resultsDir = './docs/swebench-results';
     const dirs = await fs.readdir(resultsDir);
     const evalDirs = dirs.filter(d => d.startsWith('eval-'));
     if (evalDirs.length === 0) return null;

@@ -112,7 +112,7 @@ When using `--patch_source agent:<provider_key>` (e.g., `agent:claude_code`), en
 - `--tasks_dir <path>` - Directory containing task JSON files (default: `assets/swe_bench_data`)
 - `--instance_ids <ids>` - Comma-separated list of specific instance IDs to run
 - `--max_tasks <N>` - Maximum number of tasks to run
-- `--output_dir <path>` - Directory for results (default: `./swebench-results/eval-<timestamp>`)
+- `--output_dir <path>` - Directory for results (default: `./docs/swebench-results/eval-<timestamp>`)
 - `--patch_source <type>` - Patch source: `gold`, `empty`, or `agent:<provider>` (default: `agent:claude_code`)
 - `--stop_on_failure` - Stop batch execution on first task failure
 
@@ -150,7 +150,7 @@ A task is considered "resolved" when:
 ### Output Structure
 
 ```
-swebench-results/eval-2024-05-31T10-30-45-123Z/
+docs/swebench-results/eval-2024-05-31T10-30-45-123Z/
 ├── summary.json                          # Overall batch summary with success rates
 ├── progress.json                         # Real-time progress tracking
 ├── django__django-11099.patch           # Generated patch for each task
@@ -167,7 +167,7 @@ swebench-results/eval-2024-05-31T10-30-45-123Z/
   "configuration": {
     "patchSource": "agent:claude_code",
     "tasksDir": "assets/swe_bench_data",
-    "outputDir": "./swebench-results/eval-2024-05-31T10-30-45-123Z"
+    "outputDir": "./docs/swebench-results/eval-2024-05-31T10-30-45-123Z"
   },
   "statistics": {
     "totalTasks": 50,
@@ -328,7 +328,7 @@ pnpm tsx scripts/run-swebench-evaluation.ts --max_tasks 5 --patch_source gold
 pnpm tsx scripts/monitor-swebench-progress.ts
 
 # 3. Check results
-cat swebench-results/eval-*/summary.json | jq '.statistics'
+cat docs/swebench-results/eval-*/summary.json | jq '.statistics'
 
 # 4. Run AI evaluation on specific tasks
 pnpm tsx scripts/run-swebench-evaluation.ts --instance_ids "django__django-11099" --patch_source agent:claude_code

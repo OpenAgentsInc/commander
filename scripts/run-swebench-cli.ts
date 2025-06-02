@@ -46,7 +46,7 @@ const options = program.opts() as BatchOptions;
 process.env.SWE_BENCH_DATASET_PATH = path.resolve(options.tasks_dir);
 
 // Output directory
-const outputDir = options.output_dir || `./swebench-results/cli-${Date.now()}`;
+const outputDir = options.output_dir || `./docs/swebench-results/cli-${Date.now()}`;
 
 interface TaskResult {
   instanceId: string;

@@ -56,7 +56,7 @@ When complete:
 - **Task Directories**: Use the dropdown in Task Browser to switch between different task sets
 - **Multiple Runs**: You can run multiple evaluations in parallel - each gets its own monitor
 - **Logs**: Switch between "All", "Stdout", and "Stderr" tabs to filter output
-- **Results History**: All runs are saved in `swebench-results/` for later viewing
+- **Results History**: All runs are saved in `docs/swebench-results/` for later viewing
 
 ## Troubleshooting
 

@@ -42,7 +42,7 @@ process.env.SWE_BENCH_DATASET_PATH = path.resolve(options.tasks_dir);
 
 // Create output directory
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-const outputDir = options.output_dir || `./swebench-results/eval-${timestamp}`;
+const outputDir = options.output_dir || `./docs/swebench-results/eval-${timestamp}`;
 
 interface TaskResult {
   instanceId: string;

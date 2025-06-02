@@ -141,7 +141,7 @@ pnpm tsx scripts/run-swebench-evaluation.ts --output_dir ./my-results --max_task
 - Authenticate first: `claude auth`
 - Claude Code integration is automatic when using `pnpm start`
 
-Results are saved to `./swebench-results/` with:
+Results are saved to `./docs/swebench-results/` with:
 - Individual patch files for each task
 - `progress.json` for real-time tracking
 - `summary.json` with final statistics and success rates
