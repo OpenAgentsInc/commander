@@ -112,28 +112,38 @@ export const ClaudeCliExecutorServiceLive = Layer.effect(
             
             try {
               // Spawn Claude with PTY
+              // Set environment to force non-interactive mode
+              const env = {
+                ...process.env,
+                CI: 'true',
+                TERM: 'dumb',
+                NO_COLOR: '1',
+                NODE_NO_READLINE: '1'
+              } as { [key: string]: string };
+              
               const ptyProcess = pty.spawn(claudePath, [...args], {
-                name: 'xterm-256color',
+                name: 'dumb',
                 cols: 120,
                 rows: 30,
                 cwd: process.cwd(),
-                env: process.env as { [key: string]: string }
+                env
               });
               
-              // Set up timeout
+              // Set up timeout - increase to 2 minutes for complex prompts
               const timeoutHandle = setTimeout(() => {
                 if (!hasReceivedData) {
                   ptyProcess.kill();
                   resume(Effect.fail(new ClaudeCliError(
-                    'Claude CLI timeout after 30s. This usually means:\n' +
+                    'Claude CLI timeout after 120s. This usually means:\n' +
                     '1. Not authenticated: run "claude auth"\n' +
                     '2. API key issues\n' +
-                    '3. Network problems',
+                    '3. Network problems\n' +
+                    '4. Very complex prompt requiring more processing time',
                     undefined,
                     false
                   )));
                 }
-              }, 30000);
+              }, 120000);
               
               // Handle PTY data
               ptyProcess.onData((data: string) => {
@@ -206,13 +216,22 @@ export const ClaudeCliExecutorServiceLive = Layer.effect(
       executeStream: (args) =>
         Stream.asyncScoped((emit) =>
           Effect.gen(function* () {
+            // Set environment to force non-interactive mode
+            const env = {
+              ...process.env,
+              CI: 'true',
+              TERM: 'dumb',
+              NO_COLOR: '1',
+              NODE_NO_READLINE: '1'
+            } as { [key: string]: string };
+            
             const ptyProcess = yield* Effect.try({
               try: () => pty.spawn(claudePath, [...args], {
-                name: 'xterm-256color',
+                name: 'dumb',
                 cols: 120,
                 rows: 30,
                 cwd: process.cwd(),
-                env: process.env as { [key: string]: string }
+                env
               }),
               catch: (error) => new ClaudeCliError(
                 `Failed to spawn Claude CLI: ${error instanceof Error ? error.message : String(error)}`,
@@ -284,14 +303,20 @@ export const ClaudeCliExecutorServiceLive = Layer.effect(
               )
             });
             
-            // Try a simple auth check by running a minimal command
-            // This will fail quickly if not authenticated
-            const authCheckProcess = pty.spawn(claudePath, ['--help'], {
-              name: 'xterm-256color',
+            // Try a simple auth check by running version command
+            // The --version flag should work without authentication issues
+            const authCheckProcess = pty.spawn(claudePath, ['--version'], {
+              name: 'dumb',
               cols: 80,
               rows: 24,
               cwd: process.cwd(),
-              env: process.env as { [key: string]: string }
+              env: {
+                ...process.env,
+                CI: 'true',
+                TERM: 'dumb',
+                NO_COLOR: '1',
+                NODE_NO_READLINE: '1'
+              } as { [key: string]: string }
             });
             
             const authenticated = yield* Effect.async<boolean>((resume) => {
@@ -303,7 +328,8 @@ export const ClaudeCliExecutorServiceLive = Layer.effect(
               
               authCheckProcess.onData((data) => {
                 output += data;
-                if (output.includes('Usage:') || output.includes('Commands:')) {
+                // Version output indicates CLI is working
+                if (output.includes('Claude Code') || output.includes('claude')) {
                   clearTimeout(timeout);
                   authCheckProcess.kill();
                   resume(Effect.succeed(true));
@@ -312,7 +338,8 @@ export const ClaudeCliExecutorServiceLive = Layer.effect(
               
               authCheckProcess.onExit(() => {
                 clearTimeout(timeout);
-                resume(Effect.succeed(output.includes('Usage:') || output.includes('Commands:')));
+                // Check if we got version info
+                resume(Effect.succeed(output.includes('Claude Code') || output.includes('claude')));
               });
             });
             

@@ -1,6 +1,6 @@
 import { Layer } from "effect";
 import { NodeFileSystem } from "@effect/platform-node";
-import { ConfigurationServiceLive } from "@/services/configuration";
+import { ConfigurationServiceEnvLive } from "@/services/configuration/ConfigurationServiceEnv";
 import { TelemetryServiceLive } from "@/services/telemetry";
 import { TelemetryServiceCliConfigLayer } from "@/services/telemetry/TelemetryServiceCliConfig";
 import { SparkServiceTestLive, DefaultSparkServiceConfigLayer } from "@/services/spark";
@@ -39,7 +39,7 @@ const PlatformServicesLayer = NodeFileSystem.layer;
  * Base services needed for CLI execution
  */
 const BaseCliServicesLayer = Layer.mergeAll(
-  ConfigurationServiceLive,
+  ConfigurationServiceEnvLive,
   TelemetryServiceCliLayer,
   SparkServiceLayer,
   PlatformServicesLayer
