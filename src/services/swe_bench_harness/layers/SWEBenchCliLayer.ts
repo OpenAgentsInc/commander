@@ -1,7 +1,7 @@
 import { Layer } from "effect";
 import { ConfigurationServiceLive } from "@/services/configuration";
 import { TelemetryServiceLive } from "@/services/telemetry";
-import { SparkServiceLive } from "@/services/spark";
+import { SparkServiceTestLive, DefaultSparkServiceConfigLayer } from "@/services/spark";
 import { ChatOrchestratorServiceLive } from "@/services/ai/orchestration";
 import { AgentPatchGeneratorServiceLive } from "../AgentPatchGeneratorServiceImpl";
 import { SWEBenchTaskServiceLive } from "../SWEBenchTaskServiceImpl";
@@ -13,12 +13,19 @@ import { SWEBenchHarnessServiceLive } from "../SWEBenchHarnessServiceImpl";
 import { DockerUtilsServiceLive } from "@/services/docker";
 
 /**
+ * Spark service with test implementation (avoids ECC library issues)
+ */
+const SparkServiceLayer = SparkServiceTestLive.pipe(
+  Layer.provide(DefaultSparkServiceConfigLayer)
+);
+
+/**
  * Base services needed for CLI execution
  */
 const BaseCliServicesLayer = Layer.mergeAll(
   ConfigurationServiceLive,
   TelemetryServiceLive,
-  SparkServiceLive
+  SparkServiceLayer
 );
 
 /**

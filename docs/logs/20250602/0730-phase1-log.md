@@ -103,3 +103,16 @@ Now updating the orchestrator to use ClaudeCodeNodeProvider in CLI environments.
 ## 08:05 - Testing the Implementation
 
 Running the test script to verify everything works.
+
+### First Test Attempt
+- ❌ Syntax error in ChatOrchestratorService - missing closing brace
+- ✅ Fixed by adding missing brace for Electron main process block
+
+### Second Test Attempt  
+- ❌ SparkServiceConfig not found error
+- ✅ Fixed by using SparkServiceTestLive with DefaultSparkServiceConfigLayer
+- This avoids ECC library issues in test environments
+
+## 08:15 - Debugging Service Dependencies
+
+Working through layer composition issues to get a clean test run.
