@@ -593,7 +593,7 @@ app.whenReady().then(async () => {
       const runId = `run-${new Date().toISOString().replace(/[:.]/g, '-')}`;
       
       // Build arguments for the batch runner script
-      const args = ["tsx", "scripts/run-swebench-cli.ts"];
+      const args = ["tsx", "scripts/run-swebench-evaluation.ts"];
       if (params.instanceIds && params.instanceIds.length > 0) {
         args.push("--instance_ids", params.instanceIds.join(","));
       }
