@@ -13,6 +13,7 @@ export interface EvaluationOptions {
   cache_level?: string;
   run_id?: string;
   instance_ids?: string[];
+  namespace?: string;
 }
 
 export interface EvaluationProgress {

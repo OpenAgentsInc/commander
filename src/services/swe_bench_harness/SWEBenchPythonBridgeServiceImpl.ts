@@ -256,7 +256,8 @@ except ImportError as e:
               dataset_name: options.dataset_name || "princeton-nlp/SWE-bench",
               max_workers: options.max_workers || 1,
               timeout: options.timeout || 1800,
-              instance_ids: options.instance_ids
+              instance_ids: options.instance_ids,
+              namespace: options.namespace
             };
             
             proc.stdin!.write(JSON.stringify(config) + "\n");

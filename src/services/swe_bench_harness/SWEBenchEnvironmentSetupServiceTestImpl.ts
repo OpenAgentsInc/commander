@@ -5,7 +5,7 @@ import type { SWEBenchTask } from "./types";
 // Test implementation that doesn't require external dependencies
 export const SWEBenchEnvironmentSetupServiceTestImpl = Layer.succeed(
   SWEBenchEnvironmentSetupService,
-  SWEBenchEnvironmentSetupService.of({
+  {
     analyzeTaskEnvironment: (task) =>
       Effect.succeed({
         pythonVersion: "3.8",
@@ -26,5 +26,5 @@ echo "Python Version: ${config.pythonVersion}"
 
     extractTestTargets: (testPatch) =>
       Effect.succeed([])
-  })
+  }
 );

@@ -1,96 +1,93 @@
 /**
- * Test script for SWE-bench Python bridge integration
+ * Test full SWE-bench integration with Claude Code
  */
 
-import { Effect } from "effect";
-import { NodeRuntime } from "@effect/platform-node";
+import { Effect, Stream, Chunk } from "effect";
 import { SWEBenchHarnessService } from "../src/services/swe_bench_harness";
-import { CLISWEBenchHarnessLayer } from "../src/services/swe_bench_harness/cli-layer-composition";
+import { SWEBenchPythonBridgeCliLayer } from "../src/services/swe_bench_harness/layers/SWEBenchPythonBridgeCliLayer";
 
-// Set feature flag to use official SWE-bench
+// Enable official SWE-bench
 process.env.USE_OFFICIAL_SWEBENCH = "true";
-
-// Also set to use virtual environment Python
 process.env.PYTHON_EXECUTABLE = ".venv/bin/python";
 
 async function testIntegration() {
-  console.log("🧪 Testing SWE-bench Python bridge integration...\n");
+  console.log("🧪 Testing full SWE-bench integration...\n");
+  
+  // First, let's test if we can even create the layer
+  try {
+    console.log("Creating layer...");
+    const layer = SWEBenchPythonBridgeCliLayer;
+    console.log("✅ Layer created successfully");
+    
+    // Try a minimal test
+    const testProgram = Effect.gen(function* () {
+      console.log("Inside Effect...");
+      return "test";
+    });
+    
+    const result = await Effect.runPromise(
+      testProgram.pipe(Effect.provide(layer))
+    );
+    console.log("Minimal test result:", result);
+    
+  } catch (error) {
+    console.error("Failed to create layer:", error);
+    return;
+  }
   
   const program = Effect.gen(function* () {
     const harness = yield* SWEBenchHarnessService;
     
-    // Test 1: Single task with gold patch
-    console.log("Test 1: Gold patch evaluation for sympy__sympy-20590");
-    console.log("=" + "=".repeat(50));
+    // Test with a simple instance from SWE-bench Lite
+    console.log("Running evaluation for django__django-11099...");
     
-    try {
-      const result1 = yield* harness.evaluateTask("sympy__sympy-20590", { type: "gold" });
-      console.log("✅ Result:", {
-        instance_id: result1.instance_id,
-        resolved: result1.report.resolved,
-        duration_ms: result1.duration_ms,
-        patch_source: result1.patch_source_type
-      });
-    } catch (error) {
-      console.error("❌ Test 1 failed:", error);
-    }
-    
-    console.log("\n");
-    
-    // Test 2: Empty patch (should fail)
-    console.log("Test 2: Empty patch evaluation for django__django-11099");
-    console.log("=" + "=".repeat(50));
-    
-    try {
-      const result2 = yield* harness.evaluateTask("django__django-11099", { type: "empty" });
-      console.log("✅ Result:", {
-        instance_id: result2.instance_id,
-        resolved: result2.report.resolved,
-        duration_ms: result2.duration_ms,
-        patch_source: result2.patch_source_type
-      });
-    } catch (error) {
-      console.error("❌ Test 2 failed:", error);
-    }
-    
-    console.log("\n");
-    
-    // Test 3: Generate patch with Claude
-    if (process.env.CLAUDE_CODE_PROVIDER_ENABLED === "true") {
-      console.log("Test 3: Claude-generated patch for simple task");
-      console.log("=" + "=".repeat(50));
-      
-      try {
-        const result3 = yield* harness.evaluateTask("django__django-11099", {
-          type: "agent_generated",
-          providerKey: "claude_code"
-        });
-        console.log("✅ Result:", {
-          instance_id: result3.instance_id,
-          resolved: result3.report.resolved,
-          duration_ms: result3.duration_ms,
-          patch_source: result3.patch_source_type,
-          patch_length: result3.generated_patch_content?.length
-        });
-      } catch (error) {
-        console.error("❌ Test 3 failed:", error);
+    const stream = harness.runEvaluation(
+      ["django__django-11099"],
+      {
+        datasetName: "princeton-nlp/SWE-bench_Lite",
+        maxWorkers: 1,
+        timeout: 300,
+        namespace: "none"  // Use existing local images
       }
-    } else {
-      console.log("⚠️  Skipping Test 3: Claude Code provider not enabled");
-      console.log("   Set CLAUDE_CODE_PROVIDER_ENABLED=true to test AI patch generation");
-    }
+    );
     
-    console.log("\n✨ Integration tests complete!");
+    // Collect all updates
+    const updates: any[] = [];
+    yield* stream.pipe(
+      Stream.tap(update => Effect.sync(() => {
+        updates.push(update);
+        console.log(`[${update.type}]`, 
+          update.type === "instance_complete" ? {
+            instance_id: update.instance_id,
+            resolved: update.resolved,
+            duration: update.duration
+          } : update.type === "complete" ? {
+            total: update.summary.total,
+            resolved: update.summary.resolved,
+            percentage: update.summary.percentage
+          } : update
+        );
+      })),
+      Stream.runDrain
+    );
+    
+    // Find completion
+    const completeUpdate = updates.find(u => u.type === "complete");
+    if (completeUpdate) {
+      console.log("\n✅ Evaluation complete!");
+      console.log("Summary:", completeUpdate.summary);
+    }
   });
   
+  // Use the Python bridge specialized layer
+  const layer = SWEBenchPythonBridgeCliLayer;
+  
   await Effect.runPromise(
-    program.pipe(
-      Effect.provide(CLISWEBenchHarnessLayer)
-    )
+    program.pipe(Effect.provide(layer))
   );
 }
 
-// Run the tests
+// Run the test
 testIntegration().catch(error => {
   console.error("Fatal error:", error);
   process.exit(1);

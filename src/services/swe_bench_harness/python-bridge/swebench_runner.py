@@ -20,8 +20,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../../../swebench
 # Import after path setup
 try:
     from swebench.harness.run_evaluation import run_instances
-    from swebench.harness.utils import load_swebench_dataset, get_predictions
-    from swebench.harness.test_spec import make_test_spec
+    from swebench.harness.utils import load_swebench_dataset, get_predictions_from_file
+    from swebench.harness.docker_build import build_env_images
+    import docker
 except ImportError as e:
     print(json.dumps({
         "type": "error",
@@ -68,10 +69,13 @@ def format_predictions_for_swebench(predictions: List[Dict[str, Any]]) -> List[D
     """Convert Commander predictions to SWE-bench format"""
     formatted = []
     for pred in predictions:
+        # SWE-bench expects "model_patch" but also accepts "prediction"
+        patch_key = "model_patch" if "model_patch" in pred else "prediction"
         formatted.append({
             "instance_id": pred["instance_id"],
             "model_name_or_path": pred.get("model_name_or_path", "commander-claude-code"),
-            "model_patch": pred.get("model_patch", "")
+            "model_patch": pred.get(patch_key, ""),
+            "prediction": pred.get(patch_key, "")  # Include both for compatibility
         })
     return formatted
 
@@ -96,6 +100,9 @@ def main():
         max_workers = config.get("max_workers", 1)
         timeout = config.get("timeout", 1800)
         instance_ids = config.get("instance_ids", None)
+        namespace_str = config.get("namespace", "swebench")  # Default to swebench namespace
+        # Convert "none" to None for no namespace
+        namespace = None if namespace_str and namespace_str.lower() == "none" else namespace_str
         
         # Create temporary predictions file
         predictions_file = Path(tempfile.mktemp(suffix=".json"))
@@ -139,7 +146,15 @@ def main():
         predictions_file.write_text(json.dumps(filtered_predictions, indent=2))
         
         # Load predictions using SWE-bench utility
-        predictions_dict = get_predictions(str(predictions_file), instance_ids_set)
+        predictions_list = get_predictions_from_file(str(predictions_file), dataset_name, "test")
+        
+        # Convert list to dict as expected by run_instances
+        predictions_dict = {p["instance_id"]: p for p in predictions_list}
+        
+        send_message("status", {
+            "message": f"Loaded {len(predictions_dict)} predictions",
+            "predictions": list(predictions_dict.keys())
+        })
         
         # Start progress monitor thread
         stop_event = threading.Event()
@@ -155,6 +170,44 @@ def main():
             "max_workers": max_workers
         })
         
+        # Create Docker client
+        try:
+            client = docker.from_env()
+        except Exception as e:
+            send_message("error", {
+                "message": f"Failed to connect to Docker: {str(e)}. Make sure Docker is running.",
+                "type": "DockerError"
+            })
+            stop_event.set()
+            monitor_thread.join()
+            predictions_file.unlink()
+            sys.exit(1)
+        
+        # Build environment images if needed
+        send_message("status", {"message": "Building environment images..."})
+        try:
+            successful, failed = build_env_images(
+                client=client,
+                dataset=instances,
+                force_rebuild=False,
+                max_workers=max_workers
+            )
+            if failed:
+                send_message("warning", {
+                    "message": f"{len(failed)} environment images failed to build",
+                    "failed": failed
+                })
+        except Exception as e:
+            send_message("error", {
+                "message": f"Failed to build environment images: {str(e)}",
+                "type": "BuildError",
+                "traceback": traceback.format_exc()
+            })
+            stop_event.set()
+            monitor_thread.join()
+            predictions_file.unlink()
+            sys.exit(1)
+        
         # Run evaluation using official SWE-bench
         try:
             run_instances(
@@ -165,7 +218,8 @@ def main():
                 timeout=timeout,
                 cache_level="instance",
                 clean=True,
-                force_rebuild=False
+                force_rebuild=False,
+                namespace=namespace
             )
         except Exception as e:
             send_message("error", {
