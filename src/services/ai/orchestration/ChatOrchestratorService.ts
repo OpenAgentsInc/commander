@@ -546,6 +546,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
               yield* _(runTelemetryEffect({ category: "orchestrator", action: "get_provider_model_success_claude_code_websocket", label: providerKey }));
               console.log("[ChatOrchestratorService] Successfully created Claude Code WebSocket provider for", providerKey);
               return claudeCodeAgentLM;
+              }
               
             } else {
               // In renderer process, use IPC
