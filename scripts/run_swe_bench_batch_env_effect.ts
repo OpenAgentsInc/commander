@@ -227,11 +227,11 @@ const runBatch = Effect.gen(function* (_) {
   }).pipe(Effect.catchAll(() => Effect.void)));
 });
 
-// Import the harness layer
-import('../src/services/swe_bench_harness/example-layer-composition').then(({ FullSWEBenchHarnessLayer }) => {
-  // Run the batch processor with the full layer
+// Import the CLI-specific harness layer
+import('../src/services/swe_bench_harness/cli-harness-layer').then(({ CLIFullSWEBenchHarnessLayer }) => {
+  // Run the batch processor with the CLI-specific layer
   NodeRuntime.runMain(
-    runBatch.pipe(Effect.provide(FullSWEBenchHarnessLayer))
+    runBatch.pipe(Effect.provide(CLIFullSWEBenchHarnessLayer))
   );
 }).catch(error => {
   console.error('\n❌ Fatal error:', error);
