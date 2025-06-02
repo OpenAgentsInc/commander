@@ -129,12 +129,12 @@ export const ClaudeCliExecutorServiceLive = Layer.effect(
                 env
               });
               
-              // Set up timeout - increase to 2 minutes for complex prompts
+              // Set up timeout - increase to 5 minutes for complex prompts
               const timeoutHandle = setTimeout(() => {
                 if (!hasReceivedData) {
                   ptyProcess.kill();
                   resume(Effect.fail(new ClaudeCliError(
-                    'Claude CLI timeout after 120s. This usually means:\n' +
+                    'Claude CLI timeout after 300s. This usually means:\n' +
                     '1. Not authenticated: run "claude auth"\n' +
                     '2. API key issues\n' +
                     '3. Network problems\n' +
@@ -143,7 +143,7 @@ export const ClaudeCliExecutorServiceLive = Layer.effect(
                     false
                   )));
                 }
-              }, 120000);
+              }, 300000);
               
               // Handle PTY data
               ptyProcess.onData((data: string) => {
