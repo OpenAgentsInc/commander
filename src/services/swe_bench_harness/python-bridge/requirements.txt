@@ -1,0 +1,7 @@
+# Install swebench from local submodule
+-e ../../../../swebench
+
+# Additional dependencies
+docker>=6.0.0
+python-dotenv
+datasets>=2.0.0

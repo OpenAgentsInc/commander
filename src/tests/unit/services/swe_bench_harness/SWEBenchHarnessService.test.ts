@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Effect, Exit, Layer } from 'effect';
+import { Effect, Exit, Layer, Stream } from 'effect';
 import { FileSystem } from '@effect/platform/FileSystem';
 import { SWEBenchHarnessService } from '@/services/swe_bench_harness/SWEBenchHarnessService';
 import { SWEBenchHarnessServiceLive } from '@/services/swe_bench_harness/SWEBenchHarnessServiceImpl';
@@ -7,6 +7,7 @@ import { SWEBenchTaskService } from '@/services/swe_bench_harness/SWEBenchTaskSe
 import { SWEBenchEvaluationScriptService } from '@/services/swe_bench_harness/SWEBenchEvaluationScriptService';
 import { SWEBenchLifecycleService } from '@/services/swe_bench_harness/SWEBenchLifecycleService';
 import { AgentPatchGeneratorService } from '@/services/swe_bench_harness/AgentPatchGeneratorService';
+import { SWEBenchPythonBridgeService, PythonBridgeError } from '@/services/swe_bench_harness/SWEBenchPythonBridgeService';
 import { TelemetryService } from '@/services/telemetry';
 import { HarnessError, TaskNotFoundError, ScriptBuildError, LifecycleSetupError, LifecycleEvalError } from '@/services/swe_bench_harness/errors';
 import type { SWEBenchTask, ContainerContext, EvaluationReport } from '@/services/swe_bench_harness/types';
@@ -111,6 +112,12 @@ describe('SWEBenchHarnessService', () => {
     generatePatch: vi.fn(() => Effect.succeed("generated patch content"))
   });
 
+  const mockPythonBridge = SWEBenchPythonBridgeService.of({
+    initialize: vi.fn(() => Effect.succeed(undefined)),
+    runEvaluation: vi.fn(() => Stream.fail(new PythonBridgeError({ message: "Python bridge not mocked for this test" }))),
+    isInitialized: vi.fn(() => Effect.succeed(false))
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     
@@ -128,6 +135,7 @@ describe('SWEBenchHarnessService', () => {
       Layer.provide(Layer.succeed(SWEBenchEvaluationScriptService, mockScriptService)),
       Layer.provide(Layer.succeed(SWEBenchLifecycleService, mockLifecycleService)),
       Layer.provide(Layer.succeed(AgentPatchGeneratorService, mockAgentPatchGenerator)),
+      Layer.provide(Layer.succeed(SWEBenchPythonBridgeService, mockPythonBridge)),
       Layer.provide(Layer.succeed(TelemetryService, mockTelemetryService))
     );
   });
@@ -402,6 +410,7 @@ describe('SWEBenchHarnessService', () => {
         Layer.provide(Layer.succeed(SWEBenchEvaluationScriptService, mockScriptService)),
         Layer.provide(Layer.succeed(SWEBenchLifecycleService, mockLifecycleService)),
         Layer.provide(Layer.succeed(AgentPatchGeneratorService, mockAgentPatchGeneratorWithSpy)),
+        Layer.provide(Layer.succeed(SWEBenchPythonBridgeService, mockPythonBridge)),
         Layer.provide(Layer.succeed(TelemetryService, mockTelemetryService))
       );
 

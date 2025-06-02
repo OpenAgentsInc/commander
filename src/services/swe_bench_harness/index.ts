@@ -24,3 +24,5 @@ export * from "./SWEBenchEnvironmentSetupService";
 export * from "./SWEBenchEnvironmentSetupServiceImpl";
 export { AgentPatchGeneratorService } from "./AgentPatchGeneratorService";
 export { AgentPatchGeneratorServiceLive } from "./AgentPatchGeneratorServiceImpl";
+export * from "./SWEBenchPythonBridgeService";
+export { SWEBenchPythonBridgeServiceLive } from "./SWEBenchPythonBridgeServiceImpl";

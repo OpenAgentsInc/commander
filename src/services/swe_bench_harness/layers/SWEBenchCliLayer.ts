@@ -13,6 +13,7 @@ import { SWEBenchEvaluationScriptServiceLive } from "../SWEBenchEvaluationScript
 import { SWEBenchLifecycleServiceLive } from "../SWEBenchLifecycleServiceImpl";
 import { SWEBenchHarnessServiceLive } from "../SWEBenchHarnessServiceImpl";
 import { DockerUtilsServiceLive } from "@/services/docker";
+import { SWEBenchPythonBridgeServiceLive } from "../SWEBenchPythonBridgeServiceImpl";
 
 /**
  * Layer composition for SWE-bench CLI
@@ -83,6 +84,11 @@ const AgentPatchGeneratorLayer = AgentPatchGeneratorServiceLive.pipe(
   Layer.provide(BaseServicesLayer)
 );
 
+// Python bridge service (only depends on base services)
+const PythonBridgeLayer = SWEBenchPythonBridgeServiceLive.pipe(
+  Layer.provide(BaseServicesLayer)
+);
+
 // Lifecycle service (depends on docker build manager)
 const LifecycleServiceLayer = SWEBenchLifecycleServiceLive.pipe(
   Layer.provide(DockerBuildManagerLayer),
@@ -98,7 +104,8 @@ const HarnessServiceLayer = SWEBenchHarnessServiceLive.pipe(
     LifecycleServiceLayer,
     DockerBuildManagerLayer,
     EnvironmentSetupLayer,
-    EvaluationScriptLayer
+    EvaluationScriptLayer,
+    PythonBridgeLayer
   )),
   Layer.provide(DockerWithDepsLayer),
   Layer.provide(BaseServicesLayer)
@@ -116,6 +123,7 @@ export const SWEBenchCliLayer = Layer.mergeAll(
   EvaluationScriptLayer,
   EnvironmentSetupLayer,
   TaskServiceLayer,
+  PythonBridgeLayer,
   DockerWithDepsLayer,
   AiOrchestrationLayer,
   BaseServicesLayer
