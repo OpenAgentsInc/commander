@@ -23,7 +23,7 @@ const dirsToScan = ["docs", "src",
 
   // "src/services/docker",
   // "src/services/ai"
-  // "swebench-results"
+  "swebench-results"
   // "node_modules/@effect/ai-openai/dist/dts/"
 ];
 
