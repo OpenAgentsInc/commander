@@ -48,7 +48,18 @@ export const SWEBenchTaskServiceLive = Layer.effect(
           catch: (e) => new DatasetAccessError({ message: `Failed to parse JSON for task ${instanceId}`, path: filePath, cause: e })
         });
 
-        const task = yield* Schema.decodeUnknown(SWEBenchTaskSchema)(taskData).pipe(
+        // Pre-process the task data to handle JSON-serialized array fields
+        const processedTaskData = {
+          ...taskData,
+          FAIL_TO_PASS: typeof taskData.FAIL_TO_PASS === 'string' 
+            ? JSON.parse(taskData.FAIL_TO_PASS) 
+            : taskData.FAIL_TO_PASS,
+          PASS_TO_PASS: typeof taskData.PASS_TO_PASS === 'string' 
+            ? JSON.parse(taskData.PASS_TO_PASS) 
+            : taskData.PASS_TO_PASS
+        };
+
+        const task = yield* Schema.decodeUnknown(SWEBenchTaskSchema)(processedTaskData).pipe(
           Effect.mapError((e) => new DatasetAccessError({ message: `Invalid task data schema for ${instanceId}`, path: filePath, cause: e }))
         );
 

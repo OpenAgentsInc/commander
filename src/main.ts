@@ -593,7 +593,7 @@ app.whenReady().then(async () => {
       const runId = `run-${new Date().toISOString().replace(/[:.]/g, '-')}`;
       
       // Build arguments for the batch runner script
-      const args = ["tsx", "scripts/run_swe_bench_docker.ts"];
+      const args = ["tsx", "scripts/run-swebench-evaluation.ts"];
       if (params.instanceIds && params.instanceIds.length > 0) {
         args.push("--instance_ids", params.instanceIds.join(","));
       }
@@ -657,7 +657,7 @@ app.whenReady().then(async () => {
       const fs = require("fs").promises;
       const path = require("path");
       
-      const resultsDir = path.join(process.cwd(), "swebench-results");
+      const resultsDir = path.join(process.cwd(), "docs", "swebench-results");
       const entries = await fs.readdir(resultsDir, { withFileTypes: true });
       
       return entries
@@ -677,7 +677,7 @@ app.whenReady().then(async () => {
       const fs = require("fs").promises;
       const path = require("path");
       
-      const summaryPath = path.join(process.cwd(), "swebench-results", runDir, "summary.json");
+      const summaryPath = path.join(process.cwd(), "docs", "swebench-results", runDir, "summary.json");
       
       // Check if file exists first
       try {
@@ -702,7 +702,7 @@ app.whenReady().then(async () => {
       const fs = require("fs").promises;
       const path = require("path");
       
-      const resultPath = path.join(process.cwd(), "swebench-results", runDir, `${instanceId}_eval_result.json`);
+      const resultPath = path.join(process.cwd(), "docs", "swebench-results", runDir, `${instanceId}_eval_result.json`);
       const content = await fs.readFile(resultPath, 'utf-8');
       
       return JSON.parse(content);
