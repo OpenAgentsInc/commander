@@ -118,37 +118,37 @@ For SWE-bench CLI:
 
 ### 3.1 Short-Term Fix (Get It Working)
 
-#### Option A: Fix Effect Layers with Bridge (Recommended)
-1. Ensure claude-bridge-service is running (`pnpm bridge`)
-2. Add Claude Code provider to runtime.ts that uses WebSocket
-3. Update CLI layer composition to include WebSocket-based provider
-4. Use existing AgentPatchGeneratorService with bridge
+#### Option A: Fix Effect Layers (Recommended)
+1. Add Claude Code provider to runtime.ts
+2. Create ClaudeCodeNodeProvider that directly executes Claude CLI
+3. Update CLI layer composition to use direct provider (no bridge needed)
+4. Use existing AgentPatchGeneratorService
 
-#### Option B: Direct Bridge Connection
+#### Option B: Direct CLI Execution
 1. Use `run_swe_bench_docker.ts` (already works)
-2. Connect directly to bridge WebSocket from script
-3. Send patch generation requests to bridge
+2. Execute Claude CLI directly from script using node-pty
+3. Extract the PTY logic from bridge service for reuse
 4. More direct but less integrated with Effect services
 
 ### 3.2 Long-Term Fix (Proper Architecture)
 
-1. **Unified Bridge Architecture**
-   - Keep the WebSocket bridge - it solves fundamental Electron limitations
-   - Bridge service runs as separate process with full network access
-   - Same bridge can be used by both Electron app and CLI scripts
-   - Bridge provides access to Claude CLI with file/fetch tools that can't run in Electron
+1. **Dual-Mode Architecture**
+   - WebSocket bridge for Electron (required due to subprocess restrictions)
+   - Direct Claude CLI execution for pure CLI scripts (no restrictions)
+   - Shared core logic that can run in both modes
+   - Bridge only needed when running from Electron
 
-2. **Effect-Based Bridge Service**
-   - Rewrite claude-bridge-service.js in TypeScript with Effect
-   - Run bridge as standalone Effect program
-   - Can be started by Electron (`pnpm bridge`) or run independently for CLI
-   - All SWE-bench scripts connect to same bridge via WebSocket
+2. **Effect-Based Claude Core**
+   - Extract claude-bridge-service.js logic into reusable Effect services
+   - `ClaudeCliExecutor` service that handles PTY and streaming
+   - Can be used directly in CLI or wrapped in WebSocket server for Electron
+   - Single implementation, two deployment modes
 
-3. **Unified Layer Composition**
-   - Create `createAppLayer(options)` function
-   - Options specify platform (electron/cli) and bridge connection
-   - Both platforms use same ClaudeCodeProvider that connects to bridge
-   - No need for separate implementations - just different startup
+3. **Platform-Specific Providers**
+   - `ClaudeCodeElectronProvider`: Uses WebSocket to bridge
+   - `ClaudeCodeNodeProvider`: Direct PTY execution
+   - Both implement same `AgentLanguageModel` interface
+   - Layer composition selects appropriate provider based on environment
 
 4. **Remove Circular Dependencies**
    - Services shouldn't import runtime.ts
@@ -160,31 +160,35 @@ For SWE-bench CLI:
 ### Phase 1: Quick Win (2-3 hours)
 Goal: Get one task working with AI-generated patches
 
-1. **Start Bridge Service**
-   ```bash
-   # In separate terminal
-   pnpm bridge
-   # Check ~/claude-bridge-service.log for status
+1. **Extract PTY Logic from Bridge**
+   ```typescript
+   // scripts/utils/claude-cli-executor.ts
+   import * as pty from 'node-pty';
+   
+   export async function executeClaudeCli(prompt: string): Promise<string> {
+     // Extract PTY logic from claude-bridge-service.js
+     // Direct execution, no WebSocket needed
+     const claudeProcess = pty.spawn('claude', args);
+     // Handle streaming, parse JSON
+     return response;
+   }
    ```
 
-2. **Create WebSocket Claude Client**
+2. **Create Patch Generator**
    ```typescript
-   // scripts/utils/claude-bridge-client.ts
+   // scripts/utils/claude-patch-generator.ts
    export async function generatePatchWithClaude(task: SWEBenchTask): Promise<string> {
-     const ws = new WebSocket('ws://localhost:45671');
      const prompt = buildPrompt(task);
-     // Send request to bridge
-     // Parse streaming response
+     const response = await executeClaudeCli(prompt);
      return extractPatch(response);
    }
    ```
 
-3. **Create Batch Runner with Bridge**
+3. **Create Batch Runner**
    ```typescript
    // scripts/run-swebench-with-ai.ts
-   - Ensure bridge is running
    - Load task
-   - Call generatePatchWithClaude() via bridge
+   - Call generatePatchWithClaude() directly
    - Run evaluation with patch
    - Iterate on failures
    ```
@@ -205,9 +209,10 @@ Goal: Get the proper Effect-based flow working
 2. **Create Node Claude Code Provider**
    ```typescript
    // src/services/ai/providers/claude_code/ClaudeCodeNodeProvider.ts
-   - Implement using WebSocket client to bridge service
-   - Works in both main process and CLI scripts
-   - Same interface as renderer provider
+   - Implement using direct node-pty execution
+   - Extract core logic from bridge service
+   - No WebSocket needed for CLI usage
+   - Same AgentLanguageModel interface
    ```
 
 3. **Fix CLI Layer Composition**
@@ -236,16 +241,16 @@ Goal: Improve success rate through iteration
 ## 5. TODO List (Immediate Actions)
 
 ### Critical Path (Do First)
-- [ ] 1. Check if claude-bridge-service is running (`ps aux | grep claude-bridge`)
-- [ ] 2. Start it if not: `pnpm bridge` (in separate terminal)
-- [ ] 3. Create `scripts/utils/claude-bridge-client.ts` that connects to WebSocket bridge
-- [ ] 4. Create `scripts/generate-patch-with-bridge.ts` that uses bridge client
+- [ ] 1. Extract PTY execution logic from `src/services/claude-bridge-service.js`
+- [ ] 2. Create `scripts/utils/claude-cli-executor.ts` with direct execution
+- [ ] 3. Create `scripts/utils/claude-patch-generator.ts` for SWE-bench prompts
+- [ ] 4. Create `scripts/run-swebench-with-ai.ts` that generates and evaluates
 - [ ] 5. Test patch generation with one task (django__django-11099)
 - [ ] 6. Run evaluation with generated patch using `run_swe_bench_docker.ts`
 
 ### Fix Effect Layers (If Time)
 - [ ] 7. Add ClaudeCodeProvider import to runtime.ts
-- [ ] 8. Create ClaudeCodeNodeProvider.ts that uses WebSocket bridge
+- [ ] 8. Create ClaudeCodeNodeProvider.ts with direct PTY execution
 - [ ] 9. Update ChatOrchestratorService to handle Node.js platform
 - [ ] 10. Test with `scripts/test-cli-layer.ts`
 - [ ] 11. Update `run_swe_bench_cli.ts` to use fixed layers
@@ -290,20 +295,22 @@ This means:
 
 ## Conclusion
 
-The infrastructure is ready. The Docker evaluation works. The bridge service architecture exists for a good reason - it solves fundamental Electron subprocess network isolation issues. What's missing is the AI integration - actually having Claude generate patches via the bridge and iterate based on results. 
+The infrastructure is ready. The Docker evaluation works. The bridge service architecture is needed for Electron but not for CLI scripts. 
 
-The bridge is not a workaround but the proper architecture:
-- Electron can't run Claude CLI directly due to network restrictions
-- The bridge provides full Node.js environment with network access
-- Same bridge works for both Electron app and CLI scripts
-- Claude's file/fetch tools need unrestricted environment
+Key architectural insights:
+- **Electron**: Must use WebSocket bridge due to subprocess network restrictions
+- **CLI Scripts**: Can execute Claude CLI directly with node-pty
+- **Shared Logic**: PTY execution and streaming JSON parsing can be extracted and reused
+- **Effect Services**: Can wrap the core logic for both modes
 
-The critical path is to:
-1. Start the bridge service (`pnpm bridge`)
-2. Connect to it via WebSocket
-3. Generate patches through the bridge
+The critical path for CLI scripts is simpler:
+1. Extract the PTY logic from bridge service
+2. Create direct Claude CLI executor
+3. Generate patches directly without WebSocket overhead
 4. Run evaluations
 5. Iterate based on results
+
+For the Electron app, the bridge remains essential. For SWE-bench CLI evaluation, we can use direct execution for better performance and simpler architecture.
 
 Time to stop building infrastructure and start generating patches.
 
