@@ -1,4 +1,5 @@
 import { Layer } from "effect";
+import { NodeFileSystem } from "@effect/platform-node";
 import { ConfigurationServiceLive } from "@/services/configuration";
 import { TelemetryServiceLive } from "@/services/telemetry";
 import { TelemetryServiceCliConfigLayer } from "@/services/telemetry/TelemetryServiceCliConfig";
@@ -14,13 +15,6 @@ import { SWEBenchHarnessServiceLive } from "../SWEBenchHarnessServiceImpl";
 import { DockerUtilsServiceLive } from "@/services/docker";
 
 /**
- * Spark service with test implementation (avoids ECC library issues)
- */
-const SparkServiceLayer = SparkServiceTestLive.pipe(
-  Layer.provide(DefaultSparkServiceConfigLayer)
-);
-
-/**
  * Telemetry service configured for CLI (without FileSystem dependency)
  */
 const TelemetryServiceCliLayer = TelemetryServiceLive.pipe(
@@ -28,12 +22,27 @@ const TelemetryServiceCliLayer = TelemetryServiceLive.pipe(
 );
 
 /**
+ * Spark service with test implementation (avoids ECC library issues)
+ * Must be created after TelemetryService is available
+ */
+const SparkServiceLayer = SparkServiceTestLive.pipe(
+  Layer.provide(DefaultSparkServiceConfigLayer),
+  Layer.provide(TelemetryServiceCliLayer)
+);
+
+/**
+ * Platform services for Node.js CLI
+ */
+const PlatformServicesLayer = NodeFileSystem.layer;
+
+/**
  * Base services needed for CLI execution
  */
 const BaseCliServicesLayer = Layer.mergeAll(
   ConfigurationServiceLive,
   TelemetryServiceCliLayer,
-  SparkServiceLayer
+  SparkServiceLayer,
+  PlatformServicesLayer
 );
 
 /**
