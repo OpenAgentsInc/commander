@@ -6,3 +6,6 @@ export * from "./TelemetryServiceImpl";
 
 // Export configuration layer
 export * from "./TelemetryServiceConfigFromConfiguration";
+
+// Export CLI configuration
+export * from "./TelemetryServiceCliConfig";

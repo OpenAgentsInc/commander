@@ -228,10 +228,10 @@ const runBatch = Effect.gen(function* (_) {
 });
 
 // Import the CLI-specific harness layer
-import('../src/services/swe_bench_harness/cli-harness-layer').then(({ CLIFullSWEBenchHarnessLayer }) => {
+import('../src/services/swe_bench_harness/cli-layer-composition').then(({ CLISWEBenchHarnessLayer }) => {
   // Run the batch processor with the CLI-specific layer
   NodeRuntime.runMain(
-    runBatch.pipe(Effect.provide(CLIFullSWEBenchHarnessLayer))
+    runBatch.pipe(Effect.provide(CLISWEBenchHarnessLayer))
   );
 }).catch(error => {
   console.error('\n❌ Fatal error:', error);

@@ -243,12 +243,72 @@ export const ChatOrchestratorServiceLive = Layer.effect(
             const isMainProcess = typeof window === 'undefined';
             
             if (isMainProcess) {
-              // In main process, use WebSocket bridge directly
-              yield* _(runTelemetryEffect({ category: "orchestrator", action: "claude_code_using_websocket", label: providerKey }));
+              // In main process, check if we're in CLI context (no bridge) or Electron main
+              const isCliContext = !process.versions?.electron;
               
-              // Create WebSocket connection to Claude bridge
-              const WS_PORT = 45671;
-              const WebSocketClient = require('ws');
+              if (isCliContext) {
+                // CLI context - use direct PTY execution
+                yield* _(runTelemetryEffect({ category: "orchestrator", action: "claude_code_using_node_provider", label: providerKey }));
+                
+                // Dynamically import Claude Code Node provider
+                const claudeModule: any = yield* _(
+                  Effect.tryPromise({
+                    try: () => import("@/services/ai/providers/claude_code" as any),
+                    catch: (error) => new AiProviderError({
+                      message: `Failed to load Claude Code provider: ${error}`,
+                      cause: error,
+                      isRetryable: false,
+                      provider: "claude_code"
+                    })
+                  })
+                );
+                const { ClaudeCodeNodeProviderLive } = claudeModule;
+                
+                // Dynamically import Claude CLI executor
+                const cliModule: any = yield* _(
+                  Effect.tryPromise({
+                    try: () => import("@/services/claude-cli" as any),
+                    catch: (error) => new AiProviderError({
+                      message: `Failed to load Claude CLI executor: ${error}`,
+                      cause: error,
+                      isRetryable: false,
+                      provider: "claude_code"
+                    })
+                  })
+                );
+                const { ClaudeCliExecutorServiceLive } = cliModule;
+                
+                // Build Claude Code Node provider with CLI executor
+                const claudeNodeLayer = ClaudeCodeNodeProviderLive.pipe(
+                  Layer.provide(ClaudeCliExecutorServiceLive)
+                );
+                
+                const claudeCodeAgentLM: AgentLanguageModel = yield* _(
+                  Layer.build(claudeNodeLayer).pipe(
+                    Effect.map((context) =>
+                      Context.get(context, AgentLanguageModel.Tag)
+                    ),
+                    Effect.scoped,
+                    Effect.mapError((error) => new AiProviderError({
+                      message: `Failed to build Claude Code Node provider: ${error}`,
+                      cause: error,
+                      isRetryable: false,
+                      provider: "claude_code"
+                    }))
+                  )
+                );
+                
+                yield* _(runTelemetryEffect({ category: "orchestrator", action: "get_provider_model_success_claude_code_node", label: providerKey }));
+                console.log("[ChatOrchestratorService] Successfully built Claude Code Node provider for CLI context");
+                return claudeCodeAgentLM;
+                
+              } else {
+                // Electron main process - use WebSocket bridge
+                yield* _(runTelemetryEffect({ category: "orchestrator", action: "claude_code_using_websocket", label: providerKey }));
+                
+                // Create WebSocket connection to Claude bridge
+                const WS_PORT = 45671;
+                const WebSocketClient = require('ws');
               
               const claudeCodeAgentLM: AgentLanguageModel = makeAgentLanguageModel({
                 generateText: (options: GenerateTextOptions) =>
@@ -486,6 +546,7 @@ export const ChatOrchestratorServiceLive = Layer.effect(
               yield* _(runTelemetryEffect({ category: "orchestrator", action: "get_provider_model_success_claude_code_websocket", label: providerKey }));
               console.log("[ChatOrchestratorService] Successfully created Claude Code WebSocket provider for", providerKey);
               return claudeCodeAgentLM;
+              }
               
             } else {
               // In renderer process, use IPC

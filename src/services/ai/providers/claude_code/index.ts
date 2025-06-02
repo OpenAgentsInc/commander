@@ -5,3 +5,4 @@ export * from "./ClaudeCodeService";
 export * from "./ClaudeCodeServiceLive";
 export * from "./claudeFormatters";
 export * from "./ClaudeCodeAgentLanguageModelLive";
+export * from "./ClaudeCodeNodeProvider";
