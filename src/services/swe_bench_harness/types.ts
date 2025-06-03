@@ -22,6 +22,8 @@ export const EvaluationReportSchema = Schema.Struct({
   tests_passed: Schema.Boolean,
   resolved: Schema.Boolean,
   test_output_log_path: Schema.optional(Schema.String), // Path to test output log on host after copy
+  FAIL_TO_PASS: Schema.optional(Schema.Array(Schema.String)), // Test cases that should transition from fail to pass
+  PASS_TO_PASS: Schema.optional(Schema.Array(Schema.String)), // Test cases that should remain passing
   // More detailed test statuses can be added later
 });
 

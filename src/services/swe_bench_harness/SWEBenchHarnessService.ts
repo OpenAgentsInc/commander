@@ -6,6 +6,7 @@ import type { TaskNotFoundError, DatasetAccessError, ScriptBuildError, Lifecycle
 import type { DockerError, DockerOperationError } from "@/services/docker";
 import type { ConfigError } from "@/services/configuration";
 import type { AiProviderError, AiConfigurationError } from "@/services/ai/core";
+import type { PythonBridgeError } from "./SWEBenchPythonBridgeService";
 
 export type PatchSource =
   | { type: "gold" }
@@ -13,7 +14,7 @@ export type PatchSource =
   | { type: "content"; content: string }
   | { type: "agent_generated"; providerKey: string };
 
-export type EvaluateTaskError = HarnessError | TaskNotFoundError | DatasetAccessError | ScriptBuildError | LifecycleSetupError | LifecycleEvalError | DockerError | DockerOperationError | ConfigError | DockerBuildPrepError | AgentPatchGenerationError | AiProviderError | AiConfigurationError;
+export type EvaluateTaskError = HarnessError | TaskNotFoundError | DatasetAccessError | ScriptBuildError | LifecycleSetupError | LifecycleEvalError | DockerError | DockerOperationError | ConfigError | DockerBuildPrepError | AgentPatchGenerationError | AiProviderError | AiConfigurationError | PythonBridgeError;
 
 export interface SWEBenchHarnessService {
   /**

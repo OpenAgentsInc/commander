@@ -22,5 +22,8 @@ export * from "./DockerBuildManagerService";
 export * from "./DockerBuildManagerServiceImpl";
 export * from "./SWEBenchEnvironmentSetupService";
 export * from "./SWEBenchEnvironmentSetupServiceImpl";
+export { SWEBenchEnvironmentSetupServiceTestImpl } from "./SWEBenchEnvironmentSetupServiceTestImpl";
 export { AgentPatchGeneratorService } from "./AgentPatchGeneratorService";
 export { AgentPatchGeneratorServiceLive } from "./AgentPatchGeneratorServiceImpl";
+export * from "./SWEBenchPythonBridgeService";
+export { SWEBenchPythonBridgeServiceLive } from "./SWEBenchPythonBridgeServiceImpl";

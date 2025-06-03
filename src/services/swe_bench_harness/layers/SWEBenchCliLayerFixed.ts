@@ -13,6 +13,7 @@ import { SWEBenchEvaluationScriptServiceLive } from "../SWEBenchEvaluationScript
 import { SWEBenchLifecycleServiceLive } from "../SWEBenchLifecycleServiceImpl";
 import { SWEBenchHarnessServiceLive } from "../SWEBenchHarnessServiceImpl";
 import { DockerUtilsServiceLive } from "@/services/docker";
+import { SWEBenchPythonBridgeServiceLive } from "../SWEBenchPythonBridgeServiceImpl";
 
 /**
  * Fixed layer composition that properly handles dependencies
@@ -92,7 +93,13 @@ const PatchGenLayer = Layer.mergeAll(
   BaseServicesLayer
 );
 
-// Step 13: Lifecycle service (depends on docker build manager)
+// Step 13: Python bridge service (depends on base services only)
+const PythonBridgeLayer = Layer.merge(
+  SWEBenchPythonBridgeServiceLive,
+  BaseServicesLayer
+);
+
+// Step 14: Lifecycle service (depends on docker build manager)
 const LifecycleLayer = Layer.mergeAll(
   SWEBenchLifecycleServiceLive,
   BuildManagerLayer,
@@ -100,7 +107,7 @@ const LifecycleLayer = Layer.mergeAll(
   BaseServicesLayer
 );
 
-// Step 14: Complete harness (depends on everything)
+// Step 15: Complete harness (depends on everything)
 export const SWEBenchCliLayerFixed = Layer.mergeAll(
   SWEBenchHarnessServiceLive,
   TaskLayer,
@@ -109,6 +116,7 @@ export const SWEBenchCliLayerFixed = Layer.mergeAll(
   BuildManagerLayer,
   EnvSetupLayer,
   EvalScriptLayer,
+  PythonBridgeLayer,
   DockerLayer,
   BaseServicesLayer
 );

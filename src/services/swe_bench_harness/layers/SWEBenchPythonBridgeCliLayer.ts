@@ -8,7 +8,7 @@ import { ChatOrchestratorServiceCliLive } from "@/services/ai/orchestration";
 import { AgentPatchGeneratorServiceLive } from "../AgentPatchGeneratorServiceImpl";
 import { SWEBenchTaskServiceLive } from "../SWEBenchTaskServiceImpl";
 import { DockerBuildManagerServiceLive } from "../DockerBuildManagerServiceImpl";
-import { SWEBenchEnvironmentSetupServiceLive } from "../SWEBenchEnvironmentSetupServiceImpl";
+import { SWEBenchEnvironmentSetupServiceTestImpl } from "../SWEBenchEnvironmentSetupServiceTestImpl";
 import { SWEBenchEvaluationScriptServiceLive } from "../SWEBenchEvaluationScriptServiceImpl";
 import { SWEBenchLifecycleServiceLive } from "../SWEBenchLifecycleServiceImpl";
 import { SWEBenchHarnessServiceLive } from "../SWEBenchHarnessServiceImpl";
@@ -16,15 +16,9 @@ import { DockerUtilsServiceLive } from "@/services/docker";
 import { SWEBenchPythonBridgeServiceLive } from "../SWEBenchPythonBridgeServiceImpl";
 
 /**
- * Layer composition for SWE-bench CLI
- * 
- * Dependencies flow:
- * 1. Base services (Config, Telemetry, Spark, FileSystem)
- * 2. Docker services
- * 3. AI orchestration services  
- * 4. SWE-bench core services (Task, Environment)
- * 5. SWE-bench composite services (BuildManager, Lifecycle)
- * 6. Top-level harness service
+ * Specialized layer for when USE_OFFICIAL_SWEBENCH=true
+ * Uses the Python bridge to integrate with official SWE-bench
+ * Provides test implementations for services that aren't actually used
  */
 
 // Base configuration and telemetry
@@ -46,57 +40,55 @@ const BaseServicesLayer = Layer.mergeAll(
   NodeFileSystem.layer
 );
 
-// Docker service with base dependencies
+// Docker service
 const DockerWithDepsLayer = DockerUtilsServiceLive.pipe(
   Layer.provide(BaseServicesLayer)
 );
 
-// AI orchestration with all its dependencies
+// AI orchestration for patch generation
 const AiOrchestrationLayer = ChatOrchestratorServiceCliLive.pipe(
   Layer.provide(BaseServicesLayer)
 );
 
-// SWE-bench task service (standalone, no SWE-bench dependencies)
+// SWE-bench task service
 const TaskServiceLayer = SWEBenchTaskServiceLive.pipe(
   Layer.provide(BaseServicesLayer)
 );
 
-// Environment setup service (only depends on base services)
-const EnvironmentSetupLayer = SWEBenchEnvironmentSetupServiceLive.pipe(
-  Layer.provide(BaseServicesLayer)
-);
+// Environment setup service (test implementation since not used with Python bridge)
+const EnvironmentSetupLayer = SWEBenchEnvironmentSetupServiceTestImpl;
 
-// Evaluation script service (only depends on base services)
+// Evaluation script service
 const EvaluationScriptLayer = SWEBenchEvaluationScriptServiceLive.pipe(
   Layer.provide(BaseServicesLayer)
 );
 
-// Docker build manager (depends on environment setup)
+// Docker build manager
 const DockerBuildManagerLayer = DockerBuildManagerServiceLive.pipe(
   Layer.provide(EnvironmentSetupLayer),
   Layer.provide(DockerWithDepsLayer),
   Layer.provide(BaseServicesLayer)
 );
 
-// Agent patch generator (depends on AI orchestration)
+// Agent patch generator
 const AgentPatchGeneratorLayer = AgentPatchGeneratorServiceLive.pipe(
   Layer.provide(AiOrchestrationLayer),
   Layer.provide(BaseServicesLayer)
 );
 
-// Python bridge service (only depends on base services)
+// Python bridge service
 const PythonBridgeLayer = SWEBenchPythonBridgeServiceLive.pipe(
   Layer.provide(BaseServicesLayer)
 );
 
-// Lifecycle service (depends on docker build manager)
+// Lifecycle service
 const LifecycleServiceLayer = SWEBenchLifecycleServiceLive.pipe(
   Layer.provide(DockerBuildManagerLayer),
   Layer.provide(DockerWithDepsLayer),
   Layer.provide(BaseServicesLayer)
 );
 
-// Harness service (depends on everything)
+// Harness service with all dependencies
 const HarnessServiceLayer = SWEBenchHarnessServiceLive.pipe(
   Layer.provide(Layer.mergeAll(
     TaskServiceLayer,
@@ -112,10 +104,10 @@ const HarnessServiceLayer = SWEBenchHarnessServiceLive.pipe(
 );
 
 /**
- * Complete CLI layer for SWE-bench evaluation
- * Includes all services properly composed with dependencies
+ * Complete CLI layer for Python bridge mode
+ * Includes all services with test implementations where appropriate
  */
-export const SWEBenchCliLayer = Layer.mergeAll(
+export const SWEBenchPythonBridgeCliLayer = Layer.mergeAll(
   HarnessServiceLayer,
   LifecycleServiceLayer,
   DockerBuildManagerLayer,
@@ -128,17 +120,3 @@ export const SWEBenchCliLayer = Layer.mergeAll(
   AiOrchestrationLayer,
   BaseServicesLayer
 );
-
-/**
- * Minimal layer for just patch generation (no Docker required)
- * Used for testing and standalone patch generation
- */
-export const PatchGenerationCliLayer = Layer.mergeAll(
-  AgentPatchGeneratorLayer,
-  TaskServiceLayer,
-  AiOrchestrationLayer,
-  BaseServicesLayer
-);
-
-// For backwards compatibility
-export const CLISWEBenchHarnessLayer = SWEBenchCliLayer;

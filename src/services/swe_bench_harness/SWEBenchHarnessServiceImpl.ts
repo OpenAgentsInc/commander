@@ -1,4 +1,4 @@
-import { Effect, Layer, Schema } from "effect";
+import { Effect, Layer, Schema, Stream, Chunk } from "effect";
 import { FileSystem } from "@effect/platform/FileSystem";
 import path from "path";
 import { SWEBenchHarnessService, EvaluateTaskError, PatchSource } from "./SWEBenchHarnessService";
@@ -7,8 +7,12 @@ import { SWEBenchEvaluationScriptService } from "./SWEBenchEvaluationScriptServi
 import { SWEBenchLifecycleService } from "./SWEBenchLifecycleService";
 import { AgentPatchGeneratorService } from "./AgentPatchGeneratorService";
 import { TelemetryService } from "@/services/telemetry";
+import { SWEBenchPythonBridgeService, SWEBenchPrediction } from "./SWEBenchPythonBridgeService";
 import type { ContainerContext, EvaluationReport, EvaluationResult } from "./types";
 import { HarnessError, ScriptBuildError, LifecycleSetupError, LifecycleEvalError, AgentPatchGenerationError } from "./errors";
+
+// Feature flag to use official SWE-bench
+const USE_OFFICIAL_SWEBENCH = process.env.USE_OFFICIAL_SWEBENCH === "true";
 
 export const SWEBenchHarnessServiceLive = Layer.effect(
   SWEBenchHarnessService,
@@ -18,6 +22,7 @@ export const SWEBenchHarnessServiceLive = Layer.effect(
     const lifecycleService = yield* SWEBenchLifecycleService;
     const agentPatchGenerator = yield* AgentPatchGeneratorService;
     const telemetry = yield* TelemetryService;
+    const pythonBridge = yield* SWEBenchPythonBridgeService;
 
     const patchFileName = "patch.diff"; // Standard name for the patch file in the container
 
@@ -30,6 +35,123 @@ export const SWEBenchHarnessServiceLive = Layer.effect(
           );
 
           const task = yield* taskService.getTask(instanceId);
+
+          // Use official SWE-bench if feature flag is enabled
+          if (USE_OFFICIAL_SWEBENCH) {
+            yield* telemetry.trackEvent({ 
+              category: "swe_bench_harness", 
+              action: "using_official_swebench", 
+              label: instanceId 
+            }).pipe(Effect.catchAll(() => Effect.void));
+
+            // Initialize Python bridge if needed
+            const initialized = yield* pythonBridge.isInitialized();
+            if (!initialized) {
+              yield* pythonBridge.initialize();
+            }
+
+            // Generate patch based on source
+            let patch: string;
+            switch (patchSource.type) {
+              case "gold":
+                patch = task.patch || "";
+                break;
+              case "empty":
+                patch = "";
+                break;
+              case "content":
+                patch = patchSource.content;
+                break;
+              case "agent_generated":
+                patch = yield* agentPatchGenerator.generatePatch(
+                  task,
+                  "", // repo path not needed for agent generation
+                  patchSource.providerKey
+                );
+                break;
+            }
+
+            // Format prediction for SWE-bench
+            const prediction: SWEBenchPrediction = {
+              instance_id: instanceId,
+              model_name_or_path: "commander-claude-code",
+              model_patch: patch
+            };
+
+            // Run evaluation via Python bridge
+            const stream = pythonBridge.runEvaluation([prediction], {
+              max_workers: 1,
+              timeout: 1800,
+              instance_ids: [instanceId]
+            });
+
+            // Collect all messages
+            const messages = yield* stream.pipe(
+              Stream.runCollect,
+              Effect.map(Chunk.toArray)
+            );
+
+            // Find completion message
+            const completeMsg = messages.find(m => m.type === "complete");
+            const errorMsg = messages.find(m => m.type === "error");
+
+            if (errorMsg) {
+              return yield* Effect.fail(new HarnessError({
+                message: `Python bridge error: ${errorMsg.data.message}`,
+                instanceId,
+                cause: errorMsg.data
+              }));
+            }
+
+            if (!completeMsg) {
+              return yield* Effect.fail(new HarnessError({
+                message: "Evaluation did not complete successfully",
+                instanceId
+              }));
+            }
+
+            // Extract result for this instance
+            const instanceResult = completeMsg.data.results[instanceId];
+            if (!instanceResult) {
+              return yield* Effect.fail(new HarnessError({
+                message: "No result found for instance",
+                instanceId
+              }));
+            }
+
+            // Format result to match our interface
+            const durationMs = Date.now() - startTime;
+            const result: EvaluationResult = {
+              instance_id: instanceId,
+              report: {
+                instance_id: instanceId,
+                resolved: instanceResult.resolved || false,
+                patch_applied_successfully: true, // Assume true if we got results
+                tests_passed: instanceResult.resolved || false,
+                test_output_log_path: instanceResult.test_output_path,
+                FAIL_TO_PASS: instanceResult.FAIL_TO_PASS,
+                PASS_TO_PASS: instanceResult.PASS_TO_PASS
+              },
+              duration_ms: durationMs,
+              patch_source_type: patchSource.type,
+              generated_patch_content: patchSource.type === "agent_generated" ? patch : undefined
+            };
+
+            yield* telemetry.trackEvent({ 
+              category: "swe_bench_harness", 
+              action: "evaluate_task_success", 
+              label: instanceId, 
+              value: JSON.stringify({ 
+                resolved: result.report.resolved, 
+                duration: durationMs,
+                official: true 
+              }) 
+            }).pipe(Effect.catchAll(() => Effect.void));
+
+            return result;
+          }
+
+          // Existing mock implementation follows...
 
           // Define the acquire, use, and release logic for the container
           const evaluationPipeline = (containerContext: ContainerContext) =>
