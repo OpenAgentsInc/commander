@@ -1,0 +1,79 @@
+--- a/astropy/units/quantity_helper/function_helpers.py
++++ b/astropy/units/quantity_helper/function_helpers.py
+@@ -663,6 +663,17 @@ def _check_bins(bins, unit):
+         return bins, 1.0
+ 
+ 
++def _check_range(range, unit):
++    """Check that range has the right units and can be converted to float."""
++    if range is None:
++        return None, 1.0
++    if not isinstance(range, (tuple, list)) or len(range) != 2:
++        raise TypeError("range must be a 2-element sequence")
++    
++    range_min = range[0] << unit if not hasattr(range[0], "unit") else range[0]
++    range_max = range[1] << unit if not hasattr(range[1], "unit") else range[1]
++    return (range_min.to_value(unit), range_max.to_value(unit)), 1.0
++
++
+ @function_helper(helps={np.histogram, np.histogram_bin_edges})
+ def histogram(a, bins=10, range=None, weights=None, density=None):
+     if weights is not None:
+@@ -676,6 +687,10 @@ def histogram(a, bins=10, range=None, weights=None, density=None):
+         else:
+             bins = bins << a_unit
+ 
++    if range is not None:
++        # Convert range to the same units as the input array
++        range, _ = _check_range(range, a_unit)
++
+     if bins is None:
+         return (
+             (a.value,),
+@@ -720,12 +735,21 @@ def histogram2d(x, y, bins=10, range=None, weights=None, density=None):
+             bins = [bins, bins]
+         bins = [(b << x_unit if not hasattr(b, "unit") else b) for b in bins]
+ 
++    if range is not None:
++        # Convert range to the same units as the input arrays
++        if len(range) != 2:
++            raise ValueError("range must be a sequence of length 2")
++        range_x, _ = _check_range(range[0], x_unit) if range[0] is not None else (None, 1.0)
++        range_y, _ = _check_range(range[1], y_unit) if range[1] is not None else (None, 1.0)
++        range = [range_x, range_y]
++
+     if bins is None:
+         return (
+             (x.value, y.value),
+             dict(
+                 bins=bins,
+-                weights=weights.value if weights is not None else None,
++                range=range,
++                weights=weights.value if weights is not None else None,
+                 density=density,
+             ),
+             None,
+@@ -772,12 +796,21 @@ def histogramdd(sample, bins=10, range=None, weights=None, density=None):
+             bins = [bins] * n
+         bins = [(b << unit if not hasattr(b, "unit") else b) for b, unit in zip(bins, s_units)]
+ 
++    if range is not None:
++        # Convert range to the same units as the input arrays
++        if len(range) != n:
++            raise ValueError(f"range must be a sequence of length {n}")
++        converted_ranges = []
++        for r, unit in zip(range, s_units):
++            r_converted, _ = _check_range(r, unit) if r is not None else (None, 1.0)
++            converted_ranges.append(r_converted)
++        range = converted_ranges
++
+     if bins is None:
+         return (
+             s_values,
+             dict(
+                 bins=bins,
+-                range=range,
++                range=range,
+                 weights=weights.value if weights is not None else None,
+                 density=density,
+             ),

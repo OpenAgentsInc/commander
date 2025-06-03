@@ -1,0 +1,7 @@
+FROM --platform=linux/arm64/v8 sweb.env.py.arm64.2baaea72acc974f6c02079:latest
+
+COPY ./setup_repo.sh /root/
+RUN sed -i -e 's/\r$//' /root/setup_repo.sh
+RUN /bin/bash /root/setup_repo.sh
+
+WORKDIR /testbed/

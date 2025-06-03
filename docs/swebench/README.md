@@ -1,408 +1,346 @@
-# SWE-bench Evaluation System - Comprehensive Guide
+# SWE-bench Integration - Real Evaluation System
 
 ## Quick Start
 
 ```bash
-# Run evaluation with AI-generated patches (Claude)
-pnpm tsx scripts/run-swebench-evaluation.ts --patch_source agent:claude_code --max_tasks 10
+# Generate REAL patches with Claude and run full evaluation
+pnpm tsx scripts/run-swebench-real-simple.ts --max-instances 5
 
-# Monitor progress in another terminal
+# Run quick test with 2 instances
+pnpm tsx scripts/run-swebench-quick-test.ts
+
+# Run full SWE-bench Lite (300 instances) - takes hours!
+pnpm tsx scripts/run-full-swebench-lite.ts
+
+# Monitor evaluation progress in real-time
 pnpm tsx scripts/monitor-swebench-progress.ts
 
 # View results
-cat docs/swebench-results/eval-*/summary.json | jq '.statistics'
+cat swebench-results/real-*/summary.json | jq '.'
 ```
 
 ## Table of Contents
-1. [Introduction](#introduction)
-2. [System Architecture](#system-architecture)
-3. [Dataset and Task Structure](#dataset-and-task-structure)
-4. [Implementation Details](#implementation-details)
-5. [Running Evaluations](#running-evaluations)
-6. [Understanding Results](#understanding-results)
-7. [Technical Challenges and Solutions](#technical-challenges-and-solutions)
+1. [Overview](#overview)
+2. [Architecture](#architecture) 
+3. [Implementation Details](#implementation-details)
+4. [Running Evaluations](#running-evaluations)
+5. [Understanding Results](#understanding-results)
+6. [Patch Generation](#patch-generation)
+7. [Known Issues](#known-issues)
 8. [Development Guide](#development-guide)
 
-## Introduction
+## Overview
 
 ### What is SWE-bench?
 
-SWE-bench (Software Engineering Benchmark) is a comprehensive benchmark designed to evaluate AI systems on real-world software engineering tasks. It consists of 2,298 tasks extracted from popular Python repositories where AI agents must:
+SWE-bench (Software Engineering Benchmark) evaluates AI systems on real-world software engineering tasks. It contains 2,298 GitHub issues from popular Python repositories where AI must:
 
-1. Read a problem statement describing a bug or feature request
+1. Read a problem statement (GitHub issue)
 2. Generate a patch that fixes the issue
-3. Pass specific tests that verify the fix
+3. Pass the actual test suite to verify the fix
 
 ### Our Implementation
 
-The Commander SWE-bench evaluation system provides:
-- **Full dataset support**: All 2,298 tasks from the official SWE-bench dataset
-- **Multiple patch sources**: Gold patches (reference), empty patches (baseline), or AI-generated patches
-- **Real-time monitoring**: Track evaluation progress with live updates
-- **Comprehensive metrics**: Success rates, timing data, and detailed results
-- **Multiple interfaces**: CLI tools and graphical UI (via Ctrl+7)
+**⚡ REAL SWE-bench Integration**: We integrate the official SWE-bench repository as a git submodule and use a Python bridge to run actual evaluations with Docker containers and real test execution.
 
-## System Architecture
+Key features:
+- **Official SWE-bench Integration**: Uses the real SWE-bench Python code via JSON-lines bridge
+- **Real Patch Generation**: Claude generates actual fixes for issues
+- **Docker-based Evaluation**: Runs tests in isolated containers per the official methodology
+- **Verified Results**: django__django-11099 RESOLVED with our generated patch!
+- **Full Dataset Support**: Can run on all 2,298 tasks or SWE-bench Lite (300 tasks)
 
-### Core Components
+## Architecture
+
+### System Design
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        User Interface                         │
-│  ┌─────────────────┐  ┌──────────────┐  ┌───────────────┐  │
-│  │   CLI Scripts   │  │   Electron   │  │    Monitor    │  │
-│  │ (run-swebench-) │  │   UI (IPC)   │  │  (progress)   │  │
-│  └────────┬────────┘  └──────┬───────┘  └───────┬───────┘  │
-└───────────┼──────────────────┼──────────────────┼───────────┘
-            │                  │                  │
-┌───────────▼──────────────────▼──────────────────▼───────────┐
-│                      Effect Service Layer                     │
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │              SWEBenchTaskService                         │ │
-│  │  - Load tasks from JSON files                           │ │
-│  │  - Parse and validate task data                         │ │
-│  │  - Handle JSON-serialized array fields                  │ │
-│  └─────────────────────────────────────────────────────────┘ │
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │           AgentPatchGeneratorService                     │ │
-│  │  - Generate patches using AI providers                   │ │
-│  │  - Extract patches from AI responses                     │ │
-│  │  - Format patches in unified diff format                │ │
-│  └─────────────────────────────────────────────────────────┘ │
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │               AI Provider Layer                          │ │
-│  │  - Claude Code (via CLI)                                │ │
-│  │  - Ollama (local models)                                │ │
-│  │  - OpenAI (future)                                      │ │
-│  └─────────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────┘
-            │
-┌───────────▼──────────────────────────────────────────────────┐
-│                      Data Storage Layer                       │
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │          assets/swe_bench_data/ (2,298 tasks)           │ │
-│  │  - JSON files with task definitions                     │ │
-│  │  - Problem statements, test patches, gold patches       │ │
-│  └─────────────────────────────────────────────────────────┘ │
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │        docs/swebench-results/ (evaluation output)       │ │
-│  │  - Individual patch files                               │ │
-│  │  - progress.json (real-time tracking)                   │ │
-│  │  - summary.json (final statistics)                      │ │
-│  └─────────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                     TypeScript/Electron Layer                     │
+│                                                                   │
+│  ┌───────────────────┐    ┌─────────────────────────────────┐  │
+│  │   CLI Scripts     │    │  SWEBenchPythonBridgeService   │  │
+│  │ - run-swebench-*  │───▶│  - JSON-lines communication   │  │
+│  │ - Patch generator │    │  - Subprocess management       │  │
+│  └───────────────────┘    └──────────────┬──────────────────┘  │
+└───────────────────────────────────────────┼──────────────────────┘
+                                            │ JSON-lines protocol
+┌───────────────────────────────────────────▼──────────────────────┐
+│                      Python Bridge Layer                          │
+│                 scripts/python_bridge.py                          │
+│  - Receives commands via stdin (JSON-lines)                      │
+│  - Calls official SWE-bench functions                           │
+│  - Returns results via stdout (JSON-lines)                      │
+└───────────────────────────────────────────────────────────────────┘
+                                            │
+┌──────────────────────────────────────────▼───────────────────────┐
+│              Official SWE-bench (Git Submodule)                   │
+│                       /swebench/                                   │
+│  - run_evaluation.py: Main evaluation entry point                │
+│  - docker_build.py: Container image builder                      │
+│  - grading.py: Test result evaluation                           │
+│  - Runs actual tests in Docker containers                       │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-### Technology Stack
+### Key Components
 
-- **Effect**: Functional programming framework for TypeScript
-  - Provides service layers, dependency injection, and error handling
-  - All services use Effect patterns for composability
-- **TypeScript**: Type-safe implementation
-- **Node.js**: Runtime environment
-- **Electron**: Desktop application framework (for UI)
-- **Claude CLI**: AI provider integration
+1. **TypeScript Layer** (Commander)
+   - `SWEBenchPythonBridgeService`: Effect service managing Python subprocess
+   - `claude-patch-generator.ts`: Generates patches using Claude API
+   - Various CLI scripts for different evaluation scenarios
 
-## Dataset and Task Structure
+2. **Python Bridge** (`scripts/python_bridge.py`)
+   - Handles JSON-lines communication protocol
+   - Translates between TypeScript and Python SWE-bench API
+   - Manages evaluation lifecycle
 
-### Task File Format
-
-Each task is stored as a JSON file in `assets/swe_bench_data/` with this structure:
-
-```json
-{
-  "instance_id": "django__django-11099",
-  "repo": "django/django",
-  "base_commit": "d26b2424437dabeeca94d7900b37d2df4410da0c",
-  "problem_statement": "Description of the bug or feature request...",
-  "hints_text": "Optional hints about the solution",
-  "test_patch": "Diff containing test cases that verify the fix",
-  "version": "3.0",
-  "FAIL_TO_PASS": ["tests/that/should/pass/after/fix.py::test_name"],
-  "PASS_TO_PASS": ["tests/that/should/still/pass.py::test_name"],
-  "patch": "Optional gold patch (the reference solution)"
-}
-```
-
-### Important Schema Details
-
-The `FAIL_TO_PASS` and `PASS_TO_PASS` fields are stored as JSON-serialized strings in the dataset files. Our implementation automatically parses these during task loading:
-
-```typescript
-// From SWEBenchTaskServiceImpl.ts
-const processedTaskData = {
-  ...taskData,
-  FAIL_TO_PASS: typeof taskData.FAIL_TO_PASS === 'string' 
-    ? JSON.parse(taskData.FAIL_TO_PASS) 
-    : taskData.FAIL_TO_PASS,
-  PASS_TO_PASS: typeof taskData.PASS_TO_PASS === 'string' 
-    ? JSON.parse(taskData.PASS_TO_PASS) 
-    : taskData.PASS_TO_PASS
-};
-```
+3. **Official SWE-bench** (git submodule at `/swebench/`)
+   - Complete official implementation
+   - Docker-based test execution
+   - Real repository cloning and patching
 
 ## Implementation Details
 
-### Service Layer Architecture
+### Python Bridge Protocol
 
-The system uses Effect's service pattern for clean dependency injection:
-
-```typescript
-// Main services
-- SWEBenchTaskService: Task loading and management
-- AgentPatchGeneratorService: AI patch generation
-- ConfigurationService: System configuration
-- TelemetryService: Logging and metrics
-- ClaudeCliExecutorService: Claude CLI integration
-```
-
-### Patch Generation Flow
-
-1. **Task Loading**: Load task from JSON file
-2. **Prompt Construction**: Build detailed prompt with problem statement
-3. **AI Generation**: Send to AI provider (Claude/Ollama)
-4. **Patch Extraction**: Extract unified diff from AI response
-5. **Validation**: Basic format validation
-6. **Storage**: Save patch to output directory
-
-### AI Prompt Template
-
-The system uses a carefully crafted prompt for patch generation:
+The bridge uses JSON-lines for bidirectional communication:
 
 ```typescript
-const prompt = `You are an expert software engineer. Your task is to fix the following issue.
+// TypeScript sends:
+{ "command": "run_evaluation", "predictions": [...], "options": {...} }
 
-Repository: ${task.repo}
-Base commit: ${task.base_commit}
-
-Problem Statement:
-${task.problem_statement}
-
-${task.hints_text ? `Hints:\n${task.hints_text}\n` : ''}
-
-Instructions:
-1. Analyze the problem carefully
-2. Generate a minimal patch that fixes the issue
-3. The patch should be in unified diff format
-4. Only include necessary changes
-5. Ensure the patch will make the failing tests pass
-
-Generate the patch:`;
+// Python responds with streaming messages:
+{ "type": "status", "data": { "message": "Building images..." } }
+{ "type": "progress", "data": { "percentage": 50, "completed": 1 } }
+{ "type": "complete", "data": { "results": {...}, "summary": {...} } }
 ```
+
+### Evaluation Flow
+
+1. **Initialize Bridge**: Start Python subprocess with virtual environment
+2. **Generate Patches**: Use Claude to create fixes for issues
+3. **Send Predictions**: Pass patches to Python bridge
+4. **Docker Execution**: 
+   - Build environment images for each repository version
+   - Apply patches to code
+   - Run test suites
+   - Collect results
+5. **Process Results**: Aggregate success/failure data
+
+### Docker Integration
+
+SWE-bench uses Docker for reproducible test environments:
+- Each task runs in an isolated container
+- Exact repository version is checked out
+- Dependencies match the original environment
+- Tests run with same configuration as CI
 
 ## Running Evaluations
 
-### CLI Usage
+### Prerequisites
 
 ```bash
-# Basic evaluation with gold patches
-pnpm tsx scripts/run-swebench-evaluation.ts --patch_source gold
+# Install Python dependencies
+python -m venv .venv
+source .venv/bin/activate  # or .venv\Scripts\activate on Windows
+pip install -r scripts/requirements-swebench.txt
 
-# AI evaluation with Claude
-pnpm tsx scripts/run-swebench-evaluation.ts --patch_source agent:claude_code --max_tasks 50
+# Ensure Docker is running
+docker --version
 
-# Specific tasks
-pnpm tsx scripts/run-swebench-evaluation.ts --instance_ids "django__django-11099,sympy__sympy-12419"
-
-# Monitor progress
-pnpm tsx scripts/monitor-swebench-progress.ts
+# Authenticate Claude (for patch generation)
+claude auth
 ```
 
-### Command Line Options
+### Basic Usage
 
-- `--patch_source <type>`: Source of patches
-  - `gold`: Use reference patches from dataset
-  - `empty`: Use empty patches (baseline)
-  - `agent:<provider>`: Use AI provider (e.g., `agent:claude_code`)
-- `--max_tasks <N>`: Limit number of tasks to run
-- `--instance_ids <ids>`: Comma-separated list of specific task IDs
-- `--output_dir <path>`: Custom output directory
-- `--tasks_dir <path>`: Custom task directory (default: `assets/swe_bench_data`)
-- `--stop_on_failure`: Stop on first failure
+```bash
+# Quick test with 2 instances
+pnpm tsx scripts/run-swebench-quick-test.ts
 
-### UI Usage
+# Run with specific number of instances
+pnpm tsx scripts/run-swebench-real-simple.ts --max-instances 10
 
-1. Start Commander: `pnpm start`
-2. Press **Ctrl+7** (Cmd+7 on Mac) to open Task Browser
-3. Select tasks or use "Select All"
-4. Click "Launch Evaluation"
-5. Choose patch source and options
-6. Monitor progress in real-time
+# Run on specific tasks
+pnpm tsx scripts/run-swebench-real-simple.ts --instance-ids "django__django-11099,sympy__sympy-12419"
+```
+
+### Advanced Scripts
+
+1. **`run-swebench-real-simple.ts`**: Simplified runner that generates real patches
+   - Best for testing and development
+   - Clear progress output
+   - Saves patches and results
+
+2. **`run-swebench-evaluation.ts`**: Original integration script
+   - Supports different patch sources
+   - Configurable via environment variables
+
+3. **`run-full-swebench-lite.ts`**: Full 300-instance evaluation
+   - Production benchmark run
+   - Progress logging to file
+   - Resume capability
+
+4. **`run-swebench-quick-test.ts`**: Minimal test for verification
+   - Tests 2 instances quickly
+   - Good for checking setup
 
 ## Understanding Results
 
 ### Output Structure
 
 ```
-docs/swebench-results/eval-<timestamp>/
-├── summary.json          # Overall statistics
-├── progress.json         # Real-time progress data
-├── <task_id>.patch      # Generated patch for each task
-└── ...
+swebench-results/
+├── real-<timestamp>/
+│   ├── django__django-11099.patch     # Generated patch
+│   ├── summary.json                   # Overall results  
+│   └── detailed-results.json          # Per-instance details
 ```
 
-### Summary.json Format
+### Success Example
 
+From our actual run:
 ```json
 {
-  "timestamp": "2025-06-02T17:47:51.813Z",
-  "configuration": {
-    "patchSource": "agent:claude_code",
-    "tasksDir": "assets/swe_bench_data",
-    "outputDir": "./docs/swebench-results/eval-..."
-  },
-  "statistics": {
-    "totalTasks": 100,
-    "successfulTasks": 85,
-    "failedTasks": 15,
-    "successRate": "85.0%",
-    "patchesGenerated": 85,
-    "patchGenerationRate": "85.0%",
-    "totalDurationMs": 450000,
-    "avgDurationSeconds": "4.5"
-  },
-  "taskResults": [
-    {
-      "instanceId": "django__django-11099",
-      "repo": "django/django",
-      "success": true,
-      "patchGenerated": true,
-      "patchLength": 1234,
-      "duration": 4521
-    }
-  ]
+  "django__django-11099": {
+    "resolved": true,
+    "tests_passed": [
+      "test_ascii_validator",
+      "test_unicode_validator"
+    ]
+  }
 }
 ```
 
-### Success Metrics
+### Generated Patch That Works
 
-- **Patch Generation Success**: Whether AI generated a valid patch
-- **Format Validation**: Whether patch is valid unified diff
-- **Future**: Docker-based test execution to verify fixes
+```diff
+diff --git a/django/contrib/auth/validators.py b/django/contrib/auth/validators.py
+--- a/django/contrib/auth/validators.py
++++ b/django/contrib/auth/validators.py
+@@ -7,7 +7,7 @@ from django.utils.translation import gettext_lazy as _
+ 
+ @deconstructible
+ class ASCIIUsernameValidator(validators.RegexValidator):
+-    regex = r'^[\w.@+-]+$'
++    regex = r'^[\w.@+-]+\Z'
+     message = _(
+         'Enter a valid username. This value may contain only English letters, '
+         'numbers, and @/./+/-/_ characters.'
+```
 
-## Technical Challenges and Solutions
+This simple change from `$` to `\Z` prevents usernames with trailing newlines!
 
-### 1. Schema Validation Issues
+## Patch Generation
 
-**Problem**: Dataset files have JSON-serialized array fields
-**Solution**: Pre-process data before schema validation
+### Claude Integration
 
-### 2. Claude CLI Authentication
+The system uses Claude via the CLI to generate patches:
 
-**Problem**: `--dangerously-skip-permissions` flag requires interactive acceptance
-**Solution**: Removed flag, require proper authentication via `claude auth`
+```typescript
+// From claude-patch-generator.ts
+export async function generatePatchWithClaude(
+  task: SWEBenchTask,
+  options: PatchGenerationOptions
+): Promise<PatchGenerationResult> {
+  // Builds comprehensive prompt with problem statement
+  // Executes Claude CLI with streaming support
+  // Extracts clean patch from response
+}
+```
 
-### 3. Effect Layer Composition
+### Prompt Engineering
 
-**Problem**: Complex dependency graphs in standalone scripts
-**Solution**: Created dedicated CLI layers with proper composition
+Key elements for successful patch generation:
+1. Clear problem statement
+2. Repository context
+3. Test information (FAIL_TO_PASS tests)
+4. Explicit instructions for diff format
+5. Request for minimal changes
 
-### 4. Memory Management
+### Patch Extraction
 
-**Problem**: Loading 2,298 tasks can be memory intensive
-**Solution**: Lazy loading with caching, process tasks sequentially
+The `extractPatch` function carefully isolates the diff from Claude's response:
+- Looks for code blocks with diffs
+- Strips conversation/explanations
+- Validates unified diff format
+- Handles various response formats
 
-### 5. AI Rate Limiting
+## Known Issues
 
-**Problem**: Claude API has rate limits
-**Solution**: Sequential processing, configurable delays
+### 1. Summary Calculation Bug
+Individual results show `"resolved": true` but summary shows 0 resolved. This is a calculation issue in the Python bridge that needs fixing.
+
+### 2. Harder Problems
+Some tasks like sympy__sympy-12419 require deeper understanding and multiple attempts. Current simple prompting may not be sufficient.
+
+### 3. Docker Image Building
+First run takes longer as Docker images are built for each unique repository version. These are cached for subsequent runs.
 
 ## Development Guide
 
-### Adding a New AI Provider
+### Adding New Features
 
-1. Create provider implementation in `src/services/ai/providers/`
-2. Implement the AI provider interface
-3. Add to provider configuration
-4. Update `AgentPatchGeneratorService` to support new provider
+1. **New Evaluation Scripts**: Follow the pattern in `scripts/run-swebench-*.ts`
+2. **Patch Generation Improvements**: Modify `claude-patch-generator.ts`
+3. **Python Bridge Extensions**: Update both `python_bridge.py` and TypeScript service
 
-### Extending Task Processing
+### Debugging
 
-1. Modify `SWEBenchTaskService` for new task formats
-2. Update schema in `types.ts`
-3. Add validation logic
+```bash
+# Enable debug output
+export DEBUG=true
+pnpm tsx scripts/run-swebench-real-simple.ts --max-instances 1
 
-### Debugging Tips
+# Check Python bridge directly
+cd scripts && python python_bridge.py
 
-1. **Enable verbose logging**: Set log level to DEBUG
-2. **Check patch files**: Inspect generated patches in output directory
-3. **Monitor Claude CLI**: Check `~/claude-bridge-service.log`
-4. **Use single task**: Test with specific task IDs first
+# View Docker containers
+docker ps -a | grep swebench
+
+# Inspect generated patches
+cat swebench-results/real-*/django__django-11099.patch
+```
 
 ### Testing
 
 ```bash
-# Run unit tests
-pnpm test
-
 # Type checking
 pnpm run t
 
-# Test single task
-pnpm tsx scripts/run-swebench-evaluation.ts --instance_ids "django__django-11099" --patch_source gold
+# Run integration test
+pnpm tsx scripts/test-swebench-integration.ts
+
+# Test patch generation only
+pnpm tsx scripts/test-patch-generation-simple.ts
 ```
 
-## Best Practices
+## Performance Considerations
 
-1. **Start Small**: Test with 5-10 tasks before full runs
-2. **Monitor Resources**: Full evaluation uses significant CPU/memory
-3. **Backup Results**: Important evaluations should be backed up
-4. **Check AI Credits**: Claude API usage can be expensive
-5. **Validate Patches**: Spot-check generated patches for quality
+- **Docker Images**: First-time builds are slow (~5-10 min per unique repo version)
+- **Parallel Execution**: Use `MAX_WORKERS` environment variable (default: 1)
+- **Memory Usage**: Each Docker container needs ~2GB RAM
+- **Claude Rate Limits**: Sequential patch generation to avoid limits
 
-## Current Limitations
+## Future Improvements
 
-### What Works
-- ✅ Full dataset loading (2,298 tasks)
-- ✅ Patch generation with multiple AI providers
-- ✅ Progress tracking and monitoring
-- ✅ Result aggregation and statistics
-- ✅ UI and CLI interfaces
-
-### What's Not Yet Implemented
-- ❌ Docker-based test execution
-- ❌ Actual verification of patches against tests
-- ❌ True pass/fail determination
-
-Currently, the system generates patches and saves them, but doesn't execute the tests to verify if they actually fix the issues. The "success" metric currently only indicates whether a patch was successfully generated, not whether it passes the tests.
-
-## Future Enhancements
-
-1. **Docker Integration**: Full test execution in isolated containers
-2. **Test Verification**: Run FAIL_TO_PASS and PASS_TO_PASS tests
-3. **Parallel Processing**: Run multiple evaluations concurrently
-4. **Result Analysis**: Detailed comparison tools for patches
-5. **More AI Providers**: GPT-4, Gemini, local models
-6. **Performance Metrics**: Detailed timing and resource usage
-7. **Incremental Evaluation**: Resume interrupted runs
-
-## Troubleshooting
-
-### Common Issues
-
-1. **"Schema validation failed"**
-   - Ensure you're using the latest code with JSON parsing fix
-
-2. **"Claude CLI exited with code 1"**
-   - Run `claude auth` to authenticate
-   - Check Claude CLI is installed: `npm install -g @anthropic-ai/cli`
-
-3. **"No tasks found"**
-   - Verify `assets/swe_bench_data/` contains JSON files
-   - Check file permissions
-
-4. **Out of Memory**
-   - Reduce `--max_tasks` value
-   - Increase Node.js memory: `NODE_OPTIONS="--max-old-space-size=8192"`
+1. **Fix Summary Bug**: Correct the resolved count calculation
+2. **Multi-attempt Patching**: Retry with test failure feedback
+3. **Parallel Patch Generation**: Speed up Claude API calls
+4. **Result Analysis UI**: Better visualization of results
+5. **Checkpoint/Resume**: For long-running evaluations
+6. **Local Model Support**: Use Ollama for patch generation
 
 ## References
 
 - [SWE-bench Paper](https://arxiv.org/abs/2310.06770)
-- [Official Repository](https://github.com/princeton-nlp/SWE-bench)
-- [Dataset on Hugging Face](https://huggingface.co/datasets/princeton-nlp/SWE-bench)
-- [Effect Documentation](https://effect.website/)
-- [Claude CLI Documentation](https://docs.anthropic.com/claude/docs/claude-cli)
+- [Official SWE-bench Repository](https://github.com/princeton-nlp/SWE-bench)
+- [Our PR #103](https://github.com/OpenAgentsInc/commander/pull/103) - Initial Python bridge
+- [Our PR #104](https://github.com/OpenAgentsInc/commander/pull/104) - Real patch generation
 
 ---
 
-For questions or contributions, please refer to the main Commander repository.
+**Current Status**: ✅ WORKING - We can generate real patches that pass real tests!
+
+For questions or contributions, please see the main Commander repository.

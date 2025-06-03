@@ -1,0 +1,72 @@
+diff --git a/astropy/modeling/bounding_box.py b/astropy/modeling/bounding_box.py
+index abc123..def456 100644
+--- a/astropy/modeling/bounding_box.py
++++ b/astropy/modeling/bounding_box.py
+@@ -387,15 +387,19 @@ class ModelBoundingBox:
+     @property
+     def _available_input_index(self):
+         """
+-        The index of the model input that has intervals
++        The index of the model input that has intervals (excluding ignored inputs)
+         """
+         ignored = self._ignored
+         
+         if self._n_inputs == 1 and ignored == [0]:
+             return []
+         
++        # Filter out ignored inputs from the available indices
+         if ignored:
+-            return [ind for ind in range(self._n_inputs) if ind not in ignored]
++            available = [ind for ind in range(self._n_inputs) if ind not in ignored]
++        else:
++            available = list(range(self._n_inputs))
++        return available
+         
+         return list(range(self._n_inputs))
+ 
+@@ -420,7 +424,7 @@ class ModelBoundingBox:
+ 
+     def _validate_sequence(self, bounding_box, order: str = None):
+         """
+-        Validate passing tuple of tuples.
++        Validate passing tuple of tuples, properly handling ignored inputs.
+         
+         Parameters
+         ----------
+@@ -445,6 +449,7 @@ class ModelBoundingBox:
+             else:
+                 order = self._get_order(bounding_box)
+         
++        # Get the number of intervals provided
+         n_intervals = len(bounding_box)
+         
+         if not ignored:
+@@ -453,18 +458,23 @@ class ModelBoundingBox:
+                 intervals = {key: bbox for key, bbox in zip(order, bounding_box)}
+         else:
+             if n_intervals == n_inputs:
+-                intervals = {key: bbox for key, bbox in zip(order, bounding_box)}
++                # All intervals provided, need to filter out ignored ones
++                all_intervals = {key: bbox for key, bbox in zip(order, bounding_box)}
++                # Keep only non-ignored intervals
++                intervals = {key: bbox for key, bbox in all_intervals.items() 
++                           if self._get_index(key) not in ignored}
+             elif n_intervals == n_inputs - len(ignored):
+-                intervals = {key: bbox for key, bbox in zip(order, bounding_box)
+-                           if self._get_index(key) not in ignored}
++                # Only non-ignored intervals provided, map them correctly
++                non_ignored_keys = [key for key in order if self._get_index(key) not in ignored]
++                intervals = {key: bbox for key, bbox in zip(non_ignored_keys, bounding_box)}
+             else:
+                 raise ValueError(
+                     f"Found {n_intervals} intervals, but must be either "
+                     f"{n_inputs} (for all inputs) or "
+                     f"{n_inputs - len(ignored)} (for non-ignored inputs)."
+                 )
+-            
+-        return intervals
++        
++        return intervals
+ 
+     def _validate_iterable(self, bounding_box, order: str = None):
+         """

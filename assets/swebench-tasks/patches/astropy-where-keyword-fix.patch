@@ -1,0 +1,39 @@
+diff --git a/astropy/units/quantity.py b/astropy/units/quantity.py
+index abc123..def456 100644
+--- a/astropy/units/quantity.py
++++ b/astropy/units/quantity.py
+@@ -1300,7 +1300,7 @@ class Quantity(np.ndarray):
+         return result << self.unit
+ 
+-    def mean(self, axis=None, dtype=None, out=None, keepdims=False):
++    def mean(self, axis=None, dtype=None, out=None, keepdims=False, *, where=np._NoValue):
+         """
+         Returns the average of the array elements along given axis.
+ 
+@@ -1327,6 +1327,9 @@ class Quantity(np.ndarray):
+             in the result as dimensions with size one. With this option,
+             the result will broadcast correctly against the original array.
+             Default is `False`.
++        where : array_like of bool, optional
++            Elements to include in the mean. See `~numpy.mean` for more
++            details.
+ 
+         Returns
+         -------
+@@ -1340,9 +1343,13 @@ class Quantity(np.ndarray):
+         --------
+         numpy.mean : Equivalent function which works on arbitrary arrays.
+         """
+-        return self._wrap_function(np.mean, axis, dtype, out=out,
+-                                   keepdims=keepdims,
+-                                   unit=self.unit)
++        kwargs = {'axis': axis, 'dtype': dtype, 'out': out, 
++                  'keepdims': keepdims}
++        
++        if where is not np._NoValue:
++            kwargs['where'] = where
++            
++        return self._wrap_function(np.mean, unit=self.unit, **kwargs)
+ 
+     def std(self, axis=None, dtype=None, out=None, ddof=0, keepdims=False):
+         """

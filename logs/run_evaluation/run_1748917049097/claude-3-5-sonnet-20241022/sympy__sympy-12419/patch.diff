@@ -1,0 +1,25 @@
+diff --git a/sympy/matrices/expressions/matexpr.py b/sympy/matrices/expressions/matexpr.py
+index 1e9d14c16c..95b1e5d787 100644
+--- a/sympy/matrices/expressions/matexpr.py
++++ b/sympy/matrices/expressions/matexpr.py
+@@ -22,7 +22,7 @@ from sympy.matrices import ShapeError
+ from sympy.simplify import simplify
+ from sympy.utilities.misc import filldedent
+ 
+-
++from sympy.functions.special.tensor_functions import KroneckerDelta
+ 
+ def _sympifyit(arg, retval=None):
+     # This version of _sympifyit sympifies MutableMatrix objects
+@@ -845,10 +845,7 @@ class Identity(MatrixExpr):
+         return arg
+ 
+     def _entry(self, i, j):
+-        if i == j:
+-            return S.One
+-        else:
+-            return S.Zero
++        return KroneckerDelta(i, j)
+ 
+     def _eval_trace(self):
+         return self.rows
