@@ -60,7 +60,7 @@ Please analyze why the previous patch failed and generate a corrected patch.
 5. Only include changes that are directly related to fixing the issue
 6. Ensure the patch follows the coding style of the repository
 
-Generate the patch now. Output ONLY the patch in unified diff format, starting with "diff --git" and nothing else.`;
+CRITICAL: Output ONLY the patch in unified diff format. Do not include any explanation, conversation, or text before or after the patch. The output should start with "diff --git" and end with the last line of the patch. No markdown code blocks, no explanations, just the raw patch.`;
 
   return prompt;
 }
@@ -69,28 +69,81 @@ Generate the patch now. Output ONLY the patch in unified diff format, starting w
  * Extract patch from Claude's response
  */
 function extractPatch(response: string): string | null {
-  // Look for unified diff format
-  const diffPattern = /diff --git[\s\S]*$/;
-  const match = response.match(diffPattern);
+  // First try to find patches in code blocks (most reliable)
+  const codeBlockPattern = /```(?:diff|patch)?\n([\s\S]*?)\n```/g;
+  const codeBlocks = [...response.matchAll(codeBlockPattern)];
   
-  if (match) {
-    return match[0].trim();
+  // Look for the first code block that contains a diff
+  for (const match of codeBlocks) {
+    if (match[1] && match[1].includes('diff --git')) {
+      return match[1].trim();
+    }
   }
   
-  // Sometimes the patch might be in a code block
-  const codeBlockPattern = /```(?:diff|patch)?\n([\s\S]*?)\n```/;
-  const codeBlockMatch = response.match(codeBlockPattern);
-  
-  if (codeBlockMatch && codeBlockMatch[1].includes('diff --git')) {
-    return codeBlockMatch[1].trim();
+  // If no code blocks, look for a raw diff
+  // Start from the first "diff --git" line
+  const diffStartIndex = response.indexOf('diff --git');
+  if (diffStartIndex === -1) {
+    return null;
   }
   
-  // If the entire response looks like a patch, return it
-  if (response.includes('diff --git') || response.includes('@@')) {
-    return response.trim();
+  // Extract from that point
+  let patch = response.substring(diffStartIndex);
+  
+  // Look for signs that the patch has ended and conversation has started
+  const conversationMarkers = [
+    '\n\nWait',
+    '\n\nLet me',
+    '\n\nI need',
+    '\n\nActually',
+    '\n\nI think',
+    '\n\nNote:',
+    '\n\nThis patch',
+    '\n\nThe patch',
+    '\n\n```', // Code block ending
+    /\n\n[A-Z][a-z]+[,:]/, // Sentence starting with capital letter
+  ];
+  
+  for (const marker of conversationMarkers) {
+    const markerIndex = marker instanceof RegExp 
+      ? patch.search(marker)
+      : patch.indexOf(marker);
+      
+    if (markerIndex > 0) {
+      patch = patch.substring(0, markerIndex).trim();
+      break;
+    }
   }
   
-  return null;
+  // Also check if the patch looks complete by finding the last valid diff line
+  const lines = patch.split('\n');
+  let lastValidLineIndex = lines.length - 1;
+  
+  // Work backwards to find the last line that looks like part of a diff
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    if (
+      line.startsWith('diff --git') ||
+      line.startsWith('index ') ||
+      line.startsWith('---') ||
+      line.startsWith('+++') ||
+      line.startsWith('@@') ||
+      line.startsWith('+') ||
+      line.startsWith('-') ||
+      line.startsWith(' ') ||
+      line === ''
+    ) {
+      lastValidLineIndex = i;
+      break;
+    }
+  }
+  
+  // If we found a cutoff point, use it
+  if (lastValidLineIndex < lines.length - 1) {
+    patch = lines.slice(0, lastValidLineIndex + 1).join('\n').trim();
+  }
+  
+  return patch;
 }
 
 /**
