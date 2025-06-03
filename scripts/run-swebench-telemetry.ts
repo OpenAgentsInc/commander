@@ -8,7 +8,7 @@ import { Effect, Stream, Chunk, Layer, pipe } from "effect";
 import { Command } from "@effect/platform";
 import { NodeContext, NodeRuntime } from "@effect/platform-node";
 import { SWEBenchPythonBridgeService, SWEBenchPrediction } from "../src/services/swe_bench_harness/SWEBenchPythonBridgeService";
-import { SWEBenchPythonBridgeServiceLive } from "../src/services/swe_bench_harness/SWEBenchPythonBridgeServiceImpl";
+import { SWEBenchPythonBridgeServiceTelemetryLive } from "../src/services/swe_bench_harness/SWEBenchPythonBridgeServiceTelemetry";
 import { NodeFileSystem } from "@effect/platform-node";
 import { TelemetryService, TelemetryServiceLive } from "../src/services/telemetry";
 import { TelemetryServiceCliConfigLayer } from "../src/services/telemetry/TelemetryServiceCliConfig";
@@ -503,7 +503,7 @@ const telemetryWithConfig = TelemetryServiceLive.pipe(
   Layer.provide(TelemetryServiceCliConfigLayer)
 );
 
-const layer = SWEBenchPythonBridgeServiceLive.pipe(
+const layer = SWEBenchPythonBridgeServiceTelemetryLive.pipe(
   Layer.provide(Layer.mergeAll(
     telemetryWithConfig,
     NodeFileSystem.layer
