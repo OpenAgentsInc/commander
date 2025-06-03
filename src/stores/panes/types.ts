@@ -64,6 +64,10 @@ export interface PaneStoreType extends PaneState {
   openEvaluationMonitorPane: (content: { runId: string, outputDir: string, totalTasks: number }) => void;
   openResultsViewerPane: () => void;
   openSweBenchSimpleLauncherPane: () => void;
+  
+  // Telemetry pane actions
+  openTelemetryStreamPane: (runId?: string) => void;
+  toggleTelemetryStreamPane: () => void;
 }
 
 export type SetPaneStore = StoreApi<PaneStoreType>["setState"];

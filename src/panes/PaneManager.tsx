@@ -25,6 +25,8 @@ import { EvaluationLauncherPane } from "@/panes/swebench/EvaluationLauncherPane"
 import { EvaluationMonitorPane } from "@/panes/swebench/EvaluationMonitorPane";
 import { ResultsViewerPane } from "@/panes/swebench/ResultsViewerPane";
 import { SweBenchSimpleLauncherPane } from "@/panes/swebench/SweBenchSimpleLauncherPane";
+// Import Telemetry pane component
+import { TelemetryStreamPane } from "@/components/telemetry";
 
 // Placeholder Content Components
 const PlaceholderChatComponent = ({ threadId }: { threadId?: string }) => (
@@ -200,6 +202,12 @@ export const PaneManager = () => {
           {pane.type === "swe_bench_simple_launcher" && (
             <SweBenchSimpleLauncherPane pane={pane} />
           )}
+          {pane.type === "telemetry_stream" && (
+            <TelemetryStreamPane 
+              runId={pane.content?.runId as string | undefined}
+              autoScroll={true}
+            />
+          )}
           {pane.type === "default" && (
             <PlaceholderDefaultComponent type={pane.type} />
           )}
@@ -230,6 +238,7 @@ export const PaneManager = () => {
             pane.type === "swe_bench_evaluation_monitor" ||
             pane.type === "swe_bench_results_viewer" ||
             pane.type === "swe_bench_simple_launcher" ||
+            pane.type === "telemetry_stream" ||
             pane.type === "default"
           ) && <PlaceholderDefaultComponent type={pane.type} />}
         </PaneComponent>

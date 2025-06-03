@@ -86,3 +86,10 @@ export const SWE_BENCH_RESULTS_VIEWER_PANE_TITLE = "SWE-Bench: Results";
 export const SWE_BENCH_SIMPLE_LAUNCHER_PANE_TYPE = "swe_bench_simple_launcher";
 export const SWE_BENCH_SIMPLE_LAUNCHER_PANE_ID_CONST = "swe_bench_simple_launcher_main";
 export const SWE_BENCH_SIMPLE_LAUNCHER_PANE_TITLE = "SWE-Bench Launcher";
+
+// Telemetry Stream Pane
+export const TELEMETRY_STREAM_PANE_TYPE = "telemetry_stream";
+export const TELEMETRY_STREAM_PANE_ID_CONST = "telemetry_stream_main";
+export const TELEMETRY_STREAM_PANE_TITLE = "Telemetry Stream";
+export const TELEMETRY_STREAM_PANE_DEFAULT_WIDTH = 600;
+export const TELEMETRY_STREAM_PANE_DEFAULT_HEIGHT = 500;
