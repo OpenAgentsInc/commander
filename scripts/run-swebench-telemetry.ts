@@ -181,18 +181,15 @@ const program = Effect.gen(function* () {
 
       // Generate patch with telemetry
       console.log(`  🤖 Generating patch...`);
-      const result = yield* pipe(
-        generatePatchWithClaudeTelemetry(task, {
-          maxRetries: 2,
-          includeTestInfo: true,
-          streamingCallback: (msg) => {
-            if (msg.type === 'assistant') process.stdout.write('.');
-          },
-          debug: false,
-          timeout: 120000 // 2 minutes
-        }),
-        Effect.provideService(TelemetryService, telemetry)
-      );
+      const result = yield* generatePatchWithClaudeTelemetry(task, {
+        maxRetries: 2,
+        includeTestInfo: true,
+        streamingCallback: (msg) => {
+          if (msg.type === 'assistant') process.stdout.write('.');
+        },
+        debug: false,
+        timeout: 120000 // 2 minutes
+      });
       
       console.log(); // New line after dots
 

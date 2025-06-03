@@ -178,3 +178,23 @@ Starting the comprehensive evaluation with all telemetry features:
 - Plus pane management files for UI integration
 
 The evaluation will continue running and generate the full SWE-bench results with percentage complete as requested.
+
+### [03:30] Telemetry Diagnosis Complete
+**Diagnosed Issues:**
+1. ❌ Effect.runSync in async callbacks without service context
+2. ❌ Redundant service provision in Effect pipeline
+3. ❌ Incorrect layer composition for shared dependencies
+
+**Solutions Identified:**
+1. ✅ Capture runtime context for async callbacks
+2. ✅ Remove redundant service provisions
+3. ✅ Proper layer composition with shared FileSystem
+4. ✅ Created SWEBenchPythonBridgeServiceTelemetryFixed.ts
+
+**Current Evaluation Status:**
+- 39/50 patches generated (78% complete)
+- Currently processing astropy__astropy-13838
+- Direct evaluation continuing without issues
+- Will provide full SWE-bench percentage when complete
+
+See `/docs/logs/20250603/1550-swebench-telemetry-diagnosis.md` for detailed analysis.
