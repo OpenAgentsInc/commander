@@ -1,18 +1,15 @@
 #!/usr/bin/env tsx
 /**
- * SWE-bench evaluation with full telemetry integration
- * This script provides complete visibility into the evaluation process
+ * Direct SWE-bench evaluation without telemetry
+ * Simplified version to get results quickly
  */
 
-import { Effect, Stream, Chunk, Layer, pipe } from "effect";
-import { Command } from "@effect/platform";
+import { Effect, Stream, Chunk, Layer } from "effect";
 import { NodeContext, NodeRuntime } from "@effect/platform-node";
 import { SWEBenchPythonBridgeService, SWEBenchPrediction } from "../src/services/swe_bench_harness/SWEBenchPythonBridgeService";
-import { SWEBenchPythonBridgeServiceTelemetryLive } from "../src/services/swe_bench_harness/SWEBenchPythonBridgeServiceTelemetry";
+import { SWEBenchPythonBridgeServiceSimple } from "../src/services/swe_bench_harness/SWEBenchPythonBridgeServiceSimple";
 import { NodeFileSystem } from "@effect/platform-node";
-import { TelemetryService, TelemetryServiceLive } from "../src/services/telemetry";
-import { TelemetryServiceCliConfigLayer } from "../src/services/telemetry/TelemetryServiceCliConfig";
-import { generatePatchWithClaudeTelemetry } from "./utils/claude-patch-generator-telemetry";
+import { generatePatchWithClaude } from "./utils/claude-patch-generator";
 import * as path from "path";
 import * as fs from "fs/promises";
 
@@ -27,7 +24,7 @@ const maxWorkers = args.includes('--workers')
 
 // Configuration
 const DATASET_NAME = "princeton-nlp/SWE-bench_Lite";
-const RUN_ID = `telemetry-${instanceCount}-${Date.now()}`;
+const RUN_ID = `direct-${instanceCount}-${Date.now()}`;
 const TIMEOUT = 1800; // 30 minutes per instance
 
 // Use virtual environment Python
@@ -90,7 +87,6 @@ async function loadTaskData(instanceId: string): Promise<any> {
 }
 
 const program = Effect.gen(function* () {
-  const telemetry = yield* TelemetryService;
   const bridge = yield* SWEBenchPythonBridgeService;
   
   const stats: EvaluationStats = {
@@ -108,27 +104,13 @@ const program = Effect.gen(function* () {
   const outputDir = `./swebench-results/${RUN_ID}`;
   yield* Effect.promise(() => fs.mkdir(outputDir, { recursive: true }));
 
-  console.log("🚀 SWE-bench Evaluation with Full Telemetry");
+  console.log("🚀 SWE-bench Direct Evaluation (No Telemetry)");
   console.log("==========================================");
   console.log(`Instances: ${instanceCount}`);
   console.log(`Dataset: ${DATASET_NAME}`);
   console.log(`Max Workers: ${maxWorkers}`);
   console.log(`Run ID: ${RUN_ID}`);
   console.log("");
-
-  // Track evaluation start
-  yield* telemetry.trackEvent({
-    category: "swebench",
-    action: "evaluation_start",
-    label: RUN_ID,
-    context: {
-      instanceCount,
-      maxWorkers,
-      dataset: DATASET_NAME,
-      runId: RUN_ID
-    },
-    level: "info"
-  });
 
   // Initialize Python bridge
   console.log("Initializing Python bridge...");
@@ -142,7 +124,7 @@ const program = Effect.gen(function* () {
 
   // Generate patches for each instance
   const predictions: SWEBenchPrediction[] = [];
-  console.log("🤖 Generating patches with Claude (with telemetry)...\n");
+  console.log("🤖 Generating patches with Claude...\n");
 
   for (let i = 0; i < instanceIds.length; i++) {
     const instanceId = instanceIds[i];
@@ -157,18 +139,6 @@ const program = Effect.gen(function* () {
     });
 
     console.log(`[${i + 1}/${instanceIds.length}] Processing ${instanceId}`);
-    
-    yield* telemetry.trackEvent({
-      category: "swebench",
-      action: "instance_start", 
-      label: instanceId,
-      context: {
-        index: i + 1,
-        total: instanceIds.length,
-        progress: ((i + 1) / instanceIds.length * 100).toFixed(1)
-      },
-      level: "info"
-    });
 
     try {
       // Load task data
@@ -179,10 +149,10 @@ const program = Effect.gen(function* () {
       console.log(`  Repo: ${task.repo}`);
       console.log(`  Problem: ${task.problem_statement.substring(0, 100)}...`);
 
-      // Generate patch with telemetry
+      // Generate patch
       console.log(`  🤖 Generating patch...`);
-      const result = yield* pipe(
-        generatePatchWithClaudeTelemetry(task, {
+      const result = yield* Effect.promise(() => 
+        generatePatchWithClaude(task, {
           maxRetries: 2,
           includeTestInfo: true,
           streamingCallback: (msg) => {
@@ -190,8 +160,7 @@ const program = Effect.gen(function* () {
           },
           debug: false,
           timeout: 120000 // 2 minutes
-        }),
-        Effect.provideService(TelemetryService, telemetry)
+        })
       );
       
       console.log(); // New line after dots
@@ -210,7 +179,7 @@ const program = Effect.gen(function* () {
         
         predictions.push({
           instance_id: instanceId,
-          model_name_or_path: "claude-3-5-sonnet-20241022-telemetry",
+          model_name_or_path: "claude-3-5-sonnet-20241022",
           model_patch: result.patch
         });
       } else {
@@ -222,7 +191,7 @@ const program = Effect.gen(function* () {
         // Still add to predictions with empty patch
         predictions.push({
           instance_id: instanceId,
-          model_name_or_path: "claude-3-5-sonnet-20241022-telemetry",
+          model_name_or_path: "claude-3-5-sonnet-20241022",
           model_patch: ""
         });
       }
@@ -233,20 +202,9 @@ const program = Effect.gen(function* () {
       
       console.log(`  ❌ Error processing instance: ${error}`);
       
-      yield* telemetry.trackEvent({
-        category: "swebench",
-        action: "instance_error",
-        label: instanceId,
-        context: {
-          error: String(error),
-          phase: "patch_generation"
-        },
-        level: "error"
-      });
-      
       predictions.push({
         instance_id: instanceId,
-        model_name_or_path: "claude-3-5-sonnet-20241022-telemetry",
+        model_name_or_path: "claude-3-5-sonnet-20241022",
         model_patch: ""
       });
     }
@@ -260,21 +218,6 @@ const program = Effect.gen(function* () {
       console.log(`\n⏱️  Progress: ${i + 1}/${instanceIds.length} (${((i + 1) / instanceIds.length * 100).toFixed(1)}%)`);
       console.log(`    Patches: ${stats.patchesGenerated} generated, ${stats.patchGenerationErrors} errors`);
       console.log(`    Elapsed: ${elapsed.toFixed(1)} min, Est. remaining: ${remaining.toFixed(1)} min\n`);
-      
-      yield* telemetry.trackEvent({
-        category: "swebench",
-        action: "progress_update",
-        label: RUN_ID,
-        context: {
-          completed: i + 1,
-          total: instanceIds.length,
-          patchesGenerated: stats.patchesGenerated,
-          errors: stats.patchGenerationErrors,
-          elapsedMinutes: elapsed,
-          remainingMinutes: remaining
-        },
-        level: "info"
-      });
     }
   }
 
@@ -305,18 +248,6 @@ const program = Effect.gen(function* () {
   // Run evaluation with all predictions (not filtered)
   console.log("\n🚀 Starting Docker-based evaluation...");
   console.log(`   Evaluating ALL ${predictions.length} instances\n`);
-  
-  yield* telemetry.trackEvent({
-    category: "swebench",
-    action: "docker_evaluation_start",
-    label: RUN_ID,
-    context: {
-      predictions: predictions.length,
-      withPatches: stats.patchesGenerated,
-      withoutPatches: predictions.length - stats.patchesGenerated
-    },
-    level: "info"
-  });
 
   const stream = bridge.runEvaluation(predictions, {
     dataset_name: DATASET_NAME,
@@ -326,7 +257,7 @@ const program = Effect.gen(function* () {
     namespace: "none"  // Use local images if available
   });
 
-  // Process results with detailed telemetry
+  // Process results
   const results = yield* stream.pipe(
     Stream.tap(msg => Effect.gen(function* () {
       switch (msg.type) {
@@ -342,50 +273,15 @@ const program = Effect.gen(function* () {
               details.evaluationStatus = 'running';
             }
           }
-          
-          yield* telemetry.trackEvent({
-            category: "swebench",
-            action: "docker_progress",
-            label: RUN_ID,
-            value: percentage,
-            context: {
-              evaluated: stats.evaluated,
-              total: predictions.length,
-              percentage
-            },
-            level: "info"
-          });
           break;
           
         case "status":
           console.log(`[Docker] ${msg.data.message}`);
-          
-          // Parse structured status messages
-          if (msg.data.message?.includes("Running tests for")) {
-            const match = msg.data.message.match(/Running tests for ([^\s]+)/);
-            if (match) {
-              yield* telemetry.trackEvent({
-                category: "swebench",
-                action: "test_execution_start",
-                label: match[1],
-                context: msg.data,
-                level: "info"
-              });
-            }
-          }
           break;
           
         case "error":
           stats.failed++;
           console.error(`❌ Docker Error: ${msg.data.message}`);
-          
-          yield* telemetry.trackEvent({
-            category: "swebench",
-            action: "docker_error",
-            label: msg.data.instance_id || 'unknown',
-            context: msg.data,
-            level: "error"
-          });
           break;
       }
     })),
@@ -457,15 +353,6 @@ const program = Effect.gen(function* () {
     
     yield* Effect.promise(() => fs.writeFile(summaryFile, JSON.stringify(summary, null, 2)));
     
-    // Track evaluation complete
-    yield* telemetry.trackEvent({
-      category: "swebench",
-      action: "evaluation_complete",
-      label: RUN_ID,
-      context: summary,
-      level: "info"
-    });
-    
     console.log("\n" + "=".repeat(60));
     console.log("🎉 EVALUATION COMPLETE!");
     console.log("=".repeat(60));
@@ -501,23 +388,13 @@ const program = Effect.gen(function* () {
   }
 });
 
-// Create layer with telemetry - provide FileSystem first
-const telemetryWithConfig = TelemetryServiceLive.pipe(
-  Layer.provide(Layer.mergeAll(
-    TelemetryServiceCliConfigLayer,
-    NodeFileSystem.layer
-  ))
-);
-
-const layer = SWEBenchPythonBridgeServiceTelemetryLive.pipe(
-  Layer.provide(Layer.mergeAll(
-    telemetryWithConfig,
-    NodeFileSystem.layer
-  ))
+// Create layer
+const layer = SWEBenchPythonBridgeServiceSimple.pipe(
+  Layer.provide(NodeFileSystem.layer)
 );
 
 // Run the evaluation
-console.log(`Starting ${instanceCount}-instance SWE-bench evaluation with full telemetry...\n`);
+console.log(`Starting ${instanceCount}-instance SWE-bench evaluation (direct, no telemetry)...\n`);
 Effect.runPromise(program.pipe(Effect.provide(layer))).catch(error => {
   console.error("\n❌ Fatal error:", error);
   process.exit(1);

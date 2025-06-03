@@ -29,29 +29,10 @@ export function generatePatchWithClaudeTelemetry(
       level: "info"
     });
 
-    // Track each attempt
+    // Pass through options without modifying the streaming callback
+    // (streaming telemetry would require complex Effect context handling)
     const enhancedOptions: PatchGenerationOptions = {
-      ...options,
-      streamingCallback: (msg: ClaudeStreamMessage) => {
-        // Call original callback if provided
-        if (options.streamingCallback) {
-          options.streamingCallback(msg);
-        }
-        
-        // Track streaming progress
-        if (msg.type === 'assistant') {
-          Effect.runSync(telemetry.trackEvent({
-            category: "swebench",
-            action: "patch_streaming",
-            label: task.instance_id,
-            context: {
-              messageType: msg.type,
-              contentLength: msg.content?.length || 0
-            },
-            level: "debug"
-          }));
-        }
-      }
+      ...options
     };
 
     // Generate patch using the original function
