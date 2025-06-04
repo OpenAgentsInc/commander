@@ -5,7 +5,7 @@
 
 import { Effect, Stream, Chunk, Layer } from "effect";
 import { SWEBenchPythonBridgeService, SWEBenchPrediction } from "../src/services/swe_bench_harness/SWEBenchPythonBridgeService";
-import { SWEBenchPythonBridgeServiceTargeted } from "../src/services/swe_bench_harness/SWEBenchPythonBridgeServiceTargeted";
+import { SWEBenchPythonBridgeServiceSimple } from "../src/services/swe_bench_harness/SWEBenchPythonBridgeServiceSimple";
 import { NodeFileSystem } from "@effect/platform-node";
 import * as fs from "fs/promises";
 import * as path from "path";
@@ -151,7 +151,7 @@ const program = Effect.gen(function* () {
 });
 
 // Create layer with targeted service
-const layer = SWEBenchPythonBridgeServiceTargeted.pipe(
+const layer = SWEBenchPythonBridgeServiceSimple.pipe(
   Layer.provide(NodeFileSystem.layer)
 );
 
