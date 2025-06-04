@@ -23,12 +23,33 @@ def download_swebench_lite_data():
     data_path = Path("swebench_lite_data.json")
     if not data_path.exists():
         print("📥 Downloading SWE-bench Lite dataset...")
-        url = "https://raw.githubusercontent.com/princeton-nlp/SWE-bench/main/swebench_lite.json"
-        response = requests.get(url)
-        response.raise_for_status()
+        # Try multiple possible URLs
+        urls = [
+            "https://raw.githubusercontent.com/princeton-nlp/SWE-bench/main/swebench/data/swe-bench-lite.json",
+            "https://github.com/princeton-nlp/SWE-bench/raw/main/data/swe-bench-lite.json",
+            "https://huggingface.co/datasets/princeton-nlp/SWE-bench_Lite/raw/main/data/test-00000-of-00001.parquet"
+        ]
+        
+        for url in urls:
+            try:
+                response = requests.get(url)
+                response.raise_for_status()
+                if url.endswith('.parquet'):
+                    # Would need to convert parquet to json
+                    continue
+                with open(data_path, 'w') as f:
+                    json.dump(response.json(), f)
+                print("✅ Dataset downloaded")
+                return data_path
+            except:
+                continue
+                
+        # If downloads fail, use the local swebench module
+        print("⚠️  Download failed, using local dataset")
+        from swebench.harness.utils import load_swebench_dataset
+        dataset = load_swebench_dataset("princeton-nlp/SWE-bench_Lite", "test")
         with open(data_path, 'w') as f:
-            json.dump(response.json(), f)
-        print("✅ Dataset downloaded")
+            json.dump(dataset, f)
     return data_path
 
 def main():
