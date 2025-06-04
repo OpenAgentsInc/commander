@@ -36,3 +36,5 @@ export * from "./openEvaluationLauncherPane";
 export * from "./openEvaluationMonitorPane";
 export * from "./openResultsViewerPane";
 export * from "./openSweBenchSimpleLauncherPane";
+// Telemetry pane actions
+export * from "./openTelemetryStreamPane";

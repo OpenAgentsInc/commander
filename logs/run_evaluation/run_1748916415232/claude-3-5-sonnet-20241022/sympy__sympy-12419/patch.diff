@@ -1,0 +1,25 @@
+diff --git a/sympy/matrices/expressions/matexpr.py b/sympy/matrices/expressions/matexpr.py
+index 8c532d8b64..1e6b378346 100644
+--- a/sympy/matrices/expressions/matexpr.py
++++ b/sympy/matrices/expressions/matexpr.py
+@@ -18,7 +18,7 @@ from sympy.core.sympify import _sympify
+ from sympy.functions import adjoint, conjugate, transpose
+ from sympy.functions.special.tensor_functions import KroneckerDelta
+ from sympy.matrices import ShapeError
+-from sympy.simplify import simplify
++from sympy.simplify import simplify
+ 
+ 
+ def _sympifyit(arg, retval=None):
+@@ -872,10 +872,7 @@ class Identity(MatrixExpr):
+     conjugate = transpose = inverse = property(lambda self: self)
+ 
+     def _entry(self, i, j):
+-        if i == j:
+-            return S.One
+-        else:
+-            return S.Zero
++        return KroneckerDelta(i, j)
+ 
+     def _eval_trace(self):
+         return self.rows

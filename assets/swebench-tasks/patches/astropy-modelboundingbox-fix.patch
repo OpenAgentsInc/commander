@@ -1,0 +1,51 @@
+diff --git a/astropy/modeling/bounding_box.py b/astropy/modeling/bounding_box.py
+index abc123..def456 100644
+--- a/astropy/modeling/bounding_box.py
++++ b/astropy/modeling/bounding_box.py
+@@ -396,7 +396,10 @@ class ModelBoundingBox(_BoundingDomain):
+         self._intervals = {}
+         self._ignored_inputs = set()
+         self._order = None
+-
++        
++        # Process ignored inputs first to ensure they're tracked properly
++        if ignored is not None:
++            self._ignored_inputs = set(ignored) if isinstance(ignored, list) else {ignored}
++        
+         if intervals is None and limits is None:
+             raise ValueError("Either 'intervals' or 'limits' must be specified.")
+ 
+@@ -411,21 +414,26 @@ class ModelBoundingBox(_BoundingDomain):
+             if not isinstance(ignored, list):
+                 ignored = [ignored]
+ 
++        # Ensure _ignored_inputs is properly initialized from ignored parameter
++        if _ignored is not None:
++            for inp in _ignored:
++                self._ignored_inputs.add(inp)
++
+         if isinstance(intervals, dict):
+             self._intervals = {}
+             for key, value in intervals.items():
+                 model_key = model_set_axis if key == "model_set_axis" else key
+-                if _ignored is not None and key in _ignored:
+-                    self._ignored_inputs.add(key)
+-                else:
++                # Only add to intervals if not in ignored_inputs
++                if key not in self._ignored_inputs:
+                     self._intervals[key] = _Interval(*value)
+         else:
+             # If intervals is not a dict, assume it's a sequence of intervals
+             # corresponding to model inputs in order
+             self._intervals = {}
+             for i, (key, value) in enumerate(zip(self._get_default_inputs(n_inputs), intervals)):
+-                if _ignored is not None and key in _ignored:
+-                    self._ignored_inputs.add(key)
++                # Skip adding intervals for ignored inputs
++                if key in self._ignored_inputs:
+                     continue
+-                self._intervals[key] = _Interval(*value)
++                else:
++                    self._intervals[key] = _Interval(*value)
+ 
+         self._order = order

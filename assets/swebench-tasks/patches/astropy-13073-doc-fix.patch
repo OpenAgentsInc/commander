@@ -1,0 +1,38 @@
+diff --git a/docs/io/ascii/read.rst b/docs/io/ascii/read.rst
+--- a/docs/io/ascii/read.rst
++++ b/docs/io/ascii/read.rst
+@@ -589,6 +589,31 @@ In addition to passing a single converter function for each column, you
+ can also pass a list of converters.  This provides a way to specify a
+ desired output type along with a backup if the primary conversion fails.
+ 
++**Simplified converter syntax**
++
++For convenience, you can specify converters using data types directly without
++wrapping them in ``convert_numpy()``::
++
++    >>> # Convert specific columns to specific types
++    >>> converters = {'col1': str, 'col2': np.float32}
++    >>> dat = ascii.read('file.dat', converters=converters)
++
++**Reading True/False as boolean**
++
++By default, columns containing only "True" and "False" strings are read as strings.
++To read these as boolean values, you can use converters with a wildcard pattern::
++
++    >>> from astropy.io.ascii import convert_numpy
++    >>> converters = {'*': [convert_numpy(typ) for typ in (int, float, bool, str)]}
++    >>> dat = Table.read(filename, format='ascii', converters=converters)
++
++This converter specification will attempt to convert each column first as ``int``,
++then ``float``, then ``bool``, and finally ``str``. This ensures that columns with
++"True"/"False" values are properly converted to boolean type while maintaining
++appropriate types for numeric columns.
++
++With the simplified syntax, you can also write this more concisely as::
++
++    >>> converters = {'*': [int, float, bool, str]}
++    >>> dat = Table.read(filename, format='ascii', converters=converters)
++
+ .. _io-ascii-read-fast_reader:
+ 
+ Fast ASCII I/O

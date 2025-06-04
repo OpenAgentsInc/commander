@@ -39,6 +39,9 @@ import {
   openEvaluationMonitorPaneAction,
   openResultsViewerPaneAction,
   openSweBenchSimpleLauncherPaneAction,
+  // Telemetry pane actions
+  openTelemetryStreamPaneAction,
+  toggleTelemetryStreamPaneAction,
 } from "./panes/actions";
 import {
   DEFAULT_NIP28_PANE_ID,
@@ -197,6 +200,10 @@ export const usePaneStore = create<PaneStoreType>()(
       openEvaluationMonitorPane: (content) => openEvaluationMonitorPaneAction(set, get, content),
       openResultsViewerPane: () => openResultsViewerPaneAction(set, get),
       openSweBenchSimpleLauncherPane: () => openSweBenchSimpleLauncherPaneAction(set, get),
+      
+      // Telemetry pane actions
+      openTelemetryStreamPane: (runId?: string) => openTelemetryStreamPaneAction(set, get, runId),
+      toggleTelemetryStreamPane: () => toggleTelemetryStreamPaneAction(set, get),
       
       resetHUDState: () => {
         // Force recreate initial panes with current screen dimensions

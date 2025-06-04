@@ -1,0 +1,24 @@
+diff --git a/astropy/io/ascii/ecsv.py b/astropy/io/ascii/ecsv.py
+index abc123..def456 100644
+--- a/astropy/io/ascii/ecsv.py
++++ b/astropy/io/ascii/ecsv.py
+@@ -11,6 +11,7 @@ Enhanced Character Separated Values table format
+ 
+ import re
+ from collections import OrderedDict
++import warnings
+ 
+ import numpy as np
+ 
+@@ -174,8 +175,9 @@ class EcsvHeader(basic.BasicHeader):
+             else:
+                 col.dtype = header_cols[col.name]['datatype']
+                 if col.dtype not in ECSV_DATATYPES:
+-                    raise ValueError(f'datatype {col.dtype!r} of column {col.name!r} '
+-                                     f'is not in allowed values {ECSV_DATATYPES}')
++                    warnings.warn(f'datatype {col.dtype!r} of column {col.name!r} '
++                                  f'is not in allowed values {ECSV_DATATYPES}',
++                                  UserWarning)
+ 
+                 # Subtype is written like "int64[2,null]" and we want to split this
+                 # out to "int64" and [2, None].

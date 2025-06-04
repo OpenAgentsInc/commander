@@ -1,0 +1,25 @@
+diff --git a/sympy/matrices/expressions/special.py b/sympy/matrices/expressions/special.py
+index d00a485818..4155c19c5f 100644
+--- a/sympy/matrices/expressions/special.py
++++ b/sympy/matrices/expressions/special.py
+@@ -2,7 +2,7 @@ from __future__ import print_function, division
+ 
+ from sympy import ask, Q
+ from sympy.core import Basic, S
+-from sympy.functions import adjoint
++from sympy.functions import adjoint, KroneckerDelta
+ from sympy.matrices.expressions.matexpr import MatrixExpr
+ from sympy.matrices.expressions.matpow import MatPow
+ from sympy.matrices.expressions.transpose import transpose
+@@ -123,10 +123,7 @@ class Identity(MatrixExpr):
+         return self
+ 
+     def _entry(self, i, j):
+-        if i == j:
+-            return S.One
+-        else:
+-            return S.Zero
++        return KroneckerDelta(i, j)
+ 
+     def _eval_determinant(self):
+         return S.One

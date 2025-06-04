@@ -1,0 +1,10 @@
+diff --git a/django/contrib/auth/forms.py b/django/contrib/auth/forms.py
+index abc123..def456 100644
+--- a/django/contrib/auth/forms.py
++++ b/django/contrib/auth/forms.py
+@@ -1,5 +1,6 @@
+ from __future__ import unicode_literals
+ 
++# Test patch for SWE-bench evaluation
+ from django import forms
+ from django.contrib.auth import authenticate
